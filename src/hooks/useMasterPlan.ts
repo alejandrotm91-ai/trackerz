@@ -324,6 +324,7 @@ export function useMasterPlan(isLoggedIn = false) {
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [loadingPhase, setLoadingPhase] = useState<string>('');
   const isUploadingRef = useRef<boolean>(false);
+  const isPublishingRef = useRef<boolean>(false);
 
   // Google Drive integration states
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
@@ -728,6 +729,10 @@ export function useMasterPlan(isLoggedIn = false) {
   }, [isLoggedIn]);
 
   const publishPlanToFirebase = async () => {
+    if (isPublishingRef.current) {
+      alert('Ya hay un proceso de publicación en curso. Por favor espere a que finalice.');
+      return;
+    }
     if (loadingProgress > 0 || (loadingPhase && loadingPhase.trim() !== '')) {
       alert('Ya hay un proceso de carga o sincronización en curso. Por favor espere a que finalice.');
       return;
@@ -737,6 +742,7 @@ export function useMasterPlan(isLoggedIn = false) {
       return;
     }
     
+    isPublishingRef.current = true;
     setLoadingProgress(5);
     setLoadingPhase('Sincronizando y publicando en la nube (Firebase)...');
     
@@ -780,6 +786,7 @@ export function useMasterPlan(isLoggedIn = false) {
     } finally {
       setLoadingProgress(0);
       setLoadingPhase('');
+      isPublishingRef.current = false;
     }
   };
 

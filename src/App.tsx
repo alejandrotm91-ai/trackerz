@@ -1078,11 +1078,13 @@ export default function App() {
                         {pc.fileData && (
                           <button
                             id="btn-publish-firebase"
+                            disabled={pc.loadingProgress > 0}
                             onClick={async () => {
+                              if (pc.loadingProgress > 0) return;
                               await pc.publishPlanToFirebase();
                               setIsSyncMenuOpen(false);
                             }}
-                            className="w-full py-2 bg-[#5200ff] hover:bg-[#4300d6] active:bg-[#3400a3] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                            className={`w-full py-2 bg-[#5200ff] hover:bg-[#4300d6] active:bg-[#3400a3] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 ${pc.loadingProgress > 0 ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
                             title="Sincronizar y publicar este plan en la nube de Firebase para todos los usuarios"
                           >
                             <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
