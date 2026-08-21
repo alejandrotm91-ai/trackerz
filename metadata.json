@@ -1,0 +1,6 @@
+{
+  "name": "Master Plan Tracker",
+  "description": "Seguimiento de avance del Master Plan con análisis de cronograma, curvas de avance, certificación y control de dotación de personal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
