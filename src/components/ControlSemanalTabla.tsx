@@ -4,18 +4,20 @@
  */
 
 import React from 'react';
-import { Download, ChevronRight, ChevronDown, FileSpreadsheet, Check, Copy, ChevronsUpDown, ChevronsDownUp, Calendar, Filter, Search, Minus, ArrowUp, ArrowDown, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { Download, ChevronRight, ChevronDown, FileSpreadsheet, Check, Copy, ChevronsUpDown, ChevronsDownUp, Calendar, Filter, Search, Minus, ArrowUp, ArrowDown, ArrowUpDown, RotateCcw, CheckCircle2, Percent } from 'lucide-react';
 
 export interface ControlSemanalTablaProps {
   actividades: any[];
   dataPlanificadoPG004?: any;
   baseVenta?: string;
+  soloTablaYSemana?: boolean;
 }
 
 export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   actividades,
   dataPlanificadoPG004,
   baseVenta = 'venta',
+  soloTablaYSemana = false,
 }) => {
   const [selectedWeeks, setSelectedWeeks] = React.useState<Set<string>>(new Set());
   const [isAllSelected, setIsAllSelected] = React.useState<boolean>(true);
@@ -32,12 +34,15 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   const [isSubCDropdownOpen, setIsSubCDropdownOpen] = React.useState<boolean>(false);
 
   const [filterVariacion, setFilterVariacion] = React.useState<'all' | 'pos' | 'neg'>('all');
+  const [filterPlanEjec, setFilterPlanEjec] = React.useState<'all' | 'plan' | 'ejec'>('all');
   const [isVariacionDropdownOpen, setIsVariacionDropdownOpen] = React.useState<boolean>(false);
   const [excludePartidaD, setExcludePartidaD] = React.useState<boolean>(false);
-  const [variacionSort, setVariacionSort] = React.useState<'asc' | 'desc'>('asc');
+  const [sortColumn, setSortColumn] = React.useState<'wbs' | 'variacion'>('wbs');
+  const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('asc');
   const [isTipologiasSummaryOpen, setIsTipologiasSummaryOpen] = React.useState<boolean>(false);
   const [searchQuery, setSearchQuery] = React.useState<string>('');
   const [filterCheckSet, setFilterCheckSet] = React.useState<'all' | 'retraso' | 'adelanto' | 'en_plazo'>('all');
+  const [modoPorcentaje, setModoPorcentaje] = React.useState<'total' | 'ponderado'>('total');
   const [isCardCollapsed, setIsCardCollapsed] = React.useState<boolean>(false);
   const [isExpandMenuOpen, setIsExpandMenuOpen] = React.useState<boolean>(false);
   const [copied, setCopied] = React.useState<boolean>(false);
@@ -49,6 +54,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   const [qsDay, setQsDay] = React.useState<string>('');
 
   // Hierarchy expansion state
+  const [expandedComponentes, setExpandedComponentes] = React.useState<Set<string>>(new Set());
   const [expandedTipos, setExpandedTipos] = React.useState<Set<string>>(new Set());
   const [expandedRESPs, setExpandedRESPs] = React.useState<Set<string>>(new Set());
   const [expandedSCAPs, setExpandedSCAPs] = React.useState<Set<string>>(new Set());
@@ -185,9 +191,13 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   };
 
   const fmtMoney = (v: number) => (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtMillions = (v: number) => `${((v || 0) / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
   const fmtDNum = (d: number) => d < 0 
     ? `($${Math.abs(d).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` 
     : `$${(d || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtDNumMillions = (d: number) => d < 0 
+    ? `($${fmtMillions(Math.abs(d))})` 
+    : `$${fmtMillions(d)}`;
 
   const fmtDateVal = (d: Date | string | null | undefined): string => {
     if (!d) return '—';
@@ -254,6 +264,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       else if (wbsLower && planificadoPG004LowerIndex[wbsLower]) planDict = planificadoPG004LowerIndex[wbsLower];
     }
 
+    const contratoDict = (item.planificadoPorFecha && Object.keys(item.planificadoPorFecha).length > 0)
+      ? item.planificadoPorFecha
+      : null;
+
     const ejecDict = (item.certificacionesPorFecha && Object.keys(item.certificacionesPorFecha).length > 0)
       ? item.certificacionesPorFecha
       : null;
@@ -264,6 +278,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     const isTotalMode = isAllSelected || activeWeekSet.size === availableWeeks.length;
 
     if (isTotalMode) {
+      // 1. V.Plan
       if (hasDatePlanDict) {
         vPlan = Object.entries(planDict).reduce((sum: number, [k, val]: [string, any]) => {
           return sum + (/^\d{4}-\d{2}-\d{2}$/.test(k) ? (Number(val) || 0) : 0);
@@ -272,6 +287,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
         vPlan = item.ventaPlan || 0;
       }
 
+      // 2. V.Ejec
       if (hasDateEjecDict) {
         const sumEjec = Object.entries(ejecDict).reduce((sum: number, [k, val]: [string, any]) => {
           return sum + (/^\d{4}-\d{2}-\d{2}$/.test(k) ? (Number(val) || 0) : 0);
@@ -281,6 +297,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
         vEjec = item.ventaEjecutada || 0;
       }
     } else {
+      // 1. V.Plan
       if (hasDatePlanDict) {
         Object.entries(planDict).forEach(([k, val]) => {
           if (activeWeekSet.has(k)) vPlan += Number(val) || 0;
@@ -292,6 +309,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
         }
       }
 
+      // 2. V.Ejec
       if (hasDateEjecDict) {
         Object.entries(ejecDict).forEach(([k, val]) => {
           if (activeWeekSet.has(k)) vEjec += Number(val) || 0;
@@ -304,27 +322,32 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       }
     }
 
-    const vContrato = getVB(item);
+    // 3. V.Contrato (Valor estático de la columna I del master en CDO con SUMAR.SI para p6)
+    const vContrato = Number(item.venta) || 0;
+
     const variacion = vEjec - vPlan;
 
     return { vPlan, vEjec, vContrato, variacion };
-  }, [isAllSelected, activeWeekSet, availableWeeks.length, dataPlanificadoPG004, planificadoPG004LowerIndex, baseVenta]);
+  }, [isAllSelected, activeWeekSet, availableWeeks.length, dataPlanificadoPG004, planificadoPG004LowerIndex]);
 
   const getItemPrecio = React.useCallback((item: any): number => {
     if (item.precio && typeof item.precio === 'number' && item.precio > 0) {
       return item.precio;
     }
-    const v = baseVenta === 'contrato' ? (item.ventaM || 0) : (item.venta || 0);
+    const v = Number(item.venta) || 0;
     const q = item.cantidadCdo;
     if (v > 0 && typeof q === 'number' && q > 0) {
       return v / q;
     }
     return 0;
-  }, [baseVenta]);
+  }, []);
 
   const getCantidadTooltipForItem = React.useCallback((item: any, valorEcon: number, label: string) => {
     let extraInfo = '';
-    if (label.includes('Plan')) {
+    if (label.includes('Contrato')) {
+      const acumContrato = Number(item.venta) || 0;
+      extraInfo = `💰 Presupuesto Contrato (Col I): $${acumContrato.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+    } else if (label.includes('Plan')) {
       const acumPlan = item.ventaPlan || 0;
       extraInfo = `💰 Acum. Planificado (AS): $${acumPlan.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     } else if (label.includes('Ejec.')) {
@@ -581,6 +604,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     setSelectedSubCs(new Set());
     setExcludePartidaD(false);
     setFilterVariacion('all');
+    setFilterPlanEjec('all');
     setSearchQuery('');
     setFilterCheckSet('all');
   }, []);
@@ -593,6 +617,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     if (!isAllSubCsSelected && selectedSubCs.size > 0 && selectedSubCs.size < subCsDisponibles.length) count++;
     if (excludePartidaD) count++;
     if (filterVariacion !== 'all') count++;
+    if (filterPlanEjec !== 'all') count++;
     if (searchQuery.trim() !== '') count++;
     if (filterCheckSet !== 'all') count++;
     return count;
@@ -601,7 +626,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     isAllTipologiasSelected, selectedTipologias.size, tipologíasDisponibles.length,
     isAllStatusSelected, selectedStatuses.size, statusDisponibles.length,
     isAllSubCsSelected, selectedSubCs.size, subCsDisponibles.length,
-    excludePartidaD, filterVariacion, searchQuery, filterCheckSet
+    excludePartidaD, filterVariacion, filterPlanEjec, searchQuery, filterCheckSet
   ]);
 
   const hasActiveFilters = activeFiltersCount > 0;
@@ -621,7 +646,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     return false;
   }, []);
 
-  const leafItems = React.useMemo(() => {
+  const baseLeafItems = React.useMemo(() => {
     if (!actividades) return [];
     const isTotalMode = isAllSelected || activeWeekSet.size === availableWeeks.length;
 
@@ -634,8 +659,6 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
 
       if (!isTotalMode) {
         if (vPlan === 0 && vEjec === 0) return false;
-      } else {
-        if (vPlan === 0 && vEjec === 0 && (item.ventaPlan || 0) === 0 && (item.ventaEjecutada || 0) === 0) return false;
       }
 
       if (!isAllTipologiasSelected && activeTipologiaSet.size < tipologíasDisponibles.length) {
@@ -686,6 +709,22 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     filterVariacion, searchQuery, excludePartidaD, isPartidaD, filterCheckSet
   ]);
 
+  const leafItems = React.useMemo(() => {
+    if (filterPlanEjec === 'plan') {
+      return baseLeafItems.filter(item => {
+        const { vPlan } = getItemWeekValues(item);
+        return vPlan > 0.001;
+      });
+    }
+    if (filterPlanEjec === 'ejec') {
+      return baseLeafItems.filter(item => {
+        const { vEjec } = getItemWeekValues(item);
+        return vEjec > 0.001;
+      });
+    }
+    return baseLeafItems;
+  }, [baseLeafItems, filterPlanEjec, getItemWeekValues]);
+
   // Summary per Tipología for summary cards
   const tipologiasSummary = React.useMemo(() => {
     if (!actividades) return [];
@@ -702,8 +741,6 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
 
       if (!isTotalMode) {
         if (vPlan === 0 && vEjec === 0) return;
-      } else {
-        if (vPlan === 0 && vEjec === 0 && (item.ventaPlan || 0) === 0 && (item.ventaEjecutada || 0) === 0) return;
       }
 
       if (!isAllStatusSelected && activeStatusSet.size < statusDisponibles.length) {
@@ -755,24 +792,63 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     filterVariacion, searchQuery, excludePartidaD, isPartidaD
   ]);
 
-  // Hierarchical grouping: Tipo -> Grupo -> CAP -> SCAP -> SubC -> Items
-  const byTipo = React.useMemo(() => {
-    const tree: Record<string, any> = {};
+  // Hierarchical grouping: Componente (Col. AN) -> Tipo -> Grupo -> CAP -> SCAP -> SubC -> Items
+  const byHierarchy = React.useMemo(() => {
+    const tree: Record<string, Record<string, Record<string, Record<string, Record<string, Record<string, any[]>>>>>> = {};
     leafItems.forEach(item => {
+      const comp = (item.componente || '').trim() || '(Sin Componente)';
       const t = item.tipo || '(Sin Tipo)';
       const g = item.grupo || '(Sin Grupo)';
       const c = item.cap || '(Sin CAP)';
       const s = item.scap || '(Sin SCAP)';
       const subC = (item.subcontratista || item.subC || '').trim() || '(Sin SubC)';
-      if (!tree[t]) tree[t] = {};
-      if (!tree[t][g]) tree[t][g] = {};
-      if (!tree[t][g][c]) tree[t][g][c] = {};
-      if (!tree[t][g][c][s]) tree[t][g][c][s] = {};
-      if (!tree[t][g][c][s][subC]) tree[t][g][c][s][subC] = [];
-      tree[t][g][c][s][subC].push(item);
+
+      if (!tree[comp]) tree[comp] = {};
+      if (!tree[comp][t]) tree[comp][t] = {};
+      if (!tree[comp][t][g]) tree[comp][t][g] = {};
+      if (!tree[comp][t][g][c]) tree[comp][t][g][c] = {};
+      if (!tree[comp][t][g][c][s]) tree[comp][t][g][c][s] = {};
+      if (!tree[comp][t][g][c][s][subC]) tree[comp][t][g][c][s][subC] = [];
+      tree[comp][t][g][c][s][subC].push(item);
     });
     return tree;
   }, [leafItems]);
+
+  const getItemsInComponente = React.useCallback((tipos: any) => {
+    return Object.values(tipos).flatMap((grupos: any) =>
+      Object.values(grupos).flatMap((caps: any) =>
+        Object.values(caps).flatMap((scaps: any) =>
+          Object.values(scaps).flatMap((subCs: any) =>
+            Object.values(subCs).flat()
+          )
+        )
+      )
+    );
+  }, []);
+
+  const getItemsInTipo = React.useCallback((grupos: any) => {
+    return Object.values(grupos).flatMap((caps: any) =>
+      Object.values(caps).flatMap((scaps: any) =>
+        Object.values(scaps).flatMap((subCs: any) =>
+          Object.values(subCs).flat()
+        )
+      )
+    );
+  }, []);
+
+  const getItemsInGrupo = React.useCallback((caps: any) => {
+    return Object.values(caps).flatMap((scaps: any) =>
+      Object.values(scaps).flatMap((subCs: any) =>
+        Object.values(subCs).flat()
+      )
+    );
+  }, []);
+
+  const getItemsInCap = React.useCallback((scaps: any) => {
+    return Object.values(scaps).flatMap((subCs: any) =>
+      Object.values(subCs).flat()
+    );
+  }, []);
 
   const tot = React.useCallback((itemsArr: any[]) => {
     let plan = 0;
@@ -818,7 +894,60 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     return { text: 'Adelanto', bg: 'bg-emerald-100', textC: 'text-emerald-700', dot: 'bg-emerald-500' };
   }, []);
 
+  const kpiTot = React.useMemo(() => tot(baseLeafItems), [tot, baseLeafItems]);
   const globalTot = React.useMemo(() => tot(leafItems), [tot, leafItems]);
+
+  // Total V. Contrato of all raw activities without any search/status filters
+  const totalVContratoUnfiltered = React.useMemo(() => {
+    if (!actividades || !Array.isArray(actividades)) return 0;
+    return actividades.reduce((sum: number, act: any) => {
+      if (!act.esItemHoja) return sum;
+      return sum + (Number(act.venta) || 0);
+    }, 0);
+  }, [actividades]);
+
+  // Map of total V. Contrato per component of all raw activities without any search/status filters
+  const totalVContratoByComponentUnfiltered = React.useMemo(() => {
+    const map = new Map<string, number>();
+    if (!actividades || !Array.isArray(actividades)) return map;
+    actividades.forEach((act: any) => {
+      if (!act.esItemHoja) return;
+      const comp = (act.componente || '').trim() || '(Sin Componente)';
+      const v = Number(act.venta) || 0;
+      map.set(comp, (map.get(comp) || 0) + v);
+    });
+    return map;
+  }, [actividades]);
+
+  // Statistics on how many planned activities have execution in the active period
+  const planEjecStats = React.useMemo(() => {
+    let plannedCount = 0;
+    let plannedWithEjecCount = 0;
+    let ejecCount = 0;
+    let ejecWithPlanCount = 0;
+
+    baseLeafItems.forEach(item => {
+      const { vPlan, vEjec } = getItemWeekValues(item);
+      const hasPlan = vPlan > 0.001;
+      const hasEjec = vEjec > 0.001;
+
+      if (hasPlan) {
+        plannedCount++;
+        if (hasEjec) plannedWithEjecCount++;
+      }
+      if (hasEjec) {
+        ejecCount++;
+        if (hasPlan) ejecWithPlanCount++;
+      }
+    });
+
+    return {
+      plannedCount,
+      plannedWithEjecCount,
+      ejecCount,
+      ejecWithPlanCount,
+    };
+  }, [baseLeafItems, getItemWeekValues]);
 
   const checkSetSummary = React.useMemo(() => {
     const summary: Record<string, {
@@ -873,40 +1002,76 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   }, [leafItems, getAccumulatedCheckSet, getItemWeekValues]);
 
 
-  const sortedTipos = React.useMemo(() => {
-    return Object.entries(byTipo).sort((a, b) => {
-      const itemsA = Object.values(a[1]).flatMap((g: any) => Object.values(g).flatMap((c: any) => Object.values(c).flatMap((s: any) => Object.values(s).flat())));
-      const itemsB = Object.values(b[1]).flatMap((g: any) => Object.values(g).flatMap((c: any) => Object.values(c).flatMap((s: any) => Object.values(s).flat())));
-      const desvA = tot(itemsA).desv;
-      const desvB = tot(itemsB).desv;
-      return desvA - desvB;
+  const compareHierarchy = React.useCallback((keyA: string, keyB: string, getItemsA: () => any[], getItemsB: () => any[]) => {
+    if (sortColumn === 'wbs') {
+      const res = keyA.localeCompare(keyB, undefined, { numeric: true, sensitivity: 'base' });
+      return sortDirection === 'asc' ? res : -res;
+    } else {
+      const desvA = tot(getItemsA()).desv;
+      const desvB = tot(getItemsB()).desv;
+      return sortDirection === 'asc' ? desvA - desvB : desvB - desvA;
+    }
+  }, [sortColumn, sortDirection, tot]);
+
+  const compareLeafItems = React.useCallback((itemA: any, itemB: any) => {
+    if (sortColumn === 'wbs') {
+      const strA = String(itemA.wbs || itemA.activityId || '');
+      const strB = String(itemB.wbs || itemB.activityId || '');
+      const res = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+      return sortDirection === 'asc' ? res : -res;
+    } else {
+      const desvA = getItemWeekValues(itemA).variacion;
+      const desvB = getItemWeekValues(itemB).variacion;
+      return sortDirection === 'asc' ? desvA - desvB : desvB - desvA;
+    }
+  }, [sortColumn, sortDirection, getItemWeekValues]);
+
+  const handleToggleSort = (col: 'wbs' | 'variacion') => {
+    if (sortColumn === col) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(col);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedComponentes = React.useMemo(() => {
+    return Object.entries(byHierarchy).sort((a, b) => {
+      return compareHierarchy(a[0], b[0], () => getItemsInComponente(a[1]), () => getItemsInComponente(b[1]));
     });
-  }, [byTipo, tot]);
+  }, [byHierarchy, compareHierarchy, getItemsInComponente]);
 
   const handleExpandToLevel = (targetLevel: number) => {
+    const allComponentes = new Set<string>();
     const allTipos = new Set<string>();
     const allGrupos = new Set<string>();
     const allCaps = new Set<string>();
     const allScaps = new Set<string>();
     const allSubCs = new Set<string>();
 
-    sortedTipos.forEach(([tipo, grupos]) => {
-      allTipos.add(tipo);
+    sortedComponentes.forEach(([comp, tipos]) => {
+      allComponentes.add(comp);
       if (targetLevel >= 2) {
-        Object.entries(grupos).forEach(([grupo, caps]: any) => {
-          const gKey = `${tipo}__${grupo}`;
-          allGrupos.add(gKey);
+        Object.entries(tipos).forEach(([tipo, grupos]: any) => {
+          const tipoKey = `${comp}__${tipo}`;
+          allTipos.add(tipoKey);
           if (targetLevel >= 3) {
-            Object.entries(caps).forEach(([cap, scaps]: any) => {
-              const capKey = `${gKey}__${cap}`;
-              allCaps.add(capKey);
+            Object.entries(grupos).forEach(([grupo, caps]: any) => {
+              const gKey = `${tipoKey}__${grupo}`;
+              allGrupos.add(gKey);
               if (targetLevel >= 4) {
-                Object.entries(scaps).forEach(([scap, subCs]: any) => {
-                  const sKey = `${capKey}__${scap}`;
-                  allScaps.add(sKey);
+                Object.entries(caps).forEach(([cap, scaps]: any) => {
+                  const capKey = `${gKey}__${cap}`;
+                  allCaps.add(capKey);
                   if (targetLevel >= 5) {
-                    Object.entries(subCs).forEach(([subC]: any) => {
-                      allSubCs.add(`${sKey}__${subC}`);
+                    Object.entries(scaps).forEach(([scap, subCs]: any) => {
+                      const sKey = `${capKey}__${scap}`;
+                      allScaps.add(sKey);
+                      if (targetLevel >= 6) {
+                        Object.entries(subCs).forEach(([subC]: any) => {
+                          allSubCs.add(`${sKey}__${subC}`);
+                        });
+                      }
                     });
                   }
                 });
@@ -917,15 +1082,17 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       }
     });
 
-    setExpandedTipos(targetLevel >= 1 ? allTipos : new Set());
-    setExpandedRESPs(targetLevel >= 2 ? allGrupos : new Set());
-    setExpandedSubPartidas(targetLevel >= 3 ? allCaps : new Set());
-    setExpandedSCAPs(targetLevel >= 4 ? allScaps : new Set());
-    setExpandedSubCs(targetLevel >= 5 ? allSubCs : new Set());
+    setExpandedComponentes(targetLevel >= 1 ? allComponentes : new Set());
+    setExpandedTipos(targetLevel >= 2 ? allTipos : new Set());
+    setExpandedRESPs(targetLevel >= 3 ? allGrupos : new Set());
+    setExpandedSubPartidas(targetLevel >= 4 ? allCaps : new Set());
+    setExpandedSCAPs(targetLevel >= 5 ? allScaps : new Set());
+    setExpandedSubCs(targetLevel >= 6 ? allSubCs : new Set());
   };
 
-  const handleCollapseAll = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCollapseAll = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedComponentes(new Set());
     setExpandedTipos(new Set());
     setExpandedRESPs(new Set());
     setExpandedSCAPs(new Set());
@@ -941,7 +1108,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
 
     const htmlRowsArray: string[] = [];
 
-    const hasAnyExpanded = expandedTipos.size > 0 || expandedRESPs.size > 0 || expandedSubPartidas.size > 0 || expandedSCAPs.size > 0 || expandedSubCs.size > 0;
+    const hasAnyExpanded = expandedComponentes.size > 0 || expandedTipos.size > 0 || expandedRESPs.size > 0 || expandedSubPartidas.size > 0 || expandedSCAPs.size > 0 || expandedSubCs.size > 0;
     const isAll = !hasAnyExpanded;
 
     const addRowHtml = (
@@ -962,7 +1129,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     ) => {
       const pctAvance = vPlan > 0 ? (vEjec / vPlan * 100) : (vEjec > 0 ? 100 : 0);
       const pctStr = `${pctAvance.toFixed(2)}%`;
-      const desvColor = desv < 0 ? '#b91c1c' : '#15803d';
+      const desvColor = desv < 0 ? '#dc2626' : '#15803d';
 
       tsvRows.push([
         wbsText,
@@ -989,74 +1156,94 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: center; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg};">${blFinishStr}</td>
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(vContrato)}</td>
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg === '#ffffff' ? '#ffffff' : '#1d4ed8'}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(vPlan)}</td>
-          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg === '#ffffff' ? '#ffffff' : '#15803d'}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(vEjec)}</td>
-          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg === '#ffffff' ? '#ffffff' : desvColor}; font-weight: bold; mso-number-format: '\\$#,##0.00';">${fmtDNum(desv)}</td>
+          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg === '#ffffff' ? '#cbd5e1' : '#64748b'}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(vEjec)}</td>
+          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg === '#ffffff' ? (desv < 0 ? '#fca5a5' : '#86efac') : desvColor}; font-weight: bold; mso-number-format: '\\$#,##0.00';">${fmtDNum(desv)}</td>
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '0.00%';">${pctStr}</td>
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: center; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight};">${checkSetText}</td>
         </tr>
       `.trim());
     };
 
-    // TOTAL PROYECTO ROW (Top)
-    addRowHtml('TOTAL FILTRADO', '', `(${leafItems.length.toLocaleString()} items)`, fmtDateVal(globalTot.maxBlFinish), globalTot.contrato, globalTot.plan, globalTot.ejec, globalTot.desv, '#1e1b4b', '#ffffff', 'bold', '11.5px', 0, getAccumulatedCheckSet(leafItems).text);
+    sortedComponentes.forEach(([comp, tipos]) => {
+      const allItemsInComp = getItemsInComponente(tipos);
+      if (allItemsInComp.length === 0) return;
+      const compTot = tot(allItemsInComp);
 
-    sortedTipos.forEach(([tipo, grupos]) => {
-      const allItemsInTipo = Object.values(grupos).flatMap((g: any) => Object.values(g).flatMap((c: any) => Object.values(c).flatMap((s: any) => Object.values(s).flat())));
-      if (allItemsInTipo.length === 0) return;
-      const tT = tot(allItemsInTipo);
+      // N1: Componente
+      addRowHtml(`🏛️ ${comp}`, '', `(${compTot.count} items)`, fmtDateVal(compTot.maxBlFinish), compTot.contrato, compTot.plan, compTot.ejec, compTot.desv, '#9a3412', '#ffffff', 'bold', '11px', 0, getAccumulatedCheckSet(allItemsInComp).text);
 
-      // N1: Tipo
-      addRowHtml(`🏷️ ${tipo}`, '', `(${tT.count} items)`, fmtDateVal(tT.maxBlFinish), tT.contrato, tT.plan, tT.ejec, tT.desv, '#1e1b4b', '#ffffff', 'bold', '11px', 0, getAccumulatedCheckSet(allItemsInTipo).text);
+      const isCompExp = isAll || expandedComponentes.has(comp);
+      if (isCompExp) {
+        Object.entries(tipos).sort((a: any, b: any) => {
+          return compareHierarchy(a[0], b[0], () => getItemsInTipo(a[1]), () => getItemsInTipo(b[1]));
+        }).forEach(([tipo, grupos]: any) => {
+          const tipoKey = `${comp}__${tipo}`;
+          const allItemsInTipo = getItemsInTipo(grupos);
+          if (allItemsInTipo.length === 0) return;
+          const tT = tot(allItemsInTipo);
 
-      const isTipoExp = isAll || expandedTipos.has(tipo);
-      if (isTipoExp) {
-        Object.entries(grupos).forEach(([grupo, caps]: any) => {
-          const grupoKey = `${tipo}__${grupo}`;
-          const allG = Object.values(caps).flatMap((c: any) => Object.values(c).flatMap((s: any) => Object.values(s).flat()));
-          if (allG.length === 0) return;
-          const gT = tot(allG);
+          // N2: Tipo
+          addRowHtml(`🏷️ ${tipo}`, '', `(${tT.count} items)`, fmtDateVal(tT.maxBlFinish), tT.contrato, tT.plan, tT.ejec, tT.desv, '#312e81', '#ffffff', 'bold', '11px', 1, getAccumulatedCheckSet(allItemsInTipo).text);
 
-          // N2: Grupo
-          addRowHtml(`📁 ${grupo}`, '', `(${gT.count} items)`, fmtDateVal(gT.maxBlFinish), gT.contrato, gT.plan, gT.ejec, gT.desv, '#f3e8ff', '#3b0764', 'bold', '11px', 1, getAccumulatedCheckSet(allG).text);
+          const isTipoExp = isAll || expandedTipos.has(tipoKey);
+          if (isTipoExp) {
+            Object.entries(grupos).sort((a: any, b: any) => {
+              return compareHierarchy(a[0], b[0], () => getItemsInGrupo(a[1]), () => getItemsInGrupo(b[1]));
+            }).forEach(([grupo, caps]: any) => {
+              const grupoKey = `${tipoKey}__${grupo}`;
+              const allG = getItemsInGrupo(caps);
+              if (allG.length === 0) return;
+              const gT = tot(allG);
 
-          const isGrupoExp = isAll || expandedRESPs.has(grupoKey);
-          if (isGrupoExp) {
-            Object.entries(caps).forEach(([cap, scaps]: any) => {
-              const capKey = `${grupoKey}__${cap}`;
-              const allCap = Object.values(scaps).flatMap((s: any) => Object.values(s).flat());
-              if (allCap.length === 0) return;
-              const cT = tot(allCap);
+              // N3: Grupo
+              addRowHtml(`📁 ${grupo}`, '', `(${gT.count} items)`, fmtDateVal(gT.maxBlFinish), gT.contrato, gT.plan, gT.ejec, gT.desv, '#f3e8ff', '#3b0764', 'bold', '11px', 2, getAccumulatedCheckSet(allG).text);
 
-              // N3: Subpartida / CAP
-              addRowHtml(`📄 ${cap}`, '', `(${cT.count} items)`, fmtDateVal(cT.maxBlFinish), cT.contrato, cT.plan, cT.ejec, cT.desv, '#d1fae5', '#064e3b', 'bold', '10.5px', 2);
+              const isGrupoExp = isAll || expandedRESPs.has(grupoKey);
+              if (isGrupoExp) {
+                Object.entries(caps).sort((a: any, b: any) => {
+                  return compareHierarchy(a[0], b[0], () => getItemsInCap(a[1]), () => getItemsInCap(b[1]));
+                }).forEach(([cap, scaps]: any) => {
+                  const capKey = `${grupoKey}__${cap}`;
+                  const allCap = getItemsInCap(scaps);
+                  if (allCap.length === 0) return;
+                  const cT = tot(allCap);
 
-              const isCapExp = isAll || expandedSubPartidas.has(capKey);
-              if (isCapExp) {
-                Object.entries(scaps).forEach(([scap, subCs]: any) => {
-                  const scapKey = `${capKey}__${scap}`;
-                  const allS = Object.values(subCs).flat();
-                  if (allS.length === 0) return;
-                  const sT = tot(allS);
+                  // N4: Subpartida / CAP
+                  addRowHtml(`📄 ${cap}`, '', `(${cT.count} items)`, fmtDateVal(cT.maxBlFinish), cT.contrato, cT.plan, cT.ejec, cT.desv, '#d1fae5', '#064e3b', 'bold', '10.5px', 3);
 
-                  // N4: SCAP
-                  addRowHtml(`📦 ${scap}`, '', `(${sT.count} items)`, fmtDateVal(sT.maxBlFinish), sT.contrato, sT.plan, sT.ejec, sT.desv, '#e0f2fe', '#082f49', 'bold', '10.5px', 3);
+                  const isCapExp = isAll || expandedSubPartidas.has(capKey);
+                  if (isCapExp) {
+                    Object.entries(scaps).sort((a: any, b: any) => {
+                      return compareHierarchy(a[0], b[0], () => Object.values(a[1]).flat(), () => Object.values(b[1]).flat());
+                    }).forEach(([scap, subCs]: any) => {
+                      const scapKey = `${capKey}__${scap}`;
+                      const allS = Object.values(subCs).flat();
+                      if (allS.length === 0) return;
+                      const sT = tot(allS);
 
-                  const isScapExp = isAll || expandedSCAPs.has(scapKey);
-                  if (isScapExp) {
-                    Object.entries(subCs).forEach(([subC, items]: any) => {
-                      const subCKey = `${scapKey}__${subC}`;
-                      if (!Array.isArray(items) || items.length === 0) return;
-                      const subCTot = tot(items);
+                      // N5: SCAP
+                      addRowHtml(`📦 ${scap}`, '', `(${sT.count} items)`, fmtDateVal(sT.maxBlFinish), sT.contrato, sT.plan, sT.ejec, sT.desv, '#e0f2fe', '#082f49', 'bold', '10.5px', 4);
 
-                      // N5: Subcontratista
-                      addRowHtml(`🏗️ SubC: ${subC}`, '', `(${subCTot.count} items)`, fmtDateVal(subCTot.maxBlFinish), subCTot.contrato, subCTot.plan, subCTot.ejec, subCTot.desv, '#fef3c7', '#451a03', 'bold', '10px', 4, getAccumulatedCheckSet(items).text);
+                      const isScapExp = isAll || expandedSCAPs.has(scapKey);
+                      if (isScapExp) {
+                        Object.entries(subCs).sort((a: any, b: any) => {
+                          return compareHierarchy(a[0], b[0], () => Array.isArray(a[1]) ? a[1] : [], () => Array.isArray(b[1]) ? b[1] : []);
+                        }).forEach(([subC, items]: any) => {
+                          const subCKey = `${scapKey}__${subC}`;
+                          if (!Array.isArray(items) || items.length === 0) return;
+                          const subCTot = tot(items);
 
-                      const isSubCExp = isAll || expandedSubCs.has(subCKey);
-                      if (isSubCExp) {
-                        // N6: Leaf items
-                        items.forEach((item: any) => {
-                          const { vPlan, vEjec, vContrato, variacion } = getItemWeekValues(item);
-                          addRowHtml(String(item.wbs || '').trim(), item.activityId || '', item.descripcion || '', fmtDateVal(item.blFinish), vContrato, vPlan, vEjec, variacion, '#ffffff', '#334155', 'normal', '9.5px', 5, getAccumulatedCheckSet([item]).text);
+                          // N6: Subcontratista
+                          addRowHtml(`🏗️ SubC: ${subC}`, '', `(${subCTot.count} items)`, fmtDateVal(subCTot.maxBlFinish), subCTot.contrato, subCTot.plan, subCTot.ejec, subCTot.desv, '#fef3c7', '#451a03', 'bold', '10px', 5, getAccumulatedCheckSet(items).text);
+
+                          const isSubCExp = isAll || expandedSubCs.has(subCKey);
+                          if (isSubCExp) {
+                            // N7: Leaf items
+                            [...items].sort(compareLeafItems).forEach((item: any) => {
+                              const { vPlan, vEjec, vContrato, variacion } = getItemWeekValues(item);
+                              addRowHtml(String(item.wbs || '').trim(), item.activityId || '', item.descripcion || '', fmtDateVal(item.blFinish), vContrato, vPlan, vEjec, variacion, '#ffffff', '#334155', 'normal', '9.5px', 6, getAccumulatedCheckSet([item]).text);
+                            });
+                          }
                         });
                       }
                     });
@@ -1068,6 +1255,9 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
         });
       }
     });
+
+    // TOTAL PROYECTO ROW (Bottom)
+    addRowHtml('TOTAL FILTRADO', '', `(${leafItems.length.toLocaleString()} items)`, fmtDateVal(globalTot.maxBlFinish), globalTot.contrato, globalTot.plan, globalTot.ejec, globalTot.desv, '#0f172a', '#ffffff', 'bold', '11.5px', 0, getAccumulatedCheckSet(leafItems).text);
 
     const tsvContent = tsvRows.join("\n");
     const htmlRows = htmlRowsArray.join("\n");
@@ -1120,119 +1310,125 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-indigo-600 overflow-hidden animate-fade-in mt-6" id="tarjeta-kpi-avance-semanal">
+    <div className={`bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden animate-fade-in ${soloTablaYSemana ? 'mt-0' : 'mt-6'}`} id="tarjeta-kpi-avance-semanal">
       {/* Header Bar */}
-      <div 
-        onClick={() => setIsCardCollapsed(!isCardCollapsed)}
-        className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 px-5 py-4 text-white flex items-center justify-between flex-wrap gap-3 cursor-pointer select-none hover:opacity-95 transition-all"
-      >
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-700/50 rounded-xl border border-indigo-500/40">
-            {isCardCollapsed ? <ChevronRight className="w-5 h-5 text-indigo-200" /> : <ChevronDown className="w-5 h-5 text-indigo-200" />}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
-                <span>📅 Control de Ejecución</span>
-              </h3>
-              <span className="text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase">
-                {currentWeekLabel}
-              </span>
+      {!soloTablaYSemana && (
+        <div 
+          onClick={() => setIsCardCollapsed(!isCardCollapsed)}
+          className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 px-5 py-4 text-white flex items-center justify-between flex-wrap gap-3 cursor-pointer select-none hover:opacity-95 transition-all"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-700/50 rounded-xl border border-indigo-500/40">
+              {isCardCollapsed ? <ChevronRight className="w-5 h-5 text-indigo-200" /> : <ChevronDown className="w-5 h-5 text-indigo-200" />}
             </div>
-            <p className="text-xs text-indigo-200/80 font-medium mt-0.5">
-              Valores económicos planificados desde PG-004 (col H+) y ejecutados desde CDO (col AY+ con casilla 'V-') por semana.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
+                  <span>📅 Control de Ejecución</span>
+                </h3>
+                <span className="text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase">
+                  {currentWeekLabel}
+                </span>
+              </div>
+              <p className="text-xs text-indigo-200/80 font-medium mt-0.5">
+                Valores económicos planificados desde PG-004 (col H+) y ejecutados desde CDO (col AY+ con casilla 'V-') por semana.
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-          {/* Expandir por Nivel Dropdown */}
-          <div className="relative">
+          <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+            {/* Expandir por Nivel Dropdown */}
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsExpandMenuOpen(!isExpandMenuOpen); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95"
+              >
+                <ChevronsUpDown className="w-4 h-4 text-indigo-200" />
+                <span>Exp. Nivel</span>
+                <ChevronDown className="w-3 h-3 text-indigo-300 ml-0.5" />
+              </button>
+
+              {isExpandMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsExpandMenuOpen(false); }} />
+                  <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-xs animate-fade-in select-none text-slate-800">
+                    <div className="px-3 py-1 font-semibold text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-100">
+                      Expandir Jerarquía
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(1); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-slate-100 text-slate-800 font-medium flex items-center justify-between">
+                      <span>Nivel 1: Componentes (Col. AN)</span>
+                      <span className="text-[9px] bg-slate-900 text-white px-1.5 py-0.5 rounded font-mono font-bold">N1</span>
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(2); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-indigo-50 text-slate-700 font-medium flex items-center justify-between">
+                      <span>Nivel 2: Tipologías</span>
+                      <span className="text-[9px] bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded font-mono font-bold">N2</span>
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(3); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-purple-50 text-slate-700 font-medium flex items-center justify-between">
+                      <span>Nivel 3: Grupos</span>
+                      <span className="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-mono font-bold">N3</span>
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(4); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-emerald-50 text-slate-700 font-medium flex items-center justify-between">
+                      <span>Nivel 4: Subpartidas (CAP)</span>
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold">N4</span>
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(5); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-sky-50 text-slate-700 font-medium flex items-center justify-between">
+                      <span>Nivel 5: SCAPs</span>
+                      <span className="text-[9px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded font-mono font-bold">N5</span>
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(6); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-amber-50 text-slate-700 font-medium flex items-center justify-between border-t border-slate-100">
+                      <span>Nivel 6: Subcontratistas</span>
+                      <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-mono font-bold">N6</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
             <button
-              onClick={(e) => { e.stopPropagation(); setIsExpandMenuOpen(!isExpandMenuOpen); }}
+              onClick={handleCollapseAll}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95"
+              title="Colapsar todo"
+              id="btn-colapsar-control-semanal"
             >
-              <ChevronsUpDown className="w-4 h-4 text-indigo-200" />
-              <span>Exp. Nivel</span>
-              <ChevronDown className="w-3 h-3 text-indigo-300 ml-0.5" />
+              <ChevronsDownUp className="w-4 h-4 text-indigo-200" />
+              <span>Colapsar</span>
             </button>
 
-            {isExpandMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsExpandMenuOpen(false); }} />
-                <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-xs animate-fade-in select-none text-slate-800">
-                  <div className="px-3 py-1 font-semibold text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-100">
-                    Expandir Jerarquía
-                  </div>
-                  <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(1); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-indigo-50 text-slate-700 font-medium flex items-center justify-between">
-                    <span>Nivel 1: Tipologías</span>
-                    <span className="text-[9px] bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded font-mono font-bold">N1</span>
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(2); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-purple-50 text-slate-700 font-medium flex items-center justify-between">
-                    <span>Nivel 2: Grupos</span>
-                    <span className="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-mono font-bold">N2</span>
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(3); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-emerald-50 text-slate-700 font-medium flex items-center justify-between">
-                    <span>Nivel 3: Subpartidas (CAP)</span>
-                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold">N3</span>
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(4); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-sky-50 text-slate-700 font-medium flex items-center justify-between">
-                    <span>Nivel 4: SCAPs</span>
-                    <span className="text-[9px] bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded font-mono font-bold">N4</span>
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); handleExpandToLevel(5); setIsExpandMenuOpen(false); }} className="w-full text-left px-3 py-2 hover:bg-amber-50 text-slate-700 font-medium flex items-center justify-between border-t border-slate-100">
-                    <span>Nivel 5: Subcontratistas</span>
-                    <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-mono font-bold">N5</span>
-                  </button>
-                </div>
-              </>
-            )}
+            <button
+              onClick={handleCopyTableForExcel}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95 ${
+                copied
+                  ? 'bg-emerald-600 border-emerald-400 text-white shadow-emerald-900/30'
+                  : 'border-emerald-500/50 bg-emerald-700/90 hover:bg-emerald-600 text-white'
+              }`}
+              title="Copiar tabla filtrada para Excel con formato y colores por jerarquía"
+              id="btn-copiar-excel-control-semanal"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-200" />
+                  <span>¡Copiado para Excel!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 text-emerald-200" />
+                  <span>Copiar Tabla</span>
+                </>
+              )}
+            </button>
           </div>
-
-          <button
-            onClick={handleCollapseAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95"
-            title="Colapsar todo"
-            id="btn-colapsar-control-semanal"
-          >
-            <ChevronsDownUp className="w-4 h-4 text-indigo-200" />
-            <span>Colapsar</span>
-          </button>
-
-          <button
-            onClick={handleCopyTableForExcel}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95 ${
-              copied
-                ? 'bg-emerald-600 border-emerald-400 text-white shadow-emerald-900/30'
-                : 'border-emerald-500/50 bg-emerald-700/90 hover:bg-emerald-600 text-white'
-            }`}
-            title="Copiar tabla filtrada para Excel con formato y colores por jerarquía"
-            id="btn-copiar-excel-control-semanal"
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-200" />
-                <span>¡Copiado para Excel!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4 text-emerald-200" />
-                <span>Copiar Tabla</span>
-              </>
-            )}
-          </button>
         </div>
-      </div>
+      )}
 
       {!isCardCollapsed && (
         <div className="p-5 space-y-4">
           {/* Controls Bar: Semana Filter, Tipología Filter, Status Filter, Variación Filter & Search */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-wrap items-end gap-3">
             {/* Filter by Week / Period (Desplegable Jerárquico con Selección Múltiple) */}
-            <div className="relative flex-1 min-w-[240px]" id="contenedor-desplegable-semanal">
+            <div className={`relative ${soloTablaYSemana ? 'w-auto min-w-[190px] max-w-[240px] flex-initial' : 'flex-1 min-w-[240px]'}`} id="contenedor-desplegable-semanal">
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Filtrar por Período / Semana:</span>
+                <span>{soloTablaYSemana ? 'Período / Semana:' : 'Filtrar por Período / Semana:'}</span>
               </label>
               
               <button
@@ -1241,11 +1437,11 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   e.stopPropagation();
                   setIsWeekDropdownOpen(!isWeekDropdownOpen);
                 }}
-                className="w-full text-xs bg-white border border-slate-300 hover:border-indigo-400 rounded-xl px-3 py-2 font-semibold text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 flex items-center justify-between gap-2 text-left transition-all cursor-pointer"
+                className="w-full text-xs bg-white border border-slate-300 hover:border-indigo-400 rounded-xl px-2.5 py-2 font-semibold text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 flex items-center justify-between gap-2 text-left transition-all cursor-pointer"
               >
                 <span className="truncate flex items-center gap-1.5">
                   <span className="text-indigo-600 font-bold">📅</span>
-                  <span>{currentWeekLabel}</span>
+                  <span className="truncate">{currentWeekLabel}</span>
                 </span>
                 <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isWeekDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -1364,8 +1560,99 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
               )}
             </div>
 
-            {/* Filter by Tipología */}
-            <div className="relative flex-1 min-w-[200px]" id="contenedor-desplegable-tipologia">
+            {/* Toggle Total / Ponderado para % Plan y % Ejec (Vista Carátula) */}
+            {soloTablaYSemana && (
+              <div className="flex flex-col gap-1 shrink-0" id="contenedor-toggle-modo-porcentaje">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                  <Percent className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Base %:</span>
+                </label>
+                <div className="inline-flex p-0.5 bg-slate-200/90 rounded-xl border border-slate-300 shadow-inner h-[38px] items-center">
+                  <button
+                    type="button"
+                    onClick={() => setModoPorcentaje('total')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      modoPorcentaje === 'total'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                    }`}
+                    title="Total: Divide entre el V. Contrato del Proyecto Total sin filtros"
+                  >
+                    Total
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModoPorcentaje('ponderado')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      modoPorcentaje === 'ponderado'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                    }`}
+                    title="Ponderado: Divide entre el V. Contrato del Proyecto del componente sin filtros"
+                  >
+                    Ponderado
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Tarjeta Monto Planificado y Monto Ejecutado (Vista Carátula) */}
+            {soloTablaYSemana && (
+              <div 
+                className="flex items-center gap-1.5 ml-auto self-end shrink-0"
+                id="tarjeta-montos-plan-ejec-caratula"
+              >
+                {/* Monto Planificado */}
+                <div 
+                  id="kpi-mini-planificado"
+                  onClick={() => setFilterPlanEjec(prev => prev === 'plan' ? 'all' : 'plan')}
+                  className={`rounded-xl px-2.5 h-[38px] flex items-center gap-1.5 cursor-pointer transition-all select-none ${
+                    filterPlanEjec === 'plan'
+                      ? 'bg-indigo-100 border-2 border-indigo-600 ring-2 ring-indigo-300 shadow-xs font-bold'
+                      : 'bg-white border border-indigo-200 hover:bg-indigo-50/80 hover:border-indigo-300 shadow-2xs'
+                  }`}
+                  title={filterPlanEjec === 'plan' ? 'Filtro Plan activo: mostrando solo actividades planificadas. Clic para quitar filtro.' : 'Clic para filtrar actividades planificadas'}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${filterPlanEjec === 'plan' ? 'bg-indigo-700 animate-pulse' : 'bg-indigo-500'}`}></span>
+                    <span className="text-[10px] font-extrabold uppercase text-indigo-700 tracking-wider whitespace-nowrap">
+                      Plan {filterPlanEjec === 'plan' ? '✓' : ''}
+                    </span>
+                  </div>
+                  <div className="text-xs font-extrabold text-indigo-950 font-mono tabular-nums whitespace-nowrap">
+                    ${fmtMillions(kpiTot.plan)}
+                  </div>
+                </div>
+
+                {/* Monto Ejecutado */}
+                <div 
+                  id="kpi-mini-ejecutado"
+                  onClick={() => setFilterPlanEjec(prev => prev === 'ejec' ? 'all' : 'ejec')}
+                  className={`rounded-xl px-2.5 h-[38px] flex items-center gap-1.5 cursor-pointer transition-all select-none ${
+                    filterPlanEjec === 'ejec'
+                      ? 'bg-rose-100 border-2 border-rose-600 ring-2 ring-rose-300 shadow-xs font-bold'
+                      : 'bg-white border border-rose-200 hover:bg-rose-50/80 hover:border-rose-300 shadow-2xs'
+                  }`}
+                  title={filterPlanEjec === 'ejec' ? 'Filtro Ejecutado activo: mostrando solo actividades ejecutadas. Clic para quitar filtro.' : 'Clic para filtrar actividades ejecutadas'}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${filterPlanEjec === 'ejec' ? 'bg-rose-700 animate-pulse' : 'bg-rose-500'}`}></span>
+                    <span className="text-[10px] font-extrabold uppercase text-rose-700 tracking-wider whitespace-nowrap">
+                      Ejec {filterPlanEjec === 'ejec' ? '✓' : ''}
+                    </span>
+                  </div>
+                  <div className="text-xs font-extrabold text-rose-950 font-mono tabular-nums whitespace-nowrap">
+                    ${fmtMillions(kpiTot.ejec)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Other Filters (Hidden when soloTablaYSemana is active) */}
+            {!soloTablaYSemana && (
+              <>
+                {/* Filter by Tipología */}
+                <div className="relative flex-1 min-w-[200px]" id="contenedor-desplegable-tipologia">
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
                 <Filter className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Tipología:</span>
@@ -1833,34 +2120,117 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                 )}
               </button>
             </div>
+              </>
+            )}
           </div>
 
           {/* KPI Resumen Pill Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-3.5 text-center">
-              <span className="text-[10px] font-extrabold uppercase text-indigo-600 tracking-wider block mb-0.5">Planificado (PG-004)</span>
-              <span className="text-base font-extrabold text-indigo-900 font-mono">${fmtMoney(globalTot.plan)}</span>
+          {!soloTablaYSemana && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" id="kpi-resumen-pill-bar">
+              {/* Card Planificado (PG-004) */}
+              <div 
+                id="kpi-card-planificado-pg004"
+                onClick={() => setFilterPlanEjec(prev => prev === 'plan' ? 'all' : 'plan')}
+                className={`border rounded-2xl p-3.5 text-center cursor-pointer transition-all select-none relative group ${
+                  filterPlanEjec === 'plan'
+                    ? 'bg-indigo-100/95 border-indigo-500 ring-2 ring-indigo-500 ring-offset-1 shadow-md scale-[1.01]'
+                    : 'bg-indigo-50/60 border-indigo-200/80 hover:bg-indigo-100/70 hover:border-indigo-300 shadow-xs active:scale-98'
+                }`}
+                title={filterPlanEjec === 'plan' ? 'Filtro activo: Mostrando solo actividades planificadas. Clic para quitar filtro.' : 'Clic para filtrar la tabla por actividades con avance planificado en este período'}
+              >
+                <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                  <span className="text-[10px] font-extrabold uppercase text-indigo-700 tracking-wider">Planificado (PG-004)</span>
+                  {filterPlanEjec === 'plan' && (
+                    <span className="bg-indigo-600 text-white text-[9px] px-1.5 py-0.2 rounded-full font-extrabold shadow-2xs">
+                      Activo ✕
+                    </span>
+                  )}
+                </div>
+                <span className="text-base font-extrabold text-indigo-950 font-mono block">${fmtMoney(kpiTot.plan)}</span>
+                <div className="text-[10px] text-indigo-600 font-semibold mt-0.5">
+                  {filterPlanEjec === 'plan' ? (
+                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                      <span className="text-indigo-800 font-bold">✓ Filtrando ({leafItems.length} activ.)</span>
+                      <span className="text-indigo-400 font-normal">•</span>
+                      <span className="text-emerald-800 bg-emerald-100/90 border border-emerald-300/80 px-1.5 py-0.2 rounded font-bold shadow-2xs">
+                        {planEjecStats.plannedWithEjecCount} ejecutadas
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <span>{planEjecStats.plannedCount} activ.</span>
+                      <span className="text-indigo-500 font-medium">({planEjecStats.plannedWithEjecCount} ejecutadas)</span>
+                      <span className="text-indigo-400 text-[9px] ml-0.5">🔍 Filtrar</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card Ejecutado (CDO V-) */}
+              <div 
+                id="kpi-card-ejecutado-cdo"
+                onClick={() => setFilterPlanEjec(prev => prev === 'ejec' ? 'all' : 'ejec')}
+                className={`border rounded-2xl p-3.5 text-center cursor-pointer transition-all select-none relative group ${
+                  filterPlanEjec === 'ejec'
+                    ? 'bg-rose-100/95 border-rose-500 ring-2 ring-rose-500 ring-offset-1 shadow-md scale-[1.01]'
+                    : 'bg-rose-50/60 border-rose-200/80 hover:bg-rose-100/70 hover:border-rose-300 shadow-xs active:scale-98'
+                }`}
+                title={filterPlanEjec === 'ejec' ? 'Filtro activo: Mostrando solo actividades ejecutadas. Clic para quitar filtro.' : 'Clic para filtrar la tabla por actividades con avance ejecutado en este período'}
+              >
+                <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                  <span className="text-[10px] font-extrabold uppercase text-rose-700 tracking-wider">Ejecutado (CDO V-)</span>
+                  {filterPlanEjec === 'ejec' && (
+                    <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.2 rounded-full font-extrabold shadow-2xs">
+                      Activo ✕
+                    </span>
+                  )}
+                </div>
+                <span className="text-base font-extrabold text-rose-950 font-mono block">${fmtMoney(kpiTot.ejec)}</span>
+                <div className="text-[10px] text-rose-600 font-semibold mt-0.5">
+                  {filterPlanEjec === 'ejec' ? (
+                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                      <span className="text-rose-800 font-bold">✓ Filtrando ({leafItems.length} activ.)</span>
+                      <span className="text-rose-400 font-normal">•</span>
+                      <span className="text-indigo-800 bg-indigo-100/90 border border-indigo-300/80 px-1.5 py-0.2 rounded font-bold shadow-2xs">
+                        {planEjecStats.ejecWithPlanCount} planificadas
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <span>{planEjecStats.ejecCount} activ.</span>
+                      <span className="text-rose-500 font-medium">({planEjecStats.ejecWithPlanCount} planificadas)</span>
+                      <span className="text-rose-400 text-[9px] ml-0.5">🔍 Filtrar</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card Variación Económica */}
+              <div className={`border rounded-2xl p-3.5 text-center transition-all ${kpiTot.desv < 0 ? 'bg-amber-50/60 border-amber-200/80' : 'bg-emerald-50/60 border-emerald-200/80'}`}>
+                <span className="text-[10px] font-extrabold uppercase text-slate-600 tracking-wider block mb-0.5">Variación Económica</span>
+                <span className={`text-base font-extrabold font-mono block ${kpiTot.desv < 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+                  {fmtDNum(kpiTot.desv)}
+                </span>
+                <span className="text-[10px] text-slate-400 block font-medium mt-0.5">
+                  {kpiTot.desv < 0 ? 'Desvío en contra' : 'En plazo / favor'}
+                </span>
+              </div>
+
+              {/* Card % Avance Económico */}
+              <div className="bg-slate-100 border border-slate-200 rounded-2xl p-3.5 text-center">
+                <span className="text-[10px] font-extrabold uppercase text-slate-600 tracking-wider block mb-0.5">% Avance Económico</span>
+                <span className="text-base font-extrabold text-slate-800 font-mono block">
+                  {kpiTot.plan > 0 ? `${((kpiTot.ejec / kpiTot.plan) * 100).toFixed(2)}%` : '—'}
+                </span>
+                <span className="text-[10px] text-slate-400 block font-medium mt-0.5">
+                  Ejecutado / Plan
+                </span>
+              </div>
             </div>
-            <div className="bg-rose-50/60 border border-rose-200/80 rounded-2xl p-3.5 text-center">
-              <span className="text-[10px] font-extrabold uppercase text-rose-600 tracking-wider block mb-0.5">Ejecutado (CDO V-)</span>
-              <span className="text-base font-extrabold text-rose-900 font-mono">${fmtMoney(globalTot.ejec)}</span>
-            </div>
-            <div className={`border rounded-2xl p-3.5 text-center ${globalTot.desv < 0 ? 'bg-amber-50/60 border-amber-200/80' : 'bg-emerald-50/60 border-emerald-200/80'}`}>
-              <span className="text-[10px] font-extrabold uppercase text-slate-600 tracking-wider block mb-0.5">Variación Económica</span>
-              <span className={`text-base font-extrabold font-mono ${globalTot.desv < 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
-                {fmtDNum(globalTot.desv)}
-              </span>
-            </div>
-            <div className="bg-slate-100 border border-slate-200 rounded-2xl p-3.5 text-center">
-              <span className="text-[10px] font-extrabold uppercase text-slate-600 tracking-wider block mb-0.5">% Avance Económico</span>
-              <span className="text-base font-extrabold text-slate-800 font-mono">
-                {globalTot.plan > 0 ? `${((globalTot.ejec / globalTot.plan) * 100).toFixed(2)}%` : '—'}
-              </span>
-            </div>
-          </div>
+          )}
 
           {/* Tarjetas de Análisis por Tipología (Menu Colapsable) */}
-          {tipologiasSummary.length > 0 && (
+          {!soloTablaYSemana && tipologiasSummary.length > 0 && (
             <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3 space-y-2">
               <div 
                 className="flex items-center justify-between cursor-pointer select-none py-0.5 px-1 rounded-xl hover:bg-slate-100/60 transition-colors"
@@ -1992,305 +2362,404 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
 
           {/* Table Container */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between bg-indigo-50/80 border border-indigo-100 px-3.5 py-2 rounded-xl text-[11px] text-indigo-900 font-medium shadow-2xs">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">💡</span>
-                <span>
-                  <strong>Tip de Cantidades:</strong> Pasa el cursor (hover) sobre los valores de <strong>V. Contrato, V. Plan, V. Ejec. o Variación</strong> para ver la cantidad resultante.
-                </span>
+            {!soloTablaYSemana && (
+              <div className="flex items-center justify-between bg-indigo-50/80 border border-indigo-100 px-3.5 py-2 rounded-xl text-[11px] text-indigo-900 font-medium shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">💡</span>
+                  <span>
+                    <strong>Tip de Cantidades:</strong> Pasa el cursor (hover) sobre los valores de <strong>V. Contrato, V. Plan, V. Ejec. o Variación</strong> para ver la cantidad resultante.
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-sm">
             <table className="min-w-full text-xs border-collapse">
               <thead>
                 <tr className="bg-indigo-950 text-white font-extrabold text-[11px] text-left">
-                  <th className="px-3.5 py-3 border-b border-indigo-800">WBS / Nivel Jerárquico</th>
-                  <th className="px-3.5 py-3 border-b border-indigo-800">Activity ID</th>
-                  <th className="px-3.5 py-3 border-b border-indigo-800 max-w-[200px] w-[200px]">Descripción</th>
-                  <th className="px-3.5 py-3 border-b border-indigo-800 text-center">BL Finish</th>
-                  <th className="px-3.5 py-3 border-b border-indigo-800 text-right">V. Contrato</th>
-                  <th className="px-3.5 py-3 border-b border-indigo-800 text-right text-indigo-200">V.Plan</th>
-                  <th className="px-3.5 py-3 border-b border-indigo-800 text-right text-rose-200">V.Ejec</th>
                   <th 
-                    className="px-3.5 py-3 border-b border-indigo-800 text-right cursor-pointer select-none hover:bg-indigo-900/80 transition-colors"
-                    onClick={() => setVariacionSort(prev => prev === 'asc' ? 'desc' : 'asc')}
-                    title="Clic para cambiar el orden por Variación"
+                    className="px-3.5 py-3 border-b border-indigo-800 cursor-pointer select-none hover:bg-indigo-900/80 transition-colors"
+                    onClick={() => handleToggleSort('wbs')}
+                    title={soloTablaYSemana ? "Clic para cambiar el orden por Componente" : "Clic para cambiar el orden por WBS / Nivel Jerárquico"}
                   >
-                    <div className="flex items-center justify-end gap-1.5">
-                      <span>Variación</span>
-                      {variacionSort === 'asc' ? (
-                        <ArrowUp className="w-3.5 h-3.5 text-indigo-200 stroke-[2.5]" />
+                    <div className="flex items-center justify-start gap-1.5">
+                      <span>{soloTablaYSemana ? 'Componente' : 'WBS / Nivel Jerárquico'}</span>
+                      {sortColumn === 'wbs' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-indigo-200 stroke-[2.5]" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-indigo-200 stroke-[2.5]" />
+                        )
                       ) : (
-                        <ArrowDown className="w-3.5 h-3.5 text-indigo-200 stroke-[2.5]" />
+                        <ArrowUpDown className="w-3.5 h-3.5 text-indigo-400 opacity-60" />
                       )}
                     </div>
                   </th>
-                  <th className="px-3.5 py-3 border-b border-indigo-800 text-right">% Avance</th>
-                  <th className="px-3.5 py-3 border-b border-indigo-800 text-center">Check Set</th>
+                  {!soloTablaYSemana && (
+                    <>
+                      <th className="px-3.5 py-3 border-b border-indigo-800">Activity ID</th>
+                      <th className="px-3.5 py-3 border-b border-indigo-800 max-w-[200px] w-[200px]">Descripción</th>
+                      <th className="px-3.5 py-3 border-b border-indigo-800 text-center">BL Finish</th>
+                    </>
+                  )}
+                  <th className="px-3.5 py-3 border-b border-indigo-800 text-right">
+                    V. Contrato
+                  </th>
+                  <th className="px-3.5 py-3 border-b border-indigo-800 text-right text-indigo-200">
+                    V.Plan
+                  </th>
+                  <th className="px-3.5 py-3 border-b border-indigo-800 text-right text-rose-200">
+                    V.Ejec
+                  </th>
+                  {soloTablaYSemana && (
+                    <th className="px-3.5 py-3 border-b border-indigo-800 text-right text-indigo-300">
+                      % Plan
+                    </th>
+                  )}
+                  {soloTablaYSemana && (
+                    <th className="px-3.5 py-3 border-b border-indigo-800 text-right text-rose-300">
+                      % Ejec
+                    </th>
+                  )}
+                  <th 
+                    className="px-3.5 py-3 border-b border-indigo-800 text-right cursor-pointer select-none hover:bg-indigo-900/80 transition-colors"
+                    onClick={() => handleToggleSort('variacion')}
+                    title={soloTablaYSemana ? "Clic para cambiar el orden por % Variación" : "Clic para cambiar el orden por Variación"}
+                  >
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span>{soloTablaYSemana ? '% Variación' : 'Variación'}</span>
+                      {sortColumn === 'variacion' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-indigo-200 stroke-[2.5]" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-indigo-200 stroke-[2.5]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-indigo-400 opacity-60" />
+                      )}
+                    </div>
+                  </th>
+                  {!soloTablaYSemana && (
+                    <>
+                      <th className="px-3.5 py-3 border-b border-indigo-800 text-right">% Avance</th>
+                      <th className="px-3.5 py-3 border-b border-indigo-800 text-center">Check Set</th>
+                    </>
+                  )}
                 </tr>
               </thead>
-              <tbody className="bg-indigo-950 text-white font-extrabold text-xs shadow-md z-10 sticky top-0">
-                <tr>
-                  <td className="px-3.5 py-3 border-t border-indigo-800" colSpan={3}>
-                    TOTAL FILTRADO ({leafItems.length.toLocaleString()} ítems)
-                  </td>
-                  <td className="px-3.5 py-3 border-t border-indigo-800 text-center font-mono text-[10px] text-indigo-200">
-                    {fmtDateVal(globalTot.maxBlFinish)}
-                  </td>
-                  <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono">
-                    ${fmtMoney(globalTot.contrato)}
-                  </td>
-                  <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono text-indigo-200">
-                    ${fmtMoney(globalTot.plan)}
-                  </td>
-                  <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono text-rose-200">
-                    ${fmtMoney(globalTot.ejec)}
-                  </td>
-                  <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono">
-                    {fmtDNum(globalTot.desv)}
-                  </td>
-                  <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono">
-                    {globalTot.plan > 0 ? `${((globalTot.ejec / globalTot.plan) * 100).toFixed(2)}%` : '—'}
-                  </td>
-                  <td className="px-3.5 py-3 border-t border-indigo-800 text-center font-mono">
-                    {(() => {
-                      const csTot = getAccumulatedCheckSet(leafItems);
-                      return (
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csTot.bg} ${csTot.textC}`}>
-                          <span className={`w-1 h-1 rounded-full ${csTot.dot}`}></span>{csTot.text}
-                        </span>
-                      );
-                    })()}
-                  </td>
-                </tr>
-              </tbody>
               <tbody className="divide-y divide-slate-100">
-                {sortedTipos.length === 0 ? (
+                {sortedComponentes.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-8 text-center text-slate-400 font-medium">
+                    <td colSpan={soloTablaYSemana ? 7 : 10} className="py-8 text-center text-slate-400 font-medium">
                       No hay datos para la semana y filtros seleccionados.
                     </td>
                   </tr>
                 ) : (
-                  sortedTipos.map(([tipo, grupos]) => {
-                    const allItemsInTipo = Object.values(grupos).flatMap((g: any) => Object.values(g).flatMap((c: any) => Object.values(c).flatMap((s: any) => Object.values(s).flat())));
-                    if (allItemsInTipo.length === 0) return null;
-                    const tT = tot(allItemsInTipo);
-                    const isTipoExp = expandedTipos.has(tipo);
-                    const pctTipo = tT.plan > 0 ? (tT.ejec / tT.plan * 100) : (tT.ejec > 0 ? 100 : 0);
-                    const csTipo = getAccumulatedCheckSet(allItemsInTipo);
+                  sortedComponentes.map(([comp, tipos]) => {
+                    const allItemsInComp = getItemsInComponente(tipos);
+                    if (allItemsInComp.length === 0) return null;
+                    const compTot = tot(allItemsInComp);
+                    const isCompExp = !soloTablaYSemana && expandedComponentes.has(comp);
+                    const pctComp = compTot.plan > 0 ? (compTot.ejec / compTot.plan * 100) : (compTot.ejec > 0 ? 100 : 0);
+                    const csComp = getAccumulatedCheckSet(allItemsInComp);
+
+                    // Base de cálculo para % Plan y % Ejec según el modo seleccionado (Total vs Ponderado)
+                    const compUnfilteredContrato = totalVContratoByComponentUnfiltered.get(comp) || 0;
+                    const compBasePct = modoPorcentaje === 'ponderado'
+                      ? (compUnfilteredContrato > 0 ? compUnfilteredContrato : (compTot.contrato > 0 ? compTot.contrato : 0))
+                      : totalVContratoUnfiltered;
+
+                    const compPctPlanVal = compBasePct > 0 ? (compTot.plan / compBasePct) * 100 : 0;
+                    const compPctEjecVal = compBasePct > 0 ? (compTot.ejec / compBasePct) * 100 : 0;
+                    const compPctDesvVal = compPctEjecVal - compPctPlanVal;
 
                     return (
-                      <React.Fragment key={tipo}>
-                        {/* N1: TIPOLOGIA */}
+                      <React.Fragment key={comp}>
+                        {/* N1: COMPONENTE (Columna AN) */}
                         <tr 
-                          onClick={() => setExpandedTipos(prev => {
+                          onClick={soloTablaYSemana ? undefined : () => setExpandedComponentes(prev => {
                             const next = new Set(prev);
-                            if (next.has(tipo)) next.delete(tipo); else next.add(tipo);
+                            if (next.has(comp)) next.delete(comp); else next.add(comp);
                             return next;
                           })}
-                          className="bg-indigo-900 text-white hover:bg-indigo-950 font-extrabold cursor-pointer transition-colors border-b border-indigo-950 shadow-xs"
+                          className={`bg-orange-900 text-white font-black transition-colors border-b border-orange-950 shadow-xs ${soloTablaYSemana ? '' : 'cursor-pointer hover:bg-orange-950'}`}
                         >
-                          <td className="px-2 py-2 pl-2 flex items-center gap-1.5">
-                            {isTipoExp ? <ChevronDown className="w-3.5 h-3.5 text-indigo-200 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-indigo-200 shrink-0" />}
-                            <span>🏷️ {tipo}</span>
+                          <td className="px-2.5 py-2.5 pl-3 flex items-center gap-1.5">
+                            {!soloTablaYSemana && (
+                              isCompExp ? <ChevronDown className="w-4 h-4 text-orange-200 shrink-0" /> : <ChevronRight className="w-4 h-4 text-orange-200 shrink-0" />
+                            )}
+                            <span className="text-[11.5px] tracking-wide text-white">🏛️ {comp}</span>
                           </td>
-                          <td className="px-2 py-2 font-mono text-[10px] text-indigo-200">({tT.count} items)</td>
-                          <td className="px-2 py-2"></td>
-                          <td className="px-2 py-2 text-center font-mono text-[10px] text-indigo-100">{fmtDateVal(tT.maxBlFinish)}</td>
-                          <td className="px-2 py-2 text-right font-mono text-white cursor-help" title={getCantidadTooltipForGroup(allItemsInTipo, 'contrato', 'V. Contrato')}>${fmtMoney(tT.contrato)}</td>
-                          <td className="px-2 py-2 text-right font-mono text-indigo-200 cursor-help" title={getCantidadTooltipForGroup(allItemsInTipo, 'plan', 'V.Plan')}>${fmtMoney(tT.plan)}</td>
-                          <td className="px-2 py-2 text-right font-mono text-rose-300 cursor-help" title={getCantidadTooltipForGroup(allItemsInTipo, 'ejec', 'V.Ejec')}>${fmtMoney(tT.ejec)}</td>
-                          <td className={`px-2 py-2 text-right font-mono font-black cursor-help ${tT.desv < 0 ? 'text-rose-300' : 'text-emerald-300'}`} title={getCantidadTooltipForGroup(allItemsInTipo, 'desv', 'Variación')}>{fmtDNum(tT.desv)}</td>
-                          <td className="px-2 py-2 text-right font-mono text-white">{pctTipo.toFixed(2)}%</td>
-                          <td className="px-2 py-2 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csTipo.bg} ${csTipo.textC}`}><span className={`w-1 h-1 rounded-full ${csTipo.dot}`}></span>{csTipo.text}</span></td>
+                          {!soloTablaYSemana && (
+                            <>
+                              <td className="px-2 py-2.5 font-mono text-[10px] text-orange-200">({compTot.count} items)</td>
+                              <td className="px-2 py-2.5"></td>
+                              <td className="px-2 py-2.5 text-center font-mono text-[10px] text-orange-100">{fmtDateVal(compTot.maxBlFinish)}</td>
+                            </>
+                          )}
+                          {soloTablaYSemana ? (
+                            <>
+                              <td 
+                                className="px-2.5 py-2.5 text-right font-mono text-white cursor-help font-bold" 
+                                title={`Monto Exacto Contrato: $${fmtMoney(compTot.contrato)}`}
+                              >
+                                ${fmtMillions(compTot.contrato)}
+                              </td>
+                              <td 
+                                className="px-2.5 py-2.5 text-right font-mono text-orange-100 cursor-help font-bold" 
+                                title={`Monto Exacto Plan: $${fmtMoney(compTot.plan)}`}
+                              >
+                                ${fmtMillions(compTot.plan)}
+                              </td>
+                              <td 
+                                className="px-2.5 py-2.5 text-right font-mono text-slate-300 cursor-help font-bold" 
+                                title={`Monto Exacto Ejec: $${fmtMoney(compTot.ejec)}`}
+                              >
+                                ${fmtMillions(compTot.ejec)}
+                              </td>
+                              <td 
+                                className="px-2.5 py-2.5 text-right font-mono text-indigo-300 cursor-help font-bold" 
+                                title={`% Plan (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: $${fmtMoney(compBasePct)}): ${compPctPlanVal.toFixed(4)}%`}
+                              >
+                                {compPctPlanVal.toFixed(2)}%
+                              </td>
+                              <td 
+                                className="px-2.5 py-2.5 text-right font-mono text-rose-300 cursor-help font-bold" 
+                                title={`% Ejec (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: $${fmtMoney(compBasePct)}): ${compPctEjecVal.toFixed(4)}%`}
+                              >
+                                {compPctEjecVal.toFixed(2)}%
+                              </td>
+                              <td 
+                                className={`px-2.5 py-2.5 text-right font-mono font-black cursor-help ${compPctDesvVal < 0 ? 'text-red-300' : 'text-emerald-300'}`} 
+                                title={`Monto Exacto Variación: ${fmtDNum(compTot.desv)} | % Variación (% Ejec - % Plan): ${compPctDesvVal.toFixed(4)}%`}
+                              >
+                                {compPctDesvVal > 0 ? `+${compPctDesvVal.toFixed(2)}%` : `${compPctDesvVal.toFixed(2)}%`}
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-2 py-2.5 text-right font-mono text-white cursor-help" title={getCantidadTooltipForGroup(allItemsInComp, 'contrato', 'V. Contrato')}>${fmtMoney(compTot.contrato)}</td>
+                              <td className="px-2 py-2.5 text-right font-mono text-orange-100 cursor-help" title={getCantidadTooltipForGroup(allItemsInComp, 'plan', 'V.Plan')}>${fmtMoney(compTot.plan)}</td>
+                              <td className="px-2 py-2.5 text-right font-mono text-slate-300 cursor-help" title={getCantidadTooltipForGroup(allItemsInComp, 'ejec', 'V.Ejec')}>${fmtMoney(compTot.ejec)}</td>
+                              <td className={`px-2 py-2.5 text-right font-mono font-black cursor-help ${compTot.desv < 0 ? 'text-red-300' : 'text-emerald-300'}`} title={getCantidadTooltipForGroup(allItemsInComp, 'desv', 'Variación')}>{fmtDNum(compTot.desv)}</td>
+                              <td className="px-2 py-2.5 text-right font-mono text-white font-bold">{pctComp.toFixed(2)}%</td>
+                              <td className="px-2 py-2.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csComp.bg} ${csComp.textC}`}><span className={`w-1 h-1 rounded-full ${csComp.dot}`}></span>{csComp.text}</span></td>
+                            </>
+                          )}
                         </tr>
 
-                        {isTipoExp && Object.entries(grupos).sort((a: any, b: any) => {
-                          const desvA = tot(Object.values(a[1]).flatMap((c: any) => Object.values(c).flatMap((s: any) => Object.values(s).flat()))).desv;
-                          const desvB = tot(Object.values(b[1]).flatMap((c: any) => Object.values(c).flatMap((s: any) => Object.values(s).flat()))).desv;
-                          return variacionSort === 'asc' ? desvA - desvB : desvB - desvA;
-                        }).map(([grupo, caps]: any) => {
-                          const grupoKey = `${tipo}__${grupo}`;
-                          const allG = Object.values(caps).flatMap((c: any) => Object.values(c).flatMap((s: any) => Object.values(s).flat()));
-                          if (allG.length === 0) return null;
-                          const gT = tot(allG);
-                          const isGrupoExp = expandedRESPs.has(grupoKey);
-                          const pctGrupo = gT.plan > 0 ? (gT.ejec / gT.plan * 100) : (gT.ejec > 0 ? 100 : 0);
-                          const csGrupo = getAccumulatedCheckSet(allG);
+                        {!soloTablaYSemana && isCompExp && Object.entries(tipos).sort((a: any, b: any) => {
+                          return compareHierarchy(a[0], b[0], () => getItemsInTipo(a[1]), () => getItemsInTipo(b[1]));
+                        }).map(([tipo, grupos]: any) => {
+                          const tipoKey = `${comp}__${tipo}`;
+                          const allItemsInTipo = getItemsInTipo(grupos);
+                          if (allItemsInTipo.length === 0) return null;
+                          const tT = tot(allItemsInTipo);
+                          const isTipoExp = expandedTipos.has(tipoKey);
+                          const pctTipo = tT.plan > 0 ? (tT.ejec / tT.plan * 100) : (tT.ejec > 0 ? 100 : 0);
+                          const csTipo = getAccumulatedCheckSet(allItemsInTipo);
 
                           return (
-                            <React.Fragment key={grupoKey}>
-                              {/* N2: GRUPO */}
-                              <tr
-                                onClick={() => setExpandedRESPs(prev => {
+                            <React.Fragment key={tipoKey}>
+                              {/* N2: TIPOLOGIA */}
+                              <tr 
+                                onClick={() => setExpandedTipos(prev => {
                                   const next = new Set(prev);
-                                  if (next.has(grupoKey)) next.delete(grupoKey); else next.add(grupoKey);
+                                  if (next.has(tipoKey)) next.delete(tipoKey); else next.add(tipoKey);
                                   return next;
                                 })}
-                                className="bg-purple-100/90 hover:bg-purple-200/90 text-purple-950 font-extrabold cursor-pointer transition-colors border-b border-purple-200 border-l-4 border-l-purple-600"
+                                className="bg-indigo-900/95 text-white hover:bg-indigo-950 font-extrabold cursor-pointer transition-colors border-b border-indigo-950 shadow-xs"
                               >
-                                <td className="px-2 py-1.5 pl-3.5 flex items-center gap-1.5">
-                                  {isGrupoExp ? <ChevronDown className="w-3.5 h-3.5 text-purple-700 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-purple-700 shrink-0" />}
-                                  <span>📁 {grupo}</span>
+                                <td className="px-2 py-2 pl-4 flex items-center gap-1.5">
+                                  {isTipoExp ? <ChevronDown className="w-3.5 h-3.5 text-indigo-200 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-indigo-200 shrink-0" />}
+                                  <span>🏷️ {tipo}</span>
                                 </td>
-                                <td className="px-2 py-1.5 font-mono text-[10px] text-purple-700">({gT.count} items)</td>
-                                <td className="px-2 py-1.5"></td>
-                                <td className="px-2 py-1.5 text-center font-mono text-[10px]">{fmtDateVal(gT.maxBlFinish)}</td>
-                                <td className="px-2 py-1.5 text-right font-mono cursor-help" title={getCantidadTooltipForGroup(allG, 'contrato', 'V. Contrato')}>${fmtMoney(gT.contrato)}</td>
-                                <td className="px-2 py-1.5 text-right font-mono text-indigo-700 cursor-help" title={getCantidadTooltipForGroup(allG, 'plan', 'V.Plan')}>${fmtMoney(gT.plan)}</td>
-                                <td className="px-2 py-1.5 text-right font-mono text-rose-700 cursor-help" title={getCantidadTooltipForGroup(allG, 'ejec', 'V.Ejec')}>${fmtMoney(gT.ejec)}</td>
-                                <td className={`px-2 py-1.5 text-right font-mono font-black cursor-help ${gT.desv < 0 ? 'text-rose-700' : 'text-emerald-700'}`} title={getCantidadTooltipForGroup(allG, 'desv', 'Variación')}>{fmtDNum(gT.desv)}</td>
-                                <td className="px-2 py-1.5 text-right font-mono">{pctGrupo.toFixed(2)}%</td>
-                                <td className="px-2 py-1.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csGrupo.bg} ${csGrupo.textC}`}><span className={`w-1 h-1 rounded-full ${csGrupo.dot}`}></span>{csGrupo.text}</span></td>
+                                <td className="px-2 py-2 font-mono text-[10px] text-indigo-200">({tT.count} items)</td>
+                                <td className="px-2 py-2"></td>
+                                <td className="px-2 py-2 text-center font-mono text-[10px] text-indigo-100">{fmtDateVal(tT.maxBlFinish)}</td>
+                                <td className="px-2 py-2 text-right font-mono text-white cursor-help" title={getCantidadTooltipForGroup(allItemsInTipo, 'contrato', 'V. Contrato')}>${fmtMoney(tT.contrato)}</td>
+                                <td className="px-2 py-2 text-right font-mono text-indigo-200 cursor-help" title={getCantidadTooltipForGroup(allItemsInTipo, 'plan', 'V.Plan')}>${fmtMoney(tT.plan)}</td>
+                                <td className="px-2 py-2 text-right font-mono text-slate-300 cursor-help" title={getCantidadTooltipForGroup(allItemsInTipo, 'ejec', 'V.Ejec')}>${fmtMoney(tT.ejec)}</td>
+                                <td className={`px-2 py-2 text-right font-mono font-black cursor-help ${tT.desv < 0 ? 'text-red-300' : 'text-emerald-300'}`} title={getCantidadTooltipForGroup(allItemsInTipo, 'desv', 'Variación')}>{fmtDNum(tT.desv)}</td>
+                                <td className="px-2 py-2 text-right font-mono text-white">{pctTipo.toFixed(2)}%</td>
+                                <td className="px-2 py-2 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csTipo.bg} ${csTipo.textC}`}><span className={`w-1 h-1 rounded-full ${csTipo.dot}`}></span>{csTipo.text}</span></td>
                               </tr>
 
-                              {isGrupoExp && Object.entries(caps).sort((a: any, b: any) => {
-                                const desvA = tot(Object.values(a[1]).flatMap((s: any) => Object.values(s).flat())).desv;
-                                const desvB = tot(Object.values(b[1]).flatMap((s: any) => Object.values(s).flat())).desv;
-                                return variacionSort === 'asc' ? desvA - desvB : desvB - desvA;
-                              }).map(([cap, scaps]: any) => {
-                                const capKey = `${grupoKey}__${cap}`;
-                                const allCap = Object.values(scaps).flatMap((s: any) => Object.values(s).flat());
-                                if (allCap.length === 0) return null;
-                                const cT = tot(allCap);
-                                const isCapExp = expandedSubPartidas.has(capKey);
-                                const pctCap = cT.plan > 0 ? (cT.ejec / cT.plan * 100) : (cT.ejec > 0 ? 100 : 0);
-                                const csCap = getAccumulatedCheckSet(allCap);
+                              {isTipoExp && Object.entries(grupos).sort((a: any, b: any) => {
+                                return compareHierarchy(a[0], b[0], () => getItemsInGrupo(a[1]), () => getItemsInGrupo(b[1]));
+                              }).map(([grupo, caps]: any) => {
+                                const grupoKey = `${tipoKey}__${grupo}`;
+                                const allG = getItemsInGrupo(caps);
+                                if (allG.length === 0) return null;
+                                const gT = tot(allG);
+                                const isGrupoExp = expandedRESPs.has(grupoKey);
+                                const pctGrupo = gT.plan > 0 ? (gT.ejec / gT.plan * 100) : (gT.ejec > 0 ? 100 : 0);
+                                const csGrupo = getAccumulatedCheckSet(allG);
 
                                 return (
-                                  <React.Fragment key={capKey}>
-                                    {/* N3: CAP (Subpartida) */}
-                                    <tr
-                                      onClick={() => setExpandedSubPartidas(prev => {
+                                  <React.Fragment key={grupoKey}>
+                                    {/* N3: GRUPO */}
+                                    <tr 
+                                      onClick={() => setExpandedRESPs(prev => {
                                         const next = new Set(prev);
-                                        if (next.has(capKey)) next.delete(capKey); else next.add(capKey);
+                                        if (next.has(grupoKey)) next.delete(grupoKey); else next.add(grupoKey);
                                         return next;
                                       })}
-                                      className="bg-emerald-100/90 hover:bg-emerald-200/90 text-emerald-950 font-bold cursor-pointer transition-colors border-b border-emerald-200 border-l-4 border-l-emerald-600"
+                                      className="bg-purple-100/90 hover:bg-purple-200/90 text-purple-950 font-extrabold cursor-pointer transition-colors border-b border-purple-200 border-l-4 border-l-purple-600"
                                     >
-                                      <td className="px-2 py-1.5 pl-5 flex items-center gap-1.5">
-                                        {isCapExp ? <ChevronDown className="w-3.5 h-3.5 text-emerald-800 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-emerald-800 shrink-0" />}
-                                        <span>📄 {cap}</span>
+                                      <td className="px-2 py-1.5 pl-6 flex items-center gap-1.5">
+                                        {isGrupoExp ? <ChevronDown className="w-3.5 h-3.5 text-purple-700 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-purple-700 shrink-0" />}
+                                        <span>📁 {grupo}</span>
                                       </td>
-                                      <td className="px-2 py-1.5 font-mono text-[10px] text-emerald-800">({cT.count} items)</td>
+                                      <td className="px-2 py-1.5 font-mono text-[10px] text-purple-700">({gT.count} items)</td>
                                       <td className="px-2 py-1.5"></td>
-                                      <td className="px-2 py-1.5 text-center font-mono text-[10px]">{fmtDateVal(cT.maxBlFinish)}</td>
-                                      <td className="px-2 py-1.5 text-right font-mono cursor-help" title={getCantidadTooltipForGroup(allCap, 'contrato', 'V. Contrato')}>${fmtMoney(cT.contrato)}</td>
-                                      <td className="px-2 py-1.5 text-right font-mono text-indigo-700 cursor-help" title={getCantidadTooltipForGroup(allCap, 'plan', 'V.Plan')}>${fmtMoney(cT.plan)}</td>
-                                      <td className="px-2 py-1.5 text-right font-mono text-rose-700 cursor-help" title={getCantidadTooltipForGroup(allCap, 'ejec', 'V.Ejec')}>${fmtMoney(cT.ejec)}</td>
-                                      <td className={`px-2 py-1.5 text-right font-mono font-black cursor-help ${cT.desv < 0 ? 'text-rose-700' : 'text-emerald-700'}`} title={getCantidadTooltipForGroup(allCap, 'desv', 'Variación')}>{fmtDNum(cT.desv)}</td>
-                                      <td className="px-2 py-1.5 text-right font-mono">{pctCap.toFixed(2)}%</td>
-                                      <td className="px-2 py-1.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csCap.bg} ${csCap.textC}`}><span className={`w-1 h-1 rounded-full ${csCap.dot}`}></span>{csCap.text}</span></td>
+                                      <td className="px-2 py-1.5 text-center font-mono text-[10px]">{fmtDateVal(gT.maxBlFinish)}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono cursor-help" title={getCantidadTooltipForGroup(allG, 'contrato', 'V. Contrato')}>${fmtMoney(gT.contrato)}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono text-indigo-700 cursor-help" title={getCantidadTooltipForGroup(allG, 'plan', 'V.Plan')}>${fmtMoney(gT.plan)}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono text-slate-500 cursor-help" title={getCantidadTooltipForGroup(allG, 'ejec', 'V.Ejec')}>${fmtMoney(gT.ejec)}</td>
+                                      <td className={`px-2 py-1.5 text-right font-mono font-black cursor-help ${gT.desv < 0 ? 'text-red-600' : 'text-emerald-700'}`} title={getCantidadTooltipForGroup(allG, 'desv', 'Variación')}>{fmtDNum(gT.desv)}</td>
+                                      <td className="px-2 py-1.5 text-right font-mono">{pctGrupo.toFixed(2)}%</td>
+                                      <td className="px-2 py-1.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csGrupo.bg} ${csGrupo.textC}`}><span className={`w-1 h-1 rounded-full ${csGrupo.dot}`}></span>{csGrupo.text}</span></td>
                                     </tr>
 
-                                    {isCapExp && Object.entries(scaps).sort((a: any, b: any) => {
-                                      const desvA = tot(Object.values(a[1]).flat()).desv;
-                                      const desvB = tot(Object.values(b[1]).flat()).desv;
-                                      return variacionSort === 'asc' ? desvA - desvB : desvB - desvA;
-                                    }).map(([scap, subCs]: any) => {
-                                      const scapKey = `${capKey}__${scap}`;
-                                      const allS = Object.values(subCs).flat();
-                                      if (allS.length === 0) return null;
-                                      const sT = tot(allS);
-                                      const isScapExp = expandedSCAPs.has(scapKey);
-                                      const pctScap = sT.plan > 0 ? (sT.ejec / sT.plan * 100) : (sT.ejec > 0 ? 100 : 0);
-                                      const csScap = getAccumulatedCheckSet(allS);
+                                    {isGrupoExp && Object.entries(caps).sort((a: any, b: any) => {
+                                      return compareHierarchy(a[0], b[0], () => getItemsInCap(a[1]), () => getItemsInCap(b[1]));
+                                    }).map(([cap, scaps]: any) => {
+                                      const capKey = `${grupoKey}__${cap}`;
+                                      const allCap = getItemsInCap(scaps);
+                                      if (allCap.length === 0) return null;
+                                      const cT = tot(allCap);
+                                      const isCapExp = expandedSubPartidas.has(capKey);
+                                      const pctCap = cT.plan > 0 ? (cT.ejec / cT.plan * 100) : (cT.ejec > 0 ? 100 : 0);
+                                      const csCap = getAccumulatedCheckSet(allCap);
 
                                       return (
-                                        <React.Fragment key={scapKey}>
-                                          {/* N4: SCAP */}
-                                          <tr
-                                            onClick={() => setExpandedSCAPs(prev => {
+                                        <React.Fragment key={capKey}>
+                                          {/* N4: CAP (Subpartida) */}
+                                          <tr 
+                                            onClick={() => setExpandedSubPartidas(prev => {
                                               const next = new Set(prev);
-                                              if (next.has(scapKey)) next.delete(scapKey); else next.add(scapKey);
+                                              if (next.has(capKey)) next.delete(capKey); else next.add(capKey);
                                               return next;
                                             })}
-                                            className="bg-sky-100/90 hover:bg-sky-200/90 text-sky-950 font-bold cursor-pointer transition-colors border-b border-sky-200 border-l-4 border-l-sky-600"
+                                            className="bg-emerald-100/90 hover:bg-emerald-200/90 text-emerald-950 font-bold cursor-pointer transition-colors border-b border-emerald-200 border-l-4 border-l-emerald-600"
                                           >
-                                            <td className="px-2 py-1.5 pl-6 flex items-center gap-1.5">
-                                              {isScapExp ? <ChevronDown className="w-3.5 h-3.5 text-sky-700 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-sky-700 shrink-0" />}
-                                              <span>📦 {scap}</span>
+                                            <td className="px-2 py-1.5 pl-8 flex items-center gap-1.5">
+                                              {isCapExp ? <ChevronDown className="w-3.5 h-3.5 text-emerald-800 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-emerald-800 shrink-0" />}
+                                              <span>📄 {cap}</span>
                                             </td>
-                                            <td className="px-2 py-1.5 font-mono text-[10px] text-sky-700">({sT.count} items)</td>
+                                            <td className="px-2 py-1.5 font-mono text-[10px] text-emerald-800">({cT.count} items)</td>
                                             <td className="px-2 py-1.5"></td>
-                                            <td className="px-2 py-1.5 text-center font-mono text-[10px]">{fmtDateVal(sT.maxBlFinish)}</td>
-                                            <td className="px-2 py-1.5 text-right font-mono cursor-help" title={getCantidadTooltipForGroup(allS, 'contrato', 'V. Contrato')}>${fmtMoney(sT.contrato)}</td>
-                                            <td className="px-2 py-1.5 text-right font-mono text-indigo-700 cursor-help" title={getCantidadTooltipForGroup(allS, 'plan', 'V.Plan')}>${fmtMoney(sT.plan)}</td>
-                                            <td className="px-2 py-1.5 text-right font-mono text-rose-700 cursor-help" title={getCantidadTooltipForGroup(allS, 'ejec', 'V.Ejec')}>${fmtMoney(sT.ejec)}</td>
-                                            <td className={`px-2 py-1.5 text-right font-mono font-black cursor-help ${sT.desv < 0 ? 'text-rose-700' : 'text-emerald-700'}`} title={getCantidadTooltipForGroup(allS, 'desv', 'Variación')}>{fmtDNum(sT.desv)}</td>
-                                            <td className="px-2 py-1.5 text-right font-mono">{pctScap.toFixed(2)}%</td>
-                                            <td className="px-2 py-1.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csScap.bg} ${csScap.textC}`}><span className={`w-1 h-1 rounded-full ${csScap.dot}`}></span>{csScap.text}</span></td>
+                                            <td className="px-2 py-1.5 text-center font-mono text-[10px]">{fmtDateVal(cT.maxBlFinish)}</td>
+                                            <td className="px-2 py-1.5 text-right font-mono cursor-help" title={getCantidadTooltipForGroup(allCap, 'contrato', 'V. Contrato')}>${fmtMoney(cT.contrato)}</td>
+                                            <td className="px-2 py-1.5 text-right font-mono text-indigo-700 cursor-help" title={getCantidadTooltipForGroup(allCap, 'plan', 'V.Plan')}>${fmtMoney(cT.plan)}</td>
+                                            <td className="px-2 py-1.5 text-right font-mono text-slate-500 cursor-help" title={getCantidadTooltipForGroup(allCap, 'ejec', 'V.Ejec')}>${fmtMoney(cT.ejec)}</td>
+                                            <td className={`px-2 py-1.5 text-right font-mono font-black cursor-help ${cT.desv < 0 ? 'text-red-600' : 'text-emerald-700'}`} title={getCantidadTooltipForGroup(allCap, 'desv', 'Variación')}>{fmtDNum(cT.desv)}</td>
+                                            <td className="px-2 py-1.5 text-right font-mono">{pctCap.toFixed(2)}%</td>
+                                            <td className="px-2 py-1.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csCap.bg} ${csCap.textC}`}><span className={`w-1 h-1 rounded-full ${csCap.dot}`}></span>{csCap.text}</span></td>
                                           </tr>
 
-                                          {isScapExp && Object.entries(subCs).sort((a: any, b: any) => {
-                                            const desvA = tot(Array.isArray(a[1]) ? a[1] : []).desv;
-                                            const desvB = tot(Array.isArray(b[1]) ? b[1] : []).desv;
-                                            return variacionSort === 'asc' ? desvA - desvB : desvB - desvA;
-                                          }).map(([subC, items]: any) => {
-                                            const subCKey = `${scapKey}__${subC}`;
-                                            if (!Array.isArray(items) || items.length === 0) return null;
-                                            const subCTot = tot(items);
-                                            const isSubCExp = expandedSubCs.has(subCKey);
-                                            const pctSubC = subCTot.plan > 0 ? (subCTot.ejec / subCTot.plan * 100) : (subCTot.ejec > 0 ? 100 : 0);
-                                            const csSubC = getAccumulatedCheckSet(items);
+                                          {isCapExp && Object.entries(scaps).sort((a: any, b: any) => {
+                                            return compareHierarchy(a[0], b[0], () => Object.values(a[1]).flat(), () => Object.values(b[1]).flat());
+                                          }).map(([scap, subCs]: any) => {
+                                            const scapKey = `${capKey}__${scap}`;
+                                            const allS = Object.values(subCs).flat();
+                                            if (allS.length === 0) return null;
+                                            const sT = tot(allS);
+                                            const isScapExp = expandedSCAPs.has(scapKey);
+                                            const pctScap = sT.plan > 0 ? (sT.ejec / sT.plan * 100) : (sT.ejec > 0 ? 100 : 0);
+                                            const csScap = getAccumulatedCheckSet(allS);
 
                                             return (
-                                              <React.Fragment key={subCKey}>
-                                                {/* N5: SUBCONTRATISTA */}
-                                                <tr
-                                                  onClick={() => setExpandedSubCs(prev => {
+                                              <React.Fragment key={scapKey}>
+                                                {/* N5: SCAP */}
+                                                <tr 
+                                                  onClick={() => setExpandedSCAPs(prev => {
                                                     const next = new Set(prev);
-                                                    if (next.has(subCKey)) next.delete(subCKey); else next.add(subCKey);
+                                                    if (next.has(scapKey)) next.delete(scapKey); else next.add(scapKey);
                                                     return next;
                                                   })}
-                                                  className="bg-amber-100/90 hover:bg-amber-200/90 text-amber-950 font-semibold cursor-pointer transition-colors border-b border-amber-200 border-l-4 border-l-amber-600"
+                                                  className="bg-sky-100/90 hover:bg-sky-200/90 text-sky-950 font-bold cursor-pointer transition-colors border-b border-sky-200 border-l-4 border-l-sky-600"
                                                 >
-                                                  <td className="px-2 py-1.5 pl-7 flex items-center gap-1.5">
-                                                    {isSubCExp ? <ChevronDown className="w-3.5 h-3.5 text-amber-800 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-amber-800 shrink-0" />}
-                                                    <span>🏗️ SubC: {subC}</span>
+                                                  <td className="px-2 py-1.5 pl-10 flex items-center gap-1.5">
+                                                    {isScapExp ? <ChevronDown className="w-3.5 h-3.5 text-sky-700 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-sky-700 shrink-0" />}
+                                                    <span>📦 {scap}</span>
                                                   </td>
-                                                  <td className="px-2 py-1.5 font-mono text-[10px] text-amber-800">({subCTot.count} items)</td>
+                                                  <td className="px-2 py-1.5 font-mono text-[10px] text-sky-700">({sT.count} items)</td>
                                                   <td className="px-2 py-1.5"></td>
-                                                  <td className="px-2 py-1.5 text-center font-mono text-[10px]">{fmtDateVal(subCTot.maxBlFinish)}</td>
-                                                  <td className="px-2 py-1.5 text-right font-mono cursor-help" title={getCantidadTooltipForGroup(items, 'contrato', 'V. Contrato')}>${fmtMoney(subCTot.contrato)}</td>
-                                                  <td className="px-2 py-1.5 text-right font-mono text-indigo-700 cursor-help" title={getCantidadTooltipForGroup(items, 'plan', 'V.Plan')}>${fmtMoney(subCTot.plan)}</td>
-                                                  <td className="px-2 py-1.5 text-right font-mono text-rose-700 cursor-help" title={getCantidadTooltipForGroup(items, 'ejec', 'V.Ejec')}>${fmtMoney(subCTot.ejec)}</td>
-                                                  <td className={`px-2 py-1.5 text-right font-mono font-black cursor-help ${subCTot.desv < 0 ? 'text-rose-700' : 'text-emerald-700'}`} title={getCantidadTooltipForGroup(items, 'desv', 'Variación')}>{fmtDNum(subCTot.desv)}</td>
-                                                  <td className="px-2 py-1.5 text-right font-mono">{pctSubC.toFixed(2)}%</td>
-                                                  <td className="px-2 py-1.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csSubC.bg} ${csSubC.textC}`}><span className={`w-1 h-1 rounded-full ${csSubC.dot}`}></span>{csSubC.text}</span></td>
+                                                  <td className="px-2 py-1.5 text-center font-mono text-[10px]">{fmtDateVal(sT.maxBlFinish)}</td>
+                                                  <td className="px-2 py-1.5 text-right font-mono cursor-help" title={getCantidadTooltipForGroup(allS, 'contrato', 'V. Contrato')}>${fmtMoney(sT.contrato)}</td>
+                                                  <td className="px-2 py-1.5 text-right font-mono text-indigo-700 cursor-help" title={getCantidadTooltipForGroup(allS, 'plan', 'V.Plan')}>${fmtMoney(sT.plan)}</td>
+                                                  <td className="px-2 py-1.5 text-right font-mono text-slate-500 cursor-help" title={getCantidadTooltipForGroup(allS, 'ejec', 'V.Ejec')}>${fmtMoney(sT.ejec)}</td>
+                                                  <td className={`px-2 py-1.5 text-right font-mono font-black cursor-help ${sT.desv < 0 ? 'text-red-600' : 'text-emerald-700'}`} title={getCantidadTooltipForGroup(allS, 'desv', 'Variación')}>{fmtDNum(sT.desv)}</td>
+                                                  <td className="px-2 py-1.5 text-right font-mono">{pctScap.toFixed(2)}%</td>
+                                                  <td className="px-2 py-1.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csScap.bg} ${csScap.textC}`}><span className={`w-1 h-1 rounded-full ${csScap.dot}`}></span>{csScap.text}</span></td>
                                                 </tr>
 
-                                                {/* N6: LEAF ACTIVITIES */}
-                                                {isSubCExp && [...items].sort((a: any, b: any) => {
-                                                  const desvA = getItemWeekValues(a).variacion;
-                                                  const desvB = getItemWeekValues(b).variacion;
-                                                  return variacionSort === 'asc' ? desvA - desvB : desvB - desvA;
-                                                }).map((item: any) => {
-                                                  const { vPlan, vEjec, vContrato, variacion } = getItemWeekValues(item);
-                                                  const pctItem = vPlan > 0 ? (vEjec / vPlan * 100) : (vEjec > 0 ? 100 : 0);
-                                                  const csItem = getAccumulatedCheckSet([item]);
+                                                {isScapExp && Object.entries(subCs).sort((a: any, b: any) => {
+                                                  return compareHierarchy(a[0], b[0], () => Array.isArray(a[1]) ? a[1] : [], () => Array.isArray(b[1]) ? b[1] : []);
+                                                }).map(([subC, items]: any) => {
+                                                  const subCKey = `${scapKey}__${subC}`;
+                                                  if (!Array.isArray(items) || items.length === 0) return null;
+                                                  const subCTot = tot(items);
+                                                  const isSubCExp = expandedSubCs.has(subCKey);
+                                                  const pctSubC = subCTot.plan > 0 ? (subCTot.ejec / subCTot.plan * 100) : (subCTot.ejec > 0 ? 100 : 0);
+                                                  const csSubC = getAccumulatedCheckSet(items);
 
                                                   return (
-                                                    <tr key={item.activityId || item.wbs} className="bg-white hover:bg-slate-50 transition-colors text-[11px] text-slate-700 border-b border-slate-100 border-l-4 border-l-slate-300">
-                                                      <td className="px-2 py-1.5 pl-8 font-mono font-semibold text-slate-800">
-                                                        <div className="truncate" title={item.wbs}>{item.wbs}</div>
-                                                      </td>
-                                                      <td className="px-2 py-1.5 font-mono text-slate-500">{item.activityId}</td>
-                                                      <td className="px-2 py-1.5 text-slate-800 font-medium max-w-[200px]">
-                                                        <div className="truncate max-w-[200px]" title={item.descripcion}>{item.descripcion}</div>
-                                                      </td>
-                                                      <td className="px-2 py-1.5 text-center font-mono text-[10px] text-slate-500">{fmtDateVal(item.blFinish)}</td>
-                                                      <td className="px-2 py-1.5 text-right font-mono text-slate-600 cursor-help hover:bg-slate-100 transition-colors" title={getCantidadTooltipForItem(item, vContrato, 'V. Contrato')}>${fmtMoney(vContrato)}</td>
-                                                      <td className="px-2 py-1.5 text-right font-mono font-bold text-indigo-700 cursor-help hover:bg-indigo-50 transition-colors" title={getCantidadTooltipForItem(item, vPlan, 'V.Plan')}>${fmtMoney(vPlan)}</td>
-                                                      <td className="px-2 py-1.5 text-right font-mono font-bold text-rose-700 cursor-help hover:bg-rose-50 transition-colors" title={getCantidadTooltipForItem(item, vEjec, 'V.Ejec')}>${fmtMoney(vEjec)}</td>
-                                                      <td className={`px-2 py-1.5 text-right font-mono font-bold cursor-help hover:bg-slate-100 transition-colors ${variacion < 0 ? 'text-rose-600' : 'text-emerald-600'}`} title={getCantidadTooltipForItem(item, variacion, 'Variación')}>
-                                                        {fmtDNum(variacion)}
-                                                      </td>
-                                                      <td className="px-2 py-1.5 text-right font-mono">{pctItem.toFixed(2)}%</td>
-                                                      <td className="px-2 py-1.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csItem.bg} ${csItem.textC}`}><span className={`w-1 h-1 rounded-full ${csItem.dot}`}></span>{csItem.text}</span></td>
-                                                    </tr>
+                                                    <React.Fragment key={subCKey}>
+                                                      {/* N6: SUBCONTRATISTA */}
+                                                      <tr 
+                                                        onClick={() => setExpandedSubCs(prev => {
+                                                          const next = new Set(prev);
+                                                          if (next.has(subCKey)) next.delete(subCKey); else next.add(subCKey);
+                                                          return next;
+                                                        })}
+                                                        className="bg-amber-100/90 hover:bg-amber-200/90 text-amber-950 font-semibold cursor-pointer transition-colors border-b border-amber-200 border-l-4 border-l-amber-600"
+                                                      >
+                                                        <td className="px-2 py-1.5 pl-12 flex items-center gap-1.5">
+                                                          {isSubCExp ? <ChevronDown className="w-3.5 h-3.5 text-amber-800 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-amber-800 shrink-0" />}
+                                                          <span>🏗️ SubC: {subC}</span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 font-mono text-[10px] text-amber-800">({subCTot.count} items)</td>
+                                                        <td className="px-2 py-1.5"></td>
+                                                        <td className="px-2 py-1.5 text-center font-mono text-[10px]">{fmtDateVal(subCTot.maxBlFinish)}</td>
+                                                        <td className="px-2 py-1.5 text-right font-mono cursor-help" title={getCantidadTooltipForGroup(items, 'contrato', 'V. Contrato')}>${fmtMoney(subCTot.contrato)}</td>
+                                                        <td className="px-2 py-1.5 text-right font-mono text-indigo-700 cursor-help" title={getCantidadTooltipForGroup(items, 'plan', 'V.Plan')}>${fmtMoney(subCTot.plan)}</td>
+                                                        <td className="px-2 py-1.5 text-right font-mono text-slate-500 cursor-help" title={getCantidadTooltipForGroup(items, 'ejec', 'V.Ejec')}>${fmtMoney(subCTot.ejec)}</td>
+                                                        <td className={`px-2 py-1.5 text-right font-mono font-black cursor-help ${subCTot.desv < 0 ? 'text-red-600' : 'text-emerald-700'}`} title={getCantidadTooltipForGroup(items, 'desv', 'Variación')}>{fmtDNum(subCTot.desv)}</td>
+                                                        <td className="px-2 py-1.5 text-right font-mono">{pctSubC.toFixed(2)}%</td>
+                                                        <td className="px-2 py-1.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csSubC.bg} ${csSubC.textC}`}><span className={`w-1 h-1 rounded-full ${csSubC.dot}`}></span>{csSubC.text}</span></td>
+                                                      </tr>
+
+                                                      {/* N7: LEAF ACTIVITIES */}
+                                                      {isSubCExp && [...items].sort(compareLeafItems).map((item: any) => {
+                                                        const { vPlan, vEjec, vContrato, variacion } = getItemWeekValues(item);
+                                                        const pctItem = vPlan > 0 ? (vEjec / vPlan * 100) : (vEjec > 0 ? 100 : 0);
+                                                        const csItem = getAccumulatedCheckSet([item]);
+
+                                                        return (
+                                                          <tr key={item.activityId || item.wbs} className="bg-white hover:bg-slate-50 transition-colors text-[11px] text-slate-700 border-b border-slate-100 border-l-4 border-l-slate-300">
+                                                            <td className="px-2 py-1.5 pl-14 font-mono font-semibold text-slate-800">
+                                                              <div className="truncate" title={item.wbs}>{item.wbs}</div>
+                                                            </td>
+                                                            <td className="px-2 py-1.5 font-mono text-slate-500">{item.activityId}</td>
+                                                            <td className="px-2 py-1.5 text-slate-800 font-medium max-w-[200px]">
+                                                              <div className="truncate max-w-[200px]" title={item.descripcion}>{item.descripcion}</div>
+                                                            </td>
+                                                            <td className="px-2 py-1.5 text-center font-mono text-[10px] text-slate-500">{fmtDateVal(item.blFinish)}</td>
+                                                            <td className="px-2 py-1.5 text-right font-mono text-slate-600 cursor-help hover:bg-slate-100 transition-colors" title={getCantidadTooltipForItem(item, vContrato, 'V. Contrato')}>${fmtMoney(vContrato)}</td>
+                                                            <td className="px-2 py-1.5 text-right font-mono font-bold text-indigo-700 cursor-help hover:bg-indigo-50 transition-colors" title={getCantidadTooltipForItem(item, vPlan, 'V.Plan')}>${fmtMoney(vPlan)}</td>
+                                                            <td className="px-2 py-1.5 text-right font-mono font-bold text-slate-400 cursor-help hover:bg-slate-100 transition-colors" title={getCantidadTooltipForItem(item, vEjec, 'V.Ejec')}>${fmtMoney(vEjec)}</td>
+                                                            <td className={`px-2 py-1.5 text-right font-mono font-bold cursor-help hover:bg-slate-100 transition-colors ${variacion < 0 ? 'text-red-600' : 'text-emerald-600'}`} title={getCantidadTooltipForItem(item, variacion, 'Variación')}>
+                                                              {fmtDNum(variacion)}
+                                                            </td>
+                                                            <td className="px-2 py-1.5 text-right font-mono">{pctItem.toFixed(2)}%</td>
+                                                            <td className="px-2 py-1.5 text-center font-mono"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csItem.bg} ${csItem.textC}`}><span className={`w-1 h-1 rounded-full ${csItem.dot}`}></span>{csItem.text}</span></td>
+                                                          </tr>
+                                                        );
+                                                      })}
+                                                    </React.Fragment>
                                                   );
                                                 })}
                                               </React.Fragment>
@@ -2310,12 +2779,78 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   })
                 )}
               </tbody>
-              
+              <tfoot className="bg-indigo-950 text-white font-extrabold text-xs shadow-md border-t-2 border-indigo-700">
+                <tr>
+                  <td className="px-3.5 py-3 border-t border-indigo-800" colSpan={soloTablaYSemana ? 1 : 3}>
+                    TOTAL FILTRADO ({leafItems.length.toLocaleString()} ítems)
+                  </td>
+                  {!soloTablaYSemana && (
+                    <td className="px-3.5 py-3 border-t border-indigo-800 text-center font-mono text-[10px] text-indigo-200">
+                      {fmtDateVal(globalTot.maxBlFinish)}
+                    </td>
+                  )}
+                  {soloTablaYSemana ? (
+                    <>
+                      <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono font-black" title={`Monto Total: $${fmtMoney(globalTot.contrato)}`}>
+                        ${fmtMillions(globalTot.contrato)}
+                      </td>
+                      <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono font-black text-indigo-200" title={`Monto Plan: $${fmtMoney(globalTot.plan)}`}>
+                        ${fmtMillions(globalTot.plan)}
+                      </td>
+                      <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono font-black text-rose-200" title={`Monto Ejec: $${fmtMoney(globalTot.ejec)}`}>
+                        ${fmtMillions(globalTot.ejec)}
+                      </td>
+                      <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono font-black text-indigo-300" title={`Total % Plan sobre V. Contrato Global sin filtrar: $${fmtMoney(totalVContratoUnfiltered)}`}>
+                        {totalVContratoUnfiltered > 0 ? `${((globalTot.plan / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
+                      </td>
+                      <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono font-black text-rose-300" title={`Total % Ejec sobre V. Contrato Global sin filtrar: $${fmtMoney(totalVContratoUnfiltered)}`}>
+                        {totalVContratoUnfiltered > 0 ? `${((globalTot.ejec / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
+                      </td>
+                      <td className={`px-3.5 py-3 border-t border-indigo-800 text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`} title={`Monto Variación: ${fmtDNum(globalTot.desv)} | Total % Variación: ${totalVContratoUnfiltered > 0 ? (((globalTot.ejec - globalTot.plan) / totalVContratoUnfiltered) * 100).toFixed(4) : '0.0000'}%`}>
+                        {(() => {
+                          const totalPctPlan = totalVContratoUnfiltered > 0 ? (globalTot.plan / totalVContratoUnfiltered) * 100 : 0;
+                          const totalPctEjec = totalVContratoUnfiltered > 0 ? (globalTot.ejec / totalVContratoUnfiltered) * 100 : 0;
+                          const totalPctDesv = totalPctEjec - totalPctPlan;
+                          return totalPctDesv > 0 ? `+${totalPctDesv.toFixed(2)}%` : `${totalPctDesv.toFixed(2)}%`;
+                        })()}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono">
+                        ${fmtMoney(globalTot.contrato)}
+                      </td>
+                      <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono text-indigo-200">
+                        ${fmtMoney(globalTot.plan)}
+                      </td>
+                      <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono text-slate-300">
+                        ${fmtMoney(globalTot.ejec)}
+                      </td>
+                      <td className={`px-3.5 py-3 border-t border-indigo-800 text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {fmtDNum(globalTot.desv)}
+                      </td>
+                      <td className="px-3.5 py-3 border-t border-indigo-800 text-right font-mono">
+                        {globalTot.plan > 0 ? `${((globalTot.ejec / globalTot.plan) * 100).toFixed(2)}%` : '—'}
+                      </td>
+                      <td className="px-3.5 py-3 border-t border-indigo-800 text-center font-mono">
+                        {(() => {
+                          const csTot = getAccumulatedCheckSet(leafItems);
+                          return (
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csTot.bg} ${csTot.textC}`}>
+                              <span className={`w-1 h-1 rounded-full ${csTot.dot}`}></span>{csTot.text}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              </tfoot>
             </table>
           </div>
 
           {/* Resumen Check Set */}
-          {checkSetSummary.length > 0 && (
+          {!soloTablaYSemana && checkSetSummary.length > 0 && (
             <div className="mt-8 space-y-3">
               <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-indigo-600" />
@@ -2333,25 +2868,6 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       <th className="px-4 py-3 border-b border-slate-700 font-bold text-center w-32">Cant. Actividades</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-slate-900 text-white font-extrabold text-xs shadow-xs">
-                    <tr>
-                      <td className="px-4 py-3 border-b border-slate-800" colSpan={2}>
-                        TOTAL GENERAL
-                      </td>
-                      <td className="px-4 py-3 border-b border-slate-800 text-right font-mono text-indigo-300">
-                        ${fmtMoney(globalTot.plan)}
-                      </td>
-                      <td className="px-4 py-3 border-b border-slate-800 text-right font-mono text-rose-300">
-                        ${fmtMoney(globalTot.ejec)}
-                      </td>
-                      <td className={`px-4 py-3 border-b border-slate-800 text-right font-mono ${globalTot.desv < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                        {fmtDNum(globalTot.desv)}
-                      </td>
-                      <td className="px-4 py-3 border-b border-slate-800 text-center font-mono">
-                        {leafItems.length}
-                      </td>
-                    </tr>
-                  </tbody>
                   <tbody className="divide-y divide-slate-100">
                     {checkSetSummary.map(([csKey, csData]) => {
                        const tipos = Object.entries(csData.tipologias).sort((a, b) => b[1].desv - a[1].desv);
@@ -2380,10 +2896,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                              <td className="px-4 py-3 border-b border-slate-200 text-right text-indigo-700 font-mono">
                                ${fmtMoney(csData.totalPlan)}
                              </td>
-                             <td className="px-4 py-3 border-b border-slate-200 text-right text-rose-700 font-mono">
+                             <td className="px-4 py-3 border-b border-slate-200 text-right text-slate-500 font-mono">
                                ${fmtMoney(csData.totalEjec)}
                              </td>
-                             <td className={`px-4 py-3 border-b border-slate-200 text-right font-mono font-black ${csData.totalDesv < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                             <td className={`px-4 py-3 border-b border-slate-200 text-right font-mono font-black ${csData.totalDesv < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                {fmtDNum(csData.totalDesv)}
                              </td>
                              <td className="px-4 py-3 border-b border-slate-200 text-center font-bold text-slate-800 bg-slate-200/50">
@@ -2402,10 +2918,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                                <td className="px-4 py-2 text-right font-mono text-slate-600">
                                  ${fmtMoney(tData.plan)}
                                </td>
-                               <td className="px-4 py-2 text-right font-mono text-slate-600">
+                               <td className="px-4 py-2 text-right font-mono text-slate-500">
                                  ${fmtMoney(tData.ejec)}
                                </td>
-                               <td className={`px-4 py-2 text-right font-mono font-bold ${tData.desv < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                               <td className={`px-4 py-2 text-right font-mono font-bold ${tData.desv < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                  {fmtDNum(tData.desv)}
                                </td>
                                <td className="px-4 py-2 text-center font-mono text-slate-600 font-medium border-l border-slate-100">
@@ -2417,6 +2933,25 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                        );
                     })}
                   </tbody>
+                  <tfoot className="bg-slate-900 text-white font-extrabold text-xs shadow-xs border-t-2 border-slate-700">
+                    <tr>
+                      <td className="px-4 py-3 border-t border-slate-700" colSpan={2}>
+                        TOTAL GENERAL
+                      </td>
+                      <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-indigo-300">
+                        ${fmtMoney(globalTot.plan)}
+                      </td>
+                      <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-slate-300">
+                        ${fmtMoney(globalTot.ejec)}
+                      </td>
+                      <td className={`px-4 py-3 border-t border-slate-700 text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {fmtDNum(globalTot.desv)}
+                      </td>
+                      <td className="px-4 py-3 border-t border-slate-700 text-center font-mono">
+                        {leafItems.length}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>

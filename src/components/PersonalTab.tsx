@@ -50,18 +50,67 @@ import {
   cleanEmpresaName
 } from '../utils/personalParser';
 import { getInitialPersonalData, RAW_SAMPLE_PERSONAL_MERINOS } from '../data/samplePersonalData';
-import { deletePersonalMatrixFromFirestore } from '../utils/firebaseSync';
+import {
+  savePersonalPlanToFirebase,
+  loadLatestPersonalPlanFromFirebase
+} from '../utils/firebaseSync';
 import { PersonalTrendChart } from './PersonalTrendChart';
 import { CollapsibleHierarchyDropdown } from './CollapsibleHierarchyDropdown';
 
 export function PersonalTab() {
-  // Session-based in-memory state: The user loads their personal Excel file each time
+  // State: Loaded personal data from Firestore or sample demonstration data
   const [registros, setRegistros] = useState<PersonalRegistro[]>([]);
   const [currentFileName, setCurrentFileName] = useState<string>('');
+  const [isSyncingWithCloud, setIsSyncingWithCloud] = useState<boolean>(false);
+  const [syncProgress, setSyncProgress] = useState<{ pct: number; message: string } | null>(null);
+  const [isCloudLoaded, setIsCloudLoaded] = useState<boolean>(false);
+  const [isLoadingCloud, setIsLoadingCloud] = useState<boolean>(true);
 
-  // On mount: Ensure any old Firestore personal_matrix data and local caches are cleaned
+  // On mount: Load latest personal data from Firestore.
+  // If no cloud data exists, show demo sample data without failing.
   useEffect(() => {
-    deletePersonalMatrixFromFirestore();
+    let isMounted = true;
+    async function loadCloudData() {
+      setIsLoadingCloud(true);
+      try {
+        const cloudData = await loadLatestPersonalPlanFromFirebase();
+        if (!isMounted) return;
+
+        if (cloudData && cloudData.registros && cloudData.registros.length > 0) {
+          // Re-hydrate any dates if needed
+          const hydrated = cloudData.registros.map(r => ({
+            ...r,
+            fechaDate: r.fechaIso ? new Date(`${r.fechaIso}T00:00:00`) : undefined
+          }));
+          setRegistros(hydrated);
+          setCurrentFileName(cloudData.planMeta?.fileName || 'Matriz_Personal_Nube.xlsx');
+          setIsCloudLoaded(true);
+        } else {
+          // No cloud data -> Default to demonstration sample data
+          const initial = getInitialPersonalData();
+          setRegistros(initial);
+          setCurrentFileName('Datos_Demostracion.xlsx');
+          setIsCloudLoaded(false);
+        }
+      } catch (err) {
+        console.warn('Could not load remote personal plan, loading sample demo data:', err);
+        if (isMounted) {
+          const initial = getInitialPersonalData();
+          setRegistros(initial);
+          setCurrentFileName('Datos_Demostracion.xlsx');
+          setIsCloudLoaded(false);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingCloud(false);
+        }
+      }
+    }
+
+    loadCloudData();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Sub-view: 'resumen' | 'detalle' | 'graficos' (Default: 'graficos')
@@ -90,6 +139,10 @@ export function PersonalTab() {
   const [isEmpresaDropdownOpen, setIsEmpresaDropdownOpen] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [uploadFeedback, setUploadFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Collapsible cards state
+  const [isTopFrentesCollapsed, setIsTopFrentesCollapsed] = useState<boolean>(true);
+  const [isTopActividadesCollapsed, setIsTopActividadesCollapsed] = useState<boolean>(true);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -832,61 +885,137 @@ export function PersonalTab() {
       .slice(0, 20);
   }, [filteredRegistros, stats.numDiasMes, mesFilter, mesCorrienteKey]);
 
-  // Handle File Upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  // Process uploaded Excel / CSV File
+  const processFile = async (file: File) => {
+    try {
+      setUploadFeedback({
+        type: 'success',
+        message: `Procesando archivo "${file.name}"...`
+      });
 
-    const file = files[0];
-    const reader = new FileReader();
+      const buffer = await file.arrayBuffer();
+      let nuevosRegistros: PersonalRegistro[] = [];
+      const fileNameLower = file.name.toLowerCase();
 
-    reader.onload = async (evt) => {
-      try {
-        const buffer = evt.target?.result;
-        if (!buffer) return;
-
-        let nuevosRegistros: PersonalRegistro[] = [];
-
-        if (file.name.endsWith('.csv') || file.name.endsWith('.txt')) {
-          const text = new TextDecoder('utf-8').decode(buffer as ArrayBuffer);
-          nuevosRegistros = parsePersonalCsv(text, 'Merinos');
-        } else {
-          const workbook = XLSX.read(buffer, { type: 'array' });
+      if (fileNameLower.endsWith('.csv') || fileNameLower.endsWith('.txt') || fileNameLower.endsWith('.tsv')) {
+        let text = new TextDecoder('utf-8').decode(buffer);
+        // Si hay caracteres extraños de codificación Windows-1252 / ISO-8859-1
+        if (text.includes('\uFFFD')) {
+          try {
+            text = new TextDecoder('iso-8859-1').decode(buffer);
+          } catch {
+            // keep utf-8
+          }
+        }
+        nuevosRegistros = parsePersonalCsv(text, 'Merinos');
+      } else {
+        // Excel (.xlsx, .xls, etc.)
+        try {
+          const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+          nuevosRegistros = parsePersonalWorkbook(workbook);
+        } catch (wbErr) {
+          console.warn('Fallback XLSX parsing with raw mode:', wbErr);
+          const workbook = XLSX.read(buffer, { type: 'array', raw: true });
           nuevosRegistros = parsePersonalWorkbook(workbook);
         }
 
+        // Si falló y no extrajo registros, intentar como CSV
         if (nuevosRegistros.length === 0) {
-          setUploadFeedback({
-            type: 'error',
-            message: 'No se pudieron extraer registros válidos. Verifica que las columnas coincidan con la matriz (Fecha, Empresa, Frente, Actividad, Hd, Md, Hn, Mn, H, M, Total).'
-          });
-          return;
+          try {
+            const text = new TextDecoder('utf-8').decode(buffer);
+            nuevosRegistros = parsePersonalCsv(text, 'Merinos');
+          } catch {
+            // ignore
+          }
         }
+      }
 
-        setRegistros(nuevosRegistros);
-        setCurrentFileName(file.name);
-        setUploadFeedback({
-          type: 'success',
-          message: `¡Se cargaron exitosamente ${nuevosRegistros.length} registros desde "${file.name}" para análisis!`
-        });
-
-        // Reset page & filters if needed
-        setPage(1);
-        setTimeout(() => {
-          setIsUploadModalOpen(false);
-          setUploadFeedback(null);
-        }, 2000);
-      } catch (err: any) {
-        console.error('Error procesando archivo de personal:', err);
+      if (!nuevosRegistros || nuevosRegistros.length === 0) {
         setUploadFeedback({
           type: 'error',
-          message: `Error al procesar el archivo: ${err.message || 'Formato no soportado'}`
+          message: 'No se pudieron extraer registros válidos. Verifica que las columnas coincidan con la matriz (Fecha, Empresa, Frente, Actividad, Hd, Md, Hn, Mn, H, M, Total).'
         });
+        return;
       }
-    };
 
-    reader.readAsArrayBuffer(file);
+      setRegistros(nuevosRegistros);
+      setCurrentFileName(file.name);
+      setIsCloudLoaded(false);
+
+      // Sincronizar en segundo plano con Firebase (reemplazo limpio y completo sin acumulación)
+      setIsSyncingWithCloud(true);
+      setSyncProgress({ pct: 20, message: 'Iniciando sincronización con la nube...' });
+
+      savePersonalPlanToFirebase(file.name, nuevosRegistros, (pct, statusMsg) => {
+        setSyncProgress({ pct, message: statusMsg });
+      })
+        .then(() => {
+          setIsCloudLoaded(true);
+          setUploadFeedback({
+            type: 'success',
+            message: `¡Se cargaron y sincronizaron exitosamente ${nuevosRegistros.length} registros desde "${file.name}" en la nube!`
+          });
+        })
+        .catch(syncErr => {
+          console.warn('Error sincronizando con Firebase (los datos locales siguen activos):', syncErr);
+          setUploadFeedback({
+            type: 'success',
+            message: `¡Se cargaron ${nuevosRegistros.length} registros desde "${file.name}" para esta sesión!`
+          });
+        })
+        .finally(() => {
+          setIsSyncingWithCloud(false);
+          setSyncProgress(null);
+          setTimeout(() => {
+            setIsUploadModalOpen(false);
+            setUploadFeedback(null);
+          }, 1800);
+        });
+
+      // Reset page & filters
+      setPage(1);
+    } catch (err: any) {
+      console.error('Error procesando archivo de personal:', err);
+      setUploadFeedback({
+        type: 'error',
+        message: `Error al procesar el archivo: ${err.message || 'Formato no soportado'}`
+      });
+      setIsSyncingWithCloud(false);
+      setSyncProgress(null);
+    }
+  };
+
+  // Handle File Input Change
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    processFile(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Drag & Drop Handlers
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFile(e.dataTransfer.files[0]);
+    }
   };
 
   // Reset to default sample dataset
@@ -901,7 +1030,7 @@ export function PersonalTab() {
     setTimeout(() => {
       setIsUploadModalOpen(false);
       setUploadFeedback(null);
-    }, 2000);
+    }, 1500);
   };
 
   // Reset filters
@@ -1110,6 +1239,15 @@ export function PersonalTab() {
 
   return (
     <div className="space-y-6 animate-fade-in" id="personal-tab-root">
+      {/* Hidden File Input - Permanently Mounted in DOM */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx, .xls, .csv, .txt, .tsv"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
+
       {/* Top Banner Card (Ultra-compact) */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 text-white shadow-md border border-indigo-500/20 relative overflow-hidden">
         <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -1122,7 +1260,12 @@ export function PersonalTab() {
             </div>
             <h1 className="text-base sm:text-lg font-black tracking-tight flex items-center gap-2 flex-wrap">
               <span>Análisis de Personal de Obra</span>
-              {registros.length > 0 ? (
+              {isLoadingCloud ? (
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-200 flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span>Cargando datos...</span>
+                </span>
+              ) : registros.length > 0 ? (
                 <>
                   <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300">
                     {registros.length} Registros
@@ -1130,6 +1273,16 @@ export function PersonalTab() {
                   {currentFileName && (
                     <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-900/60 border border-indigo-400/30 text-indigo-200 truncate max-w-[200px]" title={currentFileName}>
                       📄 {currentFileName}
+                    </span>
+                  )}
+                  {isCloudLoaded ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center gap-1" title="Sincronizado en Firebase Firestore">
+                      <Cloud className="w-3 h-3 text-sky-300" />
+                      <span>Nube</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 flex items-center gap-1" title="Datos de muestra locales">
+                      <span>Muestra</span>
                     </span>
                   )}
                 </>
@@ -1252,30 +1405,54 @@ export function PersonalTab() {
             Para visualizar los análisis de cuadrillas, comparativas directas vs indirectas, gráficos de tendencias y resúmenes por empresa, carga el archivo Excel o CSV de la matriz de personal.
           </p>
 
+          {uploadFeedback && (
+            <div
+              className={`p-3.5 rounded-2xl text-xs font-semibold mb-6 max-w-md mx-auto flex items-start gap-2.5 ${
+                uploadFeedback.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}
+            >
+              {uploadFeedback.type === 'success' ? (
+                <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              )}
+              <span>{uploadFeedback.message}</span>
+            </div>
+          )}
+
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50/70 transition-all rounded-2xl p-8 text-center cursor-pointer group mb-6 max-w-md mx-auto"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed transition-all rounded-2xl p-8 text-center cursor-pointer group mb-6 max-w-md mx-auto ${
+              isDragging
+                ? 'border-indigo-600 bg-indigo-100/80 scale-[1.02]'
+                : 'border-indigo-300 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50/70'
+            }`}
           >
-            <Upload className="w-8 h-8 text-indigo-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+            <Upload className={`w-8 h-8 text-indigo-500 mx-auto mb-2 transition-transform ${isDragging ? 'scale-125' : 'group-hover:scale-110'}`} />
             <div className="text-sm font-bold text-slate-800">
-              Haz clic o arrastra tu archivo Excel / CSV aquí
+              {isDragging ? '¡Suelta el archivo aquí!' : 'Haz clic o arrastra tu archivo Excel / CSV aquí'}
             </div>
             <div className="text-xs text-slate-500 mt-1">
-              Formatos compatibles: .xlsx, .xls, .csv
+              Formatos compatibles: .xlsx, .xls, .csv, .txt
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+              className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-all flex items-center gap-2 cursor-pointer active:scale-95"
             >
               <Upload className="w-4 h-4" />
               <span>Seleccionar Archivo Excel</span>
             </button>
             <button
               onClick={handleResetSampleData}
-              className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all flex items-center gap-2 cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
             >
               <RefreshCw className="w-4 h-4 text-slate-500" />
               <span>Cargar datos de demostración</span>
@@ -2312,153 +2489,203 @@ export function PersonalTab() {
           </div>
 
           {/* Top Frentes de Trabajo */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm" id="top-frentes-personal-card">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm transition-all overflow-hidden" id="top-frentes-personal-card">
+            <div
+              onClick={() => setIsTopFrentesCollapsed(prev => !prev)}
+              className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-slate-50/70 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
+              data-open={!isTopFrentesCollapsed}
+              role="button"
+              tabIndex={0}
+              title={isTopFrentesCollapsed ? "Haz clic para expandir frentes" : "Haz clic para colapsar frentes"}
+            >
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <HardHat className="w-4 h-4 text-indigo-600" />
                   <span>Top 10 Frentes con Mayor Concentración de Personal</span>
+                  <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full ml-1 font-mono">
+                    {frentesDistribucion.length}
+                  </span>
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Promedio diario por frente de trabajo en <strong className="text-indigo-900">{stats.mesCorrienteLabel}</strong> ({stats.numDiasMes} {stats.numDiasMes === 1 ? 'día activo' : 'días activos'}).
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <span className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-900 font-bold px-3 py-1 rounded-xl">
                   Prom. Obra: <strong className="text-indigo-950 font-mono text-sm">{stats.promDiario.toFixed(1)}</strong>/día
                 </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsTopFrentesCollapsed(prev => !prev);
+                  }}
+                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+                  aria-label={isTopFrentesCollapsed ? "Expandir" : "Colapsar"}
+                >
+                  {isTopFrentesCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-              {frentesDistribucion.map((f, i) => {
-                const isIndirecto = clasificarTipoPersonal(f.frente) === 'Indirecto';
-                const isSelected = frenteFilter === f.frente;
-                const pctDelMes = stats.promDiario > 0 ? (f.promedioDiarioMes / stats.promDiario) * 100 : 0;
+            {!isTopFrentesCollapsed && (
+              <div className="p-4 sm:p-5 pt-1 sm:pt-2 border-t border-slate-100 animate-fade-in">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                  {frentesDistribucion.map((f, i) => {
+                    const isIndirecto = clasificarTipoPersonal(f.frente) === 'Indirecto';
+                    const isSelected = frenteFilter === f.frente;
+                    const pctDelMes = stats.promDiario > 0 ? (f.promedioDiarioMes / stats.promDiario) * 100 : 0;
 
-                return (
-                  <div
-                    key={f.frente}
-                    onClick={() => {
-                      setFrenteFilter(prev => prev === f.frente ? 'all' : f.frente);
-                      setPage(1);
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    title={`Haz clic para filtrar por el frente: ${f.frente} (Promedio: ${f.promedioDiarioMes.toFixed(1)} personas/día en ${stats.mesCorrienteLabel})`}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer select-none hover:shadow-md hover:scale-[1.02] ${
-                      isSelected
-                        ? 'bg-indigo-100 border-2 border-indigo-500 ring-2 ring-indigo-300 shadow-md'
-                        : isIndirecto
-                        ? 'bg-amber-50/50 border-amber-200 text-amber-950 hover:bg-amber-100/60'
-                        : 'bg-emerald-50/50 border-emerald-200 text-emerald-950 hover:bg-emerald-100/60'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
-                        #{i + 1}
-                      </span>
-                      <span
-                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-mono ${
+                    return (
+                      <div
+                        key={f.frente}
+                        onClick={() => {
+                          setFrenteFilter(prev => prev === f.frente ? 'all' : f.frente);
+                          setPage(1);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        title={`Haz clic para filtrar por el frente: ${f.frente} (Promedio: ${f.promedioDiarioMes.toFixed(1)} personas/día en ${stats.mesCorrienteLabel})`}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer select-none hover:shadow-md hover:scale-[1.02] ${
                           isSelected
-                            ? 'bg-indigo-600 text-white'
+                            ? 'bg-indigo-100 border-2 border-indigo-500 ring-2 ring-indigo-300 shadow-md'
                             : isIndirecto
-                            ? 'bg-amber-200 text-amber-900'
-                            : 'bg-emerald-200 text-emerald-900'
+                            ? 'bg-amber-50/50 border-amber-200 text-amber-950 hover:bg-amber-100/60'
+                            : 'bg-emerald-50/50 border-emerald-200 text-emerald-950 hover:bg-emerald-100/60'
                         }`}
                       >
-                        {isIndirecto ? 'Indirecto' : 'Directo'}
-                      </span>
-                    </div>
-                    <div className="text-xs font-bold truncate" title={f.frente}>
-                      {f.frente}
-                    </div>
-                    <div className="text-lg font-black font-mono mt-1 text-slate-900">
-                      {f.promedioDiarioMes.toFixed(1)} <span className="text-[11px] font-medium text-slate-500">prom/día</span>
-                    </div>
-                    <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[10px] text-slate-500 flex items-center justify-between font-mono">
-                      <span className="font-bold text-slate-700">{pctDelMes.toFixed(1)}% mes</span>
-                      <span title="Total acumulado multimes" className="text-slate-400">Acum: {f.totalAcumulado}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
+                            #{i + 1}
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-mono ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white'
+                                : isIndirecto
+                                ? 'bg-amber-200 text-amber-900'
+                                : 'bg-emerald-200 text-emerald-900'
+                            }`}
+                          >
+                            {isIndirecto ? 'Indirecto' : 'Directo'}
+                          </span>
+                        </div>
+                        <div className="text-xs font-bold truncate" title={f.frente}>
+                          {f.frente}
+                        </div>
+                        <div className="text-lg font-black font-mono mt-1 text-slate-900">
+                          {f.promedioDiarioMes.toFixed(1)} <span className="text-[11px] font-medium text-slate-500">prom/día</span>
+                        </div>
+                        <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[10px] text-slate-500 flex items-center justify-between font-mono">
+                          <span className="font-bold text-slate-700">{pctDelMes.toFixed(1)}% mes</span>
+                          <span title="Total acumulado multimes" className="text-slate-400">Acum: {f.totalAcumulado}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Top Actividades de Trabajo */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm" id="top-actividades-personal-card">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm transition-all overflow-hidden" id="top-actividades-personal-card">
+            <div
+              onClick={() => setIsTopActividadesCollapsed(prev => !prev)}
+              className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-slate-50/70 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
+              data-open={!isTopActividadesCollapsed}
+              role="button"
+              tabIndex={0}
+              title={isTopActividadesCollapsed ? "Haz clic para expandir actividades" : "Haz clic para colapsar actividades"}
+            >
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <Briefcase className="w-4 h-4 text-indigo-600" />
                   <span>Top 20 Actividades con Mayor Concentración de Personal</span>
+                  <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full ml-1 font-mono">
+                    {actividadesDistribucion.length}
+                  </span>
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Promedio diario por actividad en <strong className="text-indigo-900">{stats.mesCorrienteLabel}</strong> ({stats.numDiasMes} {stats.numDiasMes === 1 ? 'día activo' : 'días activos'}).
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <span className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-900 font-bold px-3 py-1 rounded-xl">
                   Prom. Obra: <strong className="text-indigo-950 font-mono text-sm">{stats.promDiario.toFixed(1)}</strong>/día
                 </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsTopActividadesCollapsed(prev => !prev);
+                  }}
+                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+                  aria-label={isTopActividadesCollapsed ? "Expandir" : "Colapsar"}
+                >
+                  {isTopActividadesCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
-              {actividadesDistribucion.map((a, i) => {
-                const isIndirecto = a.indirectoMes > a.directoMes;
-                const isSelected = searchQuery.toLowerCase() === a.actividad.toLowerCase();
-                const pctDelMes = stats.promDiario > 0 ? (a.promedioDiarioMes / stats.promDiario) * 100 : 0;
+            {!isTopActividadesCollapsed && (
+              <div className="p-4 sm:p-5 pt-1 sm:pt-2 border-t border-slate-100 animate-fade-in">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+                  {actividadesDistribucion.map((a, i) => {
+                    const isIndirecto = a.indirectoMes > a.directoMes;
+                    const isSelected = searchQuery.toLowerCase() === a.actividad.toLowerCase();
+                    const pctDelMes = stats.promDiario > 0 ? (a.promedioDiarioMes / stats.promDiario) * 100 : 0;
 
-                return (
-                  <div
-                    key={a.actividad}
-                    onClick={() => {
-                      setSearchQuery(prev => prev.toLowerCase() === a.actividad.toLowerCase() ? '' : a.actividad);
-                      setPage(1);
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    title={`Haz clic para filtrar por la actividad: ${a.actividad} (Promedio: ${a.promedioDiarioMes.toFixed(1)} personas/día en ${stats.mesCorrienteLabel})`}
-                    className={`p-2.5 rounded-xl border transition-all cursor-pointer select-none hover:shadow-md hover:scale-[1.01] ${
-                      isSelected
-                        ? 'bg-indigo-100 border-2 border-indigo-500 ring-2 ring-indigo-300 shadow-md'
-                        : isIndirecto
-                        ? 'bg-amber-50/50 border-amber-200 text-amber-950 hover:bg-amber-100/60'
-                        : 'bg-emerald-50/50 border-emerald-200 text-emerald-950 hover:bg-emerald-100/60'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 font-mono">
-                        #{i + 1}
-                      </span>
-                      <span
-                        className={`text-[8px] font-bold px-1.5 py-0.5 rounded font-mono ${
+                    return (
+                      <div
+                        key={a.actividad}
+                        onClick={() => {
+                          setSearchQuery(prev => prev.toLowerCase() === a.actividad.toLowerCase() ? '' : a.actividad);
+                          setPage(1);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        title={`Haz clic para filtrar por la actividad: ${a.actividad} (Promedio: ${a.promedioDiarioMes.toFixed(1)} personas/día en ${stats.mesCorrienteLabel})`}
+                        className={`p-2.5 rounded-xl border transition-all cursor-pointer select-none hover:shadow-md hover:scale-[1.01] ${
                           isSelected
-                            ? 'bg-indigo-600 text-white'
+                            ? 'bg-indigo-100 border-2 border-indigo-500 ring-2 ring-indigo-300 shadow-md'
                             : isIndirecto
-                            ? 'bg-amber-200 text-amber-900'
-                            : 'bg-emerald-200 text-emerald-900'
+                            ? 'bg-amber-50/50 border-amber-200 text-amber-950 hover:bg-amber-100/60'
+                            : 'bg-emerald-50/50 border-emerald-200 text-emerald-950 hover:bg-emerald-100/60'
                         }`}
                       >
-                        {isIndirecto ? 'Indirecto' : 'Directo'}
-                      </span>
-                    </div>
-                    <div className="text-[11px] font-bold truncate leading-tight text-slate-900" title={a.actividad}>
-                      {a.actividad}
-                    </div>
-                    <div className="text-base font-black font-mono mt-0.5 text-slate-900 leading-tight flex items-baseline gap-1">
-                      {a.promedioDiarioMes.toFixed(1)} <span className="text-[10px] font-normal text-slate-500">prom/d</span>
-                    </div>
-                    <div className="mt-1 pt-1 border-t border-slate-200/60 text-[9px] text-slate-500 flex items-center justify-between font-mono">
-                      <span className="font-bold text-slate-700">{pctDelMes.toFixed(1)}% mes</span>
-                      <span title="Total acumulado multimes" className="text-slate-400">Acum: {a.totalAcumulado}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 font-mono">
+                            #{i + 1}
+                          </span>
+                          <span
+                            className={`text-[8px] font-bold px-1.5 py-0.5 rounded font-mono ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white'
+                                : isIndirecto
+                                ? 'bg-amber-200 text-amber-900'
+                                : 'bg-emerald-200 text-emerald-900'
+                            }`}
+                          >
+                            {isIndirecto ? 'Indirecto' : 'Directo'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-bold truncate leading-tight text-slate-900" title={a.actividad}>
+                          {a.actividad}
+                        </div>
+                        <div className="text-base font-black font-mono mt-0.5 text-slate-900 leading-tight flex items-baseline gap-1">
+                          {a.promedioDiarioMes.toFixed(1)} <span className="text-[10px] font-normal text-slate-500">prom/d</span>
+                        </div>
+                        <div className="mt-1 pt-1 border-t border-slate-200/60 text-[9px] text-slate-500 flex items-center justify-between font-mono">
+                          <span className="font-bold text-slate-700">{pctDelMes.toFixed(1)}% mes</span>
+                          <span title="Total acumulado multimes" className="text-slate-400">Acum: {a.totalAcumulado}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Gráfico de Líneas de Tendencia Mensual y Semanal (Directo vs Indirecto vs Total) */}
@@ -2811,7 +3038,25 @@ export function PersonalTab() {
               </div>
             </div>
 
-            {uploadFeedback && (
+            {syncProgress && (
+              <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200 text-xs font-semibold mb-4 space-y-2">
+                <div className="flex items-center justify-between text-indigo-900">
+                  <div className="flex items-center gap-2">
+                    <CloudUpload className="w-4 h-4 text-indigo-600 animate-pulse shrink-0" />
+                    <span>{syncProgress.message}</span>
+                  </div>
+                  <span className="font-mono text-indigo-700">{syncProgress.pct}%</span>
+                </div>
+                <div className="w-full bg-indigo-200/70 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-indigo-600 h-2 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${syncProgress.pct}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {uploadFeedback && !syncProgress && (
               <div
                 className={`p-3.5 rounded-2xl text-xs font-semibold mb-4 flex items-start gap-2.5 ${
                   uploadFeedback.type === 'success'
@@ -2832,21 +3077,21 @@ export function PersonalTab() {
               {/* Drag and Drop Box */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50/70 transition-all rounded-2xl p-8 text-center cursor-pointer group"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed transition-all rounded-2xl p-8 text-center cursor-pointer group ${
+                  isDragging
+                    ? 'border-indigo-600 bg-indigo-100/80 scale-[1.02]'
+                    : 'border-indigo-300 hover:border-indigo-500 bg-indigo-50/40 hover:bg-indigo-50/70'
+                }`}
               >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx, .xls, .csv, .txt"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                />
-                <FileSpreadsheet className="w-10 h-10 text-indigo-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+                <FileSpreadsheet className={`w-10 h-10 text-indigo-500 mx-auto mb-2 transition-transform ${isDragging ? 'scale-125' : 'group-hover:scale-110'}`} />
                 <div className="text-sm font-bold text-slate-800">
-                  Haz clic o arrastra tu archivo Excel / CSV aquí
+                  {isDragging ? '¡Suelta el archivo aquí!' : 'Haz clic o arrastra tu archivo Excel / CSV aquí'}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
-                  Formatos compatibles: .xlsx, .xls, .csv (separado por comas o punto y coma)
+                  Formatos compatibles: .xlsx, .xls, .csv, .txt (separado por comas, punto y coma o tabulaciones)
                 </div>
               </div>
 

@@ -37,7 +37,7 @@ export const ResumenFinanciero: React.FC<ResumenFinancieroProps> = ({
             <div className="flex items-start justify-between gap-1.5">
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 truncate">
-                  Monto Contratado <span className="text-[9px] font-normal text-slate-400">({baseVenta === 'contrato' ? 'PG-003' : 'PG-004'})</span>
+                  Monto Contratado <span className="text-[9px] font-normal text-slate-400">(PG-004)</span>
                 </div>
                 <div className="font-black text-slate-800 mb-1 tracking-tight animate-fade-in" style={{ fontSize: '18px' }} title={`$${stats.totalVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
                   ${stats.totalVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

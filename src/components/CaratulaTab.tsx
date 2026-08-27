@@ -1,0 +1,748 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useMemo, useState } from 'react';
+import { Actividad } from '../types';
+import { Sparkles, Calendar, DollarSign, Clock, Layers, TrendingUp, TrendingDown, MapPin, CheckCircle2, ChevronRight, Download, Filter, Eye, Info, Hash, FileText, Sparkle } from 'lucide-react';
+import { ControlSemanalTabla } from './ControlSemanalTabla';
+import { CertificacionCard } from './CertificacionCard';
+
+interface CaratulaTabProps {
+  actividades: Actividad[];
+  stats: any;
+  baseVenta?: string;
+  periodoSeleccionado?: any;
+  datosCurvaAvance?: any;
+  datosDona?: any;
+  dataPlanificadoPG004?: any;
+  planillaInfo?: any;
+  planillaTotales?: any;
+  planillaEnmiendas?: any[];
+  planillaTipRes?: any[];
+  planillaHojas?: any[];
+}
+
+export interface ActivityDateSource {
+  id: string;
+  activityId: string | null;
+  descripcion: string;
+  wbs: string;
+  fecha: Date | null;
+  componente?: string;
+  ubicacion?: string;
+  subcontratista?: string;
+  tipo?: string;
+  venta?: number;
+  ventaEjecutada?: number;
+}
+
+interface ComponentMilestone {
+  id: string;
+  code: string;
+  name: string;
+  alias: string;
+  componenteOriginal: string;
+  baselineFinish: Date | null;
+  actualFinish: Date | null;
+  baselineSource: ActivityDateSource | null;
+  actualSource: ActivityDateSource | null;
+  floatDays: number | null;
+  itemsCount: number;
+  totalVenta: number;
+  totalEjec: number;
+  pctAvance: number;
+}
+
+interface UbicacionData {
+  nombre: string;
+  ventaEjec: number;
+  ventaPlan: number;
+  ventaTotal: number;
+  ventaContrato: number;
+  porcentaje: number;
+  itemsCount: number;
+}
+
+// Format numbers to Million notation (e.g. 102,43M)
+function fmtMillions(val: number): string {
+  const m = val / 1_000_000;
+  return `${m.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
+}
+
+// Format full currency (e.g. 102.430.009,96)
+function fmtCurrency(val: number): string {
+  return val.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Format date as DD-mmm-YY (e.g. 25-nov-23)
+function formatMilestoneDate(d: Date | null | undefined): string {
+  if (!d || isNaN(d.getTime())) return '-';
+  const day = String(d.getDate()).padStart(2, '0');
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const m = months[d.getMonth()];
+  const y = String(d.getFullYear()).slice(-2);
+  return `${day}-${m}-${y}`;
+}
+
+// Excluir actividades/fechas excluidas en el cálculo de hitos (08-oct-2027, 30-abr-2026 y 30-abr-2027)
+function isExemptMilestoneDate(d: Date | null | undefined): boolean {
+  if (!d || isNaN(d.getTime())) return false;
+  
+  const y = d.getFullYear();
+  const m = d.getMonth(); // 0 = Jan, 3 = Abr, 9 = Oct
+  const day = d.getDate();
+
+  const uy = d.getUTCFullYear();
+  const um = d.getUTCMonth();
+  const uday = d.getUTCDate();
+
+  // 08-oct-2027
+  const isOct082027 = (y === 2027 && m === 9 && day === 8) || (uy === 2027 && um === 9 && uday === 8);
+  
+  // 30-abr-2026
+  const isApr302026 = (y === 2026 && m === 3 && day === 30) || (uy === 2026 && um === 3 && uday === 30);
+
+  // 30-abr-2027
+  const isApr302027 = (y === 2027 && m === 3 && day === 30) || (uy === 2027 && um === 3 && uday === 30);
+  
+  return isOct082027 || isApr302026 || isApr302027;
+}
+
+// Semi-Circular Gauge Component matching the uploaded image
+const DialGauge: React.FC<{
+  title: string;
+  unit: string;
+  currentValueStr: string;
+  currentValueColor?: string;
+  minLabel?: string;
+  maxLabel?: string;
+  percentage: number; // 0 to 100
+  idPrefix: string;
+}> = ({
+  unit,
+  currentValueStr,
+  currentValueColor = 'text-red-600',
+  percentage,
+  idPrefix,
+}) => {
+  // Semi-circle SVG coordinates (from 180 deg to 0 deg)
+  const radius = 70;
+  const strokeWidth = 20;
+  const cx = 100;
+  const cy = 90;
+  const clampedPct = Math.max(0, Math.min(100, percentage));
+  const arcLength = Math.PI * radius; // Half circumference
+  const strokeDashoffset = arcLength - (arcLength * (clampedPct / 100));
+
+  return (
+    <div id={`${idPrefix}-dial-gauge`} className="flex flex-col items-center select-none">
+      <div className="relative w-44 h-26 sm:w-48 sm:h-28 flex items-end justify-center overflow-hidden">
+        <svg viewBox="0 0 200 110" className="w-full h-full">
+          {/* Background Track Arc */}
+          <path
+            d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
+            fill="none"
+            stroke="#e2e8f0"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+          {/* Foreground Value Arc */}
+          <path
+            d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
+            fill="none"
+            stroke="#1e295d"
+            strokeWidth={strokeWidth}
+            strokeDasharray={arcLength}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            className="transition-all duration-700 ease-out"
+          />
+        </svg>
+
+        {/* Big Central Value inside the arch */}
+        <div className="absolute inset-0 flex flex-col items-center justify-end pb-1.5 pointer-events-none">
+          <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${currentValueColor}`}>
+            {currentValueStr}
+          </span>
+        </div>
+      </div>
+
+      {/* Subtitle / Unit label */}
+      <div className="mt-1 text-xs font-bold text-slate-700">
+        {unit}
+      </div>
+    </div>
+  );
+};
+
+export const CaratulaTab: React.FC<CaratulaTabProps> = ({
+  actividades,
+  stats,
+  baseVenta = 'reformulada',
+  datosCurvaAvance,
+  dataPlanificadoPG004,
+  planillaInfo,
+  planillaTotales,
+  planillaEnmiendas,
+  planillaTipRes,
+  planillaHojas,
+}) => {
+  // Top level calculations
+  const itemsHoja = useMemo(() => {
+    return actividades.filter(a => a.esItemHoja);
+  }, [actividades]);
+
+  // Overall financial & progress metrics
+  const totalPresupuesto = useMemo(() => {
+    return itemsHoja.reduce((acc, a) => acc + (baseVenta === 'contrato' ? (a.ventaM || 0) : (a.venta || 0)), 0);
+  }, [itemsHoja, baseVenta]);
+
+  const totalPlan = useMemo(() => {
+    return itemsHoja.reduce((acc, a) => acc + (a.ventaPlan || 0), 0);
+  }, [itemsHoja]);
+
+  const totalEjec = useMemo(() => {
+    return itemsHoja.reduce((acc, a) => acc + (a.ventaEjecutada || 0), 0);
+  }, [itemsHoja]);
+
+  const pctAvanceReal = totalPresupuesto > 0 ? (totalEjec / totalPresupuesto) * 100 : 0;
+  const pctPlanificado = totalPresupuesto > 0 ? (totalPlan / totalPresupuesto) * 100 : 0;
+
+  // Certification metrics
+  const certMetrics = useMemo(() => {
+    if (planillaTotales && (planillaTotales.contrato || 0) > 0) {
+      const contrato = planillaTotales.contrato || 0;
+      const acum = planillaTotales.acum || 0;
+      const pct = (acum / contrato) * 100;
+      return {
+        contrato,
+        acum,
+        pct: Number.isFinite(pct) ? pct : 0,
+      };
+    }
+    if (planillaHojas && planillaHojas.length > 0) {
+      const contrato = planillaHojas.reduce((s: number, h: any) => s + (h.contrato || 0), 0);
+      const acum = planillaHojas.reduce((s: number, h: any) => s + (h.acum || 0), 0);
+      const pct = contrato > 0 ? (acum / contrato) * 100 : 0;
+      return { contrato, acum, pct };
+    }
+    return { contrato: 0, acum: 0, pct: 0 };
+  }, [planillaTotales, planillaHojas]);
+
+  // Project duration in months (Fecha inicio: 25-may-2022, Fecha fin: 12-abr-2027)
+  const durationMetrics = useMemo(() => {
+    // Fecha de inicio: 25-may-2022
+    const projectStartDate = new Date(2022, 4, 25);
+    // Fecha de terminación: 12-abr-2027
+    const projectFinishDate = new Date(2027, 3, 12);
+    const today = new Date();
+
+    // Función para calcular la diferencia precisa en meses
+    const getExactMonths = (d1: Date, d2: Date) => {
+      let months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+      const dayDiff = d2.getDate() - d1.getDate();
+      if (dayDiff > 0) {
+        const daysInMonth = new Date(d2.getFullYear(), d2.getMonth() + 1, 0).getDate();
+        months += dayDiff / daysInMonth;
+      } else if (dayDiff < 0) {
+        const daysInPrevMonth = new Date(d2.getFullYear(), d2.getMonth(), 0).getDate();
+        months += dayDiff / daysInPrevMonth;
+      }
+      return Math.max(0, months);
+    };
+
+    const elapsedExact = getExactMonths(projectStartDate, today);
+    const totalPlannedExact = getExactMonths(projectStartDate, projectFinishDate);
+
+    const elapsedMonths = Math.floor(elapsedExact);
+    const totalPlannedMonths = Math.round(totalPlannedExact);
+    const percentage = totalPlannedExact > 0 ? (elapsedExact / totalPlannedExact) * 100 : 0;
+
+    return {
+      elapsedMonths,
+      totalPlannedMonths,
+      percentage: Math.min(100, Math.max(0, percentage)),
+    };
+  }, []);
+
+  // ==========================================
+  // 1. MILESTONES DEFINITION - 5 COMPONENTES ESPECÍFICOS (Columna AN)
+  // 01. Civil, 03. Mecánico, 04. Eléctrico, 05. I&C, 08. Puesta en Marcha
+  // ==========================================
+  const componentMilestones: ComponentMilestone[] = useMemo(() => {
+    const targetConfigs = [
+      {
+        id: 'AC3',
+        code: '01',
+        name: '01. Civil',
+        alias: '01. Civil',
+        match: (comp: string) => comp.startsWith('01.') || comp.toLowerCase().includes('civil'),
+      },
+      {
+        id: 'AC4',
+        code: '03',
+        name: '03. Mecánico',
+        alias: '03. Mecánico',
+        match: (comp: string) => comp.startsWith('03.') || comp.toLowerCase().includes('mecanic') || comp.toLowerCase().includes('mecánic'),
+      },
+      {
+        id: 'AC5',
+        code: '04',
+        name: '04. Eléctrico',
+        alias: '04. Eléctrico',
+        match: (comp: string) => comp.startsWith('04.') || comp.toLowerCase().includes('electric') || comp.toLowerCase().includes('eléctric'),
+      },
+      {
+        id: 'AC6',
+        code: '05',
+        name: '05. I&C',
+        alias: '05. I&C',
+        match: (comp: string) => comp.startsWith('05.') || comp.toLowerCase().includes('i&c') || comp.toLowerCase().includes('instrumentaci'),
+      },
+      {
+        id: 'AC7',
+        code: '08',
+        name: '08. Puesta en Marcha',
+        alias: '08. Puesta en Marcha',
+        match: (comp: string) => comp.startsWith('08.') || comp.toLowerCase().includes('puesta en marcha') || comp.toLowerCase().includes('comisionamiento') || comp.toLowerCase().includes('commissioning'),
+      },
+    ];
+
+    return targetConfigs.map((cfg) => {
+      // Filtrar actividades que pertenecen ESTRICTAMENTE a este componente en Columna AN
+      // y cuya Ubicación en Columna AE sea 'Merinos'
+      // y DESCARTANDO actividades que tengan en finish (o blFinish) la fecha 30-abr-2026 o 08-oct-2027
+      const matched = itemsHoja.filter((a) => {
+        const u = (a.ubicacion || '').trim();
+        const isMerinos = /merino/i.test(u);
+        if (!isMerinos) return false;
+
+        // Descartar si finish o blFinish es 30-abr-2026 o 08-oct-2027
+        if (isExemptMilestoneDate(a.finish) || isExemptMilestoneDate(a.blFinish)) return false;
+
+        const itemComp = (a.componente && String(a.componente).trim() !== '')
+          ? String(a.componente).trim()
+          : '';
+        return cfg.match(itemComp);
+      });
+
+      // Fecha más tardía de Línea Base (Col Y: blFinish, fallback Col X: blStart)
+      // Excluyendo actividades que finalicen el 08-oct-2027
+      let baselineSource: ActivityDateSource | null = null;
+      let baselineFinish: Date | null = null;
+
+      for (const a of matched) {
+        const d = a.blFinish || a.blStart;
+        if (d && !isNaN(d.getTime()) && !isExemptMilestoneDate(d) && !isExemptMilestoneDate(a.blFinish) && !isExemptMilestoneDate(a.finish)) {
+          if (!baselineFinish || d.getTime() > baselineFinish.getTime()) {
+            baselineFinish = d;
+            baselineSource = {
+              id: a.activityId || a.idOrig || a.id || a.wbs || 'S/ID',
+              activityId: a.activityId || null,
+              descripcion: a.descripcion || 'Sin descripción',
+              wbs: a.wbs || '',
+              fecha: d,
+              componente: a.componente || cfg.name,
+              ubicacion: a.ubicacion || '',
+              subcontratista: a.subcontratista || '',
+              tipo: a.tipo || '',
+              venta: a.venta || 0,
+              ventaEjecutada: a.ventaEjecutada || 0,
+            };
+          }
+        }
+      }
+
+      // Fecha más tardía Real / Pronóstico (Col AA: finish, fallback Col Z: start)
+      // Excluyendo actividades que finalicen el 08-oct-2027
+      let actualSource: ActivityDateSource | null = null;
+      let actualFinish: Date | null = null;
+
+      for (const a of matched) {
+        const d = a.finish || a.start;
+        if (d && !isNaN(d.getTime()) && !isExemptMilestoneDate(d) && !isExemptMilestoneDate(a.finish) && !isExemptMilestoneDate(a.blFinish)) {
+          if (!actualFinish || d.getTime() > actualFinish.getTime()) {
+            actualFinish = d;
+            actualSource = {
+              id: a.activityId || a.idOrig || a.id || a.wbs || 'S/ID',
+              activityId: a.activityId || null,
+              descripcion: a.descripcion || 'Sin descripción',
+              wbs: a.wbs || '',
+              fecha: d,
+              componente: a.componente || cfg.name,
+              ubicacion: a.ubicacion || '',
+              subcontratista: a.subcontratista || '',
+              tipo: a.tipo || '',
+              venta: a.venta || 0,
+              ventaEjecutada: a.ventaEjecutada || 0,
+            };
+          }
+        }
+      }
+
+      // Cálculo de Float en días: baselineFinish - actualFinish
+      let floatDays: number | null = null;
+      if (baselineFinish && actualFinish) {
+        floatDays = Math.round((baselineFinish.getTime() - actualFinish.getTime()) / (1000 * 60 * 60 * 24));
+      }
+
+      const totalVenta = matched.reduce((acc, a) => acc + (baseVenta === 'contrato' ? (a.ventaM || 0) : (a.venta || 0)), 0);
+      const totalEjec = matched.reduce((acc, a) => acc + (a.ventaEjecutada || 0), 0);
+      const pctAvance = totalVenta > 0 ? (totalEjec / totalVenta) * 100 : 0;
+
+      return {
+        id: cfg.id,
+        code: cfg.code,
+        name: cfg.name,
+        alias: cfg.alias,
+        componenteOriginal: cfg.name,
+        baselineFinish,
+        actualFinish,
+        baselineSource,
+        actualSource,
+        floatDays,
+        itemsCount: matched.length,
+        totalVenta,
+        totalEjec,
+        pctAvance,
+      };
+    });
+  }, [itemsHoja, baseVenta]);
+
+  // ==========================================
+  // 2. UBICACION BREAKDOWN (Merinos, Progreso, Guayacanes)
+  // SUMAR.SI de Columna I (V.Contrato) buscando en Columna AE (Ubicación)
+  // SUMAR.SI de Columna AV (Venta Ex.) buscando en Columna AE (Ubicación)
+  // % = (V.Ejec [Col AV] / V.Contrato [Col I]) * 100
+  // ==========================================
+  const ubicacionData = useMemo(() => {
+    const ubicacionesTarget = ['Merinos', 'Progreso', 'Guayacanes'];
+    const map: Record<string, UbicacionData> = {};
+
+    ubicacionesTarget.forEach(nombre => {
+      map[nombre] = {
+        nombre,
+        ventaEjec: 0,      // Numerador: SUMAR.SI(Columna AE == nombre, Columna AV)
+        ventaPlan: 0,
+        ventaTotal: 0,
+        ventaContrato: 0,  // Denominador: SUMAR.SI(Columna AE == nombre, Columna I)
+        porcentaje: 0,     // (ventaEjec / ventaContrato) * 100
+        itemsCount: 0,
+      };
+    });
+
+    itemsHoja.forEach(a => {
+      const uRaw = (a.ubicacion || '').trim();
+      let matchedUbicacion: string | null = null;
+
+      // 1. Buscar coincidencia exacta o por subcadena en la Columna AE (a.ubicacion)
+      if (uRaw) {
+        const uLower = uRaw.toLowerCase();
+        for (const target of ubicacionesTarget) {
+          if (uLower === target.toLowerCase() || uLower.includes(target.toLowerCase())) {
+            matchedUbicacion = target;
+            break;
+          }
+        }
+        // Si tiene otra ubicación distinta a las 3 principales, registrarla dinámicamente
+        if (!matchedUbicacion) {
+          matchedUbicacion = uRaw;
+        }
+      } else {
+        // Fallback: Inferir desde WBS o descripción si columna AE viniese vacía
+        const wLower = (a.wbs || '').toLowerCase();
+        const dLower = (a.descripcion || '').toLowerCase();
+        for (const target of ubicacionesTarget) {
+          if (wLower.includes(target.toLowerCase()) || dLower.includes(target.toLowerCase())) {
+            matchedUbicacion = target;
+            break;
+          }
+        }
+      }
+
+      if (matchedUbicacion) {
+        if (!map[matchedUbicacion]) {
+          map[matchedUbicacion] = {
+            nombre: matchedUbicacion,
+            ventaEjec: 0,
+            ventaPlan: 0,
+            ventaTotal: 0,
+            ventaContrato: 0,
+            porcentaje: 0,
+            itemsCount: 0,
+          };
+        }
+
+        const vContrato = a.venta || 0; // Columna I: V.Contrato (Denominador)
+        const vEjec = a.ventaEjecutada || 0; // Columna AV: Venta Ex. (Numerador)
+        const vPlan = a.ventaPlan || 0;
+
+        map[matchedUbicacion].ventaContrato += vContrato;
+        map[matchedUbicacion].ventaTotal += vContrato;
+        map[matchedUbicacion].ventaEjec += vEjec;
+        map[matchedUbicacion].ventaPlan += vPlan;
+        map[matchedUbicacion].itemsCount += 1;
+      }
+    });
+
+    // Filtrar ubicaciones con datos reales (o mantener las 3 estándar si tienen presupuesto/avance)
+    const list = Object.values(map)
+      .filter(item => item.itemsCount > 0 || item.ventaContrato > 0 || item.ventaEjec > 0)
+      .sort((a, b) => b.ventaContrato - a.ventaContrato);
+
+    list.forEach(item => {
+      // Cálculo del %: Numerador (V.Ejec Col AV) / Denominador (V.Contrato Col I) * 100
+      item.porcentaje = item.ventaContrato > 0 ? (item.ventaEjec / item.ventaContrato) * 100 : 0;
+    });
+
+    return list;
+  }, [itemsHoja]);
+
+  return (
+    <div id="caratula-container" className="space-y-6 w-full max-w-7xl mx-auto pb-12 animate-fade-in">
+      {/* Main Container - Structured Vertical / Grid Layout aligned with the image */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        {/* LEFT / MAIN COLUMN: Vertical Stack conforming to the User's Image Example */}
+        <div className="lg:col-span-5 space-y-6">
+          
+          {/* 1. TOP SECTION: 3 SEMI-CIRCLE GAUGES */}
+          <div id="card-top-gauges" className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
+            <div className="text-xs font-black uppercase tracking-wider text-slate-700 mb-4 pb-2 border-b border-slate-100 flex items-center justify-between">
+              <span>Indicadores Generales de Desempeño</span>
+              <span className="text-[10px] font-normal text-slate-400">Corte Actual</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center justify-items-center">
+              {/* Gauge 1: % Avance Proyecto */}
+              <DialGauge
+                idPrefix="pct-proyecto"
+                title="% Avance Proyecto"
+                unit="% Avance Proyecto"
+                currentValueStr={`${pctAvanceReal.toFixed(2)} %`}
+                currentValueColor="text-red-600"
+                minLabel="0,00 %"
+                maxLabel={`${pctPlanificado.toFixed(2)} %`}
+                percentage={pctAvanceReal}
+              />
+
+              {/* Gauge 2: % Avance Certificación */}
+              <DialGauge
+                idPrefix="pct-cert"
+                title="% Certificación"
+                unit="% Certificación"
+                currentValueStr={`${certMetrics.pct.toFixed(2)} %`}
+                currentValueColor="text-red-600"
+                minLabel="0,00 %"
+                maxLabel="100,00 %"
+                percentage={certMetrics.pct}
+              />
+
+              {/* Gauge 3: Mes */}
+              <DialGauge
+                idPrefix="mes"
+                title="Mes"
+                unit="Mes"
+                currentValueStr={String(durationMetrics.elapsedMonths)}
+                currentValueColor="text-red-600"
+                minLabel="0"
+                maxLabel={String(durationMetrics.totalPlannedMonths)}
+                percentage={durationMetrics.percentage}
+              />
+            </div>
+          </div>
+
+          {/* 2. MILESTONES TABLE (Fechas más tardías Z y AA por componente) */}
+          <div id="card-milestones-table" className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-indigo-600" />
+                <span>Hitos Principales por Componente</span>
+                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200/80 px-2 py-0.5 rounded-full text-[10px] font-bold normal-case">
+                  Merinos
+                </span>
+              </div>
+              <span className="text-[10px] font-semibold text-slate-400">
+                Fechas Tardías (Cols Z & AA)
+              </span>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                    <th className="py-2.5 px-3 w-12 text-center text-indigo-600">Id</th>
+                    <th className="py-2.5 px-3">Milestone</th>
+                    <th className="py-2.5 px-3 text-center text-indigo-600">
+                      Baseline
+                    </th>
+                    <th className="py-2.5 px-3 text-center text-indigo-600">
+                      Actual/Forecast
+                    </th>
+                    <th className="py-2.5 px-3 text-right">Float</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                  {componentMilestones.map((m, idx) => {
+                    const isNegative = m.floatDays !== null && m.floatDays < 0;
+                    const baselineDateStr = formatMilestoneDate(m.baselineFinish);
+                    const actualDateStr = formatMilestoneDate(m.actualFinish);
+
+                    return (
+                      <tr
+                        key={`milestone-row-${m.id}-${m.name}-${idx}`}
+                        className="hover:bg-slate-50/60 transition-colors"
+                      >
+                        <td className="py-2.5 px-3 text-center font-bold text-indigo-600 font-mono">
+                          {m.id}
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-indigo-700">
+                          <div className="truncate max-w-[170px] sm:max-w-[220px]" title={m.alias}>
+                            {m.name}
+                          </div>
+                        </td>
+
+                        {/* Baseline Date Cell */}
+                        <td className="py-2.5 px-3 text-center font-mono font-medium text-indigo-700">
+                          {baselineDateStr}
+                        </td>
+
+                        {/* Actual / Forecast Date Cell */}
+                        <td className="py-2.5 px-3 text-center font-mono font-medium text-indigo-700">
+                          {actualDateStr}
+                        </td>
+
+                        {/* Float Cell */}
+                        <td className="py-2.5 px-3 text-right font-mono font-bold">
+                          {m.floatDays === null ? (
+                            <span className="text-slate-400">-</span>
+                          ) : isNegative ? (
+                            <span className="text-red-600 font-black">
+                              ({Math.abs(m.floatDays)})
+                            </span>
+                          ) : (
+                            <span className="text-slate-800">
+                              {m.floatDays}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-2 text-right">
+              <span className="text-[10px] text-slate-400 font-mono">
+                * Valores negativos en Float indican desfase en días respecto a la línea base.
+              </span>
+            </div>
+          </div>
+
+          {/* 3. UBICACION / DESGLOSE EN ÁRBOL */}
+          <div id="card-ubicacion-tree" className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+              <div className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Ubicación</span>
+              </div>
+              <span className="text-[11px] font-bold text-slate-400 font-mono">
+                Avance_Ejecutado
+              </span>
+            </div>
+
+            {/* Tree bifurcation / branch layout */}
+            <div className="flex items-center justify-between gap-2 sm:gap-4 py-2 w-full">
+              
+              {/* Root Node: Avance Ejecutado Total */}
+              <div className="flex flex-col items-end text-right flex-1 min-w-0">
+                <div className="w-full h-3 bg-[#141b4d] rounded-xs mb-1.5 shadow-xs" />
+                <div className="text-xs font-black text-slate-900 tracking-tight truncate w-full">
+                  Avance_Ejecutado
+                </div>
+                <div className="text-xs sm:text-[13px] font-bold text-slate-600 font-mono truncate w-full">
+                  {fmtCurrency(totalEjec)}
+                </div>
+              </div>
+
+              {/* Connecting Tree SVG Splines */}
+              <div className="w-8 sm:w-12 h-20 sm:h-24 flex items-center justify-center shrink-0">
+                <svg viewBox="0 0 60 100" className="w-full h-full text-slate-300 stroke-current fill-none" preserveAspectRatio="none">
+                  {ubicacionData.length === 1 && (
+                    <path d="M 0 50 L 60 50" strokeWidth="2.5" />
+                  )}
+                  {ubicacionData.length === 2 && (
+                    <>
+                      <path d="M 0 50 C 30 50, 30 20, 60 20" strokeWidth="2.5" />
+                      <path d="M 0 50 C 30 50, 30 80, 60 80" strokeWidth="2.5" />
+                    </>
+                  )}
+                  {ubicacionData.length >= 3 && (
+                    <>
+                      <path d="M 0 50 C 30 50, 30 18, 60 18" strokeWidth="2.5" />
+                      <path d="M 0 50 L 60 50" strokeWidth="2.5" />
+                      <path d="M 0 50 C 30 50, 30 82, 60 82" strokeWidth="2.5" />
+                    </>
+                  )}
+                </svg>
+              </div>
+
+              {/* Branch Nodes (Merinos, Progreso, etc.) */}
+              <div className="flex flex-col gap-3.5 sm:gap-4 flex-1 min-w-0">
+                {ubicacionData.map((u) => {
+                  return (
+                    <div key={u.nombre} className="flex flex-col items-start text-left w-full">
+                      {/* Bar Gauge */}
+                      <div className="w-full h-3 bg-slate-100 rounded-xs mb-1.5 overflow-hidden border border-slate-200 relative">
+                        <div
+                          className="h-full bg-[#141b4d] transition-all duration-500"
+                          style={{ width: `${Math.min(100, Math.max(8, u.porcentaje))}%` }}
+                        />
+                      </div>
+                      <div className="text-xs font-black text-slate-900 flex items-center justify-between w-full gap-1">
+                        <span className="truncate">{u.nombre}</span>
+                        <span className="text-[10px] font-bold text-indigo-600 font-mono shrink-0">
+                          {u.porcentaje.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="text-xs sm:text-[13px] font-bold text-slate-600 font-mono truncate w-full">
+                        {fmtCurrency(u.ventaEjec)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        {/* RIGHT COLUMN: Tabla de Control de Ejecución (Solo tabla y dropdown de semana) + Certificación */}
+        <div className="lg:col-span-7 space-y-6">
+          <ControlSemanalTabla
+            actividades={actividades}
+            dataPlanificadoPG004={dataPlanificadoPG004}
+            baseVenta={baseVenta}
+            soloTablaYSemana={true}
+          />
+
+          <CertificacionCard
+            planillaInfo={planillaInfo}
+            planillaTotales={planillaTotales}
+            planillaEnmiendas={planillaEnmiendas}
+            planillaTipRes={planillaTipRes}
+            planillaHojas={planillaHojas}
+            idPrefix="certificacion-caratula"
+            showKpis={false}
+            showEnmiendas={false}
+          />
+        </div>
+
+      </div>
+    </div>
+  );
+};

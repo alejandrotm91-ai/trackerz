@@ -11,7 +11,7 @@ import { CronogramaTab } from './components/CronogramaTab';
 import { PlanillaTab } from './components/PlanillaTab';
 import { TipologiaResumen } from './components/TipologiaResumen';
 import { ResumenFinanciero } from './components/ResumenFinanciero';
-import { ResumenTab } from './components/ResumenTab';
+import { CaratulaTab } from './components/CaratulaTab';
 import { PersonalTab } from './components/PersonalTab';
 import { AIReportModal } from './components/AIReportModal';
 import { buildCronoReportData } from './utils/aiReportHelper';
@@ -1236,31 +1236,12 @@ export default function App() {
               </div>
             )}
 
-            {pc.firebaseQuotaExceeded && (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-4 animate-fade-in shadow-xs mb-4">
-                <div className="flex items-start gap-3">
-                  <span className="text-xl">⚠️</span>
-                  <div className="text-xs text-amber-900 leading-relaxed">
-                    <div className="font-bold text-amber-950 mb-0.5">Límite de cuota diaria de Firestore alcanzado</div>
-                    <div>Se ha superado el límite de operaciones gratuitas del plan Spark de Firebase para el día de hoy. La aplicación continúa funcionando fluidamente con los datos guardados en el almacenamiento local y se sincronizará automáticamente cuando se restablezca la cuota diaria.</div>
-                  </div>
-                </div>
-                <a
-                  href="https://console.firebase.google.com/project/stoked-catbird-4km1r/firestore/databases/ai-studio-projecttracker-fa5248da-cc8b-432e-8571-4a2efa014a87/data?openUpgradeDialog=true"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-xl transition-all shadow-xs"
-                >
-                  Gestionar en Firebase
-                </a>
-              </div>
-            )}
 
             {/* Tab Selection */}
             <div className="flex justify-center relative min-h-[46px] items-center">
           <div className="inline-flex bg-slate-100/80 rounded-2xl p-1 gap-1 border border-slate-200/60 shadow-sm">
             {[
-              { id: 'resumen', label: '🏠 Resumen' },
+              { id: 'caratula', label: '📑 Carátula' },
               { id: 'economico', label: '📋 Avance Partidas' },
               { id: 'cronograma', label: '📅 Cronograma' },
               ...(pc.planillaInfo ? [{ id: 'planilla', label: '🧾 Certificación' }] : []),
@@ -1369,17 +1350,15 @@ export default function App() {
 
         {/* ACTIVE TAB ROUTING */}
         <div id="active-tab-container" className="space-y-6">
-          {pc.activeTab === 'resumen' && (
-            <ResumenTab
+          {pc.activeTab === 'caratula' && (
+            <CaratulaTab
+              actividades={pc.actividades}
               stats={pc.stats}
               baseVenta={pc.baseVenta}
-              setBaseVenta={pc.setBaseVenta}
               periodoSeleccionado={pc.periodoSeleccionado}
-              setPeriodoSeleccionado={pc.setPeriodoSeleccionado}
-              mapaColumnasMes={pc.mapaColumnasMes}
-              exportarAvancePeriodo={pc.exportarAvancePeriodo}
-              tipologiaSeleccionada={pc.tipologiaSeleccionada}
-              setTipologiaSeleccionada={pc.setTipologiaSeleccionada}
+              datosCurvaAvance={pc.datosCurvaAvance}
+              datosDona={pc.datosDona}
+              dataPlanificadoPG004={pc.dataPlanificadoPG004}
               planillaInfo={pc.planillaInfo}
               planillaTotales={pc.planillaTotales}
               planillaEnmiendas={pc.planillaEnmiendas}

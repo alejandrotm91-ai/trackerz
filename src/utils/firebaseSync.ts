@@ -852,67 +852,290 @@ export interface PersonalMatrixMeta {
 }
 
 /**
- * Deletes any existing workforce personal matrix from Firestore to ensure
- * that personal workforce Excel data is never persisted in Firestore,
- * keeping Firestore strictly and exclusively for the Master database.
+ * Deletes a Personal Plan completely from Firestore, including its chunks subcollection,
+ * and finally deletes the plan document.
  */
-export async function deletePersonalMatrixFromFirestore(): Promise<void> {
+export async function deletePersonalPlanCompletely(planId: string): Promise<void> {
+  if (!planId) return;
+
   try {
-    const latestDocRef = doc(db, 'personal_matrix', 'latest');
-    
-    // Delete any subcollection chunks if present
-    try {
-      const chunksCol = collection(db, 'personal_matrix', 'latest', 'chunks');
-      const chunksSnap = await getDocs(chunksCol);
-      if (!chunksSnap.empty) {
-        for (const cDoc of chunksSnap.docs) {
-          try {
-            await deleteDoc(cDoc.ref);
-          } catch {
-            // ignore
-          }
+    const chunksCol = collection(db, 'personal_plans', planId, 'chunks');
+    const snapshot = await getDocs(chunksCol);
+    if (!snapshot.empty) {
+      let batch = writeBatch(db);
+      let count = 0;
+
+      for (const docSnap of snapshot.docs) {
+        batch.delete(docSnap.ref);
+        count++;
+
+        if (count === 500) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
         }
       }
-    } catch {
-      // ignore
-    }
 
-    // Delete any legacy subcollection registros if present
-    try {
-      const registrosCol = collection(db, 'personal_matrix', 'latest', 'registros');
-      const regSnap = await getDocs(registrosCol);
-      if (!regSnap.empty) {
-        for (const rDoc of regSnap.docs) {
-          try {
-            await deleteDoc(rDoc.ref);
-          } catch {
-            // ignore
-          }
-        }
+      if (count > 0) {
+        await batch.commit();
       }
-    } catch {
-      // ignore
     }
-
-    // Delete main document
-    try {
-      await deleteDoc(latestDocRef);
-    } catch {
-      // ignore
-    }
-
-    // Clear any local caches
-    try {
-      localStorage.removeItem('app_personal_registros');
-      localStorage.removeItem('app_personal_matrix_meta');
-      await safeSaveCache('app_personal_registros', null);
-      await safeSaveCache('app_personal_matrix_meta', null);
-    } catch {
-      // ignore
-    }
-  } catch (err) {
-    console.warn('Cleanup of personal_matrix in Firestore completed with non-blocking notice:', err);
+  } catch (subErr) {
+    console.warn(`Error deleting chunks subcollection for personal plan ${planId}:`, subErr);
   }
+
+  // Finally delete the main plan document
+  try {
+    const mainDocRef = doc(db, 'personal_plans', planId);
+    await deleteDoc(mainDocRef);
+  } catch (docErr) {
+    console.warn(`Error deleting personal plan document personal_plans/${planId}:`, docErr);
+  }
+}
+
+/**
+ * Saves a parsed Personal Matrix to Firestore with size-capped chunks.
+ * Replaces any previous personal plan completely (fresh upload without accumulating).
+ */
+export async function savePersonalPlanToFirebase(
+  fileName: string,
+  registros: any[],
+  onProgress?: (pct: number, statusMsg: string) => void
+): Promise<string> {
+  // Read previous active personal plan ID before writing the new plan
+  let oldPlanId: string | null = null;
+  try {
+    const activeDocSnap = await getDoc(doc(db, 'system_config', 'active_personal_plan'));
+    if (activeDocSnap.exists()) {
+      oldPlanId = activeDocSnap.data()?.activePlanId || null;
+    }
+    if (!oldPlanId) {
+      const q = query(collection(db, 'personal_plans'), orderBy('updatedAt', 'desc'), limit(1));
+      const qSnap = await getDocs(q);
+      if (!qSnap.empty) {
+        oldPlanId = qSnap.docs[0].id;
+      }
+    }
+  } catch (e) {
+    console.warn('Could not read old active_personal_plan (non-blocking):', e);
+  }
+
+  const planId = `personal_${Date.now()}`;
+  const planPath = `personal_plans/${planId}`;
+
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  if (onProgress) {
+    onProgress(10, 'Preparando registros de personal...');
+  }
+
+  // Safe chunking helper (~380 KB per doc)
+  const chunkArrayBySize = <T>(array: T[], maxBytes: number = 380000, maxCount: number = 400): { id: string; items: T[] }[] => {
+    const chunks: { id: string; items: T[] }[] = [];
+    let currentChunk: T[] = [];
+    let currentEstimatedBytes = 80;
+
+    for (let i = 0; i < array.length; i++) {
+      const item = array[i];
+      const itemBytes = (JSON.stringify(item) || '').length * 1.5;
+
+      if (currentChunk.length > 0 && (currentEstimatedBytes + itemBytes > maxBytes || currentChunk.length >= maxCount)) {
+        chunks.push({
+          id: `chunk_${chunks.length}`,
+          items: currentChunk
+        });
+        currentChunk = [];
+        currentEstimatedBytes = 80;
+      }
+
+      currentChunk.push(item);
+      currentEstimatedBytes += itemBytes + 2;
+    }
+
+    if (currentChunk.length > 0) {
+      chunks.push({
+        id: `chunk_${chunks.length}`,
+        items: currentChunk
+      });
+    }
+    return chunks;
+  };
+
+  // Strip Date objects for pure JSON serializability
+  const cleanRegistros = (registros || []).map(r => {
+    const copy = { ...r };
+    if (copy.fechaDate) {
+      delete copy.fechaDate;
+    }
+    return copy;
+  });
+
+  const chunks = chunkArrayBySize(cleanRegistros, 380000, 400);
+  const totalChunks = chunks.length;
+
+  for (let i = 0; i < totalChunks; i++) {
+    const chunk = chunks[i];
+    const chunkDocRef = doc(db, 'personal_plans', planId, 'chunks', chunk.id);
+
+    if (onProgress) {
+      const pct = 15 + Math.round(((i + 1) / totalChunks) * 70);
+      onProgress(pct, `Guardando registros en la nube (${i + 1}/${totalChunks})...`);
+    }
+
+    const writeDocWithRetry = async (retryCount = 0): Promise<void> => {
+      try {
+        await setDoc(chunkDocRef, chunk);
+      } catch (error) {
+        const errStr = String(error).toLowerCase();
+        const isDailyQuota = errStr.includes('quota') || errStr.includes('free daily write units');
+        if (isDailyQuota) {
+          handleFirestoreError(error, OperationType.WRITE, chunkDocRef.path);
+        }
+        if (
+          retryCount < 3 &&
+          (errStr.includes('resource-exhausted') || errStr.includes('backoff') || errStr.includes('unavailable') || errStr.includes('stream'))
+        ) {
+          const waitMs = (retryCount + 1) * 2000;
+          await delay(waitMs);
+          return writeDocWithRetry(retryCount + 1);
+        }
+        handleFirestoreError(error, OperationType.WRITE, chunkDocRef.path);
+      }
+    };
+
+    await writeDocWithRetry();
+    if (i < totalChunks - 1) {
+      await delay(250);
+    }
+  }
+
+  // Calculate metadata summaries
+  const ubicaciones = Array.from(new Set(cleanRegistros.map((r: any) => r.ubicacion).filter(Boolean)));
+  const fechas = Array.from(new Set(cleanRegistros.map((r: any) => r.fechaIso).filter(Boolean))).sort();
+
+  if (onProgress) {
+    onProgress(90, 'Finalizando metadatos de personal...');
+  }
+
+  try {
+    const metaDoc = {
+      fileName,
+      rowCount: cleanRegistros.length,
+      ubicaciones,
+      fechas,
+      chunkCount: totalChunks,
+      updatedAt: new Date().toISOString()
+    };
+    await setDoc(doc(db, 'personal_plans', planId), metaDoc);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, planPath);
+  }
+
+  // Update active reference
+  try {
+    await setDoc(doc(db, 'system_config', 'active_personal_plan'), {
+      activePlanId: planId,
+      updatedAt: new Date().toISOString(),
+      fileName,
+      rowCount: cleanRegistros.length
+    });
+  } catch (e) {
+    console.warn('Could not update system_config/active_personal_plan:', e);
+  }
+
+  // Clean up old personal plan completely
+  if (oldPlanId && oldPlanId !== planId) {
+    if (onProgress) {
+      onProgress(95, 'Limpiando carga de personal anterior...');
+    }
+    try {
+      await deletePersonalPlanCompletely(oldPlanId);
+    } catch (cleanErr) {
+      console.warn(`Non-blocking notice: Could not fully delete previous personal plan ${oldPlanId}:`, cleanErr);
+    }
+  }
+
+  if (onProgress) {
+    onProgress(100, '¡Matriz de personal sincronizada exitosamente en la nube!');
+  }
+
+  return planId;
+}
+
+/**
+ * Loads the latest Personal Plan from Firestore
+ */
+export async function loadLatestPersonalPlanFromFirebase(
+  onProgress?: (pct: number, statusMsg: string) => void
+): Promise<{
+  planMeta: any;
+  registros: any[];
+} | null> {
+  const collectionPath = 'personal_plans';
+  let planId: string | null = null;
+  let planMeta: any = null;
+
+  if (onProgress) {
+    onProgress(15, 'Buscando datos de personal en la nube...');
+  }
+
+  try {
+    // 1. Check system_config first
+    const activeDocSnap = await getDoc(doc(db, 'system_config', 'active_personal_plan'));
+    if (activeDocSnap.exists() && activeDocSnap.data()?.activePlanId) {
+      const activeId = activeDocSnap.data().activePlanId;
+      const planDocSnap = await getDoc(doc(db, 'personal_plans', activeId));
+      if (planDocSnap.exists()) {
+        planId = activeId;
+        planMeta = planDocSnap.data();
+      }
+    }
+
+    // 2. Fallback query
+    if (!planId) {
+      const q = query(collection(db, 'personal_plans'), orderBy('updatedAt', 'desc'), limit(1));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const docSnap = querySnapshot.docs[0];
+        planId = docSnap.id;
+        planMeta = docSnap.data();
+      }
+    }
+  } catch (error) {
+    console.warn('Could not query personal_plans in Firestore:', error);
+    return null;
+  }
+
+  if (!planId || !planMeta) return null;
+
+  if (onProgress) {
+    onProgress(40, 'Descargando registros de personal...');
+  }
+
+  const registros: any[] = [];
+  try {
+    const chunksSnap = await getDocs(collection(db, 'personal_plans', planId, 'chunks'));
+    chunksSnap.forEach(d => {
+      const data = d.data();
+      if (data && Array.isArray(data.items)) {
+        registros.push(...data.items);
+      }
+    });
+  } catch (error) {
+    console.warn(`Error reading personal_plans/${planId}/chunks:`, error);
+    return null;
+  }
+
+  if (registros.length === 0) return null;
+
+  if (onProgress) {
+    onProgress(100, 'Datos de personal listos');
+  }
+
+  return {
+    planMeta,
+    registros
+  };
 }
 
 

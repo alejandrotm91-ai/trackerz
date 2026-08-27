@@ -8,9 +8,12 @@ import { PersonalRegistro, TipoPersonal, PersonalResumenEmpresa } from '../types
 
 const MESES_ES: Record<string, number> = {
   ene: 0, feb: 1, mar: 2, abr: 3, may: 4, jun: 5,
-  jul: 6, ago: 7, sep: 8, oct: 9, nov: 10, dic: 11,
+  jul: 6, ago: 7, sep: 8, sept: 8, set: 8, oct: 9, nov: 10, dic: 11,
   enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
-  julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
+  julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11,
+  jan: 0, apr: 3, aug: 7, dec: 11,
+  january: 0, february: 1, march: 2, april: 3, june: 5,
+  july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
 };
 
 const MESES_NOMBRES = [
@@ -104,16 +107,19 @@ export function parsePersonalDate(val: any): { fechaIso: string; fechaVisual: st
 
   if (val instanceof Date && !isNaN(val.getTime())) {
     d = val;
-  } else if (typeof val === 'number') {
-    // Número serial de Excel
-    const utc_days = Math.floor(val - 25569);
+  } else if (typeof val === 'number' || (typeof val === 'string' && /^\d{5}(\.\d+)?$/.test(val.trim()))) {
+    // Número serial de Excel (ej: 45521)
+    const numVal = typeof val === 'number' ? val : parseFloat(val);
+    const utc_days = Math.floor(numVal - 25569);
     const d_utc = new Date(utc_days * 86400 * 1000);
     d = new Date(d_utc.getUTCFullYear(), d_utc.getUTCMonth(), d_utc.getUTCDate(), 12, 0, 0);
   } else if (typeof val === 'string') {
     rawStr = val.trim();
-    const strLower = rawStr.toLowerCase();
+    // Limpiar timestamp si viene con hora (ej: "2026-08-17 00:00:00" o "2026-08-17T00:00:00")
+    const cleanStr = rawStr.split(/[ T]/)[0] || rawStr;
+    const strLower = cleanStr.toLowerCase();
 
-    // Formato tipo "17-ago-26" o "17-ago-2026"
+    // Formato tipo "17-ago-26", "17-ago-2026", "17/ago/2026", "17-Aug-2026"
     const matchEspanol = strLower.match(/^(\d{1,2})[-/ ]([a-z]{3,10})[-/ ](\d{2,4})$/);
     if (matchEspanol) {
       const dia = parseInt(matchEspanol[1], 10);
@@ -121,29 +127,45 @@ export function parsePersonalDate(val: any): { fechaIso: string; fechaVisual: st
       let anio = parseInt(matchEspanol[3], 10);
       if (anio < 100) anio += anio < 50 ? 2000 : 1900;
       
-      const mesNum = MESES_ES[mesTxt.substring(0, 3)] ?? MESES_ES[mesTxt];
+      const mesNum = MESES_ES[mesTxt.substring(0, 4)] ?? MESES_ES[mesTxt.substring(0, 3)] ?? MESES_ES[mesTxt];
       if (mesNum !== undefined) {
         d = new Date(anio, mesNum, dia, 12, 0, 0);
       }
     }
 
     if (!d) {
-      // Formato "DD/MM/YYYY" o "DD/MM/YY"
-      const matchSlash = rawStr.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/);
+      // Formato "DD/MM/YYYY", "DD-MM-YYYY", "DD/MM/YY"
+      const matchSlash = cleanStr.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/);
       if (matchSlash) {
-        const dia = parseInt(matchSlash[1], 10);
-        const mes = parseInt(matchSlash[2], 10) - 1;
+        const p1 = parseInt(matchSlash[1], 10);
+        const p2 = parseInt(matchSlash[2], 10);
         let anio = parseInt(matchSlash[3], 10);
         if (anio < 100) anio += anio < 50 ? 2000 : 1900;
+
+        // Si p2 > 12 y p1 <= 12, es formato MM/DD/YYYY
+        let dia = p1;
+        let mes = p2 - 1;
+        if (p1 <= 12 && p2 > 12) {
+          dia = p2;
+          mes = p1 - 1;
+        }
         d = new Date(anio, mes, dia, 12, 0, 0);
       }
     }
 
     if (!d) {
-      // Formato ISO "YYYY-MM-DD"
-      const matchIso = rawStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+      // Formato ISO "YYYY-MM-DD" o "YYYY/MM/DD"
+      const matchIso = cleanStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
       if (matchIso) {
         d = new Date(parseInt(matchIso[1], 10), parseInt(matchIso[2], 10) - 1, parseInt(matchIso[3], 10), 12, 0, 0);
+      }
+    }
+
+    if (!d) {
+      // Intento con Date.parse nativo
+      const parsedNative = Date.parse(rawStr);
+      if (!isNaN(parsedNative)) {
+        d = new Date(parsedNative);
       }
     }
   }
@@ -190,7 +212,7 @@ export function parsePersonalDate(val: any): { fechaIso: string; fechaVisual: st
 
   return {
     fechaIso,
-    fechaVisual: rawStr || fechaVisual,
+    fechaVisual,
     dateObj: d,
     semanaKey,
     semanaLabel,
@@ -366,49 +388,82 @@ export function parsePersonalCsv(csvContent: string, defaultUbicacion = 'Merinos
 }
 
 /**
- * Parsea un libro Excel XLSX con múltiples hojas (e.g. 'merinos', 'progreso', etc.)
+ * Parsea un libro Excel XLSX con múltiples hojas (e.g. 'merinos', 'progreso', etc.) o una única hoja.
  */
 export function parsePersonalWorkbook(workbook: XLSX.WorkBook): PersonalRegistro[] {
   const allRegistros: PersonalRegistro[] = [];
+
+  const cleanColName = (cell: any): string => {
+    return String(cell || '')
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  };
 
   workbook.SheetNames.forEach(sheetName => {
     const worksheet = workbook.Sheets[sheetName];
     if (!worksheet) return;
 
-    // Normalizar nombre de ubicación
-    let ubicacion = sheetName.trim();
+    // Normalizar nombre de ubicación por defecto de la hoja
+    let defaultUbicacion = sheetName.trim();
     const sheetLower = sheetName.toLowerCase();
-    if (sheetLower.includes('merino')) ubicacion = 'Merinos';
-    else if (sheetLower.includes('progreso')) ubicacion = 'Progreso';
+    if (sheetLower.includes('merino')) defaultUbicacion = 'Merinos';
+    else if (sheetLower.includes('progreso')) defaultUbicacion = 'Progreso';
+    else if (sheetLower.includes('guayacan')) defaultUbicacion = 'Guayacanes';
+    else if (sheetLower === 'sheet1' || sheetLower === 'hoja1' || sheetLower === 'data' || sheetLower === 'personal') {
+      defaultUbicacion = 'Merinos';
+    }
 
     const rawData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null, raw: true });
     if (!rawData || rawData.length < 2) return;
 
-    // Encontrar fila de encabezados
+    // Encontrar fila de encabezados examinando hasta las primeras 30 filas
     let headerRowIdx = -1;
     let colMap: Record<string, number> = {};
 
-    for (let r = 0; r < Math.min(10, rawData.length); r++) {
+    for (let r = 0; r < Math.min(30, rawData.length); r++) {
       const row = rawData[r];
       if (!row || !Array.isArray(row)) continue;
 
-      const rowStr = row.map(cell => String(cell || '').toLowerCase()).join(' ');
-      if (rowStr.includes('fecha') && (rowStr.includes('empresa') || rowStr.includes('frente') || rowStr.includes('actividad'))) {
+      const rowJoined = row.map(cell => cleanColName(cell)).join(' ');
+      const hasFecha = rowJoined.includes('fecha') || rowJoined.includes('date') || rowJoined.includes('dia') || rowJoined.includes('fec');
+      const hasEmpresa = rowJoined.includes('empresa') || rowJoined.includes('contratista') || rowJoined.includes('subcontratista') || rowJoined.includes('razon');
+      const hasFrenteOAct = rowJoined.includes('frente') || rowJoined.includes('actividad') || rowJoined.includes('zona') || rowJoined.includes('labor');
+
+      if ((hasFecha && hasEmpresa) || (hasFecha && hasFrenteOAct) || (hasEmpresa && hasFrenteOAct)) {
         headerRowIdx = r;
         row.forEach((cell, cIdx) => {
-          const c = String(cell || '').toLowerCase().trim();
-          if (c.includes('fecha')) colMap['fecha'] = cIdx;
-          else if (c === 'id' || c.includes('id')) colMap['id'] = cIdx;
-          else if (c.includes('empresa')) colMap['empresa'] = cIdx;
-          else if (c.includes('frente')) colMap['frente'] = cIdx;
-          else if (c.includes('actividad')) colMap['actividad'] = cIdx;
-          else if (c === 'hd' || c.includes('hombres diurno') || c.includes('h diurno')) colMap['hd'] = cIdx;
-          else if (c === 'md' || c.includes('mujeres diurno') || c.includes('m diurno')) colMap['md'] = cIdx;
-          else if (c === 'hn' || c.includes('hombres noche') || c.includes('h noche')) colMap['hn'] = cIdx;
-          else if (c === 'mn' || c.includes('mujeres noche') || c.includes('m noche')) colMap['mn'] = cIdx;
-          else if (c === 'h' || c === 'hombres' || c.includes('total h')) colMap['h'] = cIdx;
-          else if (c === 'm' || c === 'mujeres' || c.includes('total m')) colMap['m'] = cIdx;
-          else if (c === 'total' || c.includes('total')) colMap['total'] = cIdx;
+          const c = cleanColName(cell);
+          if (!c) return;
+
+          if (c.includes('fecha') || c.includes('date') || c === 'dia' || c.startsWith('fec')) {
+            if (colMap['fecha'] === undefined) colMap['fecha'] = cIdx;
+          } else if (c === 'id' || c.includes('n°') || c.includes('nro') || c === 'no' || c === 'item' || c.includes('codigo')) {
+            if (colMap['id'] === undefined) colMap['id'] = cIdx;
+          } else if (c.includes('empresa') || c.includes('contratista') || c.includes('subcontrat') || c.includes('razon')) {
+            if (colMap['empresa'] === undefined) colMap['empresa'] = cIdx;
+          } else if (c.includes('frente') || c.includes('sector') || c.includes('tramo') || (c.includes('zona') && !c.includes('horaria'))) {
+            if (colMap['frente'] === undefined) colMap['frente'] = cIdx;
+          } else if (c.includes('actividad') || c.includes('labor') || c.includes('descripcion') || c.includes('cargo') || c.includes('tarea') || c.includes('puesto')) {
+            if (colMap['actividad'] === undefined) colMap['actividad'] = cIdx;
+          } else if (c.includes('ubicacion') || c.includes('sede') || c.includes('proyecto') || c.includes('ciudad') || c.includes('planta')) {
+            if (colMap['ubicacion'] === undefined) colMap['ubicacion'] = cIdx;
+          } else if (c === 'hd' || c.includes('h.d') || c.includes('hombres diurno') || c.includes('h diurno') || c.includes('hombres d') || c === 'hd (dia)') {
+            if (colMap['hd'] === undefined) colMap['hd'] = cIdx;
+          } else if (c === 'md' || c.includes('m.d') || c.includes('mujeres diurno') || c.includes('m diurno') || c.includes('mujeres d') || c === 'md (dia)') {
+            if (colMap['md'] === undefined) colMap['md'] = cIdx;
+          } else if (c === 'hn' || c.includes('h.n') || c.includes('hombres noche') || c.includes('h noche') || c.includes('hombres n') || c === 'hn (noche)' || c.includes('nocturno')) {
+            if (colMap['hn'] === undefined) colMap['hn'] = cIdx;
+          } else if (c === 'mn' || c.includes('m.n') || c.includes('mujeres noche') || c.includes('m noche') || c.includes('mujeres n') || c === 'mn (noche)') {
+            if (colMap['mn'] === undefined) colMap['mn'] = cIdx;
+          } else if (c === 'h' || c === 'hombres' || c.includes('total h') || c.includes('tot h') || c.includes('tot. h')) {
+            if (colMap['h'] === undefined) colMap['h'] = cIdx;
+          } else if (c === 'm' || c === 'mujeres' || c.includes('total m') || c.includes('tot m') || c.includes('tot. m')) {
+            if (colMap['m'] === undefined) colMap['m'] = cIdx;
+          } else if (c === 'total' || c.includes('total personal') || c.includes('dotacion') || c.includes('tot personal') || c.includes('cant')) {
+            if (colMap['total'] === undefined) colMap['total'] = cIdx;
+          }
         });
         break;
       }
@@ -418,13 +473,14 @@ export function parsePersonalWorkbook(workbook: XLSX.WorkBook): PersonalRegistro
 
     for (let r = startRow; r < rawData.length; r++) {
       const row = rawData[r];
-      if (!row || row.length === 0) continue;
+      if (!row || !Array.isArray(row) || row.length === 0) continue;
 
       const fechaVal = colMap['fecha'] !== undefined ? row[colMap['fecha']] : row[0];
       const idVal = colMap['id'] !== undefined ? row[colMap['id']] : row[1];
       const empresaVal = colMap['empresa'] !== undefined ? row[colMap['empresa']] : row[2];
       const frenteVal = colMap['frente'] !== undefined ? row[colMap['frente']] : row[3];
       const actividadVal = colMap['actividad'] !== undefined ? row[colMap['actividad']] : row[4];
+      const ubicacionVal = colMap['ubicacion'] !== undefined ? row[colMap['ubicacion']] : null;
 
       const hdVal = colMap['hd'] !== undefined ? parseFloat(row[colMap['hd']]) || 0 : parseFloat(row[5]) || 0;
       const mdVal = colMap['md'] !== undefined ? parseFloat(row[colMap['md']]) || 0 : parseFloat(row[6]) || 0;
@@ -444,13 +500,25 @@ export function parsePersonalWorkbook(workbook: XLSX.WorkBook): PersonalRegistro
       const frenteStr = standardizeFrente(frenteVal);
       const actividadStr = standardizeActividad(actividadVal);
 
-      if (!fechaVal && !empresaClean && totalVal === 0) continue;
+      // Si la fila está vacía o es un encabezado duplicado / resumen intermedio
+      if (!fechaVal && (!empresaVal || empresaClean === 'SIN EMPRESA') && totalVal === 0) continue;
+      if (typeof fechaVal === 'string' && (fechaVal.toLowerCase().includes('fecha') || fechaVal.toLowerCase().includes('total'))) continue;
+
+      let filaUbicacion = defaultUbicacion;
+      if (ubicacionVal && String(ubicacionVal).trim()) {
+        const uStr = String(ubicacionVal).trim();
+        const uLower = uStr.toLowerCase();
+        if (uLower.includes('merino')) filaUbicacion = 'Merinos';
+        else if (uLower.includes('progreso')) filaUbicacion = 'Progreso';
+        else if (uLower.includes('guayacan')) filaUbicacion = 'Guayacanes';
+        else filaUbicacion = uStr;
+      }
 
       const parsedDate = parsePersonalDate(fechaVal);
       const tipo = clasificarTipoPersonal(frenteStr, empresaClean, actividadStr);
 
       allRegistros.push({
-        id: `per-${ubicacion}-${r}-${Math.random().toString(36).substring(2, 7)}`,
+        id: `per-${filaUbicacion}-${r}-${Math.random().toString(36).substring(2, 7)}`,
         rawId: idVal,
         fecha: parsedDate.fechaVisual,
         fechaIso: parsedDate.fechaIso,
@@ -470,7 +538,7 @@ export function parsePersonalWorkbook(workbook: XLSX.WorkBook): PersonalRegistro
         h: hVal,
         m: mVal,
         total: totalVal,
-        ubicacion
+        ubicacion: filaUbicacion
       });
     }
   });

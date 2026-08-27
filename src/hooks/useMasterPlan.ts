@@ -440,7 +440,7 @@ export function useMasterPlan(isLoggedIn = false) {
   });
 
   const [mapaColumnasMes, setMapaColumnasMes] = useState<any>({});
-  const [activeTab, setActiveTab] = useState<string>('resumen');
+  const [activeTab, setActiveTab] = useState<string>('caratula');
   const [donutAnio, setDonutAnio] = useState<string>('all');
   const [donutMes, setDonutMes] = useState<string>('all');
   const [donutSemana, setDonutSemana] = useState<string>('all');
@@ -2082,6 +2082,7 @@ export function useMasterPlan(isLoggedIn = false) {
             }
 
             const rowWeekly: Record<string, number> = {};
+            let weeklySum = 0;
             Object.entries(fechasPorColumnaCDO).forEach(([colStr, fechaKey]) => {
               const col = parseInt(colStr);
               let valorRaw = r[col];
@@ -2090,6 +2091,7 @@ export function useMasterPlan(isLoggedIn = false) {
               else if (typeof valorRaw === 'string') valor = parseFloat(valorRaw.replace(/[$,]/g, '')) || 0;
               if (valor > 0) {
                 rowWeekly[fechaKey] = valor;
+                weeklySum += valor;
               }
             });
 
@@ -2103,31 +2105,17 @@ export function useMasterPlan(isLoggedIn = false) {
                 recordMap![fechaKey] = (recordMap![fechaKey] || 0) + valor;
               });
             });
-          }
 
-          const valAV = helperParseNum(r[47]);
-          const valAS = helperParseNum(r[44]);
-          const valColI = helperParseNum(r[8]);
-          if (colA) {
-            sumAVByColA.set(colA, (sumAVByColA.get(colA) || 0) + valAV);
-            sumASByColA.set(colA, (sumASByColA.get(colA) || 0) + valAS);
-            sumColIByColA.set(colA, (sumColIByColA.get(colA) || 0) + valColI);
-            if (colA.includes('  ')) {
-              const codePart = colA.split('  ')[0].trim();
-              if (codePart && codePart !== colA) {
-                sumAVByColA.set(codePart, (sumAVByColA.get(codePart) || 0) + valAV);
-                sumASByColA.set(codePart, (sumASByColA.get(codePart) || 0) + valAS);
-                sumColIByColA.set(codePart, (sumColIByColA.get(codePart) || 0) + valColI);
-              }
-            }
-          }
-          if (r[2]) {
-            const actCode = String(r[2]).trim().toLowerCase();
-            if (actCode && actCode !== colA) {
-              sumAVByColA.set(actCode, (sumAVByColA.get(actCode) || 0) + valAV);
-              sumASByColA.set(actCode, (sumASByColA.get(actCode) || 0) + valAS);
-              sumColIByColA.set(actCode, (sumColIByColA.get(actCode) || 0) + valColI);
-            }
+            const valAV_col = helperParseNum(r[47]);
+            const valAV = valAV_col > 0 ? valAV_col : weeklySum;
+            const valAS = helperParseNum(r[44]);
+            const valColI = helperParseNum(r[8]);
+
+            keysToRegister.forEach(k => {
+              sumAVByColA.set(k, (sumAVByColA.get(k) || 0) + valAV);
+              sumASByColA.set(k, (sumASByColA.get(k) || 0) + valAS);
+              sumColIByColA.set(k, (sumColIByColA.get(k) || 0) + valColI);
+            });
           }
         }
 
@@ -2349,33 +2337,41 @@ export function useMasterPlan(isLoggedIn = false) {
           let finalVentaEx = ventaEx;
           let finalVentaPlan = ventaPlan;
 
-          const actIdStr = actIdCleanForP6;
-          const wbsCodeStr = wbsCleanForP6;
-          const rawWbsStr = rawWbsCleanForP6;
-
           if (esItemHoja && isP6Activity) {
-            if (actIdStr && sumAVByColA.has(actIdStr)) {
-              finalVentaEx = sumAVByColA.get(actIdStr)!;
-            } else if (wbsCodeStr && sumAVByColA.has(wbsCodeStr)) {
-              finalVentaEx = sumAVByColA.get(wbsCodeStr)!;
-            } else if (rawWbsStr && sumAVByColA.has(rawWbsStr)) {
-              finalVentaEx = sumAVByColA.get(rawWbsStr)!;
+            const possibleKeys = [
+              actIdCleanForP6,
+              actIdCleanForP6.replace(/\.p6$/i, ''),
+              wbsCleanForP6,
+              wbsCleanForP6.replace(/\.p6$/i, ''),
+              rawWbsCleanForP6,
+              rawWbsCleanForP6.replace(/\.p6$/i, '')
+            ].filter(Boolean);
+
+            for (const k of possibleKeys) {
+              if (sumASByColA.has(k) && sumASByColA.get(k)! > 0) {
+                finalVentaPlan = sumASByColA.get(k)!;
+                break;
+              }
             }
 
-            if (actIdStr && sumASByColA.has(actIdStr)) {
-              finalVentaPlan = sumASByColA.get(actIdStr)!;
-            } else if (wbsCodeStr && sumASByColA.has(wbsCodeStr)) {
-              finalVentaPlan = sumASByColA.get(wbsCodeStr)!;
-            } else if (rawWbsStr && sumASByColA.has(rawWbsStr)) {
-              finalVentaPlan = sumASByColA.get(rawWbsStr)!;
+            for (const k of possibleKeys) {
+              if (sumAVByColA.has(k) && sumAVByColA.get(k)! > 0) {
+                finalVentaEx = sumAVByColA.get(k)!;
+                break;
+              }
             }
 
-            if (actIdStr && sumColIByColA.has(actIdStr)) {
-              finalVenta = sumColIByColA.get(actIdStr)!;
-            } else if (wbsCodeStr && sumColIByColA.has(wbsCodeStr)) {
-              finalVenta = sumColIByColA.get(wbsCodeStr)!;
-            } else if (rawWbsStr && sumColIByColA.has(rawWbsStr)) {
-              finalVenta = sumColIByColA.get(rawWbsStr)!;
+            for (const k of possibleKeys) {
+              if (sumColIByColA.has(k) && sumColIByColA.get(k)! > 0) {
+                finalVenta = sumColIByColA.get(k)!;
+                break;
+              }
+            }
+
+            // Si hay avance registrado por semanas y finalVentaEx es 0 o menor que la suma de semanas, asegurar coherencia con las semanas
+            const sumWeeklyCerts = Object.values(certificacionesPorFecha).reduce((s, v) => s + v, 0);
+            if (sumWeeklyCerts > 0 && (finalVentaEx === 0 || finalVentaEx < sumWeeklyCerts)) {
+              finalVentaEx = sumWeeklyCerts;
             }
           }
 

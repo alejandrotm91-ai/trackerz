@@ -57,14 +57,14 @@ export const CollapsibleHierarchyDropdown: React.FC<CollapsibleHierarchyDropdown
   }, [value, allOptionLabel, groups]);
 
   // Which month groups are expanded.
-  // By default, expand all months, or expand the month containing current selection.
+  // By default, months are collapsed (unless containing current selection).
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     groups.forEach(y => {
       y.meses.forEach(m => {
         const key = `${y.year}-${m.monthKey}`;
-        // Expand by default
-        initial[key] = true;
+        const hasSelected = value && value !== 'all' && m.items.some(item => item.value === value);
+        initial[key] = !!hasSelected;
       });
     });
     return initial;
@@ -78,13 +78,14 @@ export const CollapsibleHierarchyDropdown: React.FC<CollapsibleHierarchyDropdown
         y.meses.forEach(m => {
           const key = `${y.year}-${m.monthKey}`;
           if (next[key] === undefined) {
-            next[key] = true;
+            const hasSelected = value && value !== 'all' && m.items.some(item => item.value === value);
+            next[key] = !!hasSelected;
           }
         });
       });
       return next;
     });
-  }, [groups]);
+  }, [groups, value]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -314,7 +315,7 @@ export const CollapsibleHierarchyDropdown: React.FC<CollapsibleHierarchyDropdown
                   {/* Month Accordions */}
                   {yearGroup.meses.map(monthGroup => {
                     const monthKey = `${yearGroup.year}-${monthGroup.monthKey}`;
-                    const isExpanded = !!expandedMonths[monthKey];
+                    const isExpanded = searchQuery.trim() ? true : !!expandedMonths[monthKey];
                     const hasSelectedInside = monthGroup.items.some(it => it.value === value);
 
                     return (
