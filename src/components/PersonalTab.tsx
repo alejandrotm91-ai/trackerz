@@ -145,6 +145,7 @@ export function PersonalTab() {
   const [isTopActividadesCollapsed, setIsTopActividadesCollapsed] = useState<boolean>(true);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const isSyncingRef = useRef<boolean>(false);
 
   // Normalizar registros garantizando las reglas de clasificación y estandarización:
   // 1. Estandarización de Empresa: "ACCIONA AGUA" y variantes se consolidan en "ACCIONA"
@@ -885,8 +886,50 @@ export function PersonalTab() {
       .slice(0, 20);
   }, [filteredRegistros, stats.numDiasMes, mesFilter, mesCorrienteKey]);
 
+  // Upload currently loaded records to Firebase
+  const handleSyncToCloud = async () => {
+    if (isSyncingRef.current || registros.length === 0) {
+      setUploadFeedback({ type: 'error', message: 'No hay datos para sincronizar o ya hay una carga en curso.' });
+      return;
+    }
+    isSyncingRef.current = true;
+    try {
+      setIsSyncingWithCloud(true);
+      setSyncProgress({ pct: 20, message: 'Iniciando sincronización con la nube...' });
+      setIsUploadModalOpen(true); // Open modal to show progress
+
+      await savePersonalPlanToFirebase(currentFileName || 'Matriz_Personal.xlsx', registros, (pct, statusMsg) => {
+        setSyncProgress({ pct, message: statusMsg });
+      });
+      setIsCloudLoaded(true);
+      setUploadFeedback({
+        type: 'success',
+        message: `¡Se sincronizaron exitosamente ${registros.length} registros en la nube!`
+      });
+    } catch (syncErr) {
+      console.warn('Error sincronizando con Firebase:', syncErr);
+      setUploadFeedback({
+        type: 'error',
+        message: 'Ocurrió un error al intentar sincronizar con la nube. Intenta nuevamente.'
+      });
+    } finally {
+      setIsSyncingWithCloud(false);
+      setSyncProgress(null);
+      setTimeout(() => {
+        setIsUploadModalOpen(false);
+        setUploadFeedback(null);
+      }, 1800);
+      isSyncingRef.current = false;
+    }
+  };
+
   // Process uploaded Excel / CSV File
   const processFile = async (file: File) => {
+    if (isSyncingRef.current) {
+      setUploadFeedback({ type: 'error', message: 'Ya hay una carga en curso. Espera a que termine.' });
+      return;
+    }
+    isSyncingRef.current = true;
     try {
       setUploadFeedback({
         type: 'success',
@@ -942,35 +985,15 @@ export function PersonalTab() {
       setCurrentFileName(file.name);
       setIsCloudLoaded(false);
 
-      // Sincronizar en segundo plano con Firebase (reemplazo limpio y completo sin acumulación)
-      setIsSyncingWithCloud(true);
-      setSyncProgress({ pct: 20, message: 'Iniciando sincronización con la nube...' });
+      setUploadFeedback({
+        type: 'success',
+        message: `¡Se cargaron exitosamente ${nuevosRegistros.length} registros desde "${file.name}" para esta sesión! Para guardarlo en Firebase usa el botón "Guardar en Nube".`
+      });
 
-      savePersonalPlanToFirebase(file.name, nuevosRegistros, (pct, statusMsg) => {
-        setSyncProgress({ pct, message: statusMsg });
-      })
-        .then(() => {
-          setIsCloudLoaded(true);
-          setUploadFeedback({
-            type: 'success',
-            message: `¡Se cargaron y sincronizaron exitosamente ${nuevosRegistros.length} registros desde "${file.name}" en la nube!`
-          });
-        })
-        .catch(syncErr => {
-          console.warn('Error sincronizando con Firebase (los datos locales siguen activos):', syncErr);
-          setUploadFeedback({
-            type: 'success',
-            message: `¡Se cargaron ${nuevosRegistros.length} registros desde "${file.name}" para esta sesión!`
-          });
-        })
-        .finally(() => {
-          setIsSyncingWithCloud(false);
-          setSyncProgress(null);
-          setTimeout(() => {
-            setIsUploadModalOpen(false);
-            setUploadFeedback(null);
-          }, 1800);
-        });
+      setTimeout(() => {
+        setIsUploadModalOpen(false);
+        setUploadFeedback(null);
+      }, 1800);
 
       // Reset page & filters
       setPage(1);
@@ -982,6 +1005,8 @@ export function PersonalTab() {
       });
       setIsSyncingWithCloud(false);
       setSyncProgress(null);
+    } finally {
+      isSyncingRef.current = false;
     }
   };
 
@@ -1013,6 +1038,7 @@ export function PersonalTab() {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (isSyncingWithCloud) return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       processFile(e.dataTransfer.files[0]);
     }
@@ -1246,6 +1272,7 @@ export function PersonalTab() {
         accept=".xlsx, .xls, .csv, .txt, .tsv"
         className="hidden"
         onChange={handleFileUpload}
+        disabled={isSyncingWithCloud}
       />
 
       {/* Top Banner Card (Ultra-compact) */}
@@ -1305,6 +1332,18 @@ export function PersonalTab() {
               <Upload className="w-3.5 h-3.5 text-indigo-200" />
               <span>{registros.length > 0 ? 'Cargar otro Excel' : 'Cargar Excel'}</span>
             </button>
+
+            {!isCloudLoaded && registros.length > 0 && currentFileName !== 'Datos_Demostracion.xlsx' && (
+              <button
+                onClick={handleSyncToCloud}
+                disabled={isSyncingWithCloud}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-sky-600/90 hover:bg-sky-500 text-white border border-sky-400/40 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                title="Guardar archivo actual en Firebase para todos los usuarios"
+              >
+                <CloudUpload className="w-3.5 h-3.5 text-sky-200" />
+                <span>Guardar en Nube</span>
+              </button>
+            )}
 
             {registros.length > 0 && (
               <button
@@ -1423,7 +1462,10 @@ export function PersonalTab() {
           )}
 
           <div
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              if (isSyncingWithCloud) return;
+              fileInputRef.current?.click();
+            }}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -1445,7 +1487,8 @@ export function PersonalTab() {
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+              disabled={isSyncingWithCloud}
+              className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-sm transition-all flex items-center gap-2 cursor-pointer active:scale-95"
             >
               <Upload className="w-4 h-4" />
               <span>Seleccionar Archivo Excel</span>
