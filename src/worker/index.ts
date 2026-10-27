@@ -3,14 +3,14 @@ import type { Env } from "./env";
 import { requireAuth, type AuthUser } from "./auth";
 import { getDb } from "../db/index.ts";
 import { saveMasterPlanToDb, getMasterPlanFromDb } from "../db/masterCdo.ts";
-import { analyze, equipmentAnalyze, cronoReport, type LegacyRes } from "./gemini";
+import { analyze, equipmentAnalyze, cronoReport, type LegacyRes } from "./ai";
 
 const app = new Hono<{ Bindings: Env; Variables: { user: AuthUser } }>();
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-// Adapta los handlers de Gemini (estilo Express) a Hono.
-function gemini(handler: (req: { body: any }, res: LegacyRes, env: Env) => Promise<void>) {
+// Adapta los handlers de IA (estilo Express) a Hono.
+function aiRoute(handler: (req: { body: any }, res: LegacyRes, env: Env) => Promise<void>) {
   return async (c: any) => {
     const body = await c.req.json().catch(() => ({}));
     let status = 200;
@@ -24,9 +24,9 @@ function gemini(handler: (req: { body: any }, res: LegacyRes, env: Env) => Promi
   };
 }
 
-app.post("/api/gemini/analyze", gemini(analyze));
-app.post("/api/gemini/equipment-analyze", gemini(equipmentAnalyze));
-app.post("/api/gemini/crono-report", gemini(cronoReport));
+app.post("/api/ai/analyze", aiRoute(analyze));
+app.post("/api/ai/equipment-analyze", aiRoute(equipmentAnalyze));
+app.post("/api/ai/crono-report", aiRoute(cronoReport));
 
 // Master CDO Sync API
 app.post("/api/master-cdo/save", requireAuth, async (c) => {

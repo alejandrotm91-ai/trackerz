@@ -1,6 +1,6 @@
-// Endpoints de Gemini portados desde server.ts (Express) a Cloudflare Workers.
-// Los prompts son idénticos a los originales; solo cambia cómo se recibe la petición.
-import { GoogleGenAI } from "@google/genai";
+// Endpoints de IA (análisis del cronograma, equipos y reporte ejecutivo).
+// Los prompts son los originales; el proveedor del modelo vive en llm.ts.
+import { generateText } from "./llm";
 import type { Env } from "./env";
 
 export interface LegacyReq { body: any }
@@ -9,57 +9,8 @@ export interface LegacyRes {
   json(data: unknown): void;
 }
 
-function makeAi(apiKey: string) {
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: { headers: { "User-Agent": "aistudio-build" } },
-  });
-}
-
-// Helper function to retry Gemini API calls with exponential backoff on transient errors (503, 429, UNAVAILABLE)
-async function generateContentWithRetry(ai: GoogleGenAI, params: {
-  model: string;
-  contents: any;
-  config?: any;
-}, maxRetries = 3, initialDelayMs = 1000): Promise<any> {
-  let delay = initialDelayMs;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await ai.models.generateContent(params);
-    } catch (error: any) {
-      const errorStr = typeof error === "object" ? JSON.stringify(error) : String(error);
-      const isRetryable =
-        error.status === 429 ||
-        error.status === 503 ||
-        error.code === 503 ||
-        errorStr.includes("503") ||
-        errorStr.includes("UNAVAILABLE") ||
-        errorStr.includes("Resource has been exhausted") ||
-        errorStr.includes("high demand") ||
-        (error.status === undefined && (errorStr.includes("503") || errorStr.includes("UNAVAILABLE")));
-
-      if (isRetryable && attempt < maxRetries) {
-        console.warn(`Gemini API returned retryable error (Attempt ${attempt}/${maxRetries}). Retrying in ${delay}ms...`, error.message || error);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        delay *= 2; // exponential backoff
-        continue;
-      }
-      throw error;
-    }
-  }
-}
-
-
 export async function analyze(req: LegacyReq, res: LegacyRes, env: Env) {
     try {
-      const apiKey = env.GEMINI_API_KEY;
-      if (!apiKey) {
-        return res.status(400).json({
-          error: "API_KEY_MISSING",
-          message: "La variable de entorno GEMINI_API_KEY no está configurada. Configúrala como secreto en Cloudflare (wrangler secret put GEMINI_API_KEY)."
-        });
-      }
-
       const { stats, sampleActivities, customPrompt } = req.body;
 
       // Build context summary for the model
@@ -105,29 +56,22 @@ ${activitiesSummaryText}
         userPrompt += `\nGenera un análisis de salud general del proyecto, identifica los mayores cuellos de botella del cronograma (analizando las sub-partidas prioritarias) y propón un plan de acción concreto de 3 pasos clave para recuperar la holgura en las partidas críticas.`;
       }
 
-      const response = await generateContentWithRetry(makeAi(apiKey), {
-        model: "gemini-3.5-flash",
-        contents: userPrompt,
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-        },
-      });
+      const text = await generateText(env, { system: systemInstruction, prompt: userPrompt, temperature: 0.7 });
 
       res.json({
-        analysis: response.text,
+        analysis: text,
       });
     } catch (error: any) {
-      console.error("Error calling Gemini:", error);
-      const errorStr = typeof error === "object" ? JSON.stringify(error) : String(error);
-      let errorMessage = error.message || "Error interno al comunicarse con el motor inteligente de Gemini.";
-      let errorCode = "GEMINI_ERROR";
+      console.error("Error calling AI:", error);
+      const errorStr = `${typeof error === "object" ? JSON.stringify(error) : String(error)} ${error?.message ?? ""}`;
+      let errorMessage = error.message || "Error interno al comunicarse con el motor de Inteligencia Artificial.";
+      let errorCode = "AI_ERROR";
 
       if (errorStr.includes("503") || errorStr.includes("UNAVAILABLE") || errorStr.includes("high demand") || errorStr.includes("temporary")) {
-        errorCode = "GEMINI_HIGH_DEMAND";
-        errorMessage = "El servicio de Inteligencia de Gemini está experimentando una demanda inusualmente alta en este momento (Error 503). Por favor, espera unos segundos e intenta enviar de nuevo tu consulta.";
+        errorCode = "AI_HIGH_DEMAND";
+        errorMessage = "El servicio de Inteligencia Artificial está experimentando una demanda inusualmente alta en este momento (Error 503). Por favor, espera unos segundos e intenta enviar de nuevo tu consulta.";
       } else if (errorStr.includes("429") || errorStr.includes("Resource has been exhausted") || errorStr.includes("rate limit")) {
-        errorCode = "GEMINI_RATE_LIMIT";
+        errorCode = "AI_RATE_LIMIT";
         errorMessage = "Se ha alcanzado el límite de consultas permitidas de Inteligencia en este momento (Error 429). Por favor, intenta de nuevo en unos instantes.";
       }
 
@@ -140,14 +84,6 @@ ${activitiesSummaryText}
 
 export async function equipmentAnalyze(req: LegacyReq, res: LegacyRes, env: Env) {
     try {
-      const apiKey = env.GEMINI_API_KEY;
-      if (!apiKey) {
-        return res.status(400).json({
-          error: "API_KEY_MISSING",
-          message: "La variable de entorno GEMINI_API_KEY no está configurada. Configúrala como secreto en Cloudflare (wrangler secret put GEMINI_API_KEY)."
-        });
-      }
-
       const { plainTextReport, history, userQuestion } = req.body;
 
       const systemInstruction = `Eres un Ingeniero Senior de Control de Proyectos y Especialista en Gestión de Equipos e Instrumentación a Demanda en proyectos industriales complejos.
@@ -173,29 +109,22 @@ Por favor, responde con las siguientes directrices:
       
       prompt += `\nNueva consulta del usuario: ${userQuestion}\n`;
 
-      const response = await generateContentWithRetry(makeAi(apiKey), {
-        model: "gemini-3.5-flash",
-        contents: prompt,
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-        },
-      });
+      const text = await generateText(env, { system: systemInstruction, prompt: prompt, temperature: 0.7 });
 
       res.json({
-        answer: response.text,
+        answer: text,
       });
     } catch (error: any) {
       console.error("Error in equipment analysis:", error);
-      const errorStr = typeof error === "object" ? JSON.stringify(error) : String(error);
-      let errorMessage = error.message || "Error interno al comunicarse con el motor inteligente de Gemini.";
-      let errorCode = "GEMINI_ERROR";
+      const errorStr = `${typeof error === "object" ? JSON.stringify(error) : String(error)} ${error?.message ?? ""}`;
+      let errorMessage = error.message || "Error interno al comunicarse con el motor de Inteligencia Artificial.";
+      let errorCode = "AI_ERROR";
 
       if (errorStr.includes("503") || errorStr.includes("UNAVAILABLE") || errorStr.includes("high demand") || errorStr.includes("temporary")) {
-        errorCode = "GEMINI_HIGH_DEMAND";
-        errorMessage = "El servicio de Inteligencia de Gemini está experimentando una demanda inusualmente alta en este momento (Error 503). Por favor, espera unos segundos e intenta enviar de nuevo tu consulta.";
+        errorCode = "AI_HIGH_DEMAND";
+        errorMessage = "El servicio de Inteligencia Artificial está experimentando una demanda inusualmente alta en este momento (Error 503). Por favor, espera unos segundos e intenta enviar de nuevo tu consulta.";
       } else if (errorStr.includes("429") || errorStr.includes("Resource has been exhausted") || errorStr.includes("rate limit")) {
-        errorCode = "GEMINI_RATE_LIMIT";
+        errorCode = "AI_RATE_LIMIT";
         errorMessage = "Se ha alcanzado el límite de consultas permitidas de Inteligencia en este momento (Error 429). Por favor, intenta de nuevo en unos instantes.";
       }
 
@@ -208,14 +137,6 @@ Por favor, responde con las siguientes directrices:
 
 export async function cronoReport(req: LegacyReq, res: LegacyRes, env: Env) {
     try {
-      const apiKey = env.GEMINI_API_KEY;
-      if (!apiKey) {
-        return res.status(400).json({
-          error: "API_KEY_MISSING",
-          message: "La variable de entorno GEMINI_API_KEY no está configurada. Configúrala como secreto en Cloudflare (wrangler secret put GEMINI_API_KEY)."
-        });
-      }
-
       const { projectSummary, areaData, retrasoEconomicoTipologia, equipamientoPorSCAP, dataDate } = req.body;
 
       const systemInstruction = `Eres un Director Especialista de Control de Proyectos y Planificación de Obras Industriales y Civiles (PMI-SP / Primavera P6 Specialist).
@@ -286,30 +207,23 @@ ${JSON.stringify(areaData, null, 2)}
 
 Por favor, genera el Reporte Analítico de Inteligencia Artificial por Área, Tipología y Equipamiento por SCAP según la estructura requerida.`;
 
-      const response = await generateContentWithRetry(makeAi(apiKey), {
-        model: "gemini-3.6-flash",
-        contents: userPrompt,
-        config: {
-          systemInstruction,
-          temperature: 0.6,
-        },
-      });
+      const text = await generateText(env, { system: systemInstruction, prompt: userPrompt, temperature: 0.6 });
 
       res.json({
-        markdown: response.text,
+        markdown: text,
         generatedAt: new Date().toISOString()
       });
     } catch (error: any) {
       console.error("Error generating crono report:", error);
-      const errorStr = typeof error === "object" ? JSON.stringify(error) : String(error);
-      let errorMessage = error.message || "Error interno al comunicarse con el motor inteligente de Gemini.";
-      let errorCode = "GEMINI_ERROR";
+      const errorStr = `${typeof error === "object" ? JSON.stringify(error) : String(error)} ${error?.message ?? ""}`;
+      let errorMessage = error.message || "Error interno al comunicarse con el motor de Inteligencia Artificial.";
+      let errorCode = "AI_ERROR";
 
       if (errorStr.includes("503") || errorStr.includes("UNAVAILABLE") || errorStr.includes("high demand")) {
-        errorCode = "GEMINI_HIGH_DEMAND";
-        errorMessage = "El servicio de Inteligencia de Gemini está experimentando alta demanda (Error 503). Por favor intenta de nuevo en unos segundos.";
+        errorCode = "AI_HIGH_DEMAND";
+        errorMessage = "El servicio de Inteligencia Artificial está experimentando alta demanda (Error 503). Por favor intenta de nuevo en unos segundos.";
       } else if (errorStr.includes("429") || errorStr.includes("Resource has been exhausted")) {
-        errorCode = "GEMINI_RATE_LIMIT";
+        errorCode = "AI_RATE_LIMIT";
         errorMessage = "Límite de consultas alcanzado (Error 429). Por favor intenta en unos momentos.";
       }
 

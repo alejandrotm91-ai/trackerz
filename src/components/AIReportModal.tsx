@@ -1222,7 +1222,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 Reporte de Inteligencia Artificial - Cronograma
                 <span className="text-[10px] bg-indigo-500/30 text-indigo-200 font-semibold px-2 py-0.5 rounded-full border border-indigo-400/20">
-                  Gemini 3.6 Flash
+                  IA · gpt-oss-120b
                 </span>
               </h2>
               <p className="text-xs text-indigo-200/80">
@@ -1281,7 +1281,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
               <div className="space-y-1">
                 <h3 className="text-base font-bold text-slate-800">Analizando Cronograma de Obra por Áreas...</h3>
                 <p className="text-xs text-slate-500 max-w-md">
-                  Gemini AI está procesando las actividades retrasadas, evaluando holguras y consolidando las tareas de las próximas 4 semanas.
+                  IA está procesando las actividades retrasadas, evaluando holguras y consolidando las tareas de las próximas 4 semanas.
                 </p>
               </div>
             </div>
@@ -1310,7 +1310,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
               <h3 className="text-base font-bold text-slate-800">Sin Reporte Generado Aún</h3>
               <p className="text-xs text-slate-500 max-w-md">
                 {isAdmin
-                  ? 'Aún no se ha creado un reporte de Inteligencia Artificial para este cronograma. Haz clic en el botón inferior para realizar el primer análisis por área con Gemini AI.'
+                  ? 'Aún no se ha creado un reporte de Inteligencia Artificial para este cronograma. Haz clic en el botón inferior para realizar el primer análisis por área con IA.'
                   : 'El administrador de la obra aún no ha generado el reporte de Inteligencia Artificial. Cuando sea actualizado por el administrador, podrás consultar la información en esta pantalla.'}
               </p>
               {isAdmin && (

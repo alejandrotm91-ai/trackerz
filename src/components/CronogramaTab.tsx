@@ -757,7 +757,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           diasAtrasoMaximo: a.diasAtrasoMaximo || 0,
         }));
 
-      const res = await fetch('/api/gemini/analyze', {
+      const res = await fetch('/api/ai/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -779,7 +779,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
       }
     } catch (err: any) {
       console.error(err);
-      setAiError(err.message || 'Hubo un problema al procesar la solicitud con Gemini.');
+      setAiError(err.message || 'Hubo un problema al procesar la solicitud con la IA.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -1093,7 +1093,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Gemini AI Schedule Intel Panel */}
+      {/* IA Schedule Intel Panel */}
       {isGanttAIPanelOpen && (
         <div className="bg-slate-900 border border-indigo-500/80 rounded-2xl shadow-xl overflow-hidden relative transition-all animate-fade-in">
           {/* Subtle decorative grid background */}
@@ -1107,13 +1107,13 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-white flex items-center gap-2">
-                    <span>Asistente de Inteligencia Gemini AI</span>
+                    <span>Asistente de Inteligencia Artificial</span>
                     <span className="text-[9px] font-black uppercase tracking-wider bg-indigo-500/25 border border-indigo-400/40 text-indigo-200 px-2.5 py-0.5 rounded-full">
                       PMI-SP Advisor
                     </span>
                   </h3>
                   <p className="text-xs text-slate-450 max-w-2xl mt-0.5 leading-relaxed">
-                    Consulte al motor de Gemini 3.5 para auditar la lógica del WBS, analizar holguras totales (Total Float), diagnosticar causas de atraso y generar planes de aceleración de plazos.
+                    Consulte al motor de IA para auditar la lógica del WBS, analizar holguras totales (Total Float), diagnosticar causas de atraso y generar planes de aceleración de plazos.
                   </p>
                 </div>
               </div>
@@ -1223,7 +1223,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                             {aiError}
                           </p>
                           <div className="mt-3 text-[10px] bg-red-900/30 border border-red-800/45 p-2.5 rounded font-mono text-indigo-200">
-                            Tip: Puedes agregar la clave "GEMINI_API_KEY" desde la sección superior derecha: Settings &rarr; Secrets.
+                            Tip: si el problema persiste, intenta de nuevo en unos minutos.
                           </div>
                         </div>
                       </div>
@@ -1245,7 +1245,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
                 <div className="border-t border-slate-900 mt-4 pt-3 flex items-center justify-between text-[10px] text-slate-500 font-bold">
                   <span>CONFORMIDAD PMI STANDARD</span>
-                  <span>Gemini 3.5 Active Intelligence</span>
+                  <span>Active Intelligence</span>
                 </div>
               </div>
             </div>
@@ -5502,7 +5502,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           setEqAiInput('');
 
           try {
-            const response = await fetch('/api/gemini/equipment-analyze', {
+            const response = await fetch('/api/ai/equipment-analyze', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -6681,7 +6681,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                       {eqAiLoading && (
                         <div className="flex items-center gap-2 text-slate-500 text-[11px] font-bold pl-1">
                           <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-600" />
-                          <span>Gemini está procesando...</span>
+                          <span>La IA está procesando...</span>
                         </div>
                       )}
 
@@ -6753,7 +6753,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                         type="text"
                         value={eqAiInput}
                         onChange={e => setEqAiInput(e.target.value)}
-                        placeholder="Pregúntale a Gemini..."
+                        placeholder="Pregúntale a la IA..."
                         disabled={eqAiLoading}
                         className="flex-1 bg-white border border-slate-250 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400 disabled:opacity-70 shadow-mini"
                       />

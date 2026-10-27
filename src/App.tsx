@@ -168,7 +168,7 @@ export default function App() {
     try {
       const reportPayload = buildCronoReportData(pc.actividades, pc.fechaCorteState);
 
-      const res = await fetch('/api/gemini/crono-report', {
+      const res = await fetch('/api/ai/crono-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reportPayload)
@@ -176,7 +176,7 @@ export default function App() {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Error al comunicarse con el servicio de Inteligencia Gemini.');
+        throw new Error(errorData.message || 'Error al comunicarse con el servicio de Inteligencia Artificial.');
       }
 
       const data = await res.json();
@@ -2030,7 +2030,7 @@ export default function App() {
                               </div>
                               <div className="text-[11px] text-[#5A6A74] leading-tight mt-0.5">
                                 {isAdmin
-                                  ? 'Generar actualización del análisis con Gemini AI.'
+                                  ? 'Generar actualización del análisis con IA.'
                                   : 'Solo el administrador puede actualizar el reporte.'}
                               </div>
                             </div>

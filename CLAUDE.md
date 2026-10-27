@@ -2,7 +2,7 @@
 
 App React + Vite (carpeta `src/`) servida desde Cloudflare Workers.
 
-- `src/worker/` — API (Hono): Gemini, y sincronización "Master CDO" contra D1. Verifica tokens de Firebase con `jose`.
+- `src/worker/` — API (Hono): IA, y sincronización "Master CDO" contra D1. Verifica tokens de Firebase con `jose`.
 - `src/db/` — esquema Drizzle (SQLite/D1) y consultas. Migraciones en `migrations/`.
 - `wrangler.jsonc` — configuración de Cloudflare (este proyecto usa Wrangler, no `cf` directo).
 - `scripts-legacy/` — scripts sueltos que dejó Google AI Studio. No se usan.
@@ -15,8 +15,9 @@ App React + Vite (carpeta `src/`) servida desde Cloudflare Workers.
 - `npm run db:migrate` — aplica migraciones en D1 remota
 - `npm run deploy` — compila y publica en Cloudflare
 
-## Secretos
-`GEMINI_API_KEY` va como secreto: `npx wrangler secret put GEMINI_API_KEY`. Local: archivo `.dev.vars` (ignorado por git). Nunca en el repositorio.
+## IA
+La IA usa Workers AI (modelo `@cf/openai/gpt-oss-120b`), sin claves externas. Todo está en `src/worker/llm.ts`; para pasar a Claude solo se cambia ese archivo y se guarda `ANTHROPIC_API_KEY` como secreto (`npx wrangler secret put ANTHROPIC_API_KEY`). Nunca poner claves en el repositorio.
+Workers AI solo funciona contra Cloudflare real (no hay simulación local). Plan gratuito: 10.000 neuronas al día.
 
 ## Notas
 - Firebase (Auth y Firestore) sigue en Google. El dominio donde se publique debe estar en Firebase > Authentication > Settings > Authorized domains.
