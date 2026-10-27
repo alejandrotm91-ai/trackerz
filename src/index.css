@@ -93,45 +93,11 @@ kbd {
 }
 
 /* =====================================================================
-   Ventana estilo macOS + tema de tabla jerárquica (pestaña Resumen)
+   Tarjetas con barra de título + tema de tabla jerárquica (pestaña Resumen)
    Formato basado en formato_tabla_jerarquica.md, con la gama morada de la app.
    ===================================================================== */
-.mac-window {
-  container-type: inline-size;
-  background: #fff;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, .10), 0 8px 24px rgba(20, 33, 42, .10);
-}
-.mac-titlebar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-  padding: 0 10px;
-  background: linear-gradient(#ececec, #dcdcdc);
-  border-bottom: 1px solid #c8c8c8;
-}
-.mac-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: 600 12px/1 "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-  color: #4d4d4d;
-}
-.mac-extra {
-  justify-self: end;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font: 400 11px/1 "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
-  color: #6b6b70;
-  white-space: nowrap;
-}
-@container (max-width: 620px) { .mac-extra { display: none; } }
-.mac-body { background: #fafaf9; padding: 12px; }
+.mac-window { container-type: inline-size; }
+.mac-body { background: #fff; padding: 12px; }
 /* Las tarjetas que van dentro de la ventana pierden su propio marco */
 .mac-body > #tarjeta-kpi-avance-semanal,
 .mac-body > [id$="-container"] {
