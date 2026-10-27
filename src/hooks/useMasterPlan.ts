@@ -7,11 +7,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Actividad, PlanillaItem } from '../types';
 import { normalizeText, ctPf, isIgnoredFinishDate } from '../utils/helpers';
-import { loadLatestPlanFromFirebase, savePlanToFirebase, testFirestoreConnection } from '../utils/firebaseSync';
+import { loadLatestPlanFromCloud, savePlanToCloud } from '../utils/cloudSync';
 import { savePlanToLocalStorage, loadPlanFromLocalStorage } from '../utils/localStorageBackup';
 import { parseWbsAndDescription, hasDirectoOrDSegment } from '../utils/masterCdoHierarchy';
-import { db, auth } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export function getLatestPeriodFromMap(mapa: any) {
   if (!mapa || Object.keys(mapa).length === 0) return null;
@@ -305,25 +303,25 @@ export function rebuildAggregatedDates(actividadesProcesadas: Actividad[]): Acti
 
 export function useMasterPlan(isLoggedIn = false) {
   const [fileData, setFileData] = useState<any>(null);
-  const [firebasePlanData, setFirebasePlanData] = useState<any>(null);
+  const [cloudPlanData, setCloudPlanData] = useState<any>(null);
   const [localPlanData, setLocalPlanData] = useState<any>(null);
-  const [sourceActive, setSourceActive] = useState<string>('firebase');
-  const [firebaseQuotaExceeded, setFirebaseQuotaExceeded] = useState<boolean>(false);
+  const [sourceActive, setSourceActive] = useState<string>('cloud');
+  const [cloudQuotaExceeded, setCloudQuotaExceeded] = useState<boolean>(false);
 
-  const switchSource = (source: 'firebase' | 'local') => {
-    if (source === 'firebase' && firebasePlanData) {
-      setActividades(firebasePlanData.actividades);
-      setPlanillaHojas(firebasePlanData.planillaHojas);
-      setPlanillaPartidas(firebasePlanData.planillaPartidas);
-      setPlanillaCDOvsS(firebasePlanData.planillaCDOvsS);
-      setPlanillaTotales(firebasePlanData.planillaTotales);
-      setPlanillaEnmiendas(firebasePlanData.planillaEnmiendas || []);
-      setPlanillaTipRes(firebasePlanData.planillaTipRes || []);
-      setPlanillaInfo(firebasePlanData.planillaInfo);
-      setFileData(firebasePlanData.fileData);
-      setDataPlanificado(firebasePlanData.dataPlanificado || null);
-      setDataPlanificadoPG004(firebasePlanData.dataPlanificadoPG004 || null);
-      setSourceActive('firebase');
+  const switchSource = (source: 'cloud' | 'local') => {
+    if (source === 'cloud' && cloudPlanData) {
+      setActividades(cloudPlanData.actividades);
+      setPlanillaHojas(cloudPlanData.planillaHojas);
+      setPlanillaPartidas(cloudPlanData.planillaPartidas);
+      setPlanillaCDOvsS(cloudPlanData.planillaCDOvsS);
+      setPlanillaTotales(cloudPlanData.planillaTotales);
+      setPlanillaEnmiendas(cloudPlanData.planillaEnmiendas || []);
+      setPlanillaTipRes(cloudPlanData.planillaTipRes || []);
+      setPlanillaInfo(cloudPlanData.planillaInfo);
+      setFileData(cloudPlanData.fileData);
+      setDataPlanificado(cloudPlanData.dataPlanificado || null);
+      setDataPlanificadoPG004(cloudPlanData.dataPlanificadoPG004 || null);
+      setSourceActive('cloud');
     } else if (source === 'local' && localPlanData) {
       setActividades(localPlanData.actividades);
       setPlanillaHojas(localPlanData.planillaHojas);
@@ -345,89 +343,6 @@ export function useMasterPlan(isLoggedIn = false) {
   const isUploadingRef = useRef<boolean>(false);
   const isPublishingRef = useRef<boolean>(false);
 
-  // Google Drive integration states
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
-  const [googleUser, setGoogleUser] = useState<any>(null);
-  const [googleDriveConfig, setGoogleDriveConfig] = useState<{ fileId: string; fileName: string } | null>(null);
-  const [isDriveLoading, setIsDriveLoading] = useState<boolean>(false);
-
-  const loadDriveConfig = async () => {
-    try {
-      const docSnap = await getDoc(doc(db, 'config', 'google_drive'));
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setGoogleDriveConfig({ fileId: data.fileId, fileName: data.fileName });
-        return data;
-      }
-    } catch (e) {
-      console.warn('Error loading drive config:', e);
-    }
-    return null;
-  };
-
-  const saveDriveConfig = async (fileId: string, fileName: string) => {
-    try {
-      await setDoc(doc(db, 'config', 'google_drive'), {
-        fileId,
-        fileName,
-        updatedAt: new Date().toISOString()
-      });
-      setGoogleDriveConfig({ fileId, fileName });
-    } catch (e) {
-      console.error('Error saving drive config:', e);
-      alert('Error guardando configuración de Google Drive');
-    }
-  };
-
-  const listDriveSpreadsheets = async (): Promise<any[]> => {
-    if (!googleAccessToken) return [];
-    try {
-      const q = encodeURIComponent("(mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType='application/vnd.ms-excel') and trashed=false");
-      const url = `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=modifiedTime desc&fields=files(id,name,modifiedTime,size)`;
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${googleAccessToken}` }
-      });
-      if (!res.ok) {
-        throw new Error('Error al listar archivos de Drive. Verifica que la sesión esté de verdad autorizada.');
-      }
-      const data = await res.json();
-      return data.files || [];
-    } catch (e) {
-      console.error(e);
-      throw e;
-    }
-  };
-
-  const syncFileFromDrive = async (fileId: string, fileName: string) => {
-    if (!googleAccessToken) {
-      alert('Debes iniciar sesión con Google para sincronizar desde Drive.');
-      return false;
-    }
-    setIsDriveLoading(true);
-    setLoadingProgress(1);
-    setLoadingPhase(`Descargando "${fileName}" de Google Drive...`);
-    try {
-      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-        headers: { Authorization: `Bearer ${googleAccessToken}` }
-      });
-      if (!response.ok) {
-        throw new Error('Al descargar el archivo de Drive, el servidor respondió con un error.');
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      const sizeMB = (arrayBuffer.byteLength / 1024 / 1024).toFixed(1);
-      
-      await processFileArrayBuffer(arrayBuffer, fileName, sizeMB);
-      setIsDriveLoading(false);
-      return true;
-    } catch (error: any) {
-      console.error(error);
-      alert(`Error al sincronizar con Google Drive: ${error.message || error}`);
-      setLoadingProgress(0);
-      setLoadingPhase('');
-      setIsDriveLoading(false);
-      return false;
-    }
-  };
   const [dataPlanificado, setDataPlanificado] = useState<any>(null); // Datos de pg-003
   const [dataPlanificadoPG004, setDataPlanificadoPG004] = useState<any>(null); // Datos de pg-004
   const [donutPG, setDonutPG] = useState<string>('contrato'); // default to 'contrato' (PG-003) for execution donut card
@@ -529,26 +444,14 @@ export function useMasterPlan(isLoggedIn = false) {
     setExpandedItems(new Set()); // Iniciar 100% colapsado
   }, [partidaSeleccionada]);
 
-  // Intentar cargar la última versión del plan desde Firebase al iniciar la app
+  // Intentar cargar la última versión del plan desde la nube al iniciar la app
   useEffect(() => {
     if (!isLoggedIn) return;
     async function loadInitialPlan() {
       setLoadingProgress(10);
-      setLoadingPhase('Conectando con la base de datos de Firebase...');
+      setLoadingPhase('Conectando con la base de datos en la nube...');
       try {
-        await testFirestoreConnection();
-        // Cargar configuración de Google Drive
-        try {
-          const docSnap = await getDoc(doc(db, 'config', 'google_drive'));
-          if (docSnap.exists()) {
-            const dData = docSnap.data();
-            setGoogleDriveConfig({ fileId: dData.fileId, fileName: dData.fileName });
-          }
-        } catch (eDrive) {
-          console.warn('Error loading drive config on startup:', eDrive);
-        }
-        
-        const data = await loadLatestPlanFromFirebase((pct, msg) => {
+        const data = await loadLatestPlanFromCloud((pct, msg) => {
           setLoadingProgress(pct);
           setLoadingPhase(msg);
         });
@@ -593,12 +496,12 @@ export function useMasterPlan(isLoggedIn = false) {
           const fMeta = { 
             fileName: data.planMeta.fileName, 
             rowCount: data.planMeta.rowCount,
-            isFirebase: true,
+            isCloud: true,
             updatedAt: data.planMeta.updatedAt
           };
           setFileData(fMeta);
 
-          setFirebasePlanData({
+          setCloudPlanData({
             actividades: recomputedActividades,
             planillaHojas: data.planillaHojas,
             planillaPartidas: data.planillaPartidas,
@@ -611,7 +514,7 @@ export function useMasterPlan(isLoggedIn = false) {
             dataPlanificado: reconstructedPlan,
             dataPlanificadoPG004: reconstructedPlanPG004
           });
-          setSourceActive('firebase');
+          setSourceActive('cloud');
           
           setLoadingProgress(98);
           setLoadingPhase('Guardando copia de seguridad de alto rendimiento local...');
@@ -637,21 +540,21 @@ export function useMasterPlan(isLoggedIn = false) {
           await new Promise(resolve => setTimeout(resolve, 250));
 
           setLoadingProgress(100);
-          setLoadingPhase('¡Plan de control pre-cargado desde Firebase!');
+          setLoadingPhase('¡Plan de control pre-cargado desde la nube!');
           setTimeout(() => {
             setLoadingProgress(0);
             setLoadingPhase('');
           }, 3500);
         } else {
-          console.log('No se encontró ningún plan previo en Firebase.');
+          console.log('No se encontró ningún plan previo en la nube.');
           setLoadingProgress(0);
           setLoadingPhase('');
         }
       } catch (err) {
-        console.warn('Error cargando plan desde Firebase al iniciar, intentando copia de seguridad offline:', err);
+        console.warn('Error cargando plan desde la nube al iniciar, intentando copia de seguridad offline:', err);
         const errStr = String(err);
         if (errStr.toLowerCase().includes('quota') || errStr.toLowerCase().includes('exhausted') || errStr.toLowerCase().includes('limit') || errStr.toLowerCase().includes('database')) {
-          setFirebaseQuotaExceeded(true);
+          setCloudQuotaExceeded(true);
         }
         
         // Cargar desde localStorage
@@ -711,13 +614,13 @@ export function useMasterPlan(isLoggedIn = false) {
            const fMeta = { 
              fileName: backup.fileData.fileName, 
              rowCount: backup.fileData.rowCount,
-             isFirebase: false,
+             isCloud: false,
              isBackup: true,
              updatedAt: backup.fileData.updatedAt
            };
            setFileData(fMeta);
  
-           setFirebasePlanData({
+           setCloudPlanData({
              actividades: recomputedActividades,
              planillaHojas: backup.planillaHojas,
              planillaPartidas: backup.planillaPartidas,
@@ -730,7 +633,7 @@ export function useMasterPlan(isLoggedIn = false) {
              dataPlanificado: reconstructedPlan,
              dataPlanificadoPG004: reconstructedPlanPG004
            });
-          setSourceActive('firebase');
+          setSourceActive('cloud');
           
           await new Promise(resolve => setTimeout(resolve, 300));
           
@@ -749,7 +652,7 @@ export function useMasterPlan(isLoggedIn = false) {
     loadInitialPlan();
   }, [isLoggedIn]);
 
-  const publishPlanToFirebase = async () => {
+  const publishPlanToCloud = async () => {
     if (isPublishingRef.current) {
       alert('Ya hay un proceso de publicación en curso. Por favor espere a que finalice.');
       return;
@@ -765,10 +668,10 @@ export function useMasterPlan(isLoggedIn = false) {
     
     isPublishingRef.current = true;
     setLoadingProgress(5);
-    setLoadingPhase('Sincronizando y publicando en la nube (Firebase)...');
+    setLoadingPhase('Sincronizando y publicando en la nube...');
     
     try {
-      await savePlanToFirebase(
+      await savePlanToCloud(
         fileData.fileName,
         fileData.rowCount,
         periodoSeleccionado,
@@ -790,19 +693,19 @@ export function useMasterPlan(isLoggedIn = false) {
       
       setFileData((prev: any) => ({
         ...prev,
-        isFirebase: true,
+        isCloud: true,
         updatedAt: new Date().toISOString()
       }));
       
       alert('¡El Master Plan se ha publicado en la nube correctamente! Ahora cualquier usuario que abra la plataforma verá esta información de forma predeterminada.');
     } catch (err) {
-      console.error('Error al guardar en Firebase:', err);
+      console.error('Error al guardar en la nube:', err);
       const errStr = String(err);
       if (errStr.toLowerCase().includes('quota') || errStr.toLowerCase().includes('exhausted') || errStr.toLowerCase().includes('limit') || errStr.toLowerCase().includes('database')) {
-        setFirebaseQuotaExceeded(true);
-        alert('Límite de cuota excedido: El límite diario gratuito de Firebase ha sido alcanzado. Los datos se han guardado de manera local offline en tu navegador, pero no se pudieron publicar en la nube.');
+        setCloudQuotaExceeded(true);
+        alert('Límite de cuota excedido: El límite diario gratuito de la base de datos ha sido alcanzado. Los datos se han guardado de manera local offline en tu navegador, pero no se pudieron publicar en la nube.');
       } else {
-        alert('Error publicando el proyecto en la base de datos de Firebase. Detalles en la consola.');
+        alert('Error publicando el proyecto en la base de datos en la nube. Detalles en la consola.');
       }
     } finally {
       setLoadingProgress(0);
@@ -2920,7 +2823,7 @@ export function useMasterPlan(isLoggedIn = false) {
                   planificadoPorActivity[activityIdStr][fKey] = (planificadoPorActivity[activityIdStr][fKey] || 0) + fVal;
                 });
                 
-                // Keep inside the activity itself so it saves/syncs properly via Firestore & backup
+                // Keep inside the activity itself so it saves/syncs properly via the cloud & backup
                 const actIdUpper = activityIdStr.toUpperCase();
                 const matchedAct = actividadesProcesadas.find(
                   a => a.activityId && (a.activityId.toString().trim().toUpperCase() === actIdUpper)
@@ -3739,7 +3642,7 @@ export function useMasterPlan(isLoggedIn = false) {
               const lMeta = {
                 fileName: fileName,
                 rowCount: actividadesProcesadas.length,
-                isFirebase: false,
+                isCloud: false,
                 updatedAt: new Date().toISOString()
               };
               setFileData(lMeta);
@@ -3943,11 +3846,11 @@ export function useMasterPlan(isLoggedIn = false) {
       ["--- OPTIMIZACIÓN DE FIREBASE (DISMINUCIÓN DE QUOTA) ---", "", ""],
       ["Tamaño de Chunk (Agrupación)", "200 items / doc (Actividades y Hojas)", "Previene realizar miles de escrituras individuales"],
       ["Tamaño de Chunk (CDO)", "500 items / doc (Mapeos CDO)", "Optimiza lectura e integraciones pesadas"],
-      ["Documentos Actividades en Firestore", chunkActCount, `Genera solo ${chunkActCount} IDs de documento en vez de ${totalActividades}`],
-      ["Documentos Hojas en Firestore", chunkHojasCount, `Genera solo ${chunkHojasCount} IDs en vez de ${totalHojas}`],
-      ["Documentos Partidas en Firestore", chunkPartidasCount, `Genera solo ${chunkPartidasCount} IDs en vez de ${totalPartidas}`],
-      ["Documentos Mapeos CDO (F) en Firestore", chunkCDOFCount, `Genera sólo ${chunkCDOFCount} IDs`],
-      ["Documentos Mapeos CDO (H) en Firestore", chunkCDOHCount, `Genera sólo ${chunkCDOHCount} IDs`],
+      ["Documentos Actividades en la nube", chunkActCount, `Genera solo ${chunkActCount} IDs de documento en vez de ${totalActividades}`],
+      ["Documentos Hojas en la nube", chunkHojasCount, `Genera solo ${chunkHojasCount} IDs en vez de ${totalHojas}`],
+      ["Documentos Partidas en la nube", chunkPartidasCount, `Genera solo ${chunkPartidasCount} IDs en vez de ${totalPartidas}`],
+      ["Documentos Mapeos CDO (F) en la nube", chunkCDOFCount, `Genera sólo ${chunkCDOFCount} IDs`],
+      ["Documentos Mapeos CDO (H) en la nube", chunkCDOHCount, `Genera sólo ${chunkCDOHCount} IDs`],
       ["Documento Metadatos Principal", 1, "Guarda estado del proyecto de manera atómica"],
       ["Total Escrituras Consolidadas", docWrites, `${docWrites} operaciones de escritura unitarias (Ahorro del 95% vs modelo tradicional de ${totalActividades + totalHojas + totalPartidas} escrituras)`],
       ["Lote batches (Batch size 5)", totalBatchesNeeded, `Se ejecutarán ${totalBatchesNeeded} commits transaccionales`],
@@ -4123,23 +4026,15 @@ export function useMasterPlan(isLoggedIn = false) {
     exportarAvancePeriodo,
     exportarCronograma,
     exportarVersionMeltOptimizada,
-    publishPlanToFirebase,
+    publishPlanToCloud,
     sourceActive,
     switchSource,
-    firebasePlanData,
+    cloudPlanData,
     localPlanData,
-    setFirebasePlanData,
+    setCloudPlanData,
     setLocalPlanData,
-    firebaseQuotaExceeded,
-    setFirebaseQuotaExceeded,
+    cloudQuotaExceeded,
+    setCloudQuotaExceeded,
 
-    googleAccessToken, setGoogleAccessToken,
-    googleUser, setGoogleUser,
-    googleDriveConfig, setGoogleDriveConfig,
-    isDriveLoading, setIsDriveLoading,
-    loadDriveConfig,
-    saveDriveConfig,
-    listDriveSpreadsheets,
-    syncFileFromDrive,
   };
 }

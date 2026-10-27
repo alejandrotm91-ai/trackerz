@@ -10,7 +10,6 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
   },
-  "ai": { "binding": "AI" },
   "d1_databases": [
     {
       "binding": "DB",
@@ -18,8 +17,5 @@
       "database_id": "c49fc9c1-51e5-464f-adef-c9b23a2706ff",
       "migrations_dir": "migrations"
     }
-  ],
-  "vars": {
-    "FIREBASE_PROJECT_ID": "stoked-catbird-4km1r"
-  }
+  ]
 }

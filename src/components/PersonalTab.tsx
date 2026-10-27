@@ -51,15 +51,15 @@ import {
 } from '../utils/personalParser';
 import { getInitialPersonalData, RAW_SAMPLE_PERSONAL_MERINOS } from '../data/samplePersonalData';
 import {
-  savePersonalPlanToFirebase,
-  loadLatestPersonalPlanFromFirebase
-} from '../utils/firebaseSync';
+  savePersonalPlanToCloud,
+  loadLatestPersonalPlanFromCloud
+} from '../utils/cloudSync';
 import { PersonalTrendChart } from './PersonalTrendChart';
 import { CollapsibleHierarchyDropdown } from './CollapsibleHierarchyDropdown';
 import { MultiSelectMonthDropdown } from './MultiSelectMonthDropdown';
 
 export function PersonalTab() {
-  // State: Loaded personal data from Firestore or sample demonstration data
+  // State: Loaded personal data from the cloud or sample demonstration data
   const [registros, setRegistros] = useState<PersonalRegistro[]>([]);
   const [currentFileName, setCurrentFileName] = useState<string>('');
   const [isSyncingWithCloud, setIsSyncingWithCloud] = useState<boolean>(false);
@@ -67,14 +67,14 @@ export function PersonalTab() {
   const [isCloudLoaded, setIsCloudLoaded] = useState<boolean>(false);
   const [isLoadingCloud, setIsLoadingCloud] = useState<boolean>(true);
 
-  // On mount: Load latest personal data from Firestore.
+  // On mount: Load latest personal data from the cloud.
   // If no cloud data exists, show demo sample data without failing.
   useEffect(() => {
     let isMounted = true;
     async function loadCloudData() {
       setIsLoadingCloud(true);
       try {
-        const cloudData = await loadLatestPersonalPlanFromFirebase();
+        const cloudData = await loadLatestPersonalPlanFromCloud();
         if (!isMounted) return;
 
         if (cloudData && cloudData.registros && cloudData.registros.length > 0) {
@@ -923,7 +923,7 @@ export function PersonalTab() {
       .slice(0, 20);
   }, [filteredRegistros, stats.numDiasMes, isAllMesesSelected, selectedMeses, isAllSemanasSelected, selectedSemanas, isAllFechasSelected, selectedFechas, mesCorrienteKey]);
 
-  // Upload currently loaded records to Firebase
+  // Upload currently loaded records to the cloud
   const handleSyncToCloud = async () => {
     if (isSyncingRef.current || registros.length === 0) {
       setUploadFeedback({ type: 'error', message: 'No hay datos para sincronizar o ya hay una carga en curso.' });
@@ -935,7 +935,7 @@ export function PersonalTab() {
       setSyncProgress({ pct: 20, message: 'Iniciando sincronización con la nube...' });
       setIsUploadModalOpen(true); // Open modal to show progress
 
-      await savePersonalPlanToFirebase(currentFileName || 'Matriz_Personal.xlsx', registros, (pct, statusMsg) => {
+      await savePersonalPlanToCloud(currentFileName || 'Matriz_Personal.xlsx', registros, (pct, statusMsg) => {
         setSyncProgress({ pct, message: statusMsg });
       });
       setIsCloudLoaded(true);
@@ -944,7 +944,7 @@ export function PersonalTab() {
         message: `¡Se sincronizaron exitosamente ${registros.length} registros en la nube!`
       });
     } catch (syncErr) {
-      console.warn('Error sincronizando con Firebase:', syncErr);
+      console.warn('Error sincronizando con la nube:', syncErr);
       setUploadFeedback({
         type: 'error',
         message: 'Ocurrió un error al intentar sincronizar con la nube. Intenta nuevamente.'
@@ -1024,7 +1024,7 @@ export function PersonalTab() {
 
       setUploadFeedback({
         type: 'success',
-        message: `¡Se cargaron exitosamente ${nuevosRegistros.length} registros desde "${file.name}" para esta sesión! Para guardarlo en Firebase usa el botón "Guardar en Nube".`
+        message: `¡Se cargaron exitosamente ${nuevosRegistros.length} registros desde "${file.name}" para esta sesión! Para guardarlo en la nube usa el botón "Guardar en Nube".`
       });
 
       setTimeout(() => {
@@ -1340,7 +1340,7 @@ export function PersonalTab() {
                     </span>
                   )}
                   {isCloudLoaded ? (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[#2C67A6] flex items-center gap-1 font-sans normal-case" title="Sincronizado en Firebase Firestore">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[#2C67A6] flex items-center gap-1 font-sans normal-case" title="Sincronizado en la nube (Cloudflare)">
                       <Cloud className="w-3 h-3 text-[#2C67A6]" />
                       <span>Nube</span>
                     </span>
@@ -1375,7 +1375,7 @@ export function PersonalTab() {
                 onClick={handleSyncToCloud}
                 disabled={isSyncingWithCloud}
                 className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-white hover:bg-[#F5F8F9] text-[#2C67A6] border border-[#D5DEE2] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
-                title="Guardar archivo actual en Firebase para todos los usuarios"
+                title="Guardar archivo actual en la nube para todos los usuarios"
               >
                 <CloudUpload className="w-3.5 h-3.5 text-[#2C67A6]" />
                 <span>Guardar en Nube</span>

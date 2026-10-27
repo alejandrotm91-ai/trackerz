@@ -56,7 +56,7 @@ ${activitiesSummaryText}
         userPrompt += `\nGenera un análisis de salud general del proyecto, identifica los mayores cuellos de botella del cronograma (analizando las sub-partidas prioritarias) y propón un plan de acción concreto de 3 pasos clave para recuperar la holgura en las partidas críticas.`;
       }
 
-      const text = await generateText(env, { system: systemInstruction, prompt: userPrompt, temperature: 0.7 });
+      const text = await generateText(env, { system: systemInstruction, prompt: userPrompt });
 
       res.json({
         analysis: text,
@@ -109,7 +109,7 @@ Por favor, responde con las siguientes directrices:
       
       prompt += `\nNueva consulta del usuario: ${userQuestion}\n`;
 
-      const text = await generateText(env, { system: systemInstruction, prompt: prompt, temperature: 0.7 });
+      const text = await generateText(env, { system: systemInstruction, prompt: prompt });
 
       res.json({
         answer: text,
@@ -207,7 +207,7 @@ ${JSON.stringify(areaData, null, 2)}
 
 Por favor, genera el Reporte Analítico de Inteligencia Artificial por Área, Tipología y Equipamiento por SCAP según la estructura requerida.`;
 
-      const text = await generateText(env, { system: systemInstruction, prompt: userPrompt, temperature: 0.6 });
+      const text = await generateText(env, { system: systemInstruction, prompt: userPrompt });
 
       res.json({
         markdown: text,

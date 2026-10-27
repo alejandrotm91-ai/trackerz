@@ -3,66 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  collection,
-  doc,
-  setDoc,
-  getDoc,
-  getDocs,
-  query,
-  orderBy,
-  limit,
-  deleteDoc
-} from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { db, masterDb, auth } from '../firebase';
 import { MasterCdoItem, MasterCdoWeek, MasterCdoPlanDoc, MasterCdoTotals } from '../types/masterCdo';
 import { Actividad } from '../types';
 import { parseWbsAndDescription } from './masterCdoHierarchy';
 import { parseFlexibleDate } from '../hooks/useMasterPlan';
-
-export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-export interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-  };
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
-  const errStr = error instanceof Error ? error.message : String(error);
-  const errInfo: FirestoreErrorInfo = {
-    error: errStr,
-    authInfo: {
-      userId: auth.currentUser?.uid || null,
-      email: auth.currentUser?.email || null,
-      emailVerified: auth.currentUser?.emailVerified || null,
-      isAnonymous: auth.currentUser?.isAnonymous || null,
-    },
-    operationType,
-    path
-  };
-
-  console.error('Firestore Error in masterCdoSync: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-const CHUNK_SIZE = 150; // rows per Firestore chunk to stay well within 1MB limit
+import { apiFetch } from './api';
 
 /**
  * Calculates master CDO totals
@@ -299,9 +245,9 @@ export function initializeMasterCdoFromActividades(
 }
 
 /**
- * Saves a Master CDO document and its chunks into Firestore
+ * Guarda el Master CDO en D1 a través de la API del Worker
  */
-export async function saveMasterCdoToFirebase(
+export async function saveMasterCdoToCloud(
   planId: string,
   fileName: string,
   items: MasterCdoItem[],
@@ -323,31 +269,18 @@ export async function saveMasterCdoToFirebase(
     totales
   };
 
-  const currentUser = auth.currentUser;
-  if (!currentUser) throw new Error("Debes iniciar sesión para sincronizar datos en la nube.");
-  
   if (onProgress) onProgress(40, 'Enviando datos al servidor SQL...');
-  const token = await currentUser.getIdToken();
-  
-  const response = await fetch('/api/master-cdo/save', {
+  await apiFetch('/api/master-cdo/save', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ planId, planData, items })
   });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Error al guardar en el servidor SQL.');
-  }
 
   if (onProgress) onProgress(100, '¡Guardado exitoso en SQL!');
   return planId;
 }
 
-export async function loadLatestMasterCdoFromFirebase(
+export async function loadLatestMasterCdoFromCloud(
   onProgress?: (pct: number, statusMsg: string) => void,
   chunkDelay: number = 0
 ): Promise<{
@@ -357,25 +290,10 @@ export async function loadLatestMasterCdoFromFirebase(
   const planId = 'master_cdo_default'; // Default plan ID for now
   if (onProgress) onProgress(10, 'Conectando a base de datos SQL...');
   
-  const currentUser = auth.currentUser;
-  if (!currentUser) throw new Error("Debes iniciar sesión para descargar datos de la nube.");
-  
-  const token = await currentUser.getIdToken();
-  
   if (onProgress) onProgress(50, 'Descargando información desde SQL...');
-  const response = await fetch(`/api/master-cdo/load/${planId}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-
+  const response = await apiFetch(`/api/master-cdo/load/${planId}`, undefined, [404]);
   if (response.status === 404) {
     return null; // Plan not found
-  }
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Error al descargar datos de SQL.');
   }
 
   if (onProgress) onProgress(90, 'Procesando datos recibidos...');

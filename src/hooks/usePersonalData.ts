@@ -12,7 +12,7 @@ import {
   standardizeActividad
 } from '../utils/personalParser';
 import { getInitialPersonalData } from '../data/samplePersonalData';
-import { loadLatestPersonalPlanFromFirebase } from '../utils/firebaseSync';
+import { loadLatestPersonalPlanFromCloud } from '../utils/cloudSync';
 
 export function usePersonalData() {
   const [registros, setRegistros] = useState<PersonalRegistro[]>([]);
@@ -25,7 +25,7 @@ export function usePersonalData() {
     async function loadData() {
       setIsLoading(true);
       try {
-        const cloudData = await loadLatestPersonalPlanFromFirebase();
+        const cloudData = await loadLatestPersonalPlanFromCloud();
         if (!isMounted) return;
 
         if (cloudData && cloudData.registros && cloudData.registros.length > 0) {

@@ -8,6 +8,13 @@
       "when": 1793125162668,
       "tag": "0000_remarkable_alice",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793127716621,
+      "tag": "0001_cloud_store",
+      "breakpoints": true
     }
   ]
 }

@@ -1122,7 +1122,7 @@ export function MasterXlsSheetView({
                   ? 'bg-amber-400 hover:bg-amber-300 text-amber-950 border-amber-500'
                   : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-900'
               }`}
-              title="Sincronizar con la nube (Firestore)"
+              title="Sincronizar con la nube (Cloudflare)"
             >
               <Cloud className={`w-4 h-4 ${isSavingCloud ? 'animate-spin' : ''}`} />
             </button>

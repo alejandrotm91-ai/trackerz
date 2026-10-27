@@ -16,55 +16,47 @@ import { ProcesoTab } from './components/ProcesoTab';
 import { MasterTab } from './components/MasterTab';
 import { AIReportModal } from './components/AIReportModal';
 import { buildCronoReportData } from './utils/aiReportHelper';
-import { saveAIReportToFirebase, loadAIReportFromFirebase, AIReportData } from './utils/firebaseSync';
-import { auth } from './firebase';
-import { signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import firebaseConfig from '../firebase-applet-config.json';
-
-const loadGooglePickerAPI = (): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    if ((window as any).google?.picker) {
-      resolve((window as any).google);
-      return;
-    }
-
-    const loadPickerLibrary = () => {
-      (window as any).gapi.load('picker', {
-        callback: () => {
-          resolve((window as any).google);
-        },
-        onerror: (err: any) => {
-          reject(new Error('No se pudo cargar la biblioteca Google Picker.'));
-        }
-      });
-    };
-
-    if (!(window as any).gapi) {
-      const script = document.createElement('script');
-      script.src = 'https://apis.google.com/js/api.js';
-      script.type = 'text/javascript';
-      script.onload = loadPickerLibrary;
-      script.onerror = () => reject(new Error('No se pudo cargar el script de Google API (gapi).'));
-      document.body.appendChild(script);
-    } else {
-      loadPickerLibrary();
-    }
-  });
-};
+import { saveAIReportToCloud, loadAIReportFromCloud, AIReportData } from './utils/cloudSync';
+import { apiFetch } from './utils/api';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const pc = useMasterPlan(isLoggedIn);
-  const [username, setUsername] = React.useState('admin');
-  const [password, setPassword] = React.useState('control2026');
+  const [username, setUsername] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [role, setRole] = React.useState<'admin' | 'viewer' | null>(null);
+  const [isCheckingSession, setIsCheckingSession] = React.useState(true);
   const [showPassword, setShowPassword] = React.useState(false);
   const [isCapsLockOn, setIsCapsLockOn] = React.useState(false);
   const [loginError, setLoginError] = React.useState('');
   const [dragOver, setDragOver] = React.useState(false);
   const [isGanttAIPanelOpen, setIsGanttAIPanelOpen] = React.useState(false);
 
-  // Derived Admin state based on username
-  const isAdmin = isLoggedIn && username.trim().toLowerCase() === 'admin';
+  // El rol lo decide el servidor al iniciar sesión
+  const isAdmin = isLoggedIn && role === 'admin';
+
+  // Al abrir la app, recuperar la sesión si la cookie sigue vigente
+  React.useEffect(() => {
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(user => {
+        if (user) {
+          setUsername(user.username);
+          setRole(user.role);
+          setIsLoggedIn(true);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsCheckingSession(false));
+
+    const onExpired = () => {
+      setIsLoggedIn(false);
+      setRole(null);
+      setLoginError('Su sesión venció. Vuelva a iniciar sesión.');
+    };
+    window.addEventListener('trackerz:session-expired', onExpired);
+    return () => window.removeEventListener('trackerz:session-expired', onExpired);
+  }, []);
 
   // States for Admin verification of Sincronizacion/Actualizacion Nube and Cargar Otro Archivo
   const [isAdminUnlocked, setIsAdminUnlocked] = React.useState(false);
@@ -72,12 +64,6 @@ export default function App() {
   const [isAdminCapsLockOn, setIsAdminCapsLockOn] = React.useState(false);
   const [isSyncMenuOpen, setIsSyncMenuOpen] = React.useState(false);
   const [adminError, setAdminError] = React.useState('');
-
-  // Estados y funciones de integración con Google Drive
-  const [driveFiles, setDriveFiles] = React.useState<any[]>([]);
-  const [isBrowsingDrive, setIsBrowsingDrive] = React.useState(false);
-  const [driveListError, setDriveListError] = React.useState('');
-  const [showDrivePicker, setShowDrivePicker] = React.useState(false);
 
   // States for AI Crono Report
   const [showAIReportMenu, setShowAIReportMenu] = React.useState(false);
@@ -127,17 +113,18 @@ export default function App() {
   }, [showAvancePartidasModal]);
 
   // Load latest AI report on mount or when plan changes
-  const currentPlanId = pc.firebasePlanData?.planMeta?.id || 'latest_report';
+  const currentPlanId = pc.cloudPlanData?.planMeta?.id || 'latest_report';
 
   React.useEffect(() => {
+    if (!isLoggedIn) return;
     async function fetchReport() {
-      const data = await loadAIReportFromFirebase(currentPlanId);
+      const data = await loadAIReportFromCloud(currentPlanId);
       if (data) {
         setAiReportData(data);
       }
     }
     fetchReport();
-  }, [currentPlanId]);
+  }, [currentPlanId, isLoggedIn]);
 
   // Close AI menu on click outside
   React.useEffect(() => {
@@ -187,7 +174,7 @@ export default function App() {
         summary: reportPayload.projectSummary
       };
 
-      await saveAIReportToFirebase(currentPlanId, newReport);
+      await saveAIReportToCloud(currentPlanId, newReport);
       setAiReportData(newReport);
     } catch (err: any) {
       console.error('Error al generar el reporte AI:', err);
@@ -197,93 +184,18 @@ export default function App() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    if (!isAdmin) {
-      alert('Acceso denegado: Solo el administrador está autorizado para conectar Google Drive.');
-      return;
-    }
-    const provider = new GoogleAuthProvider();
-    provider.addScope('https://www.googleapis.com/auth/drive.readonly');
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      if (credential) {
-        const token = credential.accessToken;
-        if (token) {
-          pc.setGoogleAccessToken(token);
-          pc.setGoogleUser(result.user);
-          // Al iniciar sesión, carga config guardada en Firebase y autodescarga si existe
-          const docSnap = await pc.loadDriveConfig();
-          if (docSnap && docSnap.fileId) {
-            await pc.syncFileFromDrive(docSnap.fileId, docSnap.fileName);
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('Error signing in with Google:', error);
-      alert(`Error al iniciar sesión con Google: ${error.message || error}`);
-    }
-  };
-
-  const handleGoogleSignOut = () => {
-    signOut(auth);
-    pc.setGoogleAccessToken(null);
-    pc.setGoogleUser(null);
-    setDriveFiles([]);
-    setShowDrivePicker(false);
-  };
-
-  const handleBrowseDrive = async () => {
-    setIsBrowsingDrive(true);
-    setDriveListError('');
-    try {
-      if (!pc.googleAccessToken) {
-        alert('Por favor, conecta Google Drive primero.');
-        setIsBrowsingDrive(false);
-        return;
-      }
-
-      const google = await loadGooglePickerAPI();
-      const apiKey = firebaseConfig.apiKey;
-
-      const docsView = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
-        .setMimeTypes('application/vnd.google-apps.spreadsheet,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel')
-        .setSelectFolderEnabled(false);
-
-      const picker = new google.picker.PickerBuilder()
-        .addView(docsView)
-        .setOAuthToken(pc.googleAccessToken)
-        .setDeveloperKey(apiKey)
-        .setCallback(async (data: any) => {
-          if (data.action === google.picker.Action.PICKED) {
-            const doc = data.docs[0];
-            const fileId = doc.id;
-            const fileName = doc.name;
-            
-            await pc.saveDriveConfig(fileId, fileName);
-            await pc.syncFileFromDrive(fileId, fileName);
-          }
-        })
-        .setTitle('Selecciona tu archivo de Excel o Google Sheets')
-        .build();
-
-      picker.setVisible(true);
-    } catch (e: any) {
-      console.error('Error al abrir Google Picker:', e);
-      setDriveListError(e.message || 'Error al conectar con Google Drive Picker.');
-      alert(`Error al abrir Google Picker: ${e.message || e}`);
-    } finally {
-      setIsBrowsingDrive(false);
-    }
-  };
-
-  const handleAdminAuth = (e: React.FormEvent) => {
+  const handleAdminAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminPasswordInput === 'ADmin') {
+    try {
+      await apiFetch('/api/auth/verify-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPasswordInput }),
+      });
       setIsAdminUnlocked(true);
       setAdminError('');
-    } else {
-      setAdminError('Contraseña incorrecta');
+    } catch (err: any) {
+      setAdminError(err?.message || 'Contraseña incorrecta');
     }
   };
 
@@ -330,7 +242,7 @@ export default function App() {
           const nextValue = Math.min(target, prev + increment);
           
           if (nextValue >= 100) {
-            setSmoothPhase('¡Sincronización completa con Firebase!');
+            setSmoothPhase('¡Sincronización completa con la nube!');
             if (!completionTimeout) {
               completionTimeout = setTimeout(() => {
                 setIsVisualLoading(false);
@@ -341,7 +253,7 @@ export default function App() {
           } else if (nextValue >= 40) {
             setSmoothPhase('Descargando e integrando última versión de nube...');
           } else if (nextValue >= 5) {
-            setSmoothPhase('Conectando con la base de datos Firebase...');
+            setSmoothPhase('Conectando con la base de datos en la nube...');
           } else {
             setSmoothPhase('Iniciando proceso de carga...');
           }
@@ -1018,14 +930,40 @@ export default function App() {
     );
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const [isLoggingIn, setIsLoggingIn] = React.useState(false);
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.trim() === 'control2026') {
-      setIsLoggedIn(true);
+    setIsLoggingIn(true);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok) {
+        setLoginError(data.error || 'No se pudo iniciar sesión.');
+        return;
+      }
+      setUsername(data.username);
+      setRole(data.role);
+      setPassword('');
       setLoginError('');
-    } else {
-      setLoginError('Contraseña incorrecta. Ingrese la contraseña autorizada.');
+      setIsLoggedIn(true);
+    } catch {
+      setLoginError('No se pudo conectar con el servidor.');
+    } finally {
+      setIsLoggingIn(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+    setIsLoggedIn(false);
+    setRole(null);
+    setIsAdminUnlocked(false);
+    setAdminPasswordInput('');
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -1053,6 +991,11 @@ export default function App() {
     }
   };
 
+  // Mientras se comprueba si hay una sesión abierta, no mostrar nada.
+  if (isCheckingSession) {
+    return <div className="min-h-screen bg-slate-50/50" />;
+  }
+
   // If not logged in, show custom elegant Landing login page.
   if (!isLoggedIn) {
     return (
@@ -1070,7 +1013,7 @@ export default function App() {
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
                   </span>
                   <span className="text-xs font-black uppercase tracking-wider text-indigo-700">
-                    ☁️ {smoothPhase || 'Sincronizando con la nube de Firebase...'}
+                    ☁️ {smoothPhase || 'Sincronizando con la nube...'}
                   </span>
                 </div>
                 <span className="text-sm font-black text-indigo-650 bg-indigo-50/80 px-2 py-0.5 rounded-lg border border-indigo-100">
@@ -1194,14 +1137,12 @@ export default function App() {
 
               <button
                 type="submit"
-                className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 font-sans tracking-tight cursor-pointer"
+                disabled={isLoggingIn}
+                className="w-full disabled:opacity-60 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 font-sans tracking-tight cursor-pointer"
               >
-                Ingresar a la Plataforma
+                {isLoggingIn ? 'Ingresando...' : 'Ingresar a la Plataforma'}
               </button>
 
-              <p className="text-center text-slate-400 text-[11px] select-none hover:text-slate-500 transition-colors">
-                Para administradores: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono text-[10px] font-semibold border border-slate-200/55">admin</code> / <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono text-[10px] font-semibold border border-slate-200/55">control2026</code>. Para consultores: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono text-[10px] font-semibold border border-slate-200/55">consultor</code> o cualquier otro usuario con la misma contraseña.
-              </p>
             </form>
           </div>
         </div>
@@ -1611,7 +1552,7 @@ export default function App() {
             <div>
               <h1 className="font-['Barlow_Condensed'] text-2xl sm:text-[26px] font-bold text-[#14212A] tracking-tight leading-none">Tracker v2.0</h1>
               <div className="flex flex-col gap-1.5 mt-1">
-                {pc.fileData && pc.fileData.isFirebase ? (
+                {pc.fileData && pc.fileData.isCloud ? (
                   <span className="px-2.5 py-0.5 bg-[#EEECFB] text-[#442dd7] rounded text-[11px] font-semibold border border-[#442dd7]/30 inline-flex items-center gap-1.5 self-start animate-fade-in">
                     ☁️ Datos en la Nube Activos
                   </span>
@@ -1628,14 +1569,14 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {pc.firebasePlanData && pc.localPlanData && isAdmin && (
+            {pc.cloudPlanData && pc.localPlanData && isAdmin && (
               <div className="flex items-center bg-[#F5F8F9] p-1 rounded-xl border border-[#D5DEE2] text-[10.5px]" title="Intercambiar origen de datos">
                 <button
                   type="button"
-                  id="btn-source-firebase"
-                  onClick={() => pc.switchSource('firebase')}
+                  id="btn-source-cloud"
+                  onClick={() => pc.switchSource('cloud')}
                   className={`px-3 py-1 font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                    pc.sourceActive === 'firebase'
+                    pc.sourceActive === 'cloud'
                       ? 'bg-[#442dd7] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A]'
                   }`}
@@ -1689,7 +1630,7 @@ export default function App() {
                       </span>
                     </div>
 
-                    {pc.fileData && pc.fileData.isFirebase && (
+                    {pc.fileData && pc.fileData.isCloud && (
                       <div className="flex items-center justify-between p-1.5 bg-indigo-50/30 rounded-xl border border-indigo-100/50 text-[11px]">
                         <span className="text-slate-400 font-extrabold">Estado de Datos:</span>
                         <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-bold flex items-center border border-indigo-150">
@@ -1762,28 +1703,21 @@ export default function App() {
                       <div className="flex flex-col gap-2 pt-0.5">
                         {pc.fileData && (
                           <button
-                            id="btn-publish-firebase"
+                            id="btn-publish-cloud"
                             disabled={pc.loadingProgress > 0}
                             onClick={async () => {
                               if (pc.loadingProgress > 0) return;
-                              await pc.publishPlanToFirebase();
+                              await pc.publishPlanToCloud();
                               setIsSyncMenuOpen(false);
                             }}
                             className={`w-full py-2 bg-[#5200ff] hover:bg-[#4300d6] active:bg-[#3400a3] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 ${pc.loadingProgress > 0 ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
-                            title="Sincronizar y publicar este plan en la nube de Firebase para todos los usuarios"
+                            title="Sincronizar y publicar este plan en la nube para todos los usuarios"
                           >
                             <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
                             Sincronizar Nube
                           </button>
                         )}
 
-                        {pc.fileData && (
-                          <div className="text-center py-1">
-                            <span className="text-[10px] text-indigo-650 font-bold bg-indigo-50/70 border border-indigo-100/50 px-2.5 py-1.5 rounded-xl inline-block leading-none">
-                              ⚡ Consumo est. de cuota Firestore: {(((Math.ceil(pc.actividades.length / 200) + Math.ceil(pc.planillaHojas.length / 200) + 1) / 50000) * 100).toFixed(4)}%
-                            </span>
-                          </div>
-                        )}
 
                         <label className={`w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border border-slate-200 rounded-xl transition-all hover:text-slate-900 text-center block text-xs ${isVisualLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                           📁 Cargar Nuevo Archivo Excel
@@ -1808,9 +1742,7 @@ export default function App() {
 
             <button
               id="btn-logout"
-              onClick={() => {
-                setIsLoggedIn(false);
-              }}
+              onClick={handleLogout}
               className="px-4 py-2 text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold border border-rose-200 rounded-xl transition-all hover:text-rose-800 cursor-pointer"
             >
               Cerrar Sesión
@@ -1845,7 +1777,7 @@ export default function App() {
               <div className="flex justify-between items-center text-[11px] font-bold text-slate-400 px-1">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                  Conexión Firestore
+                  Conexión a la nube
                 </span>
                 <span className="text-indigo-600 font-extrabold text-xs">{Math.round(smoothProgress || pc.loadingProgress)}%</span>
               </div>
@@ -1881,7 +1813,7 @@ export default function App() {
             <div className="space-y-2">
               <h3 className="text-xl font-black text-slate-800 tracking-tight">Sin Datos en la Nube</h3>
               <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                No se ha detectado ningún cronograma de control cargado previamente en la nube de Firebase.
+                No se ha detectado ningún cronograma de control cargado previamente en la nube.
                 {isAdmin ? ' Puedes cargar o arrastrar un archivo Excel (.xlsx) para inicializar y publicar el Master Plan.' : ' Por favor, contacta al administrador para que realice la carga inicial.'}
               </p>
             </div>
@@ -1907,7 +1839,7 @@ export default function App() {
               <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between gap-4 animate-fade-in shadow-xs mb-4">
                 <div className="flex items-center gap-2.5 text-xs text-indigo-900 font-bold min-w-0">
                   <div className="w-4 h-4 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin shrink-0"></div>
-                  <span className="truncate">{smoothPhase || pc.loadingPhase || 'Sincronizando con Firebase...'}</span>
+                  <span className="truncate">{smoothPhase || pc.loadingPhase || 'Sincronizando con la nube...'}</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="w-32 h-2 bg-indigo-200/60 rounded-full overflow-hidden">
@@ -1921,22 +1853,14 @@ export default function App() {
               </div>
             )}
 
-            {pc.firebaseQuotaExceeded && (
+            {pc.cloudQuotaExceeded && (
               <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs mb-4 text-xs animate-fade-in">
                 <div className="flex items-center gap-2.5 text-amber-900 font-medium">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
                   <span>
-                    <strong>Límite de lecturas diarias de Firestore alcanzado</strong> (Plan Spark). El aplicativo está funcionando con los datos locales guardados.
+                    <strong>Límite diario de la base de datos alcanzado.</strong> El aplicativo está funcionando con los datos locales guardados.
                   </span>
                 </div>
-                <a
-                  href="https://console.firebase.google.com/project/stoked-catbird-4km1r/firestore/databases/ai-studio-projecttracker-fa5248da-cc8b-432e-8571-4a2efa014a87/data?openUpgradeDialog=true"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-bold text-amber-900 underline hover:text-amber-950 shrink-0 text-[11px]"
-                >
-                  Gestionar cuota en Firebase Console →
-                </a>
               </div>
             )}
 

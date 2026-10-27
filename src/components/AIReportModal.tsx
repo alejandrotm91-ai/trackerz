@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Sparkles, X, RefreshCw, Copy, Check, Clock, UserCheck, AlertTriangle, ShieldAlert, Calendar, BarChart2, LayoutGrid, Package, ChevronDown, ChevronUp } from 'lucide-react';
-import { AIReportData } from '../utils/firebaseSync';
+import { AIReportData } from '../utils/cloudSync';
 
 interface AIReportModalProps {
   isOpen: boolean;
