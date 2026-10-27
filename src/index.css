@@ -243,3 +243,76 @@ kbd {
 }
 .ht-theme #caratula-limpiar-filtros > label { display: none; }
 .ht-theme #caratula-limpiar-filtros > button svg { color: var(--ht-muted); }
+
+/* paneles de los desplegables (Período / Semana y P.Ac) con el formato del kit */
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute {
+  padding: 8px;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 12px;
+  color: var(--ht-fg);
+  background: var(--ht-bg);
+  border: 1px solid var(--ht-line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(20, 33, 42, .14);
+  --tw-ring-shadow: 0 0 #0000;
+}
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute :is([class*="uppercase"]) {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ht-muted);
+}
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute :is([class*="text-[9px]"], [class*="text-[10px]"], [class*="text-[10.5px]"]) {
+  font-size: 11px;
+}
+/* cajas internas: gris claro en vez de lila */
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute div:is([class*="bg-indigo-50"], [class*="bg-white/80"]) {
+  background: var(--ht-panel);
+  border-color: var(--ht-line);
+  border-radius: 8px;
+  box-shadow: none;
+}
+/* pestañas Entre Semanas / Semana-Hasta */
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute div[class*="bg-slate-100"][class*="p-1"] {
+  padding: 0;
+  gap: 4px;
+  background: transparent;
+}
+/* botones del panel */
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button {
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ht-fg);
+  background: var(--ht-bg);
+  border: 1px solid var(--ht-line);
+  border-radius: 8px;
+  box-shadow: none;
+}
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button:hover:not(:disabled) { background: var(--ht-grid); }
+/* activo / acción principal: oscuro, como Total / Pond. */
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button:is([class*="bg-white"][class*="text-indigo-700"], [class*="bg-indigo-600"]),
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button:is([class*="bg-white"][class*="text-indigo-700"], [class*="bg-indigo-600"]):hover {
+  color: var(--ht-bg);
+  background: var(--ht-fg);
+  border-color: var(--ht-fg);
+}
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button:is([class*="bg-white"][class*="text-indigo-700"], [class*="bg-indigo-600"]) * { color: inherit; }
+/* filas de lista con casilla (P.Ac, semanas): sin borde, resaltado al pasar */
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button.w-full.text-left {
+  padding: 3px 6px;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 6px;
+}
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button.w-full.text-left:hover { background: var(--ht-grid); }
+.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute select {
+  padding: 2px 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ht-fg);
+  background: var(--ht-bg);
+  border: 1px solid var(--ht-line);
+  border-radius: 8px;
+}
