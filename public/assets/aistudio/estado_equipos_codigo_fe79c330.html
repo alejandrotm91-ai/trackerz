@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estado de Equipos PTAR Merinos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: consola de consulta — barra fija con fuentes, pestañas de proceso, resumen por etapa y secciones por estructura (CAP) con filas por proveedor y tipo de equipo */
+:root{
+  --bg:#EEF2F3; --surface:#FFFFFF; --sunk:#F5F8F9; --ink:#14212A; --muted:#5A6A74; --line:#D5DEE2; --accent:#0D6B7A; --accent-soft:#DCEEF1;
+  --fab:#A86B12; --fab-soft:#F6E9D3; --flete:#2C67A6; --flete-soft:#DDE8F4; --inst:#2B7F52; --inst-soft:#DCEFE3;
+  --crit:#B83227; --alto:#C9701E; --mod:#A88A12; --bajo:#4F7F57; --none:#8A989F;
+  --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E161B; --surface:#152128; --sunk:#111C22; --ink:#E2EBEE; --muted:#93A4AD; --line:#24343C; --accent:#57B6C4; --accent-soft:#183A41;
+  --fab:#E1A64A; --fab-soft:#3A2D17; --flete:#73A9E2; --flete-soft:#1A2E44; --inst:#62C08A; --inst-soft:#173827;
+  --crit:#EA6B5E; --alto:#EFA05A; --mod:#D8BF52; --bajo:#82B98A; --none:#6F8089; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E161B; --surface:#152128; --sunk:#111C22; --ink:#E2EBEE; --muted:#93A4AD; --line:#24343C; --accent:#57B6C4; --accent-soft:#183A41;
+  --fab:#E1A64A; --fab-soft:#3A2D17; --flete:#73A9E2; --flete-soft:#1A2E44; --inst:#62C08A; --inst-soft:#173827;
+  --crit:#EA6B5E; --alto:#EFA05A; --mod:#D8BF52; --bajo:#82B98A; --none:#6F8089; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1320px;margin:0 auto}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;justify-content:space-between;padding-block:12px}
+h1{font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:.01em;margin:0;line-height:1.05;text-wrap:balance}
+h1 small{display:block;font-family:var(--f-body);font-weight:400;font-size:12px;color:var(--muted);letter-spacing:0;margin-top:2px}
+.src{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);align-items:center}
+.src b{color:var(--ink);font-weight:600}
+.src .tag{font-family:var(--f-mono);font-size:11px;background:var(--sunk);border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--ink)}
+button,select,input{font:inherit;color:inherit}
+.btn{background:var(--accent);color:var(--surface);border:0;border-radius:6px;padding:7px 12px;font-weight:600;font-size:13px;cursor:pointer}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.btn:focus-visible,.tab:focus-visible,.row:focus-visible,select:focus-visible,input:focus-visible,.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
+/* upload */
+#upl{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:grid;gap:12px}
+#upl .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+#upl label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:10px;background:var(--sunk)}
+#upl label.f b{color:var(--ink);font-size:13px}
+#upl .acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#msg{font-size:13px}
+#msg.err{color:var(--crit)} #msg.ok{color:var(--inst)}
+/* tabs */
+.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:6px}
+.tab{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 8px;text-align:left;cursor:pointer;display:grid;gap:4px;align-content:start}
+.tab[aria-selected="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft)}
+.tab .tn{font-weight:600;font-size:12.5px;line-height:1.2;overflow-wrap:anywhere}
+.tab .tc{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);line-height:1.3}
+.tri{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
+.tri i{display:block;height:5px;border-radius:2px;background:var(--line);position:relative;overflow:hidden}
+.tri i>s{position:absolute;inset:0 auto 0 0;display:block}
+.cD>s,.sD{background:var(--fab)} .cE>s,.sE{background:var(--flete)} .cF>s,.sF{background:var(--inst)}
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:grid;gap:6px;min-width:0}
+.kpi .lab{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:flex;gap:6px;align-items:center}
+.kpi .lab .dot{width:9px;height:9px;border-radius:2px}
+.kpi .big{font-family:var(--f-display);font-weight:600;font-size:29px;line-height:1;font-variant-numeric:tabular-nums}
+.kpi .big small{font-size:14px;color:var(--muted);font-weight:500}
+.kpi .big{white-space:nowrap}
+.kpi .big small.fal{font-size:13px;margin-left:2px;color:var(--crit);font-weight:600;white-space:nowrap}
+.kpi .sub{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;position:relative}
+.bar>s{position:absolute;inset:0 auto 0 0;display:block}
+.kpi.stat .big{color:var(--accent)}
+.kpi.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.kchs{display:flex;flex-wrap:wrap;gap:5px}
+.kch{display:inline-flex;align-items:baseline;gap:5px;background:var(--sunk);border:1px solid var(--line);border-radius:12px;padding:2px 9px;font-size:12px;cursor:pointer;color:var(--muted);font-variant-numeric:tabular-nums}
+.kch b{color:var(--ink);font-weight:600}
+.kch:hover{border-color:var(--accent);color:var(--ink)}
+.kch[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.kch[aria-pressed="true"] b{color:var(--surface)}
+.kch.cr b{color:var(--crit)}
+.kch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.compf{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.compf .cl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-right:4px;min-width:118px}
+@media (max-width:640px){.compf .cl{min-width:0;width:100%}}
+.compf .ch{font-size:11.5px;color:var(--muted);margin-left:4px}
+.cch{display:inline-flex;align-items:baseline;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 11px;font-size:13px;cursor:pointer;color:var(--ink);font-variant-numeric:tabular-nums}
+.cch b{font-weight:600;color:var(--muted);font-size:12px}
+.cch:hover{border-color:var(--accent)}
+.cch[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.cch[aria-pressed="true"] b{color:var(--surface)}
+#scapF.one,#subcF.one{flex-wrap:nowrap;overflow:hidden}
+#scapF.one .cch,#scapF.one .cl,#subcF.one .cch,#subcF.one .cl{flex:0 0 auto;white-space:nowrap}
+@media (max-width:640px){#scapF.one .cl,#subcF.one .cl{width:auto;min-width:0;font-size:10px;letter-spacing:.04em}#scapF.one .cch,#subcF.one .cch{padding:5px 8px}}
+.cch.more{border-style:dashed;color:var(--accent)}
+.cch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:640px){.compf .ch{display:none}}
+#kfb{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:13px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:8px 12px}
+#kfb button{margin-left:auto}
+/* controls */
+.ctrl{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.ctrl .grp{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{background:transparent;border:0;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--surface);font-weight:600}
+.ctrl input[type=search]{border:1px solid var(--line);border-radius:6px;padding:6px 9px;background:var(--sunk);min-width:0;width:220px;max-width:100%}
+.ctrl select{border:1px solid var(--line);border-radius:6px;padding:5px 8px;background:var(--sunk);max-width:220px}
+.ctrl label.chk{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--ink);cursor:pointer}
+.ctrl .help{margin-left:auto}
+#bAgua{display:inline-flex;align-items:center;gap:6px;background:var(--surface);color:var(--flete);border:1.5px solid var(--flete);border-radius:6px;padding:5px 12px;font-weight:600;font-size:13px;cursor:pointer}
+#bAgua svg{width:12px;height:14px;fill:currentColor}
+#bAgua[aria-pressed="true"]{background:var(--flete);color:var(--surface)}
+#bAgua:focus-visible,.ach:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#aguaP{background:var(--surface);border:1px solid var(--flete);border-radius:8px;padding:12px 14px;display:grid;gap:12px}
+#aguaP .ah{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline;justify-content:space-between}
+#aguaP .ah b{font-family:var(--f-display);font-size:19px;font-weight:600}
+#aguaP .ah span{font-size:12px;color:var(--muted)}
+#aguaP .ag{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+#aguaP .gp{display:grid;gap:6px;align-content:start;min-width:0}
+#aguaP .gp h3{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--flete);font-weight:600}
+#aguaP .gp p{margin:0;font-size:12px;color:var(--muted)}
+#aguaP .chs{display:flex;flex-wrap:wrap;gap:5px}
+.ach{background:var(--sunk);border:1px solid var(--line);border-radius:12px;padding:2px 9px;font-size:12px;cursor:pointer;color:var(--muted);text-align:left}
+.ach[aria-pressed="true"]{background:var(--flete-soft);border-color:var(--flete);color:var(--ink)}
+.ach small{color:var(--muted);font-size:10.5px;margin-left:3px}
+#aguaP .af{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:12px}
+#aguaP .af label{display:flex;gap:6px;align-items:center;cursor:pointer}
+/* sections */
+section.cap{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.caph{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:flex-start;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+.pgrp{display:grid;gap:10px}
+.pgh{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:10px 14px;cursor:pointer}
+.pgh h2{font-family:var(--f-display);font-size:23px;font-weight:700;margin:0;line-height:1.1;letter-spacing:.01em;text-wrap:balance}
+.pgh .meta{font-size:12px;color:var(--muted);margin-top:2px}
+.pgh .tg{background:var(--surface);border:1px solid var(--accent);border-radius:6px;width:30px;height:30px;cursor:pointer;color:var(--accent);font-size:13px;flex:0 0 auto}
+.pgh .tg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pcards{display:grid;gap:10px;padding-left:14px;border-left:2px solid var(--line);margin-left:14px}
+.pgrp.pc .pcards{display:none}
+@media (max-width:640px){.pcards{padding-left:8px;margin-left:6px}}
+section.cap.collapsed .sent,section.cap.collapsed .tw{display:none}
+section.cap.collapsed .caph{border-bottom:0}
+.caph{cursor:pointer}
+.caph .tg{background:transparent;border:1px solid var(--line);border-radius:6px;width:30px;height:30px;cursor:pointer;color:var(--muted);font-size:13px;flex:0 0 auto}
+.caph .tg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.caph h2{font-family:var(--f-display);font-size:21px;font-weight:600;margin:0;line-height:1.1;text-wrap:balance}
+.caph .meta{font-size:12px;color:var(--muted);margin-top:2px}
+.caph .right{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.stg3{display:grid;grid-template-columns:repeat(3,92px);gap:8px;font-size:11px;color:var(--muted)}
+.stg3 div{display:grid;gap:3px}
+.stg3 b{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600;font-size:12px}
+.copy{background:transparent;border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer;color:var(--muted)}
+.copy:hover{color:var(--accent);border-color:var(--accent)}
+.sent{margin:0;padding:10px 14px;background:var(--sunk);border-bottom:1px solid var(--line);font-size:13px;display:grid;gap:3px}
+.sent p{margin:0;max-width:110ch}
+.sent b{font-weight:600}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:900px;font-variant-numeric:tabular-nums}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500;text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface)}
+th.n,td.n{text-align:right}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr.row{cursor:pointer}
+tr.row:hover td{background:var(--sunk)}
+tr.row td:first-child{position:relative;padding-left:24px}
+tr.row td:first-child::before{content:"▸";position:absolute;left:9px;top:9px;color:var(--muted);font-size:11px}
+tr.row[aria-expanded="true"] td:first-child::before{content:"▾"}
+.eq{font-weight:600}
+.eq small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.sc{min-width:118px}
+.sc .v{font-size:13px;white-space:nowrap}
+.sc .v b{font-weight:600}
+.sc .v span{color:var(--muted)}
+.sc .bar{height:4px;margin-top:4px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap;border:1px solid transparent}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.st-F{color:var(--inst);background:var(--inst-soft)} .st-E{color:var(--flete);background:var(--flete-soft)} .st-D{color:var(--fab);background:var(--fab-soft)} .st-0{color:var(--muted);background:var(--sunk);border-color:var(--line)}
+.risk{font-size:12px;font-weight:600;white-space:nowrap}
+.r-crit{color:var(--crit)} .r-alto{color:var(--alto)} .r-mod{color:var(--mod)} .r-bajo{color:var(--bajo)} .r-none{color:var(--none);font-weight:400}
+.dt{font-size:12.5px;white-space:nowrap}
+.dt span{display:block;color:var(--muted);font-size:11.5px}
+.late{color:var(--crit);font-weight:600} .early{color:var(--inst);font-weight:600}
+tr.det td{background:var(--sunk);padding:0}
+.detw{padding:6px 10px 12px 24px;overflow-x:auto}
+table.it{min-width:980px}
+table.it th{background:var(--sunk);font-size:10.5px}
+table.it td{font-size:12.5px;padding:6px 8px}
+.mono{font-family:var(--f-mono);font-size:12px}
+.pend{font-size:10.5px;font-weight:600;color:var(--alto);border:1px solid var(--alto);border-radius:3px;padding:0 4px;margin-left:6px;white-space:nowrap}
+.sd{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.sd i{width:8px;height:8px;border-radius:50%;flex:0 0 auto;border:1.5px solid var(--muted)}
+.sd i.c{background:currentColor;border-color:currentColor} .sd i.p{background:linear-gradient(90deg,currentColor 50%,transparent 50%);border-color:currentColor}
+.sd.D{color:var(--fab)} .sd.E{color:var(--flete)} .sd.F{color:var(--inst)}
+.sd em{font-style:normal;color:var(--ink)}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:28px;text-align:center;color:var(--muted)}
+details.how{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:13px}
+details.how summary{cursor:pointer;font-weight:600}
+details.how ul{margin:8px 0 0;padding-left:18px;display:grid;gap:4px;max-width:120ch}
+.newtag{font-family:var(--f-mono);font-size:11px;font-weight:600;color:var(--alto)}
+.toast{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:8px 12px;border-radius:6px;font-size:13px;z-index:20}
+@media (max-width:640px){h1{font-size:22px}.stg3{grid-template-columns:repeat(3,1fr);width:100%}.caph .right{width:100%}.ctrl .help{margin-left:0}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<header class="top"><div class="wrap">
+  <h1>Estado de Equipos PTAR Merinos<small>Compra y fabricación · Flete · Instalación — por proceso y estructura (CAP)</small></h1>
+  <div class="src" id="src"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="bAll" type="button" aria-pressed="false">Expandir tarjetas</button><button class="btn ghost" id="bClr" type="button" title="Quita proceso, tipo de equipo, filtro de tarjetas, Agua, búsqueda, proveedor, pendientes y modo terminadas">Limpiar filtros</button><button class="btn" id="bUpd" type="button">Actualizar Master</button></div>
+</div></header>
+
+<main class="wrap">
+  <div id="upl" hidden>
+    <div class="grid">
+      <label class="f" for="fM"><b>2. Master.xlsx</b>Pestaña cdo: Proceso, CAP, SubC, Cantidad, % Ex, Cantidad Ex, p6, Start, Finish, blFinish, Float
+        <input type="file" id="fM" accept=".xlsx,.xlsm,.xls"></label>
+    </div>
+    <div class="acts">
+      <button class="btn" id="bLoad" type="button">Procesar</button>
+      <button class="btn ghost" id="bReset" type="button">Volver a la carga original</button>
+      <span id="msg"></span>
+    </div>
+    <div style="font-size:12px;color:var(--muted)">El archivo se lee en tu navegador y la última carga queda guardada en este equipo.</div>
+  </div>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Procesos"></nav>
+  <div id="compF" class="compf" role="group" aria-label="Tipo de equipo"></div>
+  <div id="scapF" class="compf" role="group" aria-label="Subtipo de equipo (SCAP)"></div>
+  <div id="subcF" class="compf" role="group" aria-label="Subcontratista (SubC)"></div>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="ctrl">
+    <button id="bAgua" type="button" aria-pressed="false" title="Estructuras indispensables para ingresar agua a la PTAR y su alimentación eléctrica"><svg viewBox="0 0 12 14" aria-hidden="true"><path d="M6 0C6 0 0 6.6 0 9.2A6 6 0 0 0 12 9.2C12 6.6 6 0 6 0Z"/></svg>Agua</button>
+    <div class="grp">Agrupar por
+      <div class="seg" id="segG"><button type="button" data-v="cap" aria-pressed="true">Estructura</button><button type="button" data-v="prov" aria-pressed="false">Proveedor</button></div>
+    </div>
+    <div class="grp">Cantidad
+      <div class="seg" id="segQ"><button type="button" data-v="ex" aria-pressed="true">Cantidad Ex</button><button type="button" data-v="done" aria-pressed="false">Partidas terminadas</button><button type="button" data-v="open" aria-pressed="false" title="Partidas con alguna etapa en curso o sin iniciar; las cantidades se muestran con Cantidad Ex">Partidas no terminadas</button></div>
+    </div>
+    <input type="search" id="q" placeholder="Buscar equipo, proveedor, CAP o ID" aria-label="Buscar">
+    <select id="selP" aria-label="Proveedor"></select>
+    <label class="chk" for="cPend"><input type="checkbox" id="cPend"> Incluir pendientes de regularizar (WBS D)</label>
+  </div>
+
+  <div id="aguaP" hidden></div>
+  <div id="kfb" hidden></div>
+  <div id="list" style="display:grid;gap:14px"></div>
+
+  <details class="how" id="newlog">
+    <summary>Cambios recientes <span class="newtag">(new)</span></summary>
+    <ul>
+      <li><span class="newtag">(new)</span> <b>v18</b>: Sin cables ni conductores: las partidas de cable, conductor, fibra óptica, patch cord y pigtail quedan fuera, estén en m o en u.</li>
+      <li><span class="newtag">(new)</span> <b>v19</b>: Filtro Tipo de equipo (columna Componente) entre las pestañas y las tarjetas; Ctrl + clic combina.</li>
+      <li><span class="newtag">(new)</span> <b>v20</b>: Botón Limpiar filtros junto a Actualizar Master.</li>
+      <li><span class="newtag">(new)</span> <b>v21</b>: Modo Partidas no terminadas, lo opuesto a Partidas terminadas.</li>
+      <li><span class="newtag">(new)</span> <b>v22</b>: Los botones de las 4 tarjetas también filtran los conteos de Tipo de equipo.</li>
+      <li><span class="newtag">(new)</span> <b>v23–v27</b>: Fila Subtipo (SCAP) debajo de Tipo de equipo, con el mismo formato: máximo 7 botones sin filtros y en una sola línea, "+N más" pegado al último visible, y Partidas no terminadas no cuenta como filtro para ese límite.</li>
+      <li><span class="newtag">(new)</span> <b>v30</b>: Fila Subcontratista (SubC, columna SubC del Master) debajo de Subtipo (SCAP), con el mismo formato (máx. 7, una línea, "+N más") y filtro cruzado con las demás filas y tarjetas.</li>
+      <li><span class="newtag">(new)</span> <b>v28–v29</b>: Diferencia en positivo junto al total de equipos en las 3 tarjetas de etapa (por ejemplo 1.543,9 / 3.291 equipos 1.747,1).</li>
+    </ul>
+  </details>
+
+  <details class="how">
+    <summary>Cómo se calcula</summary>
+    <ul>
+      <li>Universo: partidas del Master (pestaña cdo) con Grupos 02.Procura_Eq., 03.Flete_Eq. y 04.Precom_Eq.; cada equipo es un Activity ID base con sus tres actividades .D (compra y fabricación), .E (flete a obra) y .F (instalación y pruebas).</li>
+      <li>Total = columna Cantidad. Ejecutado por etapa = Cantidad Ex (si falta, % Ex × Cantidad). En compra y fabricación la Cantidad Ex refleja el avance por hitos de pago: 3 u al 90 % se leen como 2,7 u. El modo "Partidas terminadas" muestra solo los equipos con al menos una etapa terminada (Completed en P6 o % Ex de 100 %) y cuenta únicamente la cantidad de las etapas terminadas.</li>
+      <li>Todo sale del Master (pestaña cdo): estado = columna p6; fechas = Start y Finish (reales si el estado es Completed, o el inicio si es In Progress); línea base = blFinish; holgura = Float.</li>
+      <li>Cables y conductores no son equipos y quedan fuera de todo el aplicativo, estén en m o en u: conductores aislados, cables de cobre, alimentadores, fibra óptica, patch cords, pigtails y puntos de cableado.</li>
+      <li>Tipo de equipo: los botones bajo las pestañas filtran por la columna Componente del Master (Civil, Tuberías, Mecánico, Eléctrico, I&amp;C). Se toma el de la actividad .D. Un clic deja un solo tipo y Ctrl + clic combina varios. El filtro afecta a las tarjetas y a la lista, no a las pestañas. Cada botón muestra los equipos de ese tipo dentro del proceso y de los filtros activos, incluidos los botones de las 4 tarjetas.</li>
+      <li>Modo "Partidas no terminadas": es lo opuesto a "Partidas terminadas". Muestra solo las partidas con alguna etapa en curso o sin iniciar (no Completed y % Ex menor a 100 %) y deja fuera los equipos ya terminados en las tres etapas. Las cantidades se muestran con Cantidad Ex, igual que en el modo Cantidad Ex.</li>
+      <li>Subtipo (SCAP): debajo de Tipo de equipo, un botón por valor de la columna SCAP (el de la actividad .D), ordenados por número de equipos. Funcionan igual que los de Tipo de equipo, y los dos filtros se cruzan entre sí. Sin otros filtros activos se ven como máximo 7 botones, con "+N más" para ver el resto; con cualquier filtro activo se ven todos.</li>
+      <li>Tarjetas superiores: cuentan equipos físicos. Una partida en u aporta su Cantidad (6 partidas de compuertas = 18 compuertas); una en glb aporta 1 conjunto; las partidas de material en m, kg, ton o m² no se cuentan. En modo Cantidad Ex el ejecutado es proporcional a la Cantidad Ex de cada etapa (tope en el total) y una etapa terminada cuenta completa; en modo Partidas terminadas solo cuentan las etapas terminadas.</li>
+      <li>Filtro de tarjetas: los botones Terminados, En curso y Sin iniciar de cada etapa, y Total Float ≤ 0, filtran las tarjetas de abajo y también las otras tarjetas superiores. Cada tarjeta se calcula con los filtros de las demás, así que sus propios botones siguen mostrando su distribución completa. Un clic deja ese único filtro (otro clic lo quita); Ctrl + clic (⌘ en Mac) lo suma a los que ya están. Botones de tarjetas distintas se combinan con Y (por ejemplo, flete terminado y sin iniciar instalación); dos botones de la misma tarjeta se combinan con O.</li>
+      <li>El % de cada etapa en las tarjetas y encabezados se pondera por valor (Venta Ex ÷ Venta). Las cantidades se suman solo dentro de la misma unidad.</li>
+      <li>Riesgo por Total Float de la etapa pendiente más próxima: ≤ 0 Crítico, 1 a 20 Alto, 21 a 30 Moderado, más de 30 Moderado-Bajo. Retraso = fin esperado − fin de línea base de la instalación.</li>
+      <li>Botón Agua: filtra las estructuras de la ruta hidráulica (afluente e ingreso, pretratamiento, tratamiento primario) y la energía que las alimenta, sin las áreas de lodos. La selección se ordena en el sentido del flujo y puedes ajustarla tocando cada estructura; queda guardada en este equipo.</li>
+      <li>Se excluyen por defecto las partidas con Cantidad 0 y las de la WBS D (actividades pendientes de confirmar por el Ingeniero, cantidades originales por regularizar), para no duplicar con las variaciones.</li>
+    </ul>
+  </details>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const SNAP = {"meta":{"master":"(sin cargar)","masterWeek":null},"m":[]};
+const LS='eqStatusMerinos.raw.v3';
+const STG=['D','E','F'];
+const STN={D:'Compra y fabricación',E:'Flete a obra',F:'Instalación y pruebas'};
+const VERB={D:'fabricadas',E:'fleteadas',F:'instaladas'};
+const GRMAP={'02':'D','03':'E','04':'F'};
+const $=s=>document.querySelector(s);
+const nf1=new Intl.NumberFormat('es-EC',{maximumFractionDigits:1});
+const nf0=new Intl.NumberFormat('es-EC',{maximumFractionDigits:0});
+const isN=v=>typeof v==='number'&&isFinite(v);
+const fq=v=>{if(!isN(v))return '0';const r=Math.round(v*10)/10;return Math.abs(r-Math.round(r))<1e-9?nf0.format(r):nf1.format(r)};
+const pc=v=>isN(v)?nf0.format(Math.round(v*100))+' %':'—';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const fd=iso=>{if(!iso)return '—';const[y,m,d]=iso.split('-');return `${d}-${MES[+m-1]}-${y.slice(2)}`};
+const dd=(a,b)=>(a&&b)?Math.round((Date.UTC(...a.split('-').map((x,i)=>i==1?x-1:+x))-Date.UTC(...b.split('-').map((x,i)=>i==1?x-1:+x)))/864e5):null;
+function natCmp(a,b){const A=String(a).split(/[.\-]/),B=String(b).split(/[.\-]/);for(let i=0;i<Math.max(A.length,B.length);i++){const x=A[i]??'',y=B[i]??'';const nx=+x,ny=+y;if(!isNaN(nx)&&!isNaN(ny)&&x!==''&&y!==''){if(nx!==ny)return nx-ny}else if(x!==y)return x<y?-1:1}return 0}
+function riskOf(tf){if(!isN(tf))return ['r-none','—'];if(tf<=0)return['r-crit','Crítico'];if(tf<=20)return['r-alto','Alto'];if(tf<=30)return['r-mod','Moderado'];return['r-bajo','Moderado-Bajo']}
+
+/* ---------- modelo ---------- */
+let RAW=null, MODEL=null;
+function build(raw){
+  const items=new Map();
+  for(const r of raw.m){
+    let [id,name,und,qty,venta,subc,contrato,p6m,ubic,proc,cap,scap,unit,obs,gr,pex,cex,vex,ms,mf,mbl,mtf,comp]=r;comp=comp==null?'':String(comp).trim();
+    const T=v=>v==null?'':String(v).trim();[und,subc,proc,cap,scap,unit,ubic,contrato]=[und,subc,proc,cap,scap,unit,ubic,contrato].map(T);
+    const m=String(id).match(/^(.*)\.([DEF])$/i); if(!m)continue;
+    const st=GRMAP[String(gr).slice(0,2)]||m[2].toUpperCase();
+    const base=m[1];
+    let it=items.get(base);
+    if(!it){it={base,s:{},proc:proc||'(sin proceso)',cap:cap||'(sin CAP)',ubic:ubic||'',scap:scap||'',fam:unit||scap||'(sin tipo)',und:und||'',qty:isN(qty)?qty:0,contrato:contrato||'',comp:comp||'',pend:/^p\d+\.D(\.|$)/i.test(String(obs||''))};items.set(base,it)}
+    const status=p6m&&p6m!=='p6'?String(p6m).trim():null;
+    const q=isN(qty)?qty:0;
+    let ex=isN(cex)?cex:(isN(pex)?pex*q:0);
+    const done=status==='Completed'||(isN(pex)&&pex>=0.999)||(q>0&&ex>=q*0.999);
+    it.s[st]={id,name,qty:q,venta:isN(venta)?venta:0,vex:isN(vex)?vex:0,pex,ex,done,status,subc:subc||'',
+      start:ms||null,startA:status==='Completed'||status==='In Progress',fin:mf||null,finA:status==='Completed',blf:mbl||null,tf:isN(mtf)?mtf:null};
+    if(st==='D'&&comp)it.comp=comp;else if(!it.comp&&comp)it.comp=comp;
+    if(st==='D'){it.qty=q;it.und=und||it.und;it.desc=String(name||'').replace(/^\s*compra\s+y\s+fabricaci[oó]n\s+(de\s+)?/i,'').trim();it.scap=scap||it.scap;it.fam=unit||scap||it.fam;it.cap=cap||it.cap;it.proc=proc||it.proc}
+  }
+  for(const it of items.values()){
+    for(const k of STG) if(!it.s[k]) it.s[k]={ex:0,qty:it.qty,venta:0,vex:0,done:false,status:null,missing:true};
+    if(!it.desc){const any=it.s.F.name||it.s.E.name||'';it.desc=String(any).replace(/^\s*(flete de equipo a obra de|instalaci[oó]n y pruebas? de)\s+/i,'').trim()}
+    it.prov=it.s.D.subc||it.s.E.subc||it.s.F.subc||'(sin proveedor)';
+    it.inst=it.s.F.subc&&it.s.F.subc!==it.prov?it.s.F.subc:'';
+    if(!it.und)it.und='u';
+  }
+  return [...items.values()].sort((a,b)=>natCmp(a.base,b.base));
+}
+
+/* agregación */
+function agg(list){
+  const a={n:list.length,q:{},st:{D:{v:0,vx:0,ex:{},dn:{}},E:{v:0,vx:0,ex:{},dn:{}},F:{v:0,vx:0,ex:{},dn:{}}},tf:null,fin:null,blf:null,cnt:{}};
+  for(const it of list){
+    const u=it.und; a.q[u]=(a.q[u]||0)+it.qty;
+    for(const k of STG){const s=it.s[k],A=a.st[k];
+      A.v+=s.venta;A.vx+=s.vex;A.ex[u]=(A.ex[u]||0)+(s.ex||0);A.dn[u]=(A.dn[u]||0)+(s.done?it.qty:0);
+      if(!s.done&&isN(s.tf)&&s.tf<400){a.tf=a.tf===null?s.tf:Math.min(a.tf,s.tf)}}
+    const F=it.s.F; if(F.fin&&(!a.fin||F.fin>a.fin))a.fin=F.fin; if(F.blf&&(!a.blf||F.blf>a.blf))a.blf=F.blf;
+    if(!F.done){const d=dd(F.fin,F.blf);if(d!==null)a.maxLate=a.maxLate==null?d:Math.max(a.maxLate,d)}
+  }
+  a.units=Object.keys(a.q).sort((x,y)=>(y==='u')-(x==='u')||a.q[y]-a.q[x]);
+  for(const k of STG){const A=a.st[k];A.pv=A.v>0?A.vx/A.v:null}
+  return a;
+}
+function fracs(a,mode){const u=a.units[0];const Q=a.q[u]||0;const r={};for(const k of STG){const e=mode==='done'?a.st[k].dn[u]:a.st[k].ex[u];r[k]=Q>0?(e||0)/Q:(a.st[k].pv??0)}return r}
+function stateOf(a,mode){const f=fracs(a,mode);
+  if(f.F>=0.999)return['st-F','Instalado'];if(f.F>0)return['st-F','En instalación'];
+  if(f.E>=0.999)return['st-E','En obra'];if(f.E>0)return['st-E','Flete en curso'];
+  if(f.D>=0.999)return['st-D','Fabricado'];if(f.D>0)return['st-D','En fabricación'];return['st-0','Sin iniciar']}
+
+/* ---------- selección Agua: ruta hidráulica afluente → descarga + energía ---------- */
+const P1='01.Pretratamiento & Clarif.',P2='02.Area Norte & Lodos',P3='03.Canal 16',P4='04.Area O&M',P5='05.Progreso',P7='07.Guayacanes';
+const AGUA=[
+ {g:'Afluente e ingreso',d:'Bombeo y conducción del agua cruda hasta la planta. Los medidores electromagnéticos van en línea: sin ellos la tubería de ingreso queda abierta.',on:true,c:[
+  [P5,'EB Afluente'],[P5,'Nueva Estructura De Ingreso y Colector Afluente'],[P5,'Trabajos De Afluente y Bypass'],
+  [P3,'Canal 16'],[P3,'Control De Caudales A Proceso Lagunas'],[P1,'Estacion de Bombeo del Afluente'],
+  [P1,'Tub.Patio Impulsion_EB Ingreso_Afluente'],[P1,'Tub.Patio Afluente_Progreso Ingreso_Afluente'],[P1,'Tub.Patio Garzota Ingreso_Afluente'],
+  [P1,'Tub.Patio Mucho_Lote Ingreso_Afluente'],[P1,'Tub.Patio Vergeles Ingreso_Afluente'],[P1,'Tub.Patio Impulsion_EB Guayacanes']]},
+ {g:'Pretratamiento',d:'Retención de sólidos gruesos, finos y arenas antes de los tanques; compuertas para aislar canales.',on:true,c:[
+  [P1,'Estructura De Entrada - Pretratamiento'],[P1,'Cribado - Rejillas'],[P1,'Desarenadores y Control Hidraulico'],[P1,'Clasificador De Arenas']]},
+ {g:'Tratamiento primario',d:'Floculación, cámara de distribución (CADICAS) y clarificación primaria: el agua no pasa sin sus compuertas, agitadores y barredores.',on:true,c:[
+  [P1,'Tanques De Floculacion'],[P1,'CADICAS'],[P1,'Tanques De Clarificacion Primaria']]},
+ {g:'Energía',d:'Acometidas de 69 kV, transformadores, celdas, tableros y CCM que alimentan las estructuras anteriores.',on:true,c:[
+  [P5,'Acometida y Subestacion Electrica 69 Kv'],[P2,'Subestacion Principal 69Kv y Transformadores'],[P2,'Sistema De Distribucion En Media y Baja Tension']]},
+ {g:'Opcionales',d:'Fuera de la selección por defecto: hacen falta para la operación continua, la dosificación química o el control remoto, pero no para que el agua ingrese.',on:false,c:[
+  [P1,'Tanque De Almacenamiento De Agua De Servicio'],[P4,'E.B Cloruro Ferrico'],[P1,'Edificio De Polimeros-CCM2'],[P1,'Edificio De Sopladores-CCM3'],
+  [P4,'Edificio de Hipoclorito de Sodio, SubE N2-CCM4'],[P1,'Control de Olores y CCM'],[P4,'Centro De Control'],[P4,'Instrumentacion y Control'],
+  [P5,'Centro De Control'],[P5,'Instrumentacion y Seguridad'],[P5,'Tanque De Almacenamiento De Combustible'],[P7,'Linea De Impulsion Guayacanes y Repotenciacion Ebar Guayacanes']]}
+];
+const akey=(p,c)=>(String(p).trim()+'¦'+String(c).trim()).toLowerCase();
+const AORDER=new Map(),ATRAMO=new Map();AGUA.forEach((G,gi)=>G.c.forEach(([p,c],ci)=>{AORDER.set(akey(p,c),gi*100+ci);ATRAMO.set(akey(p,c),G.g)}));
+const ADEF=()=>new Set(AGUA.filter(G=>G.on).flatMap(G=>G.c.map(([p,c])=>akey(p,c))));
+const DIST=akey(P2,'Sistema De Distribucion En Media y Baja Tension');
+const SLUDGE_EL=/\b(?:CCM|Mcc)\s*-?\s*(?:8|8A|8B|12|13)\b|\bPD-(?:GAS|FoG|UTB)\b|CCM13/i;
+function sludgeElec(it){return akey(it.proc,it.cap)===DIST&&SLUDGE_EL.test(it.desc||'')}
+/* ---------- estado UI ---------- */
+const UI={proc:'01.Pretratamiento & Clarif.',group:'cap',mode:'ex',q:'',prov:'',pend:false,open:new Set(),sec:new Set(),pcol:new Set(),agua:false,aSel:ADEF(),aCCM:true,kf:{},comp:[],scap:[],scapAll:false,subc:[],subcAll:false};
+try{const s=JSON.parse(localStorage.getItem('eqStatusMerinos.ui')||'null');if(s){Object.assign(UI,s,{kf:{},open:new Set(),sec:new Set(),pcol:new Set(),aSel:Array.isArray(s.aSel)?new Set(s.aSel):ADEF(),comp:Array.isArray(s.comp)?s.comp:[],scap:Array.isArray(s.scap)?s.scap:[],scapAll:false,subc:Array.isArray(s.subc)?s.subc:[],subcAll:false})}}catch(e){}
+function saveUI(){try{localStorage.setItem('eqStatusMerinos.ui',JSON.stringify({proc:UI.proc,group:UI.group,mode:UI.mode,pend:UI.pend,agua:UI.agua,aSel:[...UI.aSel],aCCM:UI.aCCM,comp:UI.comp,scap:UI.scap,subc:UI.subc}))}catch(e){}}
+
+const PL=(n,w)=>n+' '+w+(n===1?'':(/r$/.test(w)?'es':'s'));
+const eqU=it=>it.und==='u'?it.qty:it.und==='glb'?1:0;
+const EQN=l=>{const n=l.reduce((t,it)=>t+eqU(it),0);return fq(n)+(Math.abs(n-1)<1e-9?' equipo':' equipos')};
+const KFS=[['done','Terminados'],['cur','En curso'],['none','Sin iniciar']];
+function stSt(it,k){const s=it.s[k];return s.done?'done':((s.ex||0)>0||s.status==='In Progress')?'cur':'none'}
+function isCrit(it){return STG.some(k=>!it.s[k].done&&isN(it.s[k].tf)&&it.s[k].tf<=0)}
+/* (new v22) los botones de las tarjetas también filtran Tipo y Subtipo; UI.kf = {D:[estados],E:[…],F:[…],crit:['crit']}: AND entre tarjetas, OR dentro de una tarjeta; skip = tarjeta que no se aplica */
+function kfPass(it,skip){for(const k in UI.kf){if(k===skip)continue;const v=UI.kf[k];if(!v||!v.length)continue;if(k==='crit'){if(!isCrit(it))return false}else if(!v.includes(stSt(it,k)))return false}return true}
+const kfAny=()=>Object.values(UI.kf).some(v=>v&&v.length);
+/* (new v18) cables y conductores (en m o en u) no son equipos: quedan fuera del aplicativo */
+const CABLE_RE=/^\s*(?:conductor|cables?\b|alimentador de cable|enlace de fibra|fibra [oó]ptica|punto de (?:datos cable|fibra)|patch cord|pigtail|fusi[oó]n de pigtail)/i;
+const isCable=it=>/^conductor aislado$/i.test(it.fam)||CABLE_RE.test(it.desc||'');
+function universe(){return MODEL.filter(it=>!isCable(it)&&(UI.pend||(!it.pend&&it.qty>0)))}
+function filtered(skip){const skipComp=skip===true||skip==='comp',skipScap=skip==='scap',skipSubc=skip==='subc';
+  const q=UI.q.trim().toLowerCase();
+  return universe().filter(it=>(skipComp||!UI.comp.length||UI.comp.includes(it.comp||''))&&(skipScap||!UI.scap.length||UI.scap.includes(it.scap||''))&&(skipSubc||!UI.subc.length||UI.subc.includes(it.prov||''))&&(!UI.agua||(UI.aSel.has(akey(it.proc,it.cap))&&!(UI.aCCM&&sludgeElec(it))))&&(UI.mode!=='done'||STG.some(k=>it.s[k].done))&&/* (new v21) modo no terminadas */(UI.mode!=='open'||STG.some(k=>!it.s[k].done))&&(UI.proc==='*'||it.proc===UI.proc)&&(!UI.prov||it.prov===UI.prov)&&
+    (!q||[it.base,it.desc,it.prov,it.inst,it.cap,it.fam,it.scap].some(x=>String(x).toLowerCase().includes(q))));
+}
+
+function qtyStr(a,k,mode){return a.units.map(u=>{const e=(mode==='done'?a.st[k].dn[u]:a.st[k].ex[u])||0;return `<b>${fq(e)}</b><span> / ${fq(a.q[u])} ${esc(u)}</span>`}).join('<br>')}
+function stageCell(a,k,mode){const f=fracs(a,mode)[k];return `<td class="sc"><div class="v">${qtyStr(a,k,mode)}</div><div class="bar c${k}"><s style="width:${Math.min(100,Math.max(0,f*100))}%"></s></div></td>`}
+
+/* ---------- render ---------- */
+function renderSrc(){const m=RAW.meta||{};
+  $('#src').innerHTML=`<span><span class="tag">Master</span> ${esc(m.master||'—')} · ejecución hasta <b>${esc(m.masterWeek||'—')}</b></span>`}
+function renderTabs(){
+  const U=universe();const procs=[...new Set(U.map(i=>i.proc))].sort();
+  if(UI.proc!=='*'&&!procs.includes(UI.proc))UI.proc=procs[0]||'*';
+  const tabs=[['*','Todos los procesos'],...procs.map(p=>[p,p])];
+  $('#tabs').innerHTML=tabs.map(([k,l])=>{const a=agg(k==='*'?U:U.filter(i=>i.proc===k));
+    return `<button class="tab" role="tab" type="button" data-p="${esc(k)}" aria-selected="${UI.proc===k}"><span class="tn">${esc(l)}</span><span class="tc">${PL(a.n,'partida')}<br>${PL(new Set((k==='*'?U:U.filter(i=>i.proc===k)).map(i=>i.cap)).size,'estructura')}</span><span class="tri">${STG.map(s=>`<i class="c${s}" title="${STN[s]} ${pc(a.st[s].pv)}"><s style="width:${(a.st[s].pv||0)*100}%"></s></i>`).join('')}</span></button>`}).join('');
+}
+function renderKpis(base){
+  /* filtro cruzado: cada tarjeta de etapa se calcula con los filtros de las OTRAS tarjetas, para que sus botones muestren su propia distribución */
+  const plu=(n,w)=>n+' '+w+(n===1?'':(/r$/.test(w)?'es':'s'));
+  const full=base.filter(it=>kfPass(it));
+  const exU=(it,k)=>{const s=it.s[k],U=eqU(it);if(UI.mode==='done')return s.done?U:0;if(s.done)return U;return it.qty>0?Math.min(U,U*(s.ex||0)/it.qty):0};
+  const cards=STG.map(k=>{const list=base.filter(it=>kfPass(it,k));const a=agg(list);const A=a.st[k];
+    const eqL=list.filter(it=>eqU(it)>0),N=eqL.reduce((t,it)=>t+eqU(it),0);const ex=eqL.reduce((t,it)=>t+exU(it,k),0);
+    const cnt={done:0,cur:0,none:0};for(const it of list)cnt[stSt(it,k)]+=eqU(it);
+    const sel=UI.kf[k]||[];const on=sel.length>0;
+    const ch=KFS.map(([sv,lab])=>`<button type="button" class="kch" data-k="${k}" data-s="${sv}" aria-pressed="${sel.includes(sv)}" title="${STN[k]} ${lab.toLowerCase()}: filtra las tarjetas de abajo y las otras tarjetas. Ctrl + clic (⌘ en Mac) para combinar con otros botones.">${lab} <b>${fq(cnt[sv])}</b></button>`).join('');
+    return `<div class="kpi${on?' on':''}"><div class="lab"><span class="dot s${k}"></span>${STN[k]}</div><div class="big">${fq(ex)}<small> / ${fq(N)} equipos</small> <!-- (new v28-v29) diferencia positiva --><small class="fal" title="Faltan ${fq(Math.max(0,N-ex))} equipos en esta etapa (${fq(N)} − ${fq(ex)})">${fq(Math.max(0,N-ex))}</small></div><div class="bar c${k}"><s style="width:${N?Math.min(100,ex/N*100):0}%"></s></div><div class="sub">${pc(N?ex/N:null)} de los equipos · ${pc(A.pv)} de avance en valor</div><div class="kchs">${ch}</div></div>`}).join('');
+  const a=agg(full);const eqF=full.filter(it=>eqU(it)>0),NF=eqF.reduce((t,it)=>t+eqU(it),0),nx=full.length-eqF.length;
+  const crit=base.filter(it=>kfPass(it,'crit')&&isCrit(it)).length;const con=!!(UI.kf.crit&&UI.kf.crit.length);
+  $('#kpis').innerHTML=cards+`<div class="kpi stat${con?' on':''}"><div class="lab">Equipos en la selección</div><div class="big">${fq(NF)}<small> equipos</small></div><div class="sub">${a.n} partida${a.n===1?'':'s'} · ${plu(new Set(full.map(i=>i.cap)).size,'estructura')} · ${plu(new Set(full.map(i=>i.prov)).size,'proveedor')}${nx?`<br>No incluye ${nx} partida${nx>1?'s':''} de material (m, kg, ton, m²)`:''}</div><div class="kchs"><button type="button" class="kch cr" data-k="crit" data-s="crit" aria-pressed="${con}" title="Partidas con alguna etapa pendiente en Total Float ≤ 0. Ctrl + clic (⌘ en Mac) para combinar con otros botones.">Total Float ≤ 0 <b>${crit}</b> partidas</button></div></div>`;
+}
+function renderKfb(list,base){const el=$('#kfb');const ks=Object.keys(UI.kf).filter(k=>UI.kf[k].length);if(!ks.length){el.hidden=true;return}el.hidden=false;
+  const order=['D','E','F','crit'];
+  const lab=ks.sort((x,y)=>order.indexOf(x)-order.indexOf(y)).map(k=>k==='crit'?'Total Float ≤ 0':`${STN[k]}: ${UI.kf[k].map(sv=>KFS.find(x=>x[0]===sv)[1].toLowerCase()).join(' o ')}`);
+  el.innerHTML=`<span>Filtro de tarjetas: <b>${lab.map(esc).join('</b> y <b>')}</b> · ${list.length} de ${base.length} partidas</span><span style="font-size:12px;color:var(--muted)">Ctrl + clic para combinar</span><button type="button" class="btn ghost" id="bKf" style="padding:4px 10px;font-size:12px">Quitar filtro</button>`}
+/* (new v19) tipo de equipo = columna Componente del Master (01. Civil, 02. Tuberias, 03. Mecanico, 04. Electrico, 05. I&C) */
+const COMPN={civil:'Civil',tuberias:'Tuberías',mecanico:'Mecánico',electrico:'Eléctrico','i&c':'I&C'};
+const compLab=c=>{if(!c)return '(sin tipo)';const t=c.replace(/^\s*\d+\s*\.\s*/,'').trim();return COMPN[t.toLowerCase()]||t};
+function renderComp(){
+  const L=filtered(true).filter(it=>kfPass(it));const m=new Map();for(const it of L){const c=it.comp||'';if(!m.has(c))m.set(c,{p:0,e:0});const o=m.get(c);o.p++;o.e+=eqU(it)}
+  for(const c of UI.comp)if(!m.has(c))m.set(c,{p:0,e:0});
+  const ks=[...m.keys()].sort((a,b)=>(a||'99').localeCompare(b||'99','es',{numeric:true}));
+  const tot=L.reduce((t,it)=>t+eqU(it),0);
+  $('#compF').innerHTML=`<span class="cl">Tipo de equipo</span><button type="button" class="cch" data-c="*" aria-pressed="${!UI.comp.length}">Todos <b>${fq(tot)}</b></button>`+ks.map(c=>{const o=m.get(c);return `<button type="button" class="cch" data-c="${esc(c)}" aria-pressed="${UI.comp.includes(c)}" title="${o.p} partidas · ${fq(o.e)} equipos. Ctrl + clic (⌘ en Mac) para combinar tipos.">${esc(compLab(c))} <b>${fq(o.e)}</b></button>`}).join('')+`<span class="ch">Ctrl + clic para combinar</span>`}
+/* (new v23-v27) subtipo = columna SCAP del Master (la de la actividad .D); máximo 7 botones sin filtros activos */
+function otherFilters(){return UI.comp.length||UI.scap.length||UI.subc.length||kfAny()||UI.agua||UI.q.trim()||UI.prov||UI.pend||UI.mode==='done'}
+function renderScap(){
+  const L=filtered('scap').filter(it=>kfPass(it));const m=new Map();for(const it of L){const c=it.scap||'';if(!m.has(c))m.set(c,{p:0,e:0});const o=m.get(c);o.p++;o.e+=eqU(it)}
+  for(const c of UI.scap)if(!m.has(c))m.set(c,{p:0,e:0});
+  const ks=[...m.keys()].sort((a,b)=>m.get(b).e-m.get(a).e||m.get(b).p-m.get(a).p||String(a).localeCompare(String(b),'es'));
+  const SLIM=7;const lim=!otherFilters()&&!UI.scapAll&&ks.length>SLIM;const vis=lim?ks.slice(0,SLIM):ks;
+  const tot=L.reduce((t,it)=>t+eqU(it),0);
+  const chip=c=>{const o=m.get(c);return `<button type="button" class="cch" data-c="${esc(c)}" aria-pressed="${UI.scap.includes(c)}" title="${o.p} partidas · ${fq(o.e)} equipos. Ctrl + clic (⌘ en Mac) para combinar subtipos.">${esc(c||'(sin SCAP)')} <b>${fq(o.e)}</b></button>`};
+  const more=lim?`<button type="button" class="cch more" data-more="1">+${ks.length-SLIM} más</button>`:(UI.scapAll&&!otherFilters()&&ks.length>SLIM?`<button type="button" class="cch more" data-more="0">Ver menos</button>`:'');
+  /* el botón "+N más" va pegado al último botón visible: se agrupan para que bajen juntos de línea */
+  const el=$('#scapF');const head=`<span class="cl">Subtipo (SCAP)</span><button type="button" class="cch" data-c="*" aria-pressed="${!UI.scap.length}">Todos <b>${fq(tot)}</b></button>`;
+  const moreBtn=n=>n>0?`<button type="button" class="cch more" data-more="1">+${n} más</button>`:'';
+  const draw=n=>{el.innerHTML=head+vis.slice(0,n).map(chip).join('')+(lim?moreBtn(ks.length-n):more)};
+  el.classList.toggle('one',lim);
+  if(!lim){draw(vis.length);return}
+  /* una sola línea: se muestran hasta 7 y se quitan los últimos hasta que todo quepa; "+N más" queda pegado al último visible */
+  let n=vis.length;draw(n);
+  while(n>1&&el.scrollWidth>el.clientWidth+1){n--;draw(n)}
+}
+function renderSubc(){
+  const L=filtered('subc').filter(it=>kfPass(it));const m=new Map();for(const it of L){const c=it.prov||'';if(!m.has(c))m.set(c,{p:0,e:0});const o=m.get(c);o.p++;o.e+=eqU(it)}
+  for(const c of UI.subc)if(!m.has(c))m.set(c,{p:0,e:0});
+  const ks=[...m.keys()].sort((a,b)=>m.get(b).e-m.get(a).e||m.get(b).p-m.get(a).p||String(a).localeCompare(String(b),'es'));
+  const SLIM=7;const lim=!otherFilters()&&!UI.subcAll&&ks.length>SLIM;const vis=lim?ks.slice(0,SLIM):ks;
+  const tot=L.reduce((t,it)=>t+eqU(it),0);
+  const chip=c=>{const o=m.get(c);return `<button type="button" class="cch" data-c="${esc(c)}" aria-pressed="${UI.subc.includes(c)}" title="${o.p} partidas · ${fq(o.e)} equipos. Ctrl + clic (⌘ en Mac) para combinar subcontratistas.">${esc(c||'(sin proveedor)')} <b>${fq(o.e)}</b></button>`};
+  const more=lim?`<button type="button" class="cch more" data-more="1">+${ks.length-SLIM} más</button>`:(UI.subcAll&&!otherFilters()&&ks.length>SLIM?`<button type="button" class="cch more" data-more="0">Ver menos</button>`:'');
+  /* el botón "+N más" va pegado al último botón visible: se agrupan para que bajen juntos de línea */
+  const el=$('#subcF');const head=`<span class="cl">Subcontratista (SubC)</span><button type="button" class="cch" data-c="*" aria-pressed="${!UI.subc.length}">Todos <b>${fq(tot)}</b></button>`;
+  const moreBtn=n=>n>0?`<button type="button" class="cch more" data-more="1">+${n} más</button>`:'';
+  const draw=n=>{el.innerHTML=head+vis.slice(0,n).map(chip).join('')+(lim?moreBtn(ks.length-n):more)};
+  el.classList.toggle('one',lim);
+  if(!lim){draw(vis.length);return}
+  /* una sola línea: se muestran hasta 7 y se quitan los últimos hasta que todo quepa; "+N más" queda pegado al último visible */
+  let n=vis.length;draw(n);
+  while(n>1&&el.scrollWidth>el.clientWidth+1){n--;draw(n)}
+}
+function renderProvSel(){
+  const U=universe().filter(it=>UI.proc==='*'||it.proc===UI.proc);
+  const ps=[...new Set(U.map(i=>i.prov))].sort((a,b)=>a.localeCompare(b,'es'));
+  if(UI.prov&&!ps.includes(UI.prov))UI.prov='';
+  $('#selP').innerHTML=`<option value="">Todos los proveedores</option>`+ps.map(p=>`<option ${p===UI.prov?'selected':''}>${esc(p)}</option>`).join('');
+}
+function groupBy(arr,fn){const m=new Map();for(const x of arr){const k=fn(x);if(!m.has(k))m.set(k,[]);m.get(k).push(x)}return m}
+function sentence(a,label,mode){const parts=a.units.map(u=>{const Q=fq(a.q[u]);const e=k=>fq((mode==='done'?a.st[k].dn[u]:a.st[k].ex[u])||0);
+  return `${e('D')} ${VERB.D}, ${e('E')} ${VERB.E} y ${e('F')} ${VERB.F} de un total de ${Q} ${u}`});return `${label}: ${parts.join('; ')}.`}
+
+function render(){
+  renderTabs();renderProvSel();renderAgua();renderComp();renderScap();renderSubc();$('#bClr').disabled=!anyFilter();
+  const base=filtered();renderKpis(base);const list=base.filter(it=>kfPass(it));renderKfb(list,base);
+  document.querySelectorAll('#segG button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===UI.group));
+  document.querySelectorAll('#segQ button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===UI.mode));
+  $('#cPend').checked=UI.pend;
+  if(!list.length){$('#list').innerHTML=`<div class="empty">${kfAny()?'Ningún equipo cumple el filtro de las tarjetas en esta selección. Quita el filtro o cambia de proceso.':'No hay equipos con estos filtros. Prueba con otro proceso o borra la búsqueda.'}</div>`;CURG=[];CURS=[];updAll();return}
+  const outer=UI.group==='cap'?(i=>i.proc+'¦'+i.cap):(i=>i.prov);
+  const inner=UI.group==='cap'?(i=>[i.prov,i.fam,i.und].join('¦')):(i=>[i.cap,i.fam,i.und].join('¦'));
+  const ord=g=>Math.min(...g.map(i=>AORDER.get(akey(i.proc,i.cap))??9999));
+  const supOn=UI.group==='cap'&&UI.proc==='*';
+  const sup=gl=>UI.agua?(ATRAMO.get(akey(gl[0].proc,gl[0].cap))||'Otras'):gl[0].proc;
+  const groups=[...groupBy(list,outer)].sort((x,y)=>UI.group==='cap'?(UI.agua?ord(x[1])-ord(y[1]):(supOn?x[1][0].proc.localeCompare(y[1][0].proc,'es'):0))||natCmp(x[1][0].base,y[1][0].base):x[0].localeCompare(y[0],'es'));
+  CURG=groups.map(g=>g[0]);CURS=supOn?[...new Set(groups.map(g=>sup(g[1])))]:[];updAll();
+  let html='';let curS=null;
+  const supStats=new Map();if(supOn)for(const [,gl] of groups){const k=sup(gl);if(!supStats.has(k))supStats.set(k,{items:[],caps:0});const o=supStats.get(k);o.items.push(...gl);o.caps++}
+  groups.forEach(([gk,gl],gi)=>{
+    if(supOn){const sk=sup(gl);if(sk!==curS){if(curS!==null)html+=`</div></div>`;curS=sk;const o=supStats.get(sk);const sa=agg(o.items);const pcl=!UI.pcol.has(sk);
+      html+=`<div class="pgrp${pcl?' pc':''}"><div class="pgh" data-p="${esc(sk)}"><div style="display:flex;gap:10px;align-items:center;min-width:0"><button class="tg" type="button" aria-expanded="${!pcl}" aria-label="${pcl?'Mostrar':'Ocultar'} ${esc(sk)}">${pcl?'▸':'▾'}</button><div style="min-width:0"><h2>${esc(sk)}</h2><div class="meta">${PL(o.caps,'estructura')} · ${PL(sa.n,'partida')} · ${EQN(o.items)}</div></div></div><div class="stg3">${STG.map(k=>`<div><span>${k==='D'?'Fabr.':k==='E'?'Flete':'Instalación'} <b>${pc(sa.st[k].pv)}</b></span><div class="bar c${k}"><s style="width:${(sa.st[k].pv||0)*100}%"></s></div></div>`).join('')}</div></div><div class="pcards">`}}
+    const a=agg(gl);const procs=[...new Set(gl.map(i=>i.proc))];
+    const rows=[...groupBy(gl,inner)].sort((x,y)=>x[0].localeCompare(y[0],'es'));
+    const sents=rows.map(([rk,rl])=>{const [p1,fam]=rk.split('¦');return sentence(agg(rl),UI.group==='cap'?`<b>${esc(p1)}</b> — ${esc(fam)}`:`<b>${esc(fam)}</b> en ${esc(p1)}`,UI.mode)});
+    const so=UI.sec.has(gk);
+    html+=`<section class="cap${so?'':' collapsed'}"><div class="caph" data-g="${esc(gk)}"><div style="display:flex;gap:10px;align-items:flex-start;min-width:0"><button class="tg" type="button" aria-expanded="${so}" aria-label="${so?'Colapsar':'Expandir'} ${esc(UI.group==='cap'?gl[0].cap:gk)}">${so?'▾':'▸'}</button><div style="min-width:0"><h2>${esc(UI.group==='cap'?gl[0].cap:gk)}</h2><div class="meta">${UI.group==='cap'&&!supOn?esc(procs.join(' · '))+' · ':''}${PL(a.n,'partida')} · ${UI.group==='cap'?PL(new Set(gl.map(i=>i.prov)).size,'proveedor'):PL(new Set(gl.map(i=>i.cap)).size,'estructura')} · ${EQN(gl)}</div></div></div>
+      <div class="right"><div class="stg3">${STG.map(k=>`<div><span>${k==='D'?'Fabr.':k==='E'?'Flete':'Instalación'} <b>${pc(a.st[k].pv)}</b></span><div class="bar c${k}"><s style="width:${(a.st[k].pv||0)*100}%"></s></div></div>`).join('')}</div>
+      <button class="copy" type="button" data-copy="${gi}">Copiar resumen</button></div></div>
+      <div class="sent" id="sent${gi}" hidden>${sents.map(s=>`<p>${s}</p>`).join('')}</div>
+      <div class="tw"><table><thead><tr><th>${UI.group==='cap'?'Proveedor · tipo de equipo':'Estructura · tipo de equipo'}</th><th class="n">Partidas</th><th>${STN.D}</th><th>${STN.E}</th><th>${STN.F}</th><th>Fin instalación</th><th>Total Float</th><th>Estado</th></tr></thead><tbody>`;
+    rows.forEach(([rk,rl],ri)=>{const r=agg(rl);const [p1,fam]=rk.split('¦');const key=gk+'¦'+rk;const open=UI.open.has(key);
+      const [sc,sl]=stateOf(r,UI.mode);const [rc,rl2]=riskOf(r.tf);const late=r.maxLate;
+      const sub=UI.group==='cap'?[...new Set(rl.map(i=>i.inst).filter(Boolean))].map(x=>'Instala: '+x).join(', '):'';
+      html+=`<tr class="row" tabindex="0" data-k="${esc(key)}" aria-expanded="${open}"><td><div class="eq">${esc(p1)} <span style="font-weight:400;color:var(--muted)">·</span> ${esc(fam)}<small>${esc(sub||[...new Set(rl.map(i=>i.scap))].join(', '))}</small></div></td><td class="n">${rl.length}</td>${STG.map(k=>stageCell(r,k,UI.mode)).join('')}
+        <td class="dt">${fd(r.fin)}<span>LB ${fd(r.blf)}${late!=null&&late!==0?` · <b class="${late>0?'late':'early'}">${late>0?'+':''}${late} d</b>`:''}</span></td>
+        <td><span class="risk ${rc}">${isN(r.tf)?nf0.format(r.tf)+' d · ':''}${rl2}</span></td><td><span class="chip ${sc}">${sl}</span></td></tr>`;
+      if(open)html+=`<tr class="det"><td colspan="8"><div class="detw">${itemsTable(rl)}</div></td></tr>`;
+    });
+    html+=`</tbody></table></div></section>`;
+  });
+  if(supOn&&curS!==null)html+=`</div></div>`;
+  $('#list').innerHTML=html;
+}
+function stDot(k,s,qty){const cls=s.done?'c':(s.ex>0||s.status==='In Progress')?'p':'';
+  const t=s.missing?'—':`<em>${fq(s.ex)}</em>/${fq(qty)} · ${s.status||'—'}`;
+  return `<span class="sd ${k}"><i class="${cls}"></i>${t}</span>`}
+function itemsTable(rl){
+  return `<table class="it"><thead><tr><th>Activity ID</th><th>Equipo</th><th class="n">Cant.</th><th>Fabricación (.D)</th><th>Flete (.E)</th><th>Instalación (.F)</th><th>Fin esperado .F</th><th>LB .F</th><th class="n">Retraso</th><th class="n">TF pendiente</th><th>Contrato</th></tr></thead><tbody>${
+    rl.map(it=>{const F=it.s.F;const tfs=STG.filter(k=>!it.s[k].done&&isN(it.s[k].tf)&&it.s[k].tf<400).map(k=>it.s[k].tf);const tf=tfs.length?Math.min(...tfs):null;const [rc]=riskOf(tf);const late=F.done?null:dd(F.fin,F.blf);
+      return `<tr><td class="mono">${esc(it.base)}</td><td>${esc(it.desc)}${it.pend?'<span class="pend">WBS D</span>':''}${it.inst?`<div style="font-size:11.5px;color:var(--muted)">Instala: ${esc(it.inst)}</div>`:''}</td><td class="n">${fq(it.qty)} ${esc(it.und)}</td>${STG.map(k=>`<td>${stDot(k,it.s[k],it.qty)}</td>`).join('')}
+      <td class="dt">${fd(F.fin)}${F.finA?' A':''}</td><td class="dt">${fd(F.blf)}</td><td class="n ${late>0?'late':late<0?'early':''}">${late==null?'—':(late>0?'+':'')+late+' d'}</td><td class="n"><span class="risk ${rc}">${tf==null?'—':nf0.format(tf)+' d'}</span></td><td class="mono">${esc(it.contrato)}</td></tr>`}).join('')}</tbody></table>`;
+}
+
+/* ---------- eventos ---------- */
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;UI.proc=b.dataset.p;UI.open.clear();saveUI();render()});
+$('#kpis').addEventListener('click',e=>{const b=e.target.closest('.kch');if(!b)return;const k=b.dataset.k,sv=b.dataset.s;
+  const multi=e.ctrlKey||e.metaKey;const cur=UI.kf[k]||[];
+  if(multi){UI.kf[k]=cur.includes(sv)?cur.filter(x=>x!==sv):[...cur,sv]}
+  else{const only=kfAny()&&Object.keys(UI.kf).every(x=>x===k||!UI.kf[x].length)&&cur.length===1&&cur[0]===sv;UI.kf=only?{}:{[k]:[sv]}}
+  UI.open.clear();render()});
+$('#scapF').addEventListener('click',e=>{const b=e.target.closest('.cch');if(!b)return;
+  if(b.dataset.more!=null){UI.scapAll=b.dataset.more==='1';renderScap();return}
+  const c=b.dataset.c;
+  if(c==='*')UI.scap=[];else if(e.ctrlKey||e.metaKey)UI.scap=UI.scap.includes(c)?UI.scap.filter(x=>x!==c):[...UI.scap,c];
+  else UI.scap=(UI.scap.length===1&&UI.scap[0]===c)?[]:[c];
+  UI.open.clear();saveUI();render()});
+$('#subcF').addEventListener('click',e=>{const b=e.target.closest('.cch');if(!b)return;
+  if(b.dataset.more!=null){UI.subcAll=b.dataset.more==='1';renderSubc();return}
+  const c=b.dataset.c;
+  if(c==='*')UI.subc=[];else if(e.ctrlKey||e.metaKey)UI.subc=UI.subc.includes(c)?UI.subc.filter(x=>x!==c):[...UI.subc,c];
+  else UI.subc=(UI.subc.length===1&&UI.subc[0]===c)?[]:[c];
+  UI.open.clear();saveUI();render()});
+$('#compF').addEventListener('click',e=>{const b=e.target.closest('.cch');if(!b)return;const c=b.dataset.c;
+  if(c==='*')UI.comp=[];else if(e.ctrlKey||e.metaKey)UI.comp=UI.comp.includes(c)?UI.comp.filter(x=>x!==c):[...UI.comp,c];
+  else UI.comp=(UI.comp.length===1&&UI.comp[0]===c)?[]:[c];
+  UI.open.clear();saveUI();render()});
+$('#kfb').addEventListener('click',e=>{if(e.target.closest('#bKf')){UI.kf={};render()}});
+$('#segG').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;UI.group=b.dataset.v;UI.open.clear();saveUI();render()});
+$('#segQ').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;UI.mode=b.dataset.v;saveUI();render()});
+let qt;$('#q').addEventListener('input',e=>{clearTimeout(qt);qt=setTimeout(()=>{UI.q=e.target.value;render()},180)});
+$('#selP').addEventListener('change',e=>{UI.prov=e.target.value;render()});
+$('#cPend').addEventListener('change',e=>{UI.pend=e.target.checked;saveUI();render()});
+function renderAgua(){
+  const b=$('#bAgua'),P=$('#aguaP');b.setAttribute('aria-pressed',UI.agua);P.hidden=!UI.agua;if(!UI.agua)return;
+  const U=universe();const cnt=new Map();for(const it of U){if(UI.aCCM&&sludgeElec(it))continue;const k=akey(it.proc,it.cap);cnt.set(k,(cnt.get(k)||0)+1)}
+  const nSel=[...UI.aSel].filter(k=>cnt.has(k)).length;
+  P.innerHTML=`<div class="ah"><b>Ruta del agua</b><span>${nSel} estructuras seleccionadas · toca una para quitarla o agregarla</span></div><div class="ag">${
+    AGUA.map(G=>`<div class="gp"><h3>${esc(G.g)}</h3><p>${esc(G.d)}</p><div class="chs">${G.c.map(([p,c])=>{const k=akey(p,c);const n=cnt.get(k)||0;
+      return `<button type="button" class="ach" data-a="${esc(k)}" aria-pressed="${UI.aSel.has(k)}">${esc(c)}${p===P5?'<small>Progreso</small>':''}<small>${n}</small></button>`}).join('')}</div></div>`).join('')
+  }</div><div class="af"><label for="cCCM"><input type="checkbox" id="cCCM" ${UI.aCCM?'checked':''}> Excluir los CCM y tableros de las áreas de lodos (CCM 8, 12, 13; PD-GAS, PD-FoG, PD-UTB)</label><button type="button" class="btn ghost" id="bAres" style="padding:4px 10px;font-size:12px">Restablecer selección</button></div>`;
+}
+$('#bAgua').addEventListener('click',()=>{UI.agua=!UI.agua;if(UI.agua){UI.proc='*';UI.prov=''}UI.open.clear();UI.sec.clear();saveUI();render()});
+$('#aguaP').addEventListener('click',e=>{const c=e.target.closest('.ach');if(c){const k=c.dataset.a;UI.aSel.has(k)?UI.aSel.delete(k):UI.aSel.add(k);saveUI();render();return}
+  if(e.target.closest('#bAres')){UI.aSel=ADEF();UI.aCCM=true;saveUI();render()}});
+$('#aguaP').addEventListener('change',e=>{if(e.target.id==='cCCM'){UI.aCCM=e.target.checked;saveUI();render()}});
+function toggleRow(tr){const k=tr.dataset.k;UI.open.has(k)?UI.open.delete(k):UI.open.add(k);render();const n=document.querySelector(`tr.row[data-k="${CSS.escape(k)}"]`);n&&n.focus({preventScroll:true})}
+let CURG=[],CURS=[];
+function updAll(){const any=CURG.some(g=>UI.sec.has(g))||CURS.some(p=>UI.pcol.has(p));const b=$('#bAll');b.textContent=any?'Colapsar tarjetas':'Expandir tarjetas';b.setAttribute('aria-pressed',any)}
+$('#bAll').addEventListener('click',()=>{const any=CURG.some(g=>UI.sec.has(g))||CURS.some(p=>UI.pcol.has(p));if(any){UI.sec.clear();UI.pcol.clear()}else{CURG.forEach(g=>UI.sec.add(g));CURS.forEach(p=>UI.pcol.add(p))}render()});
+$('#list').addEventListener('click',e=>{const c=e.target.closest('.copy');if(c){copySent(c.dataset.copy);return}const ph=e.target.closest('.pgh');if(ph){const p=ph.dataset.p;UI.pcol.has(p)?UI.pcol.delete(p):UI.pcol.add(p);render();return}const hd=e.target.closest('.caph');if(hd){const g=hd.dataset.g;UI.sec.has(g)?UI.sec.delete(g):UI.sec.add(g);render();return}const tr=e.target.closest('tr.row');if(tr)toggleRow(tr)});
+$('#list').addEventListener('keydown',e=>{const tr=e.target.closest('tr.row');if(tr&&(e.key==='Enter'||e.key===' ')){e.preventDefault();toggleRow(tr)}});
+function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(el._t);el._t=setTimeout(()=>el.hidden=true,1800)}
+function copySent(i){const box=$('#sent'+i);const h=box.closest('section').querySelector('h2').textContent;const txt='En '+h+':\n'+[...box.querySelectorAll('p')].map(p=>'- '+p.textContent).join('\n');
+  const fail=()=>toast('No se pudo copiar en esta vista');try{navigator.clipboard.writeText(txt).then(()=>toast('Resumen copiado'),fail)}catch(e){fail()}}
+function selectNode(n){const r=document.createRange();r.selectNodeContents(n);const s=getSelection();s.removeAllRanges();s.addRange(r);toast('Texto seleccionado: usa Copiar')}
+
+/* ---------- carga de archivos ---------- */
+/* (new v20) botón Limpiar filtros */
+function anyFilter(){return UI.proc!=='*'||UI.comp.length||UI.scap.length||UI.subc.length||kfAny()||UI.agua||UI.q.trim()||UI.prov||UI.pend||UI.mode!=='ex'}
+$('#bClr').addEventListener('click',()=>{if(!anyFilter())return;Object.assign(UI,{proc:'*',comp:[],scap:[],scapAll:false,subc:[],subcAll:false,kf:{},agua:false,q:'',prov:'',pend:false,mode:'ex'});$('#q').value='';UI.open.clear();UI.sec.clear();UI.pcol.clear();saveUI();render();toast('Filtros limpiados')});
+$('#bUpd').addEventListener('click',()=>{$('#upl').hidden=!$('#upl').hidden});
+function setMsg(t,c){const m=$('#msg');m.textContent=t;m.className=c||''}
+function sIso(v){if(v==null||v==='')return null;if(typeof v==='number'){const d=XLSX.SSF.parse_date_code(v);if(!d)return null;return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`}
+  const m=String(v).match(/(\d{2})-(\d{2})-(\d{2,4})/);if(!m)return null;const y=m[3].length===2?'20'+m[3]:m[3];return `${y}-${m[2]}-${m[1]}`}
+function cellV(ws,r,c){const x=ws[XLSX.utils.encode_cell({r,c})];return x?x.v:null}
+function findHdr(ws,names,maxR=8){const rg=XLSX.utils.decode_range(ws['!ref']);for(let r=rg.s.r;r<=Math.min(rg.e.r,rg.s.r+maxR);r++){const map={};for(let c=rg.s.c;c<=rg.e.c;c++){const v=cellV(ws,r,c);if(v!=null)map[String(v).trim()]=c}if(names.every(n=>n in map))return{r,map,rg}}return null}
+async function readMaster(file){
+  const wb=XLSX.read(await file.arrayBuffer(),{type:'array',sheets:['cdo','CDO'],cellFormula:false,cellHTML:false,cellText:false,cellStyles:false});
+  const ws=wb.Sheets.cdo||wb.Sheets.CDO||wb.Sheets[wb.SheetNames[0]];
+  const need=['Activity ID','Activity Name','Unidad','Cantidad','Venta','SubC','Contrato','p6','Ubicacion','Proceso','CAP','SCAP','Unit','Obs','Grupos','% Ex','Cantidad Ex','Venta Ex','Start','Finish','blFinish','Float','Componente'];
+  const h=findHdr(ws,need);if(!h)throw new Error('En 2. Master no encontré la pestaña cdo con las columnas '+need.join(', ')+'.');
+  const C=need.map(n=>h.map[n]);const gi=h.map['Grupos'];
+  const vcols=Object.entries(h.map).filter(([k])=>/^V-/.test(k)).map(([k,c])=>[k,c]).sort((a,b)=>a[1]-b[1]).slice(-12);const vs=vcols.map(()=>0);
+  const rows=[];
+  for(let r=h.r+1;r<=h.rg.e.r;r++){
+    vcols.forEach(([k,c],i)=>{const v=cellV(ws,r,c);if(typeof v==='number')vs[i]+=Math.abs(v)});
+    const g=cellV(ws,r,gi);if(!/^0[234]\./.test(String(g||'')))continue;if(!/(Procura_Eq|Flete_Eq|Precom_Eq)/.test(g))continue;
+    const v=C.map(c=>cellV(ws,r,c));const num=x=>typeof x==='number'?x:null;
+    rows.push([String(v[0]).trim(),v[1],v[2],num(v[3]),num(v[4]),v[5],v[6],v[7],v[8],v[9],v[10],v[11],v[12],v[13],String(v[14]).slice(0,2),typeof v[15]==='number'?v[15]:(v[15]!=null?String(v[15]):null),num(v[16]),num(v[17]),sIso(v[18]),sIso(v[19]),sIso(v[20]),num(v[21]),v[22]==null?null:String(v[22]).trim()]);
+  }
+  if(!rows.length)throw new Error('El Master no tiene partidas en 02.Procura_Eq., 03.Flete_Eq. o 04.Precom_Eq. en la columna Grupos.');
+  let wk=null;vcols.forEach(([k],i)=>{if(vs[i]>1000)wk=k.slice(2)});
+  return{rows,wk,name:file.name};
+}
+$('#bLoad').addEventListener('click',async()=>{
+  const fm=$('#fM').files[0];
+  if(!fm){setMsg('Elige el archivo 2. Master.','err');return}
+  if(typeof XLSX==='undefined'){setMsg('No se cargó el lector de Excel. Revisa tu conexión y recarga la página.','err');return}
+  setMsg('Leyendo el Master… puede tardar unos segundos.');await new Promise(r=>setTimeout(r,30));
+  try{
+    const nr=JSON.parse(JSON.stringify(RAW));nr.meta=Object.assign({},nr.meta);
+    if(fm){const m=await readMaster(fm);nr.m=m.rows;nr.meta.master=m.name;nr.meta.masterWeek=m.wk}
+    nr.meta.built=new Date().toISOString().slice(0,10);
+    RAW=nr;MODEL=build(RAW);try{localStorage.setItem(LS,JSON.stringify(RAW))}catch(e){}
+    renderSrc();render();setMsg(`Listo: ${MODEL.length} equipos leídos${' · '+fm.name}.`,'ok');
+  }catch(e){setMsg(e.message||String(e),'err')}
+});
+$('#bReset').addEventListener('click',()=>{try{localStorage.removeItem(LS)}catch(e){}RAW=SNAP;MODEL=build(RAW);renderSrc();render();setMsg('Se restauró la carga original ('+SNAP.meta.master+', '+SNAP.meta.masterWeek+').','ok')});
+
+/* ---------- inicio ---------- */
+RAW=SNAP;try{const s=JSON.parse(localStorage.getItem(LS)||'null');if(s&&s.m)RAW=s}catch(e){}
+MODEL=build(RAW);renderSrc();render();
+if(!MODEL.length)$('#upl').hidden=false;
+</script>
+
+</body>
+</html>

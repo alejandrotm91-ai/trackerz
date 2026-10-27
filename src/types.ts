@@ -31,11 +31,13 @@ export interface Actividad {
   componente: string;
   unit: string;
   resp: string;
+  pAc?: string;
   grupo?: string;
   status: string;
   ventaFebrero: number;
   certificaciones: Record<number, number>;
   certificacionesPorFecha: Record<string, number>;
+  cantidadesPorFecha?: Record<string, number>;
   planificadoPorFecha?: Record<string, number>;
   planificadoPorFechaPG003?: Record<string, number>;
   planificadoPorFechaPG004?: Record<string, number>;
@@ -53,6 +55,7 @@ export interface Actividad {
   idOrig?: string | null;
   cantidadCdo?: number | null;
   precio?: number | null;
+  step?: number | null;
   unitAgregado?: any;
   scapAgregado?: any;
   capAgregado?: any;

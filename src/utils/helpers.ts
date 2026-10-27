@@ -116,5 +116,17 @@ export const isIgnoredFinishDate = (finish: any): boolean => {
       }
     }
   }
+  if (typeof finish === 'number') {
+    if (finish >= 46506 && finish <= 46508.5) return true;
+    const nd = new Date(finish);
+    if (!isNaN(nd.getTime())) {
+      if (
+        (nd.getFullYear() === 2027 && nd.getMonth() === 3 && nd.getDate() === 30) ||
+        (nd.getUTCFullYear() === 2027 && nd.getUTCMonth() === 3 && nd.getUTCDate() === 30)
+      ) {
+        return true;
+      }
+    }
+  }
   return false;
 };

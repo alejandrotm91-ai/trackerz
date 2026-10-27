@@ -56,6 +56,7 @@ import {
 } from '../utils/firebaseSync';
 import { PersonalTrendChart } from './PersonalTrendChart';
 import { CollapsibleHierarchyDropdown } from './CollapsibleHierarchyDropdown';
+import { MultiSelectMonthDropdown } from './MultiSelectMonthDropdown';
 
 export function PersonalTab() {
   // State: Loaded personal data from Firestore or sample demonstration data
@@ -118,9 +119,12 @@ export function PersonalTab() {
 
   // Filters State
   const [ubicacionFilter, setUbicacionFilter] = useState<string>('all'); // 'all' | 'Merinos' | 'Progreso' | etc.
-  const [mesFilter, setMesFilter] = useState<string>('all');
-  const [semanaFilter, setSemanaFilter] = useState<string>('all');
-  const [fechaFilter, setFechaFilter] = useState<string>('all');
+  const [selectedMeses, setSelectedMeses] = useState<Set<string>>(new Set());
+  const [isAllMesesSelected, setIsAllMesesSelected] = useState<boolean>(true);
+  const [selectedSemanas, setSelectedSemanas] = useState<Set<string>>(new Set());
+  const [isAllSemanasSelected, setIsAllSemanasSelected] = useState<boolean>(true);
+  const [selectedFechas, setSelectedFechas] = useState<Set<string>>(new Set());
+  const [isAllFechasSelected, setIsAllFechasSelected] = useState<boolean>(true);
   const [tipoFilter, setTipoFilter] = useState<'all' | 'Directo' | 'Indirecto'>('all');
   const [empresaFilter, setEmpresaFilter] = useState<string>('all');
   const [frenteFilter, setFrenteFilter] = useState<string>('all');
@@ -518,12 +522,21 @@ export function PersonalTab() {
     return normalizedRegistros.filter(r => {
       // Ubicacion
       if (ubicacionFilter !== 'all' && r.ubicacion !== ubicacionFilter) return false;
-      // Mes
-      if (mesFilter !== 'all' && r.mesKey !== mesFilter) return false;
-      // Semana
-      if (semanaFilter !== 'all' && r.semanaKey !== semanaFilter) return false;
-      // Fecha
-      if (fechaFilter !== 'all' && r.fecha !== fechaFilter) return false;
+      // Meses (Multi-selección)
+      if (!isAllMesesSelected) {
+        if (selectedMeses.size === 0) return false;
+        if (!r.mesKey || !selectedMeses.has(r.mesKey)) return false;
+      }
+      // Semanas (Multi-selección)
+      if (!isAllSemanasSelected) {
+        if (selectedSemanas.size === 0) return false;
+        if (!r.semanaKey || !selectedSemanas.has(r.semanaKey)) return false;
+      }
+      // Fechas / Días (Multi-selección)
+      if (!isAllFechasSelected) {
+        if (selectedFechas.size === 0) return false;
+        if (!r.fecha || !selectedFechas.has(r.fecha)) return false;
+      }
       // Tipo (Directo / Indirecto)
       if (tipoFilter !== 'all' && r.tipo !== tipoFilter) return false;
       // Empresa
@@ -552,9 +565,12 @@ export function PersonalTab() {
   }, [
     normalizedRegistros,
     ubicacionFilter,
-    mesFilter,
-    semanaFilter,
-    fechaFilter,
+    isAllMesesSelected,
+    selectedMeses,
+    isAllSemanasSelected,
+    selectedSemanas,
+    isAllFechasSelected,
+    selectedFechas,
     tipoFilter,
     empresaFilter,
     frenteFilter,
@@ -588,19 +604,25 @@ export function PersonalTab() {
 
   // Identificar el Mes Corriente (o mes seleccionado si hay filtro de mes activo)
   const mesCorrienteKey = useMemo(() => {
-    if (mesFilter !== 'all') return mesFilter;
+    if (!isAllMesesSelected && selectedMeses.size === 1) {
+      return Array.from(selectedMeses)[0];
+    }
     if (availableMeses.length > 0) return availableMeses[0][0];
     return '';
-  }, [mesFilter, availableMeses]);
+  }, [isAllMesesSelected, selectedMeses, availableMeses]);
 
   const mesCorrienteLabel = useMemo(() => {
-    if (mesFilter !== 'all') {
-      const found = availableMeses.find(([k]) => k === mesFilter);
-      return found ? found[1] : mesFilter;
+    if (!isAllMesesSelected && selectedMeses.size > 0) {
+      if (selectedMeses.size === 1) {
+        const singleKey = Array.from(selectedMeses)[0];
+        const found = availableMeses.find(([k]) => k === singleKey);
+        return found ? found[1] : singleKey;
+      }
+      return `${selectedMeses.size} meses seleccionados`;
     }
     if (availableMeses.length > 0) return availableMeses[0][1];
     return 'Mes Corriente';
-  }, [mesFilter, availableMeses]);
+  }, [isAllMesesSelected, selectedMeses, availableMeses]);
 
   // Grouped by company (calculates both global totals and active month daily averages)
   const resumenPorEmpresa = useMemo(() => {
@@ -645,8 +667,13 @@ export function PersonalTab() {
 
     const numDiasTotal = Math.max(1, fechasSet.size);
 
-    // 2. Registros específicos del Mes Corriente / Seleccionado para calcular los Promedios
-    const registrosMesCorriente = mesFilter !== 'all'
+    // 2. Registros específicos del Período / Mes Seleccionado para calcular los Promedios
+    const isPeriodFiltered =
+      (!isAllMesesSelected && selectedMeses.size > 0) ||
+      (!isAllSemanasSelected && selectedSemanas.size > 0) ||
+      (!isAllFechasSelected && selectedFechas.size > 0);
+
+    const registrosMesCorriente = isPeriodFiltered
       ? filteredRegistros
       : (mesCorrienteKey ? filteredRegistros.filter(r => r.mesKey === mesCorrienteKey) : filteredRegistros);
 
@@ -752,7 +779,7 @@ export function PersonalTab() {
       totalFrentes: frentesSet.size,
       topEmpresa
     };
-  }, [filteredRegistros, resumenPorEmpresa, mesFilter, mesCorrienteKey, mesCorrienteLabel]);
+  }, [filteredRegistros, resumenPorEmpresa, isAllMesesSelected, selectedMeses, isAllSemanasSelected, selectedSemanas, isAllFechasSelected, selectedFechas, mesCorrienteKey, mesCorrienteLabel]);
 
   // Evolution by date for charts
   const evolucionPorFecha = useMemo(() => {
@@ -780,8 +807,13 @@ export function PersonalTab() {
   const frentesDistribucion = useMemo(() => {
     const numDiasMes = stats.numDiasMes || 1;
     
-    // Registros del mes corriente para promedios
-    const registrosMes = mesFilter !== 'all'
+    // Registros del período / mes corriente para promedios
+    const isPeriodFiltered =
+      (!isAllMesesSelected && selectedMeses.size > 0) ||
+      (!isAllSemanasSelected && selectedSemanas.size > 0) ||
+      (!isAllFechasSelected && selectedFechas.size > 0);
+
+    const registrosMes = isPeriodFiltered
       ? filteredRegistros
       : (mesCorrienteKey ? filteredRegistros.filter(r => r.mesKey === mesCorrienteKey) : filteredRegistros);
     const targetRegistros = registrosMes.length > 0 ? registrosMes : filteredRegistros;
@@ -829,14 +861,19 @@ export function PersonalTab() {
     return Array.from(map.values())
       .sort((a, b) => b.promedioDiarioMes - a.promedioDiarioMes || b.totalAcumulado - a.totalAcumulado)
       .slice(0, 10);
-  }, [filteredRegistros, stats.numDiasMes, mesFilter, mesCorrienteKey]);
+  }, [filteredRegistros, stats.numDiasMes, isAllMesesSelected, selectedMeses, isAllSemanasSelected, selectedSemanas, isAllFechasSelected, selectedFechas, mesCorrienteKey]);
 
   // Top Actividades for charts (calculates monthly daily average and total)
   const actividadesDistribucion = useMemo(() => {
     const numDiasMes = stats.numDiasMes || 1;
 
-    // Registros del mes corriente para promedios
-    const registrosMes = mesFilter !== 'all'
+    // Registros del período / mes corriente para promedios
+    const isPeriodFiltered =
+      (!isAllMesesSelected && selectedMeses.size > 0) ||
+      (!isAllSemanasSelected && selectedSemanas.size > 0) ||
+      (!isAllFechasSelected && selectedFechas.size > 0);
+
+    const registrosMes = isPeriodFiltered
       ? filteredRegistros
       : (mesCorrienteKey ? filteredRegistros.filter(r => r.mesKey === mesCorrienteKey) : filteredRegistros);
     const targetRegistros = registrosMes.length > 0 ? registrosMes : filteredRegistros;
@@ -884,7 +921,7 @@ export function PersonalTab() {
     return Array.from(map.values())
       .sort((a, b) => b.promedioDiarioMes - a.promedioDiarioMes || b.totalAcumulado - a.totalAcumulado)
       .slice(0, 20);
-  }, [filteredRegistros, stats.numDiasMes, mesFilter, mesCorrienteKey]);
+  }, [filteredRegistros, stats.numDiasMes, isAllMesesSelected, selectedMeses, isAllSemanasSelected, selectedSemanas, isAllFechasSelected, selectedFechas, mesCorrienteKey]);
 
   // Upload currently loaded records to Firebase
   const handleSyncToCloud = async () => {
@@ -1062,9 +1099,12 @@ export function PersonalTab() {
   // Reset filters
   const handleResetFilters = () => {
     setUbicacionFilter('all');
-    setMesFilter('all');
-    setSemanaFilter('all');
-    setFechaFilter('all');
+    setIsAllMesesSelected(true);
+    setSelectedMeses(new Set());
+    setIsAllSemanasSelected(true);
+    setSelectedSemanas(new Set());
+    setIsAllFechasSelected(true);
+    setSelectedFechas(new Set());
     setTipoFilter('all');
     setEmpresaFilter('all');
     setFrenteFilter('all');
@@ -1076,9 +1116,9 @@ export function PersonalTab() {
 
   const hasActiveFilters =
     ubicacionFilter !== 'all' ||
-    mesFilter !== 'all' ||
-    semanaFilter !== 'all' ||
-    fechaFilter !== 'all' ||
+    (!isAllMesesSelected && selectedMeses.size > 0 && selectedMeses.size < availableMeses.length) ||
+    (!isAllSemanasSelected && selectedSemanas.size > 0 && selectedSemanas.size < availableSemanas.length) ||
+    (!isAllFechasSelected && selectedFechas.size > 0 && selectedFechas.size < availableFechas.length) ||
     tipoFilter !== 'all' ||
     empresaFilter !== 'all' ||
     frenteFilter !== 'all' ||
@@ -1276,45 +1316,42 @@ export function PersonalTab() {
       />
 
       {/* Top Banner Card (Ultra-compact) */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl px-4 py-2.5 sm:px-5 sm:py-3 text-white shadow-md border border-indigo-500/20 relative overflow-hidden">
-        <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute right-40 top-0 w-36 h-36 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-
+      <div className="bg-white rounded-xl px-4 py-3 sm:px-5 sm:py-3.5 text-[#14212A] shadow-xs border border-[#D5DEE2] relative overflow-hidden">
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="p-1.5 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-amber-400 flex items-center justify-center shrink-0">
+            <div className="p-1.5 rounded-lg bg-[#EEECFB] text-[#442dd7] flex items-center justify-center shrink-0">
               <HardHat className="w-4 h-4" />
             </div>
-            <h1 className="text-base sm:text-lg font-black tracking-tight flex items-center gap-2 flex-wrap">
+            <h1 className="text-base sm:text-lg font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wide flex items-center gap-2 flex-wrap">
               <span>Análisis de Personal de Obra</span>
               {isLoadingCloud ? (
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-200 flex items-center gap-1">
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#EEECFB] border border-[#442dd7]/30 text-[#442dd7] flex items-center gap-1 font-sans normal-case">
                   <RefreshCw className="w-3 h-3 animate-spin" />
                   <span>Cargando datos...</span>
                 </span>
               ) : registros.length > 0 ? (
                 <>
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[#2B7F52] font-sans normal-case">
                     {registros.length} Registros
                   </span>
                   {currentFileName && (
-                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-900/60 border border-indigo-400/30 text-indigo-200 truncate max-w-[200px]" title={currentFileName}>
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#F5F8F9] border border-[#D5DEE2] text-[#5A6A74] truncate max-w-[200px] font-sans normal-case" title={currentFileName}>
                       📄 {currentFileName}
                     </span>
                   )}
                   {isCloudLoaded ? (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center gap-1" title="Sincronizado en Firebase Firestore">
-                      <Cloud className="w-3 h-3 text-sky-300" />
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[#2C67A6] flex items-center gap-1 font-sans normal-case" title="Sincronizado en Firebase Firestore">
+                      <Cloud className="w-3 h-3 text-[#2C67A6]" />
                       <span>Nube</span>
                     </span>
                   ) : (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 flex items-center gap-1" title="Datos de muestra locales">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[#A86B12] flex items-center gap-1 font-sans normal-case" title="Datos de muestra locales">
                       <span>Muestra</span>
                     </span>
                   )}
                 </>
               ) : (
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300">
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[#A86B12] font-sans normal-case">
                   Carga requerida
                 </span>
               )}
@@ -1325,11 +1362,11 @@ export function PersonalTab() {
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
             <button
               onClick={() => setIsUploadModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-all active:scale-95 cursor-pointer border border-indigo-400/40"
+              className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-[#442dd7] hover:bg-[#3722b5] text-white shadow-xs transition-all active:scale-95 cursor-pointer border border-[#442dd7]"
               id="btn-abrir-carga-excel-personal"
               title="Cargar archivo Excel o CSV con matriz de personal de obra"
             >
-              <Upload className="w-3.5 h-3.5 text-indigo-200" />
+              <Upload className="w-3.5 h-3.5 text-white" />
               <span>{registros.length > 0 ? 'Cargar otro Excel' : 'Cargar Excel'}</span>
             </button>
 
@@ -1337,10 +1374,10 @@ export function PersonalTab() {
               <button
                 onClick={handleSyncToCloud}
                 disabled={isSyncingWithCloud}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-sky-600/90 hover:bg-sky-500 text-white border border-sky-400/40 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-white hover:bg-[#F5F8F9] text-[#2C67A6] border border-[#D5DEE2] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
                 title="Guardar archivo actual en Firebase para todos los usuarios"
               >
-                <CloudUpload className="w-3.5 h-3.5 text-sky-200" />
+                <CloudUpload className="w-3.5 h-3.5 text-[#2C67A6]" />
                 <span>Guardar en Nube</span>
               </button>
             )}
@@ -1351,7 +1388,7 @@ export function PersonalTab() {
                   setRegistros([]);
                   setCurrentFileName('');
                 }}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-slate-800/90 hover:bg-rose-950/60 hover:text-rose-200 text-slate-300 border border-slate-700 transition-all cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-white hover:bg-rose-50 hover:text-[#B83227] text-[#5A6A74] border border-[#D5DEE2] transition-all cursor-pointer"
                 title="Cerrar archivo de personal cargado"
               >
                 <X className="w-3.5 h-3.5" />
@@ -1364,20 +1401,20 @@ export function PersonalTab() {
               disabled={registros.length === 0}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer border disabled:opacity-40 disabled:cursor-not-allowed ${
                 copied
-                  ? 'bg-emerald-600 border-emerald-400 text-white shadow-emerald-900/40'
-                  : 'bg-slate-800/90 hover:bg-slate-700 text-white border-slate-700'
+                  ? 'bg-emerald-600 border-emerald-500 text-white shadow-xs'
+                  : 'bg-white hover:bg-[#F5F8F9] text-[#14212A] border-[#D5DEE2]'
               }`}
               id="btn-copiar-reporte-personal"
               title="Copiar reporte al portapapeles con formato y colores para Excel"
             >
               {copied ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-200" />
+                  <Check className="w-3.5 h-3.5 text-white" />
                   <span>¡Copiado!</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-3.5 h-3.5 text-slate-300" />
+                  <Copy className="w-3.5 h-3.5 text-[#5A6A74]" />
                   <span>Copiar Tabla</span>
                 </>
               )}
@@ -1385,30 +1422,30 @@ export function PersonalTab() {
 
             <button
               onClick={handleDownloadTemplate}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-white hover:bg-[#F5F8F9] text-[#14212A] border border-[#D5DEE2] transition-all cursor-pointer"
               title="Descargar plantilla base de Excel (.xlsx) con hojas Merinos y Progreso"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#2B7F52]" />
               <span>Plantilla</span>
             </button>
           </div>
         </div>
 
         {/* Location Selector Pills */}
-        <div className="mt-4 pt-3 border-t border-slate-700/60 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-3.5 pt-3 border-t border-[#D5DEE2] flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="text-xs font-bold text-[#5A6A74] flex items-center gap-1.5 uppercase tracking-wide font-['Barlow_Condensed']">
+              <MapPin className="w-3.5 h-3.5 text-[#442dd7]" />
               <span>Ubicación / Sede:</span>
             </span>
 
-            <div className="inline-flex bg-slate-950/60 rounded-xl p-1 border border-slate-700/80">
+            <div className="inline-flex bg-[#F5F8F9] rounded-lg p-1 border border-[#D5DEE2]">
               <button
                 onClick={() => setUbicacionFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                   ubicacionFilter === 'all'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-[#442dd7] text-white shadow-xs'
+                    : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
               >
                 🏢 Consolidado (Todas)
@@ -1418,10 +1455,10 @@ export function PersonalTab() {
                 <button
                   key={ub}
                   onClick={() => setUbicacionFilter(ub)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                     ubicacionFilter === ub
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      : 'text-[#5A6A74] hover:text-[#14212A]'
                   }`}
                 >
                   📍 {ub}
@@ -1532,50 +1569,47 @@ export function PersonalTab() {
 
         {/* Filter Controls Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {/* Filter by Mes */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Mes:</label>
-            <select
-              value={mesFilter}
-              onChange={(e) => {
-                setMesFilter(e.target.value);
-                setPage(1);
-              }}
-              className="w-full text-xs bg-white border border-slate-300 rounded-xl px-2.5 py-2 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
-            >
-              <option value="all">Todos los Meses</option>
-              {mesesJerarquia.map(grupo => (
-                <optgroup key={grupo.year} label={`Año ${grupo.year}`}>
-                  {grupo.meses.map(m => (
-                    <option key={m.key} value={m.key}>
-                      {m.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+          {/* Filter by Mes (Multi-selección jerárquica con buscador y selección por año) */}
+          <MultiSelectMonthDropdown
+            id="filter-mes-dropdown"
+            label="Meses:"
+            selectedMeses={selectedMeses}
+            isAllMesesSelected={isAllMesesSelected}
+            onMultiChange={(newSelected, isAll) => {
+              setSelectedMeses(newSelected);
+              setIsAllMesesSelected(isAll);
+              setPage(1);
+            }}
+            groups={mesesJerarquia}
+            allOptionLabel="Todos los Meses"
+          />
 
-          {/* Filter by Semana (Jerarquizado por Año -> Mes -> Semana con acordeón colapsable) */}
+          {/* Filter by Semana (Multi-selección jerárquica Año -> Mes -> Semana con acordeón colapsable) */}
           <CollapsibleHierarchyDropdown
             id="filter-semana-dropdown"
-            label="Semana:"
-            value={semanaFilter}
-            onChange={(val) => {
-              setSemanaFilter(val);
+            label="Semanas:"
+            isMultiSelect={true}
+            selectedValues={selectedSemanas}
+            isAllSelected={isAllSemanasSelected}
+            onMultiChange={(newSelected, isAll) => {
+              setSelectedSemanas(newSelected);
+              setIsAllSemanasSelected(isAll);
               setPage(1);
             }}
             allOptionLabel="Todas las Semanas"
             groups={semanasDropdownGroups}
           />
 
-          {/* Filter by Fecha (Jerarquizado por Año -> Mes -> Día con acordeón colapsable) */}
+          {/* Filter by Fecha / Día (Multi-selección jerárquica Año -> Mes -> Día con acordeón colapsable) */}
           <CollapsibleHierarchyDropdown
             id="filter-fecha-dropdown"
-            label="Día Específico:"
-            value={fechaFilter}
-            onChange={(val) => {
-              setFechaFilter(val);
+            label="Días Específicos:"
+            isMultiSelect={true}
+            selectedValues={selectedFechas}
+            isAllSelected={isAllFechasSelected}
+            onMultiChange={(newSelected, isAll) => {
+              setSelectedFechas(newSelected);
+              setIsAllFechasSelected(isAll);
               setPage(1);
             }}
             allOptionLabel="Todas las Fechas (Días)"
@@ -1637,14 +1671,72 @@ export function PersonalTab() {
         </div>
       </div>
 
-      {/* Active Card Filters Chip Bar */}
-      {(tipoFilter !== 'all' || turnoFilter !== 'all' || generoFilter !== 'all' || empresaFilter !== 'all' || frenteFilter !== 'all') && (
+      {/* Active Card & Period Filters Chip Bar */}
+      {(tipoFilter !== 'all' || turnoFilter !== 'all' || generoFilter !== 'all' || empresaFilter !== 'all' || frenteFilter !== 'all' || (!isAllMesesSelected && selectedMeses.size > 0 && selectedMeses.size < availableMeses.length) || (!isAllSemanasSelected && selectedSemanas.size > 0 && selectedSemanas.size < availableSemanas.length) || (!isAllFechasSelected && selectedFechas.size > 0 && selectedFechas.size < availableFechas.length)) && (
         <div className="bg-indigo-50/80 border border-indigo-200/90 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs animate-fade-in shadow-xs">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-extrabold text-indigo-900 flex items-center gap-1.5">
               <Filter className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Filtrando por tarjeta:</span>
+              <span>Filtros activos:</span>
             </span>
+
+            {!isAllMesesSelected && selectedMeses.size > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold bg-indigo-600 text-white shadow-xs">
+                <Calendar className="w-3 h-3" />
+                <span>
+                  Meses ({selectedMeses.size}): {
+                    selectedMeses.size === 1
+                      ? (availableMeses.find(([k]) => selectedMeses.has(k))?.[1] || Array.from(selectedMeses)[0])
+                      : `${selectedMeses.size} seleccionados`
+                  }
+                </span>
+                <button
+                  onClick={() => { setIsAllMesesSelected(true); setSelectedMeses(new Set()); setPage(1); }}
+                  className="hover:bg-white/20 rounded-full w-4 h-4 inline-flex items-center justify-center font-black cursor-pointer ml-1"
+                  title="Restablecer a todos los meses"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+
+            {!isAllSemanasSelected && selectedSemanas.size > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold bg-indigo-700 text-white shadow-xs">
+                <span>
+                  Semanas ({selectedSemanas.size}): {
+                    selectedSemanas.size === 1
+                      ? (availableSemanas.find(([k]) => selectedSemanas.has(k))?.[1] || Array.from(selectedSemanas)[0])
+                      : `${selectedSemanas.size} seleccionadas`
+                  }
+                </span>
+                <button
+                  onClick={() => { setIsAllSemanasSelected(true); setSelectedSemanas(new Set()); setPage(1); }}
+                  className="hover:bg-white/20 rounded-full w-4 h-4 inline-flex items-center justify-center font-black cursor-pointer ml-1"
+                  title="Restablecer a todas las semanas"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+
+            {!isAllFechasSelected && selectedFechas.size > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold bg-violet-700 text-white shadow-xs">
+                <span>
+                  Días ({selectedFechas.size}): {
+                    selectedFechas.size === 1
+                      ? Array.from(selectedFechas)[0]
+                      : `${selectedFechas.size} seleccionados`
+                  }
+                </span>
+                <button
+                  onClick={() => { setIsAllFechasSelected(true); setSelectedFechas(new Set()); setPage(1); }}
+                  className="hover:bg-white/20 rounded-full w-4 h-4 inline-flex items-center justify-center font-black cursor-pointer ml-1"
+                  title="Restablecer a todos los días"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
 
             {tipoFilter !== 'all' && (
               <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold ${
@@ -1720,17 +1812,10 @@ export function PersonalTab() {
           </div>
 
           <button
-            onClick={() => {
-              setTipoFilter('all');
-              setTurnoFilter('all');
-              setGeneroFilter('all');
-              setEmpresaFilter('all');
-              setFrenteFilter('all');
-              setPage(1);
-            }}
+            onClick={handleResetFilters}
             className="text-indigo-700 hover:text-indigo-950 font-bold underline cursor-pointer text-xs shrink-0"
           >
-            Quitar todos los filtros de tarjetas
+            Quitar todos los filtros
           </button>
         </div>
       )}
@@ -1762,31 +1847,31 @@ export function PersonalTab() {
               setPage(1);
             }
           }}
-          className={`bg-white border rounded-2xl p-4 shadow-xs hover:shadow-md transition-all select-none cursor-pointer relative overflow-hidden group ${
+          className={`bg-white border rounded-xl p-4 shadow-xs hover:shadow-sm transition-all select-none cursor-pointer relative overflow-hidden group ${
             tipoFilter === 'all' && turnoFilter === 'all' && generoFilter === 'all' && empresaFilter === 'all' && frenteFilter === 'all'
-              ? 'border-slate-200/90 hover:border-indigo-300'
-              : 'border-indigo-400 bg-indigo-50/30 ring-2 ring-indigo-200'
+              ? 'border-[#D5DEE2] hover:border-[#442dd7]'
+              : 'border-[#442dd7] bg-[#EEECFB]/20 ring-2 ring-[#442dd7]/30'
           }`}
           title="Haz clic para ver el total general y limpiar filtros de tarjetas"
         >
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Total Prom. / Día</span>
-            <Users className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+          <div className="flex items-center justify-between text-[#5A6A74] mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5A6A74]">Total Prom. / Día</span>
+            <Users className="w-4 h-4 text-[#442dd7] group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-2xl font-black text-slate-900 tracking-tight font-mono">
+          <div className="text-2xl sm:text-3xl font-['Barlow_Condensed'] font-semibold text-[#14212A] tracking-tight">
             {stats.promDiario.toFixed(1)}
           </div>
-          <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between font-medium">
-            <span className="truncate font-semibold text-indigo-700">{stats.mesCorrienteLabel}</span>
-            <span className="text-slate-400 font-mono text-[9px]">{stats.numDiasMes}d</span>
+          <div className="text-[11px] text-[#5A6A74] mt-1 flex items-center justify-between font-medium">
+            <span className="truncate font-semibold text-[#442dd7]">{stats.mesCorrienteLabel}</span>
+            <span className="text-[#5A6A74] font-mono text-[10px]">{stats.numDiasMes}d</span>
           </div>
           {tipoFilter !== 'all' || turnoFilter !== 'all' || generoFilter !== 'all' || empresaFilter !== 'all' ? (
-            <div className="mt-1.5 pt-1 border-t border-indigo-100 flex items-center justify-between text-[10px] font-bold text-indigo-600">
+            <div className="mt-1.5 pt-1 border-t border-[#D5DEE2] flex items-center justify-between text-[11px] font-bold text-[#442dd7]">
               <span>Filtros activos</span>
               <span className="underline">Limpiar ✕</span>
             </div>
           ) : (
-            <div className="mt-1.5 pt-1 border-t border-slate-100 text-[10px] font-medium text-slate-500 group-hover:text-indigo-600 flex items-center justify-between">
+            <div className="mt-1.5 pt-1 border-t border-[#D5DEE2] text-[10px] font-medium text-[#5A6A74] group-hover:text-[#442dd7] flex items-center justify-between">
               <span>Acum: {stats.totalPersonal.toLocaleString('en-US')}</span>
               <span>•</span>
             </div>
@@ -1808,32 +1893,32 @@ export function PersonalTab() {
               setPage(1);
             }
           }}
-          className={`rounded-2xl p-4 shadow-xs hover:shadow-md transition-all select-none cursor-pointer relative overflow-hidden group ${
+          className={`rounded-xl p-4 shadow-xs hover:shadow-sm transition-all select-none cursor-pointer relative overflow-hidden group ${
             tipoFilter === 'Directo'
-              ? 'bg-emerald-100/90 border-2 border-emerald-500 ring-2 ring-emerald-300 shadow-md scale-[1.02]'
-              : 'bg-emerald-50/50 border border-emerald-200/90 hover:border-emerald-400 hover:bg-emerald-50'
+              ? 'bg-emerald-50 border-2 border-[#2B7F52] ring-2 ring-emerald-300 shadow-xs scale-[1.01]'
+              : 'bg-white border border-[#D5DEE2] hover:border-[#2B7F52] hover:bg-emerald-50/30'
           }`}
           title={tipoFilter === 'Directo' ? 'Filtro ACTIVO. Haz clic para quitar filtro y ver todo' : 'Haz clic para filtrar gráficos y tablas solo por Personal Directo'}
         >
-          <div className="flex items-center justify-between text-emerald-800 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">Directo (Prom.)</span>
-            <HardHat className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
+          <div className="flex items-center justify-between text-[#2B7F52] mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#2B7F52]">Directo (Prom.)</span>
+            <HardHat className="w-4 h-4 text-[#2B7F52] group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-2xl font-black text-emerald-950 tracking-tight font-mono">
+          <div className="text-2xl sm:text-3xl font-['Barlow_Condensed'] font-semibold text-[#2B7F52] tracking-tight">
             {stats.promDirecto.toFixed(1)}
           </div>
-          <div className="text-[11px] text-emerald-700 mt-1 flex items-center justify-between font-semibold">
+          <div className="text-[11px] text-[#2B7F52] mt-1 flex items-center justify-between font-semibold">
             <span>Participación:</span>
-            <span className="bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded font-bold">{stats.pctDirecto.toFixed(1)}%</span>
+            <span className="bg-emerald-100 text-[#2B7F52] px-1.5 py-0.2 rounded font-bold">{stats.pctDirecto.toFixed(1)}%</span>
           </div>
           <div className="mt-1.5 pt-1 border-t border-emerald-200/60 text-[10px] font-bold flex items-center justify-between">
             {tipoFilter === 'Directo' ? (
-              <span className="text-emerald-800 flex items-center gap-1 font-extrabold">
+              <span className="text-[#2B7F52] flex items-center gap-1 font-bold">
                 <span>✓ Filtrando Directo</span>
-                <span className="text-emerald-600 font-normal underline">(✕)</span>
+                <span className="font-normal underline">(✕)</span>
               </span>
             ) : (
-              <span className="text-emerald-700 group-hover:underline text-[9px]">
+              <span className="text-[#2B7F52] group-hover:underline text-[9px]">
                 Acum: {stats.directoTotal.toLocaleString('en-US')} ➔
               </span>
             )}
@@ -1855,32 +1940,32 @@ export function PersonalTab() {
               setPage(1);
             }
           }}
-          className={`rounded-2xl p-4 shadow-xs hover:shadow-md transition-all select-none cursor-pointer relative overflow-hidden group ${
+          className={`rounded-xl p-4 shadow-xs hover:shadow-sm transition-all select-none cursor-pointer relative overflow-hidden group ${
             tipoFilter === 'Indirecto'
-              ? 'bg-amber-100/90 border-2 border-amber-500 ring-2 ring-amber-300 shadow-md scale-[1.02]'
-              : 'bg-amber-50/50 border border-amber-200/90 hover:border-amber-400 hover:bg-amber-50'
+              ? 'bg-amber-50 border-2 border-[#A86B12] ring-2 ring-amber-300 shadow-xs scale-[1.01]'
+              : 'bg-white border border-[#D5DEE2] hover:border-[#A86B12] hover:bg-amber-50/30'
           }`}
           title={tipoFilter === 'Indirecto' ? 'Filtro ACTIVO. Haz clic para quitar filtro y ver todo' : 'Haz clic para filtrar gráficos y tablas solo por Personal Indirecto (Empresas Acciona o Frentes: Campamento, Bodega, Puertas)'}
         >
-          <div className="flex items-center justify-between text-amber-800 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700">Indirecto (Prom.)</span>
-            <ShieldAlert className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+          <div className="flex items-center justify-between text-[#A86B12] mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#A86B12]">Indirecto (Prom.)</span>
+            <ShieldAlert className="w-4 h-4 text-[#A86B12] group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-2xl font-black text-amber-950 tracking-tight font-mono">
+          <div className="text-2xl sm:text-3xl font-['Barlow_Condensed'] font-semibold text-[#A86B12] tracking-tight">
             {stats.promIndirecto.toFixed(1)}
           </div>
-          <div className="text-[11px] text-amber-700 mt-1 flex items-center justify-between font-semibold">
+          <div className="text-[11px] text-[#A86B12] mt-1 flex items-center justify-between font-semibold">
             <span className="truncate" title="Camp., Bodega, Pts">Participación:</span>
-            <span className="bg-amber-200/80 text-amber-900 px-1.5 py-0.2 rounded font-bold shrink-0">{stats.pctIndirecto.toFixed(1)}%</span>
+            <span className="bg-amber-100 text-[#A86B12] px-1.5 py-0.2 rounded font-bold shrink-0">{stats.pctIndirecto.toFixed(1)}%</span>
           </div>
           <div className="mt-1.5 pt-1 border-t border-amber-200/60 text-[10px] font-bold flex items-center justify-between">
             {tipoFilter === 'Indirecto' ? (
-              <span className="text-amber-900 flex items-center gap-1 font-extrabold">
+              <span className="text-[#A86B12] flex items-center gap-1 font-bold">
                 <span>✓ Filtrando Indirecto</span>
-                <span className="text-amber-700 font-normal underline">(✕)</span>
+                <span className="font-normal underline">(✕)</span>
               </span>
             ) : (
-              <span className="text-amber-700 group-hover:underline text-[9px]">
+              <span className="text-[#A86B12] group-hover:underline text-[9px]">
                 Acum: {stats.indirectoTotal.toLocaleString('en-US')} ➔
               </span>
             )}
@@ -1890,16 +1975,16 @@ export function PersonalTab() {
         {/* Género (Promedio Diario Hombres vs Mujeres) */}
         <div
           id="kpi-card-genero"
-          className={`border rounded-2xl p-4 shadow-xs hover:shadow-md transition-all select-none relative overflow-hidden group ${
+          className={`border rounded-xl p-4 shadow-xs hover:shadow-sm transition-all select-none relative overflow-hidden group ${
             generoFilter !== 'all'
-              ? 'bg-slate-50 border-indigo-400 ring-2 ring-indigo-200 shadow-md'
-              : 'bg-white border-slate-200/90 hover:border-slate-300'
+              ? 'bg-[#F5F8F9] border-[#442dd7] ring-2 ring-[#442dd7]/30 shadow-xs'
+              : 'bg-white border-[#D5DEE2] hover:border-slate-300'
           }`}
           title="Haz clic en Hombres o Mujeres para filtrar gráficos y tablas por género"
         >
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Género (Prom. Día)</span>
-            <UserCheck className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+          <div className="flex items-center justify-between text-[#5A6A74] mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5A6A74]">Género (Prom. Día)</span>
+            <UserCheck className="w-4 h-4 text-[#442dd7] group-hover:scale-110 transition-transform" />
           </div>
           
           <div className="flex items-center gap-1.5 font-mono my-0.5">
@@ -1912,13 +1997,13 @@ export function PersonalTab() {
               }}
               className={`flex-1 py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border ${
                 generoFilter === 'hombres'
-                  ? 'bg-indigo-600 text-white font-black border-indigo-700 shadow-xs'
-                  : 'bg-slate-50 hover:bg-indigo-50 text-slate-900 border-slate-200 hover:border-indigo-300'
+                  ? 'bg-[#442dd7] text-white font-black border-[#442dd7] shadow-xs'
+                  : 'bg-white hover:bg-[#F5F8F9] text-[#14212A] border-[#D5DEE2] hover:border-[#442dd7]'
               }`}
               title="Filtrar solo registros de Hombres"
             >
-              <div className="text-lg font-black leading-tight">{stats.promHombres.toFixed(1)}</div>
-              <div className={`text-[9px] font-extrabold uppercase ${generoFilter === 'hombres' ? 'text-indigo-100' : 'text-indigo-600'}`}>
+              <div className="text-xl font-['Barlow_Condensed'] font-semibold leading-tight">{stats.promHombres.toFixed(1)}</div>
+              <div className={`text-[9px] font-bold uppercase ${generoFilter === 'hombres' ? 'text-white' : 'text-[#442dd7]'}`}>
                 Hombres
               </div>
             </button>
@@ -1932,24 +2017,24 @@ export function PersonalTab() {
               }}
               className={`flex-1 py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border ${
                 generoFilter === 'mujeres'
-                  ? 'bg-rose-600 text-white font-black border-rose-700 shadow-xs'
-                  : 'bg-slate-50 hover:bg-rose-50 text-slate-900 border-slate-200 hover:border-rose-300'
+                  ? 'bg-[#B83227] text-white font-black border-[#B83227] shadow-xs'
+                  : 'bg-white hover:bg-rose-50 text-[#14212A] border-[#D5DEE2] hover:border-[#B83227]'
               }`}
               title="Filtrar solo registros de Mujeres"
             >
-              <div className="text-lg font-black leading-tight text-rose-600 group-hover:text-rose-700">{stats.promMujeres.toFixed(1)}</div>
-              <div className={`text-[9px] font-extrabold uppercase ${generoFilter === 'mujeres' ? 'text-rose-100' : 'text-rose-600'}`}>
+              <div className="text-xl font-['Barlow_Condensed'] font-semibold leading-tight text-[#B83227]">{stats.promMujeres.toFixed(1)}</div>
+              <div className={`text-[9px] font-bold uppercase ${generoFilter === 'mujeres' ? 'text-white' : 'text-[#B83227]'}`}>
                 Mujeres
               </div>
             </button>
           </div>
 
-          <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between font-semibold">
-            <span className="text-indigo-700">{stats.pctHombres.toFixed(0)}% H</span>
-            <span className="text-rose-600">{stats.pctMujeres.toFixed(0)}% M</span>
+          <div className="text-[10px] text-[#5A6A74] mt-1 flex items-center justify-between font-semibold">
+            <span className="text-[#442dd7]">{stats.pctHombres.toFixed(0)}% H</span>
+            <span className="text-[#B83227]">{stats.pctMujeres.toFixed(0)}% M</span>
           </div>
           {generoFilter !== 'all' && (
-            <div className="mt-1 pt-1 border-t border-slate-200 flex items-center justify-between text-[10px] font-bold text-indigo-700">
+            <div className="mt-1 pt-1 border-t border-[#D5DEE2] flex items-center justify-between text-[10px] font-bold text-[#442dd7]">
               <span>✓ Solo {generoFilter === 'hombres' ? 'Hombres' : 'Mujeres'}</span>
               <button
                 onClick={(e) => {
@@ -1957,7 +2042,7 @@ export function PersonalTab() {
                   setGeneroFilter('all');
                   setPage(1);
                 }}
-                className="underline text-slate-500 hover:text-slate-800 cursor-pointer"
+                className="underline text-[#5A6A74] hover:text-[#14212A] cursor-pointer"
               >
                 Quitar ✕
               </button>
@@ -1968,18 +2053,18 @@ export function PersonalTab() {
         {/* Turnos (Promedio Diario Diurno vs Noche) */}
         <div
           id="kpi-card-turnos"
-          className={`border rounded-2xl p-4 shadow-xs hover:shadow-md transition-all select-none relative overflow-hidden group ${
+          className={`border rounded-xl p-4 shadow-xs hover:shadow-sm transition-all select-none relative overflow-hidden group ${
             turnoFilter !== 'all'
-              ? 'bg-slate-50 border-indigo-400 ring-2 ring-indigo-200 shadow-md'
-              : 'bg-white border-slate-200/90 hover:border-slate-300'
+              ? 'bg-[#F5F8F9] border-[#442dd7] ring-2 ring-[#442dd7]/30 shadow-xs'
+              : 'bg-white border-[#D5DEE2] hover:border-slate-300'
           }`}
           title="Haz clic en Diurno o Noche para filtrar gráficos y tablas por turno"
         >
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Turnos (Prom. Día)</span>
+          <div className="flex items-center justify-between text-[#5A6A74] mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5A6A74]">Turnos (Prom. Día)</span>
             <div className="flex items-center gap-1">
-              <Sun className="w-3.5 h-3.5 text-amber-500" />
-              <Moon className="w-3.5 h-3.5 text-indigo-500" />
+              <Sun className="w-3.5 h-3.5 text-[#A86B12]" />
+              <Moon className="w-3.5 h-3.5 text-[#442dd7]" />
             </div>
           </div>
           
@@ -1993,13 +2078,13 @@ export function PersonalTab() {
               }}
               className={`flex-1 py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border ${
                 turnoFilter === 'diurno'
-                  ? 'bg-amber-500 text-white font-black border-amber-600 shadow-xs'
-                  : 'bg-slate-50 hover:bg-amber-50 text-slate-900 border-slate-200 hover:border-amber-300'
+                  ? 'bg-[#A86B12] text-white font-black border-[#A86B12] shadow-xs'
+                  : 'bg-white hover:bg-amber-50 text-[#14212A] border-[#D5DEE2] hover:border-[#A86B12]'
               }`}
               title="Filtrar solo registros de Turno Diurno"
             >
-              <div className="text-lg font-black leading-tight text-slate-900">{stats.promDiurno.toFixed(1)}</div>
-              <div className={`text-[9px] font-extrabold uppercase ${turnoFilter === 'diurno' ? 'text-amber-100' : 'text-amber-700'}`}>
+              <div className="text-xl font-['Barlow_Condensed'] font-semibold leading-tight text-[#14212A]">{stats.promDiurno.toFixed(1)}</div>
+              <div className={`text-[9px] font-bold uppercase ${turnoFilter === 'diurno' ? 'text-white' : 'text-[#A86B12]'}`}>
                 Día
               </div>
             </button>
@@ -2013,24 +2098,24 @@ export function PersonalTab() {
               }}
               className={`flex-1 py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border ${
                 turnoFilter === 'noche'
-                  ? 'bg-indigo-600 text-white font-black border-indigo-700 shadow-xs'
-                  : 'bg-slate-50 hover:bg-indigo-50 text-slate-900 border-slate-200 hover:border-indigo-300'
+                  ? 'bg-[#442dd7] text-white font-black border-[#442dd7] shadow-xs'
+                  : 'bg-white hover:bg-[#F5F8F9] text-[#14212A] border-[#D5DEE2] hover:border-[#442dd7]'
               }`}
               title="Filtrar solo registros de Turno Noche"
             >
-              <div className="text-lg font-black leading-tight text-indigo-600">{stats.promNoche.toFixed(1)}</div>
-              <div className={`text-[9px] font-extrabold uppercase ${turnoFilter === 'noche' ? 'text-indigo-100' : 'text-indigo-600'}`}>
+              <div className="text-xl font-['Barlow_Condensed'] font-semibold leading-tight text-[#442dd7]">{stats.promNoche.toFixed(1)}</div>
+              <div className={`text-[9px] font-bold uppercase ${turnoFilter === 'noche' ? 'text-white' : 'text-[#442dd7]'}`}>
                 Noche
               </div>
             </button>
           </div>
 
-          <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between font-semibold">
-            <span className="text-amber-700">{stats.pctDiurno.toFixed(0)}% Día</span>
-            <span className="text-indigo-700">{stats.pctNoche.toFixed(0)}% Noche</span>
+          <div className="text-[10px] text-[#5A6A74] mt-1 flex items-center justify-between font-semibold">
+            <span className="text-[#A86B12]">{stats.pctDiurno.toFixed(0)}% Día</span>
+            <span className="text-[#442dd7]">{stats.pctNoche.toFixed(0)}% Noche</span>
           </div>
           {turnoFilter !== 'all' && (
-            <div className="mt-1 pt-1 border-t border-slate-200 flex items-center justify-between text-[10px] font-bold text-indigo-700">
+            <div className="mt-1 pt-1 border-t border-[#D5DEE2] flex items-center justify-between text-[10px] font-bold text-[#442dd7]">
               <span>✓ Solo {turnoFilter === 'diurno' ? 'Diurno' : 'Noche'}</span>
               <button
                 onClick={(e) => {
@@ -2038,7 +2123,7 @@ export function PersonalTab() {
                   setTurnoFilter('all');
                   setPage(1);
                 }}
-                className="underline text-slate-500 hover:text-slate-800 cursor-pointer"
+                className="underline text-[#5A6A74] hover:text-[#14212A] cursor-pointer"
               >
                 Quitar ✕
               </button>
@@ -2069,10 +2154,10 @@ export function PersonalTab() {
               setPage(1);
             }
           }}
-          className={`rounded-2xl p-4 shadow-xs hover:shadow-md transition-all select-none cursor-pointer relative overflow-hidden group ${
+          className={`rounded-xl p-4 shadow-xs hover:shadow-sm transition-all select-none cursor-pointer relative overflow-hidden group ${
             empresaFilter !== 'all'
-              ? 'bg-indigo-100/90 border-2 border-indigo-500 ring-2 ring-indigo-300 shadow-md scale-[1.02]'
-              : 'bg-indigo-50/50 border border-indigo-200/90 hover:border-indigo-400 hover:bg-indigo-50'
+              ? 'bg-[#EEECFB]/40 border-2 border-[#442dd7] ring-2 ring-[#442dd7]/30 shadow-xs scale-[1.01]'
+              : 'bg-white border border-[#D5DEE2] hover:border-[#442dd7] hover:bg-[#F5F8F9]'
           }`}
           title={
             empresaFilter !== 'all'
@@ -2082,54 +2167,54 @@ export function PersonalTab() {
               : 'Empresas contratistas activas'
           }
         >
-          <div className="flex items-center justify-between text-indigo-800 mb-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700">Contratistas</span>
-            <Building2 className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+          <div className="flex items-center justify-between text-[#442dd7] mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5A6A74]">Contratistas</span>
+            <Building2 className="w-4 h-4 text-[#442dd7] group-hover:scale-110 transition-transform" />
           </div>
-          <div className="text-2xl font-black text-indigo-950 tracking-tight font-mono">
+          <div className="text-2xl sm:text-3xl font-['Barlow_Condensed'] font-semibold text-[#14212A] tracking-tight">
             {stats.totalEmpresas}
           </div>
-          <div className="text-[10px] text-indigo-700 mt-1 truncate font-medium" title={stats.topEmpresa?.empresa || ''}>
+          <div className="text-[10px] text-[#5A6A74] mt-1 truncate font-medium" title={stats.topEmpresa?.empresa || ''}>
             Top: <strong>{stats.topEmpresa ? stats.topEmpresa.empresa.substring(0, 14) : 'N/A'}</strong>
           </div>
-          <div className="mt-1.5 pt-1 border-t border-indigo-200/60 text-[10px] font-bold flex items-center justify-between">
+          <div className="mt-1.5 pt-1 border-t border-[#D5DEE2] text-[10px] font-bold flex items-center justify-between">
             {empresaFilter !== 'all' ? (
-              <span className="text-indigo-900 flex items-center gap-1 font-extrabold truncate">
+              <span className="text-[#442dd7] flex items-center gap-1 font-bold truncate">
                 <span>✓ {empresaFilter.substring(0, 10)}</span>
-                <span className="text-indigo-600 font-normal underline shrink-0">(✕)</span>
+                <span className="text-[#442dd7] font-normal underline shrink-0">(✕)</span>
               </span>
             ) : stats.topEmpresa ? (
-              <span className="text-indigo-700 group-hover:underline truncate text-[9px]">
+              <span className="text-[#442dd7] group-hover:underline truncate text-[9px]">
                 Prom: {stats.topEmpresa.promedioDiarioMesCorriente.toFixed(1)}/día ➔
               </span>
             ) : (
-              <span className="text-indigo-400">Sin datos</span>
+              <span className="text-[#5A6A74]">Sin datos</span>
             )}
           </div>
         </div>
       </div>
 
       {/* Sub-view Navigation Bar / Selector */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs" id="personal-subview-bar">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-[#D5DEE2] shadow-xs" id="personal-subview-bar">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 shrink-0">
+          <div className="p-2 rounded-lg bg-[#EEECFB] text-[#442dd7] shrink-0">
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-xs font-black text-slate-900 block">Modo de Visualización de Personal</span>
-            <span className="text-[11px] text-slate-500 font-medium">Selecciona el tipo de informe o análisis operativo</span>
+            <span className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] block">Modo de Visualización de Personal</span>
+            <span className="text-[11px] text-[#5A6A74] font-medium">Selecciona el tipo de informe o análisis operativo</span>
           </div>
         </div>
 
         {/* Quick Sub-view Switcher Toggle */}
-        <div className="inline-flex bg-slate-100/90 rounded-xl p-1 border border-slate-200" id="personal-subview-toggle">
+        <div className="inline-flex bg-[#F5F8F9] rounded-lg p-1 border border-[#D5DEE2]" id="personal-subview-toggle">
           <button
             id="subview-toggle-graficos"
             onClick={() => setActiveSubView('graficos')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               activeSubView === 'graficos'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-[#442dd7] text-white shadow-xs'
+                : 'text-[#5A6A74] hover:text-[#14212A]'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -2138,10 +2223,10 @@ export function PersonalTab() {
           <button
             id="subview-toggle-resumen"
             onClick={() => setActiveSubView('resumen')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               activeSubView === 'resumen'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-[#442dd7] text-white shadow-xs'
+                : 'text-[#5A6A74] hover:text-[#14212A]'
             }`}
           >
             <Building2 className="w-3.5 h-3.5" />
@@ -2736,17 +2821,29 @@ export function PersonalTab() {
             allRegistros={normalizedRegistros}
             filteredRegistros={filteredRegistros}
             ubicacionFilter={ubicacionFilter}
-            mesFilter={mesFilter}
-            setMesFilter={(m) => {
-              setMesFilter(m);
+            mesFilter={isAllMesesSelected ? 'all' : selectedMeses}
+            setMesFilter={(m: string) => {
+              if (m === 'all' || !m) {
+                setIsAllMesesSelected(true);
+                setSelectedMeses(new Set());
+              } else {
+                setIsAllMesesSelected(false);
+                setSelectedMeses(new Set([m]));
+              }
               setPage(1);
             }}
-            semanaFilter={semanaFilter}
-            setSemanaFilter={(s) => {
-              setSemanaFilter(s);
+            semanaFilter={isAllSemanasSelected ? 'all' : selectedSemanas}
+            setSemanaFilter={(s: string) => {
+              if (s === 'all' || !s) {
+                setIsAllSemanasSelected(true);
+                setSelectedSemanas(new Set());
+              } else {
+                setIsAllSemanasSelected(false);
+                setSelectedSemanas(new Set([s]));
+              }
               setPage(1);
             }}
-            fechaFilter={fechaFilter}
+            fechaFilter={isAllFechasSelected ? 'all' : selectedFechas}
             tipoFilter={tipoFilter}
             setTipoFilter={(t) => {
               setTipoFilter(t);

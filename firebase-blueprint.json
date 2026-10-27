@@ -141,9 +141,46 @@
         }
       },
       "required": ["id", "cod", "nivel", "esHoja", "desc"]
+    },
+    "MasterCdoPlan": {
+      "title": "MasterCdoPlan",
+      "description": "Master CDO Plan document hosting weekly work advance and economic calculation",
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "description": "Name of the source or master file"
+        },
+        "totalRows": {
+          "type": "number",
+          "description": "Total number of items in the CDO master"
+        },
+        "semanas": {
+          "type": "array",
+          "description": "Weekly period cut-offs and metadata"
+        },
+        "totales": {
+          "type": "object",
+          "description": "Calculated totals for budget, executed and balance"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of last modification"
+        }
+      },
+      "required": ["fileName", "totalRows", "updatedAt"]
     }
   },
   "firestore": {
+    "/master_cdo_plans/{planId}": {
+      "schema": "MasterCdoPlan",
+      "description": "Online live CDO master plan document"
+    },
+    "/master_cdo_plans/{planId}/chunks/{chunkId}": {
+      "type": "object",
+      "description": "Chunks containing Master CDO activity items and weekly progress"
+    },
     "/master_plans/{planId}": {
       "schema": "MasterPlanMeta",
       "description": "Document hosting global state, config, and metadata"

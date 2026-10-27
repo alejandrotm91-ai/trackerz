@@ -30,12 +30,13 @@ export const GanttMetricas: React.FC<GanttMetricasProps> = ({
   setGanttMetricsOpen,
 }) => {
   const normalize = (wbs: string) => wbs.replace(/^p\d{4}\./, 'p.');
+  const hasPWbs = actividades.some(a => a.esItemHoja && (normalize(a.wbs || '').startsWith('p.') || normalize(a.wbs || '').startsWith('p.D')));
   const hojas = actividades.filter(a => {
-    const wbs = normalize(a.wbs || '');
     if (!a.esItemHoja) return false;
-    if (!(wbs.startsWith('p.') || wbs.startsWith('p.D'))) return false;
-    if (a.totalFloat === null || a.totalFloat === undefined) return false;
-    if (a.descripcion && a.descripcion.trim().toLowerCase().startsWith('procura')) return false;
+    if (hasPWbs) {
+      const wbs = normalize(a.wbs || '');
+      if (!(wbs.startsWith('p.') || wbs.startsWith('p.D'))) return false;
+    }
     if (isIgnoredFinishDate(a.finish)) return false;
     return true;
   });
@@ -43,14 +44,51 @@ export const GanttMetricas: React.FC<GanttMetricasProps> = ({
 
   if (!total) return null;
 
-  const counts = {
-    'Completed': hojas.filter(n => n.p6Status === 'Completed').length,
-    'In Progress': hojas.filter(n => n.p6Status === 'In Progress').length,
-    'Not Started': hojas.filter(n => n.p6Status === 'Not Started').length,
-    'other': hojas.filter(n => !['Completed', 'In Progress', 'Not Started'].includes(n.p6Status)).length,
+  const getStatusCategory = (n: any): 'Completed' | 'In Progress' | 'Not Started' | 'other' => {
+    const s = String(n.p6Status || n.status || n.p6 || '').trim().toLowerCase();
+    if (s === 'completed' || s.includes('complet') || s.includes('finaliz')) return 'Completed';
+    if (s === 'in progress' || s.includes('progress') || s.includes('progreso') || s.includes('curso')) return 'In Progress';
+    if (s === 'not started' || s.includes('not start') || s.includes('no inic') || s.includes('no-inic') || s.includes('no iniciad')) return 'Not Started';
+    return 'other';
   };
-  const criticas = hojas.filter(n => n.totalFloat === 0 && (n.p6Status === 'In Progress' || n.p6Status === 'Not Started')).length;
-  const subcriticas = hojas.filter(n => n.totalFloat !== null && n.totalFloat > 0 && n.totalFloat < 40).length;
+
+  const validFloats = hojas
+    .map(n => n.totalFloat)
+    .filter((f): f is number => f !== null && f !== undefined && !isNaN(Number(f)))
+    .map(f => Number(f));
+  const minFloat = validFloats.length > 0 ? Math.min(...validFloats) : 0;
+  const hasNegativeFloat = minFloat < 0;
+
+  // Críticas: las actividades con el float más bajo (Ruta Crítica)
+  const isCritica = (tf: any) => {
+    if (tf === null || tf === undefined || isNaN(Number(tf))) return false;
+    const val = Number(tf);
+    return hasNegativeFloat ? val === minFloat : val === 0;
+  };
+
+  // Subcríticas: las siguientes con float negativo (minFloat < tf < 0)
+  const isSubcritica = (tf: any) => {
+    if (tf === null || tf === undefined || isNaN(Number(tf))) return false;
+    const val = Number(tf);
+    return hasNegativeFloat ? (val > minFloat && val < 0) : false;
+  };
+
+  // Riesgosas: las que tengan float entre 0 y 20 (0 <= tf <= 20)
+  const isRiesgosa = (tf: any) => {
+    if (tf === null || tf === undefined || isNaN(Number(tf))) return false;
+    const val = Number(tf);
+    return val >= 0 && val <= 20;
+  };
+
+  const counts = {
+    'Completed': hojas.filter(n => getStatusCategory(n) === 'Completed').length,
+    'In Progress': hojas.filter(n => getStatusCategory(n) === 'In Progress').length,
+    'Not Started': hojas.filter(n => getStatusCategory(n) === 'Not Started').length,
+    'other': hojas.filter(n => getStatusCategory(n) === 'other').length,
+  };
+  const criticas = hojas.filter(n => isCritica(n.totalFloat)).length;
+  const subcriticas = hojas.filter(n => isSubcritica(n.totalFloat)).length;
+  const riesgosas = hojas.filter(n => isRiesgosa(n.totalFloat)).length;
   const atrasados = hojas.filter(n => n.estaAtrasadoCronograma).length;
   const riesgoCritico = hojas.filter(n => n.diasAtrasoMaximo > 30).length;
 
@@ -63,6 +101,15 @@ export const GanttMetricas: React.FC<GanttMetricasProps> = ({
   const isFloatActive = (v: string) => {
     if (ganttFloat === 'all') return v === 'all';
     const activeFloats = ganttFloat.split(',').map(s => s.trim()).filter(Boolean);
+    if (v === 'criticas') {
+      return activeFloats.includes('criticas') || activeFloats.includes('0');
+    }
+    if (v === 'subcriticas') {
+      return activeFloats.includes('subcriticas') || activeFloats.includes('negativos');
+    }
+    if (v === 'riesgosas') {
+      return activeFloats.includes('riesgosas') || activeFloats.includes('lte20') || activeFloats.includes('lte20sub') || activeFloats.includes('lte40sub');
+    }
     return activeFloats.includes(v);
   };
 
@@ -138,35 +185,38 @@ export const GanttMetricas: React.FC<GanttMetricasProps> = ({
     <div 
       id={id}
       onClick={onClick} 
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all select-none ${active ? `${bc} ${border} ring-2 ring-offset-1 ring-blue-400 shadow-sm` : 'bg-white border-gray-200 hover:shadow-md'}`}
+      className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border cursor-pointer text-[9.5px] select-none shrink-0 transition-all ${active ? `${bc} ${border} ring-2 ring-offset-1 ring-[#442dd7] shadow-xs` : 'bg-white border-[#D5DEE2] hover:bg-[#F5F8F9]'}`}
+      title={`${label}: ${cnt.toLocaleString()} (${pct(cnt)}%)`}
     >
-      <span style={{ background: color, width: 10, height: 10, borderRadius: 2, flexShrink: 0, display: 'inline-block' }} />
-      <span className={`text-[10px] font-semibold ${active ? tc : 'text-gray-600'}`}>{label}</span>
-      <span className={`text-xs font-bold ${active ? tc : 'text-gray-700'}`}>{cnt.toLocaleString()}</span>
-      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full border ${active ? `${bc} ${tc} ${border}` : 'bg-gray-50 text-gray-500 border-gray-200'}`}>{pct(cnt)}%</span>
+      <span style={{ background: color, width: 8, height: 8, borderRadius: 2, flexShrink: 0, display: 'inline-block' }} />
+      <span className={`font-semibold ${active ? tc : 'text-[#5A6A74]'} truncate`}>{label}</span>
+      <span className={`font-bold font-mono ${active ? tc : 'text-[#14212A]'}`}>{cnt.toLocaleString()}</span>
+      <span className={`px-1 py-0.5 rounded-full text-[8px] font-medium border ${active ? `${bc} ${tc} ${border}` : 'bg-[#F5F8F9] text-[#5A6A74] border-[#D5DEE2]'}`}>
+        {pct(cnt)}%
+      </span>
     </div>
   );
 
   return (
-    <div className="mb-3 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+    <div className="mb-3 border border-[#D5DEE2] rounded-xl overflow-hidden bg-white shadow-xs">
       <div 
         id="gantt-metrics-toggle-bar"
-        className="flex items-center justify-between px-4 py-2 bg-gray-50 cursor-pointer hover:bg-gray-100" 
+        className="flex items-center justify-between px-4 py-2 bg-[#F5F8F9] cursor-pointer hover:bg-[#EEF2F3] border-b border-[#D5DEE2]" 
         onClick={() => setGanttMetricsOpen(o => !o)}
       >
-        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Estado de Actividades · {total.toLocaleString()} actividades</span>
-        <span className="text-gray-400 text-xs">{ganttMetricsOpen ? '▲' : '▼'}</span>
+        <span className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">Estado de Actividades · <span className="text-[#5A6A74] font-mono normal-case">{total.toLocaleString()} actividades</span></span>
+        <span className="text-[#5A6A74] text-xs">{ganttMetricsOpen ? '▲' : '▼'}</span>
       </div>
       {ganttMetricsOpen && (
-        <div id="gantt-metrics-container" className="flex flex-wrap justify-center gap-2 px-4 py-3">
-          <Card id="mcard-completed" label="Completado" cnt={counts['Completed']} tc="text-green-700" bc="bg-green-50" border="border-green-300" color="#16a34a" active={isStatusActive('Completed')} onClick={(e) => handleStatus('Completed', e)} />
-          <Card id="mcard-progress" label="En Curso" cnt={counts['In Progress']} tc="text-blue-700" bc="bg-blue-50" border="border-blue-300" color="#2563eb" active={isStatusActive('In Progress')} onClick={(e) => handleStatus('In Progress', e)} />
-          <Card id="mcard-started" label="No inic." cnt={counts['Not Started']} tc="text-gray-600" bc="bg-gray-50" border="border-gray-300" color="#6b7280" active={isStatusActive('Not Started')} onClick={(e) => handleStatus('Not Started', e)} />
-          <div className="w-px bg-gray-200 self-stretch mx-1" />
-          <Card id="mcard-delayed" label="Con Atraso" cnt={atrasados} tc="text-rose-700" bc="bg-rose-50" border="border-rose-300" color="#ef4444" active={isFloatActive('atrasados')} onClick={(e) => handleFloat('atrasados', e)} />
-          <Card id="mcard-critical" label="Críticas" cnt={criticas} tc="text-red-700" bc="bg-red-50" border="border-red-300" color="#dc2626" active={isFloatActive('0')} onClick={(e) => handleFloat('0', e)} />
-          <Card id="mcard-subcritical" label="Subcríticas" cnt={subcriticas} tc="text-amber-700" bc="bg-amber-50" border="border-amber-300" color="#d97706" active={isFloatActive('lte40sub')} onClick={(e) => handleFloat('lte40sub', e)} />
-          <Card id="mcard-criticos" label="Riesgo Crítico" cnt={riesgoCritico} tc="text-purple-700" bc="bg-purple-50" border="border-purple-300" color="#a855f7" active={isFloatActive('criticos')} onClick={(e) => handleFloat('criticos', e)} />
+        <div id="gantt-metrics-container" className="flex items-center justify-center gap-1.5 px-2 py-2 w-full overflow-x-auto flex-nowrap">
+          <Card id="mcard-completed" label="Completado" cnt={counts['Completed']} tc="text-green-700" bc="bg-green-50" border="border-green-300" color="#2B7F52" active={isStatusActive('Completed')} onClick={(e) => handleStatus('Completed', e)} />
+          <Card id="mcard-progress" label="En Curso" cnt={counts['In Progress']} tc="text-[#442dd7]" bc="bg-[#EEECFB]" border="border-[#442dd7]/30" color="#442dd7" active={isStatusActive('In Progress')} onClick={(e) => handleStatus('In Progress', e)} />
+          <Card id="mcard-started" label="No inic." cnt={counts['Not Started']} tc="text-gray-600" bc="bg-gray-50" border="border-[#D5DEE2]" color="#6b7280" active={isStatusActive('Not Started')} onClick={(e) => handleStatus('Not Started', e)} />
+          <Card id="mcard-delayed" label="Con Atraso" cnt={atrasados} tc="text-[#B83227]" bc="bg-rose-50" border="border-rose-300" color="#B83227" active={isFloatActive('atrasados')} onClick={(e) => handleFloat('atrasados', e)} />
+          <Card id="mcard-critical" label={hasNegativeFloat ? `RC (${minFloat}d)` : "RC"} cnt={criticas} tc="text-[#B83227]" bc="bg-rose-50" border="border-rose-300" color="#B83227" active={isFloatActive('criticas')} onClick={(e) => handleFloat('criticas', e)} />
+          <Card id="mcard-subcritical" label="SubCrit." cnt={subcriticas} tc="text-[#A86B12]" bc="bg-amber-50" border="border-amber-300" color="#A86B12" active={isFloatActive('subcriticas')} onClick={(e) => handleFloat('subcriticas', e)} />
+          <Card id="mcard-riesgosas" label="Risk" cnt={riesgosas} tc="text-[#A86B12]" bc="bg-amber-50" border="border-amber-300" color="#A86B12" active={isFloatActive('riesgosas')} onClick={(e) => handleFloat('riesgosas', e)} />
+          <Card id="mcard-criticos" label="R. Crítico" cnt={riesgoCritico} tc="text-purple-700" bc="bg-purple-50" border="border-purple-300" color="#7c3aed" active={isFloatActive('criticos')} onClick={(e) => handleFloat('criticos', e)} />
         </div>
       )}
     </div>

@@ -8,6 +8,9 @@ import { Actividad } from '../types';
 import { Sparkles, Calendar, DollarSign, Clock, Layers, TrendingUp, TrendingDown, MapPin, CheckCircle2, ChevronRight, Download, Filter, Eye, Info, Hash, FileText, Sparkle } from 'lucide-react';
 import { ControlSemanalTabla } from './ControlSemanalTabla';
 import { CertificacionCard } from './CertificacionCard';
+import { PersonalTrendChart } from './PersonalTrendChart';
+import { usePersonalData } from '../hooks/usePersonalData';
+import { exportCaratulaToPdfA3 } from '../utils/exportCaratulaPdf';
 
 interface CaratulaTabProps {
   actividades: Actividad[];
@@ -144,7 +147,7 @@ const DialGauge: React.FC<{
           <path
             d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
             fill="none"
-            stroke="#e2e8f0"
+            stroke="#D5DEE2"
             strokeWidth={strokeWidth}
             strokeLinecap="round"
           />
@@ -152,7 +155,7 @@ const DialGauge: React.FC<{
           <path
             d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
             fill="none"
-            stroke="#1e295d"
+            stroke="#442dd7"
             strokeWidth={strokeWidth}
             strokeDasharray={arcLength}
             strokeDashoffset={strokeDashoffset}
@@ -163,14 +166,14 @@ const DialGauge: React.FC<{
 
         {/* Big Central Value inside the arch */}
         <div className="absolute inset-0 flex flex-col items-center justify-end pb-1.5 pointer-events-none">
-          <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${currentValueColor}`}>
+          <span className={`text-2xl sm:text-3xl font-['Barlow_Condensed'] font-semibold tracking-tight ${currentValueColor}`}>
             {currentValueStr}
           </span>
         </div>
       </div>
 
       {/* Subtitle / Unit label */}
-      <div className="mt-1 text-xs font-bold text-slate-700">
+      <div className="mt-1 text-xs font-semibold text-[#5A6A74] tracking-wide">
         {unit}
       </div>
     </div>
@@ -500,19 +503,125 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
     return list;
   }, [itemsHoja]);
 
+  // ==========================================
+  // 3. PERSONAL DATA & TREND CHART STATE
+  // ==========================================
+  const {
+    normalizedRegistros,
+    availableMeses,
+    availableSemanas,
+  } = usePersonalData();
+
+  const [personalUbicacionFilter, setPersonalUbicacionFilter] = useState<string>('all');
+  const [personalMesFilter, setPersonalMesFilter] = useState<string>('all');
+  const [personalSemanaFilter, setPersonalSemanaFilter] = useState<string>('all');
+  const [personalFechaFilter, setPersonalFechaFilter] = useState<string>('all');
+  const [personalTipoFilter, setPersonalTipoFilter] = useState<'all' | 'Directo' | 'Indirecto'>('all');
+  const [personalEmpresaFilter, setPersonalEmpresaFilter] = useState<string>('all');
+  const [personalFrenteFilter, setPersonalFrenteFilter] = useState<string>('all');
+  const [personalTurnoFilter, setPersonalTurnoFilter] = useState<'all' | 'diurno' | 'noche'>('all');
+  const [personalGeneroFilter, setPersonalGeneroFilter] = useState<'all' | 'hombres' | 'mujeres'>('all');
+  const [personalSearchQuery, setPersonalSearchQuery] = useState<string>('');
+
+  const filteredPersonalRegistros = useMemo(() => {
+    return normalizedRegistros.filter(r => {
+      if (personalUbicacionFilter !== 'all' && r.ubicacion !== personalUbicacionFilter) return false;
+      if (personalMesFilter !== 'all' && r.mesKey !== personalMesFilter) return false;
+      if (personalSemanaFilter !== 'all' && r.semanaKey !== personalSemanaFilter) return false;
+      if (personalFechaFilter !== 'all' && r.fecha !== personalFechaFilter) return false;
+      if (personalTipoFilter !== 'all' && r.tipo !== personalTipoFilter) return false;
+      if (personalEmpresaFilter !== 'all' && r.empresa !== personalEmpresaFilter) return false;
+      if (personalFrenteFilter !== 'all' && r.frente !== personalFrenteFilter) return false;
+      if (personalTurnoFilter === 'diurno' && (r.hd + r.md) === 0) return false;
+      if (personalTurnoFilter === 'noche' && (r.hn + r.mn) === 0) return false;
+      if (personalGeneroFilter === 'hombres' && r.h === 0) return false;
+      if (personalGeneroFilter === 'mujeres' && r.m === 0) return false;
+      if (personalSearchQuery.trim()) {
+        const q = personalSearchQuery.toLowerCase().trim();
+        const emp = (r.empresa || '').toLowerCase();
+        const f = (r.frente || '').toLowerCase();
+        const act = (r.actividad || '').toLowerCase();
+        const u = (r.ubicacion || '').toLowerCase();
+        if (!emp.includes(q) && !f.includes(q) && !act.includes(q) && !u.includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [
+    normalizedRegistros,
+    personalUbicacionFilter,
+    personalMesFilter,
+    personalSemanaFilter,
+    personalFechaFilter,
+    personalTipoFilter,
+    personalEmpresaFilter,
+    personalFrenteFilter,
+    personalTurnoFilter,
+    personalGeneroFilter,
+    personalSearchQuery
+  ]);
+
+  // Optimization: Defer mounting heavy PersonalTrendChart on first paint
+  const [renderPersonalChart, setRenderPersonalChart] = useState(false);
+  React.useEffect(() => {
+    const t = setTimeout(() => setRenderPersonalChart(true), 100);
+    return () => clearTimeout(t);
+  }, []);
+
+  const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
+
+  const handleExportPdf = async () => {
+    if (isExportingPdf) return;
+    try {
+      setIsExportingPdf(true);
+      await exportCaratulaToPdfA3('caratula-container');
+    } catch (err) {
+      console.error('Error al exportar PDF:', err);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   return (
-    <div id="caratula-container" className="space-y-6 w-full max-w-7xl mx-auto pb-12 animate-fade-in">
-      {/* Main Container - Structured Vertical / Grid Layout aligned with the image */}
+    <div 
+      id="caratula-container" 
+      style={{ fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif" }} 
+      className="relative space-y-6 w-full max-w-7xl mx-auto pb-12 animate-fade-in font-['Segoe_UI',sans-serif]"
+    >
+      {/* Subtle Rocket Export to PDF A3 Button */}
+      <div className="flex justify-end items-center -mb-2" data-html2canvas-ignore="true">
+        <button
+          id="btn-export-caratula-pdf"
+          type="button"
+          onClick={handleExportPdf}
+          disabled={isExportingPdf}
+          className="group relative inline-flex items-center justify-center p-2 rounded-xl bg-white hover:bg-[#F5F8F9] border border-[#D5DEE2] hover:border-[#442dd7] text-[#5A6A74] hover:text-[#442dd7] shadow-xs transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          title="Exportar Resumen a PDF (Formato A3)"
+          aria-label="Exportar Resumen a PDF en formato A3"
+        >
+          <span className={`text-base leading-none transition-transform duration-300 ${isExportingPdf ? 'animate-bounce' : 'group-hover:scale-125 group-hover:-rotate-12'}`}>
+            🚀
+          </span>
+          {isExportingPdf && (
+            <span className="ml-1.5 text-[11px] font-bold text-[#442dd7] font-mono tracking-tight animate-pulse">
+              Generando A3...
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Main Container - Structured Vertical / Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* LEFT / MAIN COLUMN: Vertical Stack conforming to the User's Image Example */}
+        {/* LEFT / MAIN COLUMN: Vertical Stack */}
         <div className="lg:col-span-5 space-y-6">
           
           {/* 1. TOP SECTION: 3 SEMI-CIRCLE GAUGES */}
-          <div id="card-top-gauges" className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs">
-            <div className="text-xs font-black uppercase tracking-wider text-slate-700 mb-4 pb-2 border-b border-slate-100 flex items-center justify-between">
+          <div id="card-top-gauges" className="bg-white rounded-xl p-5 border border-[#D5DEE2] shadow-xs">
+            <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] mb-4 pb-2 border-b border-[#D5DEE2] flex items-center justify-between">
               <span>Indicadores Generales de Desempeño</span>
-              <span className="text-[10px] font-normal text-slate-400">Corte Actual</span>
+              <span className="text-[11px] font-normal text-[#5A6A74]">Corte Actual</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center justify-items-center">
@@ -522,7 +631,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                 title="% Avance Proyecto"
                 unit="% Avance Proyecto"
                 currentValueStr={`${pctAvanceReal.toFixed(2)} %`}
-                currentValueColor="text-red-600"
+                currentValueColor="text-[#B83227]"
                 minLabel="0,00 %"
                 maxLabel={`${pctPlanificado.toFixed(2)} %`}
                 percentage={pctAvanceReal}
@@ -534,7 +643,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                 title="% Certificación"
                 unit="% Certificación"
                 currentValueStr={`${certMetrics.pct.toFixed(2)} %`}
-                currentValueColor="text-red-600"
+                currentValueColor="text-[#B83227]"
                 minLabel="0,00 %"
                 maxLabel="100,00 %"
                 percentage={certMetrics.pct}
@@ -546,7 +655,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                 title="Mes"
                 unit="Mes"
                 currentValueStr={String(durationMetrics.elapsedMonths)}
-                currentValueColor="text-red-600"
+                currentValueColor="text-[#B83227]"
                 minLabel="0"
                 maxLabel={String(durationMetrics.totalPlannedMonths)}
                 percentage={durationMetrics.percentage}
@@ -555,36 +664,36 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
           </div>
 
           {/* 2. MILESTONES TABLE (Fechas más tardías Z y AA por componente) */}
-          <div id="card-milestones-table" className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs overflow-hidden">
+          <div id="card-milestones-table" className="bg-white rounded-xl p-4 sm:p-5 border border-[#D5DEE2] shadow-xs overflow-hidden">
             <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-indigo-600" />
+              <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-[#442dd7]" />
                 <span>Hitos Principales por Componente</span>
-                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200/80 px-2 py-0.5 rounded-full text-[10px] font-bold normal-case">
+                <span className="bg-[#EEECFB] text-[#442dd7] border border-[#442dd7]/30 px-2 py-0.5 rounded-full text-[10px] font-bold normal-case">
                   Merinos
                 </span>
               </div>
-              <span className="text-[10px] font-semibold text-slate-400">
+              <span className="text-[10px] font-semibold text-[#5A6A74]">
                 Fechas Tardías (Cols Z & AA)
               </span>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <div className="overflow-x-auto rounded-xl border border-[#D5DEE2]">
               <table className="w-full text-xs text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                    <th className="py-2.5 px-3 w-12 text-center text-indigo-600">Id</th>
+                  <tr className="bg-[#F5F8F9] border-b border-[#D5DEE2] text-[#5A6A74] font-semibold">
+                    <th className="py-2.5 px-3 w-12 text-center text-[#442dd7]">Id</th>
                     <th className="py-2.5 px-3">Milestone</th>
-                    <th className="py-2.5 px-3 text-center text-indigo-600">
+                    <th className="py-2.5 px-3 text-center text-[#442dd7]">
                       Baseline
                     </th>
-                    <th className="py-2.5 px-3 text-center text-indigo-600">
+                    <th className="py-2.5 px-3 text-center text-[#442dd7]">
                       Actual/Forecast
                     </th>
                     <th className="py-2.5 px-3 text-right">Float</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                <tbody className="divide-y divide-[#D5DEE2] font-medium text-[#14212A]">
                   {componentMilestones.map((m, idx) => {
                     const isNegative = m.floatDays !== null && m.floatDays < 0;
                     const baselineDateStr = formatMilestoneDate(m.baselineFinish);
@@ -593,37 +702,37 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                     return (
                       <tr
                         key={`milestone-row-${m.id}-${m.name}-${idx}`}
-                        className="hover:bg-slate-50/60 transition-colors"
+                        className="hover:bg-[#F5F8F9] transition-colors"
                       >
-                        <td className="py-2.5 px-3 text-center font-bold text-indigo-600 font-mono">
+                        <td className="py-2.5 px-3 text-center font-bold text-[#442dd7] font-mono">
                           {m.id}
                         </td>
-                        <td className="py-2.5 px-3 font-semibold text-indigo-700">
+                        <td className="py-2.5 px-3 font-semibold text-[#14212A]">
                           <div className="truncate max-w-[170px] sm:max-w-[220px]" title={m.alias}>
                             {m.name}
                           </div>
                         </td>
 
                         {/* Baseline Date Cell */}
-                        <td className="py-2.5 px-3 text-center font-mono font-medium text-indigo-700">
+                        <td className="py-2.5 px-3 text-center font-mono font-medium text-[#5A6A74]">
                           {baselineDateStr}
                         </td>
 
                         {/* Actual / Forecast Date Cell */}
-                        <td className="py-2.5 px-3 text-center font-mono font-medium text-indigo-700">
+                        <td className="py-2.5 px-3 text-center font-mono font-medium text-[#5A6A74]">
                           {actualDateStr}
                         </td>
 
                         {/* Float Cell */}
                         <td className="py-2.5 px-3 text-right font-mono font-bold">
                           {m.floatDays === null ? (
-                            <span className="text-slate-400">-</span>
+                            <span className="text-[#5A6A74]">-</span>
                           ) : isNegative ? (
-                            <span className="text-red-600 font-black">
+                            <span className="text-[#B83227] font-black">
                               ({Math.abs(m.floatDays)})
                             </span>
                           ) : (
-                            <span className="text-slate-800">
+                            <span className="text-[#14212A]">
                               {m.floatDays}
                             </span>
                           )}
@@ -636,20 +745,20 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
             </div>
 
             <div className="mt-2 text-right">
-              <span className="text-[10px] text-slate-400 font-mono">
+              <span className="text-[10px] text-[#5A6A74] font-mono">
                 * Valores negativos en Float indican desfase en días respecto a la línea base.
               </span>
             </div>
           </div>
 
           {/* 3. UBICACION / DESGLOSE EN ÁRBOL */}
-          <div id="card-ubicacion-tree" className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs overflow-hidden">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-              <div className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-indigo-600 shrink-0" />
+          <div id="card-ubicacion-tree" className="bg-white rounded-xl p-4 sm:p-5 border border-[#D5DEE2] shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#D5DEE2]">
+              <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-[#442dd7] shrink-0" />
                 <span>Ubicación</span>
               </div>
-              <span className="text-[11px] font-bold text-slate-400 font-mono">
+              <span className="text-[11px] font-bold text-[#5A6A74] font-mono">
                 Avance_Ejecutado
               </span>
             </div>
@@ -659,18 +768,18 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
               
               {/* Root Node: Avance Ejecutado Total */}
               <div className="flex flex-col items-end text-right flex-1 min-w-0">
-                <div className="w-full h-3 bg-[#141b4d] rounded-xs mb-1.5 shadow-xs" />
-                <div className="text-xs font-black text-slate-900 tracking-tight truncate w-full">
+                <div className="w-full h-3 bg-[#442dd7] rounded-xs mb-1.5 shadow-xs" />
+                <div className="text-xs font-bold text-[#14212A] tracking-tight truncate w-full">
                   Avance_Ejecutado
                 </div>
-                <div className="text-xs sm:text-[13px] font-bold text-slate-600 font-mono truncate w-full">
+                <div className="text-xs sm:text-[13px] font-bold text-[#5A6A74] font-mono truncate w-full">
                   {fmtCurrency(totalEjec)}
                 </div>
               </div>
 
               {/* Connecting Tree SVG Splines */}
               <div className="w-8 sm:w-12 h-20 sm:h-24 flex items-center justify-center shrink-0">
-                <svg viewBox="0 0 60 100" className="w-full h-full text-slate-300 stroke-current fill-none" preserveAspectRatio="none">
+                <svg viewBox="0 0 60 100" className="w-full h-full text-[#D5DEE2] stroke-current fill-none" preserveAspectRatio="none">
                   {ubicacionData.length === 1 && (
                     <path d="M 0 50 L 60 50" strokeWidth="2.5" />
                   )}
@@ -696,19 +805,19 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                   return (
                     <div key={u.nombre} className="flex flex-col items-start text-left w-full">
                       {/* Bar Gauge */}
-                      <div className="w-full h-3 bg-slate-100 rounded-xs mb-1.5 overflow-hidden border border-slate-200 relative">
+                      <div className="w-full h-3 bg-[#EEF2F3] rounded-xs mb-1.5 overflow-hidden border border-[#D5DEE2] relative">
                         <div
-                          className="h-full bg-[#141b4d] transition-all duration-500"
+                          className="h-full bg-[#442dd7] transition-all duration-500"
                           style={{ width: `${Math.min(100, Math.max(8, u.porcentaje))}%` }}
                         />
                       </div>
-                      <div className="text-xs font-black text-slate-900 flex items-center justify-between w-full gap-1">
+                      <div className="text-xs font-bold text-[#14212A] flex items-center justify-between w-full gap-1">
                         <span className="truncate">{u.nombre}</span>
-                        <span className="text-[10px] font-bold text-indigo-600 font-mono shrink-0">
+                        <span className="text-[10px] font-bold text-[#442dd7] font-mono shrink-0">
                           {u.porcentaje.toFixed(1)}%
                         </span>
                       </div>
-                      <div className="text-xs sm:text-[13px] font-bold text-slate-600 font-mono truncate w-full">
+                      <div className="text-xs sm:text-[13px] font-bold text-[#5A6A74] font-mono truncate w-full">
                         {fmtCurrency(u.ventaEjec)}
                       </div>
                     </div>
@@ -737,11 +846,45 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
             planillaTipRes={planillaTipRes}
             planillaHojas={planillaHojas}
             idPrefix="certificacion-caratula"
+            showHeader={false}
             showKpis={false}
             showEnmiendas={false}
           />
         </div>
 
+      </div>
+
+      {/* 3. Curva de Tendencia de Personal (Full width, cards, toggles & interactive filters included) */}
+      <div id="caratula-personal-trend-section" className="w-full">
+        {renderPersonalChart ? (
+          <PersonalTrendChart
+            allRegistros={normalizedRegistros}
+            filteredRegistros={filteredPersonalRegistros}
+            ubicacionFilter={personalUbicacionFilter}
+            mesFilter={personalMesFilter}
+            setMesFilter={setPersonalMesFilter}
+            semanaFilter={personalSemanaFilter}
+            setSemanaFilter={setPersonalSemanaFilter}
+            fechaFilter={personalFechaFilter}
+            tipoFilter={personalTipoFilter}
+            setTipoFilter={setPersonalTipoFilter}
+            empresaFilter={personalEmpresaFilter}
+            setEmpresaFilter={setPersonalEmpresaFilter}
+            frenteFilter={personalFrenteFilter}
+            turnoFilter={personalTurnoFilter}
+            generoFilter={personalGeneroFilter}
+            searchQuery={personalSearchQuery}
+            availableMeses={availableMeses}
+            availableSemanas={availableSemanas}
+            hideQuickWeekSelector={true}
+            hideBottomSelectors={true}
+            defaultGranularity="mensual"
+          />
+        ) : (
+          <div className="bg-white rounded-xl p-6 border border-[#D5DEE2] text-center text-xs text-[#5A6A74] font-medium animate-pulse shadow-xs">
+            Cargando curva de tendencia de personal...
+          </div>
+        )}
       </div>
     </div>
   );

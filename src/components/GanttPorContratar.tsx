@@ -34,17 +34,22 @@ export const GanttPorContratar: React.FC<GanttPorContratarProps> = ({
     const isEquipmentActivity = (a: any) => {
       if (!a.esItemHoja) return false;
 
-      // Excluir equipos/paquetes con activityId conteniendo 'p6'
+      const scapLower = String(a.scap || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const isValvula = scapLower === 'valvulas' || /valvul/i.test(scapLower);
+
+      // Excluir equipos/paquetes con activityId conteniendo 'p6', EXCEPTO para SCAP de válvulas
       const actId = (a.activityId || '').toLowerCase();
       const pId = (a.id || '').toLowerCase();
-      if (actId.includes('p6') || pId.includes('p6')) {
+      if (!isValvula && (actId.includes('p6') || pId.includes('p6'))) {
         return false;
       }
 
-      // Excluir bloque p.D "Actividades pendientes de confirmar por el Ingeniero"
-      const rawWbs = a.wbs || '';
-      const wbs = rawWbs.replace(/^p\d{4}\./, 'p.');
-      if (wbs.startsWith('p.D') || wbs.toLowerCase().startsWith('pd')) return false;
+      // Excluir bloque p.D "Actividades pendientes de confirmar por el Ingeniero" (excepto válvulas)
+      if (!isValvula) {
+        const rawWbs = a.wbs || '';
+        const wbs = rawWbs.replace(/^p\d{4}\./, 'p.');
+        if (wbs.startsWith('p.D') || wbs.toLowerCase().startsWith('pd')) return false;
+      }
 
       // Excluir actividades de procura (procura, procurement) pero mantener las de "compra" o "adquisición"
       const descLower = (a.descripcion || '').toLowerCase();
@@ -56,10 +61,10 @@ export const GanttPorContratar: React.FC<GanttPorContratarProps> = ({
         return false;
       }
 
-      const tipoName = (a.tipo || '').toLowerCase();
-      const isElectrico = tipoName.includes('electrico') || tipoName.includes('eléctrico') || tipoName.includes('electrica') || tipoName.includes('eléctrica');
-      const isMecanico = tipoName.includes('mecanico') || tipoName.includes('mecánico');
-      const isInstrumentacion = tipoName.includes('instrumentacion') || tipoName.includes('instrumentación') || tipoName.includes('control');
+      const tipoName = `${a.tipo || ''} ${a.grupo || ''}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const isElectrico = tipoName.includes('electrico') || tipoName.includes('electrica');
+      const isMecanico = tipoName.includes('mecanico') || tipoName.includes('mecanica');
+      const isInstrumentacion = tipoName.includes('instrumentacion') || tipoName.includes('control');
       
       if (!isElectrico && !isMecanico && !isInstrumentacion) return false;
       

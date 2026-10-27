@@ -1,0 +1,2 @@
+sed -i 's/onUpdateActividad?: (activityIdOrId: string, updates: Partial<Actividad>) => void;/onUpdateActividad?: (activityIdOrId: string, updates: Partial<Actividad>) => void;\n  onAddActividad?: (actividad: Actividad) => void;\n  onDeleteActividad?: (activityIdOrId: string) => void;/' src/components/MasterTab.tsx
+sed -i 's/onUpdateActividad\n}: MasterTabProps/onUpdateActividad,\n  onAddActividad,\n  onDeleteActividad\n}: MasterTabProps/' src/components/MasterTab.tsx

@@ -5,12 +5,15 @@
 
 import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, ChevronDown, Download, Filter, Sparkles, Brain, Send, AlertCircle, RefreshCw, FileSpreadsheet, Copy, FileText, Check, Calendar, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { ChevronRight, ChevronDown, Download, Filter, Sparkles, Brain, Send, AlertCircle, RefreshCw, FileSpreadsheet, Copy, FileText, Check, Calendar, ChevronsUpDown, ChevronsDownUp, Layers, Terminal, ShoppingCart, Truck, Wrench, HardHat, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { GanttMetricas } from './GanttMetricas';
 import { GanttPorContratar } from './GanttPorContratar';
 import { GanttTipologia } from './GanttTipologia';
 import { ControlSemanalTabla } from './ControlSemanalTabla';
+import { AnalisisProyectoCard } from './AnalisisProyectoCard';
 import { isIgnoredFinishDate } from '../utils/helpers';
+import { exportGanttToPdfA3 } from '../utils/exportGanttPdf';
+import { compareWbs, parseWbsAndDescription, DEFAULT_CHAPTER_DESCRIPTIONS, hasDirectoOrDSegment } from '../utils/masterCdoHierarchy';
 
 interface CronogramaTabProps {
   actividades: any[];
@@ -24,6 +27,8 @@ interface CronogramaTabProps {
   setGanttStatus: (v: string) => void;
   ganttFloat: string;
   setGanttFloat: (v: string) => void;
+  ganttPAc?: string;
+  setGanttPAc?: (v: string) => void;
   ganttTipo: string;
   setGanttTipo: (v: string) => void;
   ganttExp: Set<string>;
@@ -89,7 +94,7 @@ interface CronogramaTabProps {
 }
 
 export const CronogramaTab: React.FC<CronogramaTabProps> = ({
-  actividades,
+  actividades: rawActividades,
   dataPlanificadoPG004,
   statsCronograma,
   kpiSelected,
@@ -100,6 +105,8 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
   setGanttStatus,
   ganttFloat,
   setGanttFloat,
+  ganttPAc: propsGanttPAc,
+  setGanttPAc: propsSetGanttPAc,
   ganttTipo,
   setGanttTipo,
   ganttExp,
@@ -163,6 +170,74 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
   setFechaCorteState,
   isLoggedIn,
 }) => {
+  // Helper para verificar si una actividad pertenece a la partida D
+  const isPartidaD = React.useCallback((a: any): boolean => {
+    if (!a) return false;
+    const rawWbs = String(a.wbs || a.wbsRaw || '');
+    if (hasDirectoOrDSegment(rawWbs)) return true;
+    const clean = rawWbs.trim().toLowerCase();
+    if (clean.startsWith('p.d') || (clean.startsWith('p0') && clean.includes('.d'))) return true;
+    const parts = clean.split('.');
+    if (parts.length >= 2 && parts[1] === 'd') return true;
+    if (parts.length === 1 && parts[0] === 'd') return true;
+
+    const partidasStr = String(a.partidas || a.partida || '').trim().toLowerCase();
+    if (partidasStr === 'd' || partidasStr.startsWith('d.') || partidasStr.startsWith('partida d') || partidasStr === 'partidas directas / adicionales') return true;
+
+    const capStr = String(a.cap || '').trim().toLowerCase();
+    if (capStr === 'd' || capStr.startsWith('d.') || capStr.startsWith('partida d')) return true;
+
+    return false;
+  }, []);
+
+  // Actualizar fechas baseline para actividades que al no estar en la partida D tienen BL inicio y BL Fin 30-abr-27:
+  // Para esas actividades se actualizan las fechas baseline a las que tengamos en inicio y fin
+  const actividades = React.useMemo(() => {
+    if (!rawActividades || !Array.isArray(rawActividades)) return [];
+
+    const toValidDate = (d: any): Date | null => {
+      if (!d) return null;
+      if (d instanceof Date && !isNaN(d.getTime())) return d;
+      if (typeof d === 'string' || typeof d === 'number') {
+        const pd = new Date(d);
+        if (!isNaN(pd.getTime())) return pd;
+      }
+      return null;
+    };
+
+    return rawActividades.map(a => {
+      const safeStart = toValidDate(a.start);
+      const safeFinish = toValidDate(a.finish);
+      let newBlStart = toValidDate(a.blStart);
+      let newBlFinish = toValidDate(a.blFinish);
+
+      if (!isPartidaD(a)) {
+        const blStartIs30Abr = isIgnoredFinishDate(a.blStart);
+        const blFinishIs30Abr = isIgnoredFinishDate(a.blFinish);
+        if (blStartIs30Abr || blFinishIs30Abr) {
+          if (blStartIs30Abr) newBlStart = safeStart || newBlStart;
+          if (blFinishIs30Abr) newBlFinish = safeFinish || newBlFinish;
+        }
+      }
+
+      return {
+        ...a,
+        start: safeStart || a.start,
+        finish: safeFinish || a.finish,
+        blStart: newBlStart || a.blStart,
+        blFinish: newBlFinish || a.blFinish
+      };
+    });
+  }, [rawActividades, isPartidaD]);
+
+  const { globalMinFloat, hasNegativeGlobalFloat } = React.useMemo(() => {
+    const validFloats = actividades
+      .filter(a => a.esItemHoja && a.totalFloat !== null && a.totalFloat !== undefined && !isNaN(Number(a.totalFloat)))
+      .map(a => Number(a.totalFloat));
+    const minVal = validFloats.length > 0 ? Math.min(...validFloats) : 0;
+    return { globalMinFloat: minVal, hasNegativeGlobalFloat: minVal < 0 };
+  }, [actividades]);
+
   const ganttBodyRef = useRef<HTMLDivElement>(null);
   const ganttBarRef = useRef<HTMLDivElement>(null);
 
@@ -172,6 +247,15 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
   const scrollLeftRef = useRef(0);
   const scrollTopRef = useRef(0);
   const [dragActive, setDragActive] = React.useState(false);
+
+  // Optimization: Defer mounting heavy bottom table to allow Gantt chart to paint immediately
+  const [renderBottomControl, setRenderBottomControl] = React.useState(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setRenderBottomControl(true);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleGanttMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
@@ -219,8 +303,57 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
   const [selectedRoots, setSelectedRoots] = React.useState<Set<string>>(new Set());
   const [multiSelEnabled, setMultiSelEnabled] = React.useState(false);
   const [appliedSelectedRoots, setAppliedSelectedRoots] = React.useState<Set<string>>(new Set());
+  const [ganttHierarchyLevel, setGanttHierarchyLevel] = React.useState<string>('all');
+  const [ganttHierarchyMode, setGanttHierarchyMode] = React.useState<'wbs' | 'tipo_subc_scap_unit'>('wbs');
 
-  const [searchFieldType, setSearchFieldType] = React.useState<'descripcion' | 'cap' | 'scap' | 'subcontratista'>('descripcion');
+  const [internalGanttPAc, setInternalGanttPAc] = React.useState<string>('all');
+  const ganttPAc = propsGanttPAc ?? internalGanttPAc;
+  const setGanttPAc = propsSetGanttPAc ?? setInternalGanttPAc;
+  const [isGanttPAcDropdownOpen, setIsGanttPAcDropdownOpen] = React.useState<boolean>(false);
+  const pacDropdownRef = React.useRef<HTMLDivElement>(null);
+  const [isPythonMenuOpen, setIsPythonMenuOpen] = React.useState<boolean>(false);
+  const pythonMenuRef = React.useRef<HTMLDivElement>(null);
+
+  // Filtros de Tipo en Gantt: Procura, Flete, Montaje, Construcción
+  const [isGanttProcuraFilter, setIsGanttProcuraFilter] = React.useState<boolean>(false);
+  const [isGanttFleteFilter, setIsGanttFleteFilter] = React.useState<boolean>(false);
+  const [isGanttMontajeFilter, setIsGanttMontajeFilter] = React.useState<boolean>(false);
+  const [isGanttConstruccionFilter, setIsGanttConstruccionFilter] = React.useState<boolean>(false);
+
+  // Estados de ordenamiento por fecha en el Gantt: 'start' (Inicio) o 'finish' (Fin)
+  const [ganttSortField, setGanttSortField] = React.useState<'start' | 'finish' | null>(null);
+  const [ganttSortOrder, setGanttSortOrder] = React.useState<'asc' | 'desc'>('asc');
+
+  const handleToggleDateSort = (field: 'start' | 'finish') => {
+    if (ganttSortField !== field) {
+      setGanttSortField(field);
+      setGanttSortOrder('asc'); // Primero earliest a latest
+    } else if (ganttSortOrder === 'asc') {
+      setGanttSortOrder('desc'); // Luego latest a earliest
+    } else {
+      setGanttSortField(null); // Quitar orden
+      setGanttSortOrder('asc');
+    }
+  };
+
+  const ganttPAcDisponibles = React.useMemo(() => {
+    if (!actividades) return [];
+    const set = new Set<string>();
+    actividades.forEach(a => {
+      if (a.esItemHoja) {
+        const val = (a.pAc || '').trim();
+        if (val) set.add(val);
+        else set.add('(Sin P.Ac)');
+      }
+    });
+    return Array.from(set).sort((a, b) => {
+      if (a === '(Sin P.Ac)') return 1;
+      if (b === '(Sin P.Ac)') return -1;
+      return a.localeCompare(b);
+    });
+  }, [actividades]);
+
+  const [searchFieldType, setSearchFieldType] = React.useState<'descripcion' | 'cap' | 'scap' | 'subcontratista' | 'pac'>('descripcion');
   const [isSearchPopupOpen, setIsSearchPopupOpen] = React.useState(false);
   const [popupCoords, setPopupCoords] = React.useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
   const searchRef = React.useRef<HTMLDivElement>(null);
@@ -434,8 +567,27 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
       }
     }
 
+    // 3. Filtro Procura / Flete / Montaje / Construcción
+    if (isGanttMontajeFilter || isGanttProcuraFilter || isGanttFleteFilter || isGanttConstruccionFilter) {
+      list = list.filter(a => {
+        if (!a.esItemHoja) return true;
+        const cleanName = (a.descripcion || (a as any).activityName || '').trim().replace(/^["'«\s\-\.]*/, '');
+        const isM = /^inst/i.test(cleanName);
+        const isP = /^compr/i.test(cleanName);
+        const isF = /^flete/i.test(cleanName);
+        const isC = !isM && !isP && !isF;
+
+        const matchesMontaje = isGanttMontajeFilter && isM;
+        const matchesProcura = isGanttProcuraFilter && isP;
+        const matchesFlete = isGanttFleteFilter && isF;
+        const matchesConstruccion = isGanttConstruccionFilter && isC;
+
+        return matchesMontaje || matchesProcura || matchesFlete || matchesConstruccion;
+      });
+    }
+
     return list;
-  }, [actividades, appliedSelectedRoots, smartFilterActive, smartFilterStart, smartFilterEnd]);
+  }, [actividades, appliedSelectedRoots, smartFilterActive, smartFilterStart, smartFilterEnd, isGanttMontajeFilter, isGanttProcuraFilter, isGanttFleteFilter, isGanttConstruccionFilter]);
   
   // Estados para reporte de equipos a demanda
   const [eqReportOpen, setEqReportOpen] = React.useState(false);
@@ -456,6 +608,23 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
   const [eqTipoFilter, setEqTipoFilter] = React.useState('all');
   const [copiedAlert, setCopiedAlert] = React.useState(false);
   const [copiedGantt, setCopiedGantt] = React.useState(false);
+  const [isExportingGanttPdf, setIsExportingGanttPdf] = React.useState(false);
+
+  const handleExportGanttPdf = async () => {
+    try {
+      setIsExportingGanttPdf(true);
+      setIsSmartFilterOpen(false);
+      setIsBlStartFilterOpen(false);
+      setIsBlFinishFilterOpen(false);
+      setIsGanttPAcDropdownOpen(false);
+      setIsPythonMenuOpen(false);
+      await exportGanttToPdfA3('gantt-card-container');
+    } catch (err) {
+      console.error('Error al exportar GANTT a PDF:', err);
+    } finally {
+      setIsExportingGanttPdf(false);
+    }
+  };
   const [reportTab, setReportTab] = React.useState<'table' | 'text'>('table');
   const [expandedReportWbs, setExpandedReportWbs] = React.useState<Record<string, boolean>>({});
   const [expandedReportScap, setExpandedReportScap] = React.useState<Record<string, boolean>>({});
@@ -497,6 +666,10 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
       if (smartFilterRef.current && !smartFilterRef.current.contains(event.target as Node)) {
         setIsSmartFilterOpen(false);
       }
+
+      if (pythonMenuRef.current && !pythonMenuRef.current.contains(event.target as Node)) {
+        setIsPythonMenuOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
@@ -516,7 +689,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
     };
   }, [isSearchPopupOpen]);
 
-  const getUniqueValues = (field: 'cap' | 'scap' | 'subcontratista') => {
+  const getUniqueValues = (field: 'cap' | 'scap' | 'subcontratista' | 'pac') => {
     const valuesSet = new Set<string>();
     
     // Filtramos las actividades según la tipología seleccionada antes de extraer los valores únicos
@@ -533,7 +706,12 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
     }
 
     filteredList.forEach(a => {
-      const val = a[field];
+      let val = '';
+      if (field === 'cap') val = a.cap;
+      else if (field === 'scap') val = a.scap;
+      else if (field === 'subcontratista') val = a.subcontratista || a.subC;
+      else if (field === 'pac') val = a.pAc;
+
       if (val && typeof val === 'string' && val.trim() !== '') {
         valuesSet.add(val.trim());
       }
@@ -1088,8 +1266,9 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                kpiSelected === 'acCompletadas' ? 'Actividades Completadas' :
                kpiSelected === 'acEnCurso' ? 'Actividades en Curso' :
                kpiSelected === 'acNoIniciadas' ? 'Actividades no Iniciadas' :
-               kpiSelected === 'acCriticas' ? 'Actividades Críticas' :
-               kpiSelected === 'acSubcriticas' ? 'Actividades Subcríticas' :
+               kpiSelected === 'acCriticas' ? (hasNegativeGlobalFloat ? `Ruta Crítica (${globalMinFloat}d)` : 'Actividades Críticas (0d)') :
+               kpiSelected === 'acSubcriticas' ? 'Actividades Subcríticas (<0d)' :
+               kpiSelected === 'acRiesgosas' ? 'Actividades Riesgosas (0-20d)' :
                'Riesgo Crítico'}
               </strong>. El árbol se ha auto-expandido automáticamente.
             </span>
@@ -1668,33 +1847,147 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
         const ganttNodes: any[] = [];
         const partidasAdded = new Set<string>();
 
-        actividades.forEach(a => {
-          const rawWbs = a.wbs || '';
-          if (rawWbs.toLowerCase().includes('p6')) {
-            return;
-          }
-          // Excluir toda actividad que inicie con Procura
-          if (a.descripcion && a.descripcion.trim().toLowerCase().startsWith('procura')) {
-            return;
-          }
-          const wbs = normalize(rawWbs);
-          if (wbs.toLowerCase().startsWith('p.d')) return;
-          if (!wbs.startsWith('p.') && !wbs.startsWith('p.D')) return;
-          // Excluir raíz del proyecto (e.g. p0326, p0526, etc.)
-          if (/^p\d{4}$/.test(wbs)) return;
+        if (ganttHierarchyMode === 'wbs') {
+          // Pre-populate descriptions dictionary from Column A and activity names
+          const wbsDescLookup = new Map<string, string>();
+          actividades.forEach(a => {
+            const raw = a.wbs || (a as any).wbsRaw || '';
+            const p = parseWbsAndDescription(raw);
+            if (p.description) {
+              const cleanCode = p.wbs.toLowerCase();
+              wbsDescLookup.set(cleanCode, p.description);
+              wbsDescLookup.set(cleanCode.replace(/^p\d{4}\./, 'p.'), p.description);
+            }
+            if (a.descripcion && !a.esItemHoja) {
+              const cleanCode = (p.wbs || raw).toLowerCase();
+              if (!wbsDescLookup.has(cleanCode)) {
+                wbsDescLookup.set(cleanCode, a.descripcion);
+                wbsDescLookup.set(cleanCode.replace(/^p\d{4}\./, 'p.'), a.descripcion);
+              }
+            }
+          });
 
-          if (!a.esItemHoja) {
-            // Partida: agregar una sola vez
-            if (!partidasAdded.has(wbs)) {
-              partidasAdded.add(wbs);
-              const parts = wbs.split('.');
+          actividades.forEach(a => {
+            const rawWbs = a.wbs || (a as any).wbsRaw || '';
+            const scapLower = String(a.scap || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            const isValvula = scapLower === 'valvulas' || /valvul/i.test(scapLower);
+            if (!isValvula && rawWbs.toLowerCase().includes('p6')) {
+              return;
+            }
+            // Excluir toda actividad que inicie con Procura
+            if (a.descripcion && a.descripcion.trim().toLowerCase().startsWith('procura')) {
+              return;
+            }
+            const parsed = parseWbsAndDescription(rawWbs);
+            const wbs = normalize(parsed.wbs || rawWbs);
+            if (!wbs.startsWith('p.') && !wbs.startsWith('p.D') && !wbs.toLowerCase().startsWith('p.d')) return;
+            // Excluir raíz del proyecto (e.g. p0326, p0526, etc.)
+            if (/^p\d{4}$/.test(wbs)) return;
+
+            if (!a.esItemHoja) {
+              // Partida: agregar una sola vez
+              if (!partidasAdded.has(wbs)) {
+                partidasAdded.add(wbs);
+                const parts = wbs.split('.');
+                const chSeg = parts[1];
+                const resolvedDesc = parsed.description ||
+                  (a.descripcion && !/^partida\s+/i.test(a.descripcion) ? a.descripcion : null) ||
+                  wbsDescLookup.get(wbs.toLowerCase()) ||
+                  wbsDescLookup.get(wbs.toLowerCase().replace(/^p\d{4}\./, 'p.')) ||
+                  (chSeg && DEFAULT_CHAPTER_DESCRIPTIONS[chSeg]) ||
+                  a.descripcion || '';
+
+                ganttNodes.push({
+                  key: wbs,
+                  wbs,
+                  parentKey: parts.length > 2 ? parts.slice(0, -1).join('.') : null,
+                  actId: null,
+                  desc: resolvedDesc,
+                  nivel: parts.length,
+                  start: null,
+                  finish: null,
+                  blStart: null,
+                  blFinish: null,
+                  tf: null,
+                  p6: '',
+                  tipo: '',
+                  esHoja: false
+                });
+              }
+            } else {
+              // Eliminar actividades que no tienen total float (campo es null o indefinido)
+              if (a.totalFloat === null || a.totalFloat === undefined) return;
+
+              // Excluir actividades con finish 30-abr-2027 (específicamente 08:00 am / fecha fin 30-abr-2027)
+              if (isIgnoredFinishDate(a.finish)) return;
+
+              // Hoja: clave única wbs.__actId
+              const parentKey = wbs; // partida padre es el wbs normalizado
+              const key = `${wbs}.__${a.activityId || a.id}`;
+              const leafDesc = a.descripcion || parsed.description || '';
               ganttNodes.push({
-                key: wbs,
+                key,
                 wbs,
-                parentKey: parts.length > 2 ? parts.slice(0, -1).join('.') : null,
+                parentKey,
+                actId: a.activityId || null,
+                desc: leafDesc,
+                nivel: wbs.split('.').length + 1,
+                start: isValidDate(a.start) ? a.start : null,
+                finish: isValidDate(a.finish) ? a.finish : null,
+                blStart: isValidDate(a.blStart) ? a.blStart : null,
+                blFinish: isValidDate(a.blFinish) ? a.blFinish : null,
+                tf: a.totalFloat,
+                p6: a.p6Status || '',
+                tipo: a.tipo || '',
+                esHoja: true,
+                actividadRef: a
+              });
+            }
+          });
+        } else {
+          // ── Vista 2: Agrupación Jerárquica Componente (Columna AJ) -> Tipo -> SubC -> Scap -> Unit -> Actividad ──
+          const componentesAdded = new Set<string>();
+          const tiposAdded = new Set<string>();
+          const subcsAdded = new Set<string>();
+          const scapsAdded = new Set<string>();
+          const unitsAdded = new Set<string>();
+
+          actividades.forEach(a => {
+            if (!a.esItemHoja) return;
+            const rawWbs = a.wbs || '';
+            const scapLower = String(a.scap || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            const isValvula = scapLower === 'valvulas' || /valvul/i.test(scapLower);
+            if (!isValvula && rawWbs.toLowerCase().includes('p6')) return;
+            if (a.descripcion && a.descripcion.trim().toLowerCase().startsWith('procura')) return;
+            const wbs = normalize(rawWbs);
+            if (!wbs.startsWith('p.') && !wbs.startsWith('p.D') && !wbs.toLowerCase().startsWith('p.d')) return;
+            if (/^p\d{4}$/.test(wbs)) return;
+            if (a.totalFloat === null || a.totalFloat === undefined) return;
+            if (isIgnoredFinishDate(a.finish)) return;
+
+            const compVal = (a.componente || (a as any).comp || '').trim() || 'Sin Componente';
+            const tipoVal = (a.tipo || (a as any).tipoG || '').trim() || 'Sin Tipo';
+            const subcVal = (a.subcontratista || (a as any).subC || '').trim() || 'Sin SubC';
+            const scapVal = (a.scap || '').trim() || 'Sin Scap';
+            const unitVal = (a.unit || '').trim() || 'Sin Unit';
+
+            const compKey = `COMP__${compVal}`;
+            const tipoKey = `${compKey}__TIPO__${tipoVal}`;
+            const subcKey = `${tipoKey}__SUBC__${subcVal}`;
+            const scapKey = `${subcKey}__SCAP__${scapVal}`;
+            const unitKey = `${scapKey}__UNIT__${unitVal}`;
+            const actKey = `${unitKey}__ACT__${a.id || a.activityId}_${a.wbs || ''}`;
+
+            // Nivel 2: Componente (Raíz)
+            if (!componentesAdded.has(compKey)) {
+              componentesAdded.add(compKey);
+              ganttNodes.push({
+                key: compKey,
+                wbs: 'COMPONENTE',
+                parentKey: null,
                 actId: null,
-                desc: a.descripcion || '',
-                nivel: parts.length,
+                desc: compVal,
+                nivel: 2,
                 start: null,
                 finish: null,
                 blStart: null,
@@ -1705,23 +1998,99 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                 esHoja: false
               });
             }
-          } else {
-            // Eliminar actividades que no tienen total float (campo es null o indefinido)
-            if (a.totalFloat === null || a.totalFloat === undefined) return;
 
-            // Excluir actividades con finish 30-abr-2027 (específicamente 08:00 am / fecha fin 30-abr-2027)
-            if (isIgnoredFinishDate(a.finish)) return;
+            // Nivel 3: Tipo (Hijo de Componente)
+            if (!tiposAdded.has(tipoKey)) {
+              tiposAdded.add(tipoKey);
+              ganttNodes.push({
+                key: tipoKey,
+                wbs: 'TIPO',
+                parentKey: compKey,
+                actId: null,
+                desc: tipoVal,
+                nivel: 3,
+                start: null,
+                finish: null,
+                blStart: null,
+                blFinish: null,
+                tf: null,
+                p6: '',
+                tipo: tipoVal,
+                esHoja: false
+              });
+            }
 
-            // Hoja: clave única wbs.__actId
-            const parentKey = wbs; // partida padre es el wbs normalizado
-            const key = `${wbs}.__${a.activityId || a.id}`;
+            // Nivel 4: SubC (Hijo de Tipo)
+            if (!subcsAdded.has(subcKey)) {
+              subcsAdded.add(subcKey);
+              ganttNodes.push({
+                key: subcKey,
+                wbs: 'SUBC',
+                parentKey: tipoKey,
+                actId: null,
+                desc: subcVal,
+                nivel: 4,
+                start: null,
+                finish: null,
+                blStart: null,
+                blFinish: null,
+                tf: null,
+                p6: '',
+                tipo: tipoVal,
+                esHoja: false
+              });
+            }
+
+            // Nivel 5: Scap (Hijo de SubC)
+            if (!scapsAdded.has(scapKey)) {
+              scapsAdded.add(scapKey);
+              ganttNodes.push({
+                key: scapKey,
+                wbs: 'SCAP',
+                parentKey: subcKey,
+                actId: null,
+                desc: scapVal,
+                nivel: 5,
+                start: null,
+                finish: null,
+                blStart: null,
+                blFinish: null,
+                tf: null,
+                p6: '',
+                tipo: tipoVal,
+                esHoja: false
+              });
+            }
+
+            // Nivel 6: Unit (Hijo de Scap)
+            if (!unitsAdded.has(unitKey)) {
+              unitsAdded.add(unitKey);
+              ganttNodes.push({
+                key: unitKey,
+                wbs: 'UNIT',
+                parentKey: scapKey,
+                actId: null,
+                desc: unitVal,
+                nivel: 6,
+                start: null,
+                finish: null,
+                blStart: null,
+                blFinish: null,
+                tf: null,
+                p6: '',
+                tipo: tipoVal,
+                esHoja: false
+              });
+            }
+
+            // Nivel 7: Actividad (Hoja)
             ganttNodes.push({
-              key,
+              key: actKey,
               wbs,
-              parentKey,
+              parentKey: unitKey,
               actId: a.activityId || null,
               desc: a.descripcion || '',
-              nivel: wbs.split('.').length + 1,
+              nivel: 7,
               start: isValidDate(a.start) ? a.start : null,
               finish: isValidDate(a.finish) ? a.finish : null,
               blStart: isValidDate(a.blStart) ? a.blStart : null,
@@ -1732,21 +2101,11 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
               esHoja: true,
               actividadRef: a
             });
-          }
-        });
+          });
+        }
 
         // ── Mapa por key para lookup rápido ──────────────────────────
         const nodeMap = new Map<string, any>(ganttNodes.map(n => [n.key, n]));
-
-        // ── Raíces: nivel 2 (p.1..p.17, p.D), no hojas ──────────────
-        const ganttRoots = ganttNodes
-          .filter(n => n.nivel === 2 && !n.esHoja)
-          .sort((a, b) => {
-            const ka = a.wbs.replace('p.', ''), kb = b.wbs.replace('p.', '');
-            const na = isNaN(Number(ka)) ? Infinity : Number(ka);
-            const nb = isNaN(Number(kb)) ? Infinity : Number(kb);
-            return na !== nb ? na - nb : ka.localeCompare(kb);
-          });
 
         // ── Children Mapping for O(1) lookup ──
         const childrenMap = new Map<string, any[]>();
@@ -1759,7 +2118,107 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           }
         });
 
-        const childrenOf = (key: string) => childrenMap.get(key) || [];
+        // ── Cache de fechas para ordenamiento de cualquier nodo (hojas o carpetas) ──
+        const nodeSpanMap = new Map<string, { start: Date | null; finish: Date | null }>();
+        const getNodeSpan = (key: string): { start: Date | null; finish: Date | null } => {
+          if (nodeSpanMap.has(key)) return nodeSpanMap.get(key)!;
+          const node = nodeMap.get(key);
+          if (!node) return { start: null, finish: null };
+          if (node.esHoja) {
+            const res = {
+              start: isValidDate(node.start) ? node.start : null,
+              finish: isValidDate(node.finish) ? node.finish : null
+            };
+            nodeSpanMap.set(key, res);
+            return res;
+          }
+          const children = childrenMap.get(key) || [];
+          let minStart: number | null = null;
+          let maxFinish: number | null = null;
+          children.forEach(c => {
+            const childSpan = getNodeSpan(c.key);
+            if (childSpan.start && isValidDate(childSpan.start)) {
+              const t = childSpan.start.getTime();
+              if (minStart === null || t < minStart) minStart = t;
+            }
+            if (childSpan.finish && isValidDate(childSpan.finish)) {
+              const t = childSpan.finish.getTime();
+              if (maxFinish === null || t > maxFinish) maxFinish = t;
+            }
+          });
+          const res = {
+            start: minStart !== null ? new Date(minStart) : null,
+            finish: maxFinish !== null ? new Date(maxFinish) : null
+          };
+          nodeSpanMap.set(key, res);
+          return res;
+        };
+
+        const compareByDate = (a: any, b: any): number => {
+          if (!ganttSortField) return 0;
+          const spanA = getNodeSpan(a.key);
+          const spanB = getNodeSpan(b.key);
+          const dateA = ganttSortField === 'start' ? spanA.start : spanA.finish;
+          const dateB = ganttSortField === 'start' ? spanB.start : spanB.finish;
+          const timeA = dateA && isValidDate(dateA) ? dateA.getTime() : null;
+          const timeB = dateB && isValidDate(dateB) ? dateB.getTime() : null;
+
+          if (timeA !== null && timeB !== null) {
+            if (timeA !== timeB) {
+              return ganttSortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+            }
+          } else if (timeA !== null) {
+            return -1;
+          } else if (timeB !== null) {
+            return 1;
+          }
+          return 0;
+        };
+
+        // ── Raíces: nivel 2 (p.1..p.17 en WBS, o Tipos en Vista 2), no hojas ──────────────
+        const ganttRoots = ganttNodes
+          .filter(n => n.nivel === 2 && !n.esHoja)
+          .sort((a, b) => {
+            if (ganttSortField) {
+              const dateDiff = compareByDate(a, b);
+              if (dateDiff !== 0) return dateDiff;
+            }
+            if (ganttHierarchyMode === 'tipo_subc_scap_unit') {
+              return (a.desc || '').localeCompare(b.desc || '');
+            }
+            return compareWbs(a.wbs, b.wbs);
+          });
+
+        const childrenOf = (key: string) => {
+          const list = childrenMap.get(key) || [];
+          if (ganttHierarchyMode === 'tipo_subc_scap_unit') {
+            return list.slice().sort((a, b) => {
+              if (!a.esHoja && b.esHoja) return -1;
+              if (a.esHoja && !b.esHoja) return 1;
+              if (ganttSortField) {
+                const dateDiff = compareByDate(a, b);
+                if (dateDiff !== 0) return dateDiff;
+              }
+              if (a.esHoja && b.esHoja) {
+                if (a.start && b.start) {
+                  const diff = a.start.getTime() - b.start.getTime();
+                  if (diff !== 0) return diff;
+                }
+                return (a.actId || a.desc || '').localeCompare(b.actId || b.desc || '');
+              }
+              return (a.desc || '').localeCompare(b.desc || '');
+            });
+          }
+          return list.slice().sort((a, b) => {
+            if (!a.esHoja && b.esHoja) return -1;
+            if (a.esHoja && !b.esHoja) return 1;
+            if (ganttSortField) {
+              const dateDiff = compareByDate(a, b);
+              if (dateDiff !== 0) return dateDiff;
+            }
+            return compareWbs(a.wbs, b.wbs);
+          });
+        };
 
         // ── Rango del proyecto ────────────────────────────────────────
         const today = new Date();
@@ -1860,15 +2319,32 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
             } else if (kpiSelected === 'acTotal') {
               match = true;
             } else if (kpiSelected === 'acCompletadas') {
-              match = act.p6Status === 'Completed';
+              const p = (act.p6Status || act.status || act.p6 || '').toLowerCase();
+              match = p === 'completed' || p.includes('complet') || p.includes('finaliz');
             } else if (kpiSelected === 'acEnCurso') {
-              match = act.p6Status === 'In Progress';
+              const p = (act.p6Status || act.status || act.p6 || '').toLowerCase();
+              match = p === 'in progress' || p.includes('progress') || p.includes('progreso') || p.includes('curso');
             } else if (kpiSelected === 'acNoIniciadas') {
-              match = act.p6Status === 'Not Started';
+              const p = (act.p6Status || act.status || act.p6 || '').toLowerCase();
+              match = p === 'not started' || p.includes('not start') || p.includes('no inic') || p.includes('no-inic');
             } else if (kpiSelected === 'acCriticas') {
-              match = act.totalFloat === 0 && (act.p6Status === 'In Progress' || act.p6Status === 'Not Started');
+              if (act.totalFloat === null || act.totalFloat === undefined || isNaN(Number(act.totalFloat))) match = false;
+              else {
+                const val = Number(act.totalFloat);
+                match = hasNegativeGlobalFloat ? val === globalMinFloat : val === 0;
+              }
             } else if (kpiSelected === 'acSubcriticas') {
-              match = act.totalFloat !== null && act.totalFloat > 0 && act.totalFloat < 40;
+              if (act.totalFloat === null || act.totalFloat === undefined || isNaN(Number(act.totalFloat))) match = false;
+              else {
+                const val = Number(act.totalFloat);
+                match = hasNegativeGlobalFloat ? (val > globalMinFloat && val < 0) : false;
+              }
+            } else if (kpiSelected === 'acRiesgosas') {
+              if (act.totalFloat === null || act.totalFloat === undefined || isNaN(Number(act.totalFloat))) match = false;
+              else {
+                const val = Number(act.totalFloat);
+                match = val >= 0 && val <= 20;
+              }
             } else if (kpiSelected === 'criticos') {
               match = act.diasAtrasoMaximo > 30;
             }
@@ -1877,12 +2353,30 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
           // Status
           if (ganttStatus !== 'all' && n.esHoja) {
-            const p = (n.p6 || '').trim().toLowerCase();
+            const rawP = (n.actividadRef?.p6Status || n.p6 || n.actividadRef?.status || '').trim().toLowerCase();
+            let cat = 'other';
+            if (rawP === 'completed' || rawP.includes('complet') || rawP.includes('finaliz')) cat = 'completed';
+            else if (rawP === 'in progress' || rawP.includes('progress') || rawP.includes('progreso') || rawP.includes('curso')) cat = 'in progress';
+            else if (rawP === 'not started' || rawP.includes('not start') || rawP.includes('no inic') || rawP.includes('no-inic')) cat = 'not started';
+
             const allowedStatuses = ganttStatus.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-            const isKnown = ['completed', 'in progress', 'not started'].includes(p);
-            const matchKnown = allowedStatuses.includes(p);
-            const matchOther = allowedStatuses.includes('__other__') && !isKnown;
+            const matchKnown = allowedStatuses.includes(cat) || allowedStatuses.includes(rawP);
+            const matchOther = allowedStatuses.includes('__other__') && cat === 'other';
             if (!matchKnown && !matchOther) return false;
+          }
+          // P.Ac
+          if (ganttPAc !== 'all' && n.esHoja) {
+            if (ganttPAc === '__none__') return false;
+            const allowedPAcs = ganttPAc.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+            const rawPAc = (n.actividadRef?.pAc || n.pAc || '').trim().toLowerCase();
+            const normalizedItemPAc = rawPAc || '(sin p.ac)';
+            const matches = allowedPAcs.some(p => {
+              if (p === '(sin p.ac)' || p === 'sin p.ac' || p === 'sin p_ac' || p === 'vacio' || p === '(vacio)' || p === 'sin pac') {
+                return !rawPAc || normalizedItemPAc === '(sin p.ac)';
+              }
+              return rawPAc === p || normalizedItemPAc === p;
+            });
+            if (!matches) return false;
           }
           // Tipología
           if (ganttTipo !== 'all' && n.esHoja) {
@@ -1904,32 +2398,40 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
             } else if (searchFieldType === 'subcontratista') {
               const subcValue = n.actividadRef?.subcontratista?.toLowerCase() || '';
               if (!subcValue.includes(qg)) return false;
+            } else if (searchFieldType === 'pac') {
+              const pacValue = (n.actividadRef?.pAc || n.pAc || '').toLowerCase();
+              if (!pacValue.includes(qg)) return false;
             }
           }
           // Float values
           if (ganttFloat !== 'all' && n.esHoja) {
             const tf = n.tf;
-            const allowedFloats = ganttFloat.split(',');
+            const allowedFloats = ganttFloat.split(',').map(s => s.trim()).filter(Boolean);
             const matchesAny = allowedFloats.some(fVal => {
               if (fVal === 'atrasados') {
                 return !!n.actividadRef?.estaAtrasadoCronograma;
               } else if (fVal === 'criticos') {
                 return !!(n.actividadRef && n.actividadRef.diasAtrasoMaximo > 30);
-              } else if (fVal === '0') {
-                const p6St = n.actividadRef?.p6Status || n.p6;
-                return tf === 0 && (p6St === 'In Progress' || p6St === 'Not Started');
+              } else if (fVal === 'criticas' || fVal === '0') {
+                if (tf === null || tf === undefined || isNaN(Number(tf))) return false;
+                const val = Number(tf);
+                return hasNegativeGlobalFloat ? val === globalMinFloat : val === 0;
+              } else if (fVal === 'subcriticas' || fVal === 'negativos') {
+                if (tf === null || tf === undefined || isNaN(Number(tf))) return false;
+                const val = Number(tf);
+                return hasNegativeGlobalFloat ? (val > globalMinFloat && val < 0) : false;
+              } else if (fVal === 'riesgosas' || fVal === 'lte20' || fVal === 'lte20sub' || fVal === 'lte40sub') {
+                if (tf === null || tf === undefined || isNaN(Number(tf))) return false;
+                const val = Number(tf);
+                return val >= 0 && val <= 20;
               } else if (fVal === 'lte10') {
                 return tf !== null && tf >= 0 && tf <= 10;
-              } else if (fVal === 'lte20') {
-                return tf !== null && tf >= 0 && tf <= 20;
               } else if (fVal === 'lte50' || fVal === 'lte45') {
-                return tf !== null && tf >= 0 && tf <= 50;
-              } else if (fVal === 'lte40sub') {
-                return tf !== null && tf > 0 && tf < 40;
+                return tf !== null && tf <= 50;
               } else if (fVal === 'gt50') {
                 return tf !== null && tf > 50;
               } else if (fVal === 'sd') {
-                return tf === null;
+                return tf === null || tf === undefined;
               }
               return false;
             });
@@ -1986,6 +2488,22 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
             }
           }
 
+          // Filtro Procura / Flete / Montaje / Construcción
+          if ((isGanttMontajeFilter || isGanttProcuraFilter || isGanttFleteFilter || isGanttConstruccionFilter) && n.esHoja) {
+            const cleanName = (n.desc || n.actividadRef?.descripcion || (n.actividadRef as any)?.activityName || '').trim().replace(/^["'«\s\-\.]*/, '');
+            const isM = /^inst/i.test(cleanName);
+            const isP = /^compr/i.test(cleanName);
+            const isF = /^flete/i.test(cleanName);
+            const isC = !isM && !isP && !isF;
+
+            const matchesMontaje = isGanttMontajeFilter && isM;
+            const matchesProcura = isGanttProcuraFilter && isP;
+            const matchesFlete = isGanttFleteFilter && isF;
+            const matchesConstruccion = isGanttConstruccionFilter && isC;
+
+            if (!matchesMontaje && !matchesProcura && !matchesFlete && !matchesConstruccion) return false;
+          }
+
           return true;
         };
 
@@ -1997,13 +2515,12 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
             if (!passFilter(n)) return;
             // Agregar la hoja
             s.add(n.key);
-            // Agregar todos sus ancestros (partidas padre)
+            // Agregar todos sus ancestros dinámicamente usando nodeMap
             let cur = n.parentKey;
             while (cur) {
               s.add(cur);
-              const parts = cur.split('.');
-              if (parts.length <= 2) break; // llegamos a la raíz
-              cur = parts.slice(0, -1).join('.');
+              const parentNode = nodeMap.get(cur);
+              cur = parentNode ? parentNode.parentKey : null;
             }
           });
           return s;
@@ -2107,6 +2624,38 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           };
           blSpanCacheMap.set(key, res);
           return res;
+        };
+
+        // ── Total Float mínimo dinámico según jerarquía (recursivo sobre hijos visibles con caché) ────
+        const minTfCacheMap = new Map<string, number | null>();
+        const calcMinTf = (key: string): number | null => {
+          if (minTfCacheMap.has(key)) return minTfCacheMap.get(key)!;
+          const node = nodeMap.get(key);
+          if (!node) return null;
+
+          if (node.esHoja) {
+            const rawVal = node.tf;
+            const res = (rawVal !== null && rawVal !== undefined && !isNaN(Number(rawVal))) ? Number(rawVal) : null;
+            minTfCacheMap.set(key, res);
+            return res;
+          }
+
+          let minVal: number | null = null;
+          const children = childrenOf(key);
+          children.forEach(c => {
+            const hasVisibleChildren = calcVisibleCount(c.key) > 0;
+            if (hasVisibleChildren) {
+              const childTf = calcMinTf(c.key);
+              if (childTf !== null && !isNaN(childTf)) {
+                if (minVal === null || childTf < minVal) {
+                  minVal = childTf;
+                }
+              }
+            }
+          });
+
+          minTfCacheMap.set(key, minVal);
+          return minVal;
         };
 
         // ── Render de un nodo (fila tabla + barra) ───────────────────
@@ -2261,7 +2810,31 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   {node.actId ? node.actId : node.wbs}
                 </span>
               </div>
-              <div className={`flex-1 flex items-center px-1 truncate min-w-0 ${textCls}`} title={node.desc}>{node.desc}</div>
+              <div className={`flex-1 flex items-center gap-1.5 px-1 truncate min-w-0 ${textCls}`} title={node.desc}>
+                <span className="truncate">{node.desc}</span>
+                {(() => {
+                  if (!node.esHoja) return null;
+                  const rowTf = calcMinTf(node.key);
+                  if (rowTf === null || rowTf === undefined) return null;
+                  const isRc = hasNegativeGlobalFloat ? rowTf === globalMinFloat : rowTf === 0;
+                  const isSubc = hasNegativeGlobalFloat && (rowTf > globalMinFloat && rowTf < 0);
+                  if (isRc) {
+                    return (
+                      <span className="px-1 py-0.2 rounded text-[7px] font-black bg-red-100 text-red-700 border border-red-300 shrink-0 uppercase tracking-tighter" title={`Ruta Crítica (Float mínimo: ${rowTf}d)`}>
+                        RC
+                      </span>
+                    );
+                  }
+                  if (isSubc) {
+                    return (
+                      <span className="px-1 py-0.2 rounded text-[7px] font-black bg-orange-100 text-orange-700 border border-orange-300 shrink-0 uppercase tracking-tighter" title={`Subcrítica / Critical (Float: ${rowTf}d)`}>
+                        Subcrítica
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
               <div className="flex-shrink-0 flex items-center justify-end px-1 font-mono text-[9px] text-slate-700 font-semibold truncate" style={{ width: 68 }} title={
                 node.esHoja ? (() => {
                   const act = node.actividadRef || a_find_or_mock(node.key);
@@ -2333,14 +2906,51 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   </span>
                 ) : null}
               </div>
-              <div className="flex-shrink-0 flex items-center justify-end px-1 text-gray-400 font-mono" style={{ width: 36 }}>{dur > 0 ? `${dur}d` : ''}</div>
               <div className="flex-shrink-0 flex items-center px-1 text-gray-450 text-[9px] font-mono" style={{ width: 62 }}>{fmtShort(span.start)}</div>
               <div className="flex-shrink-0 flex items-center px-1 text-gray-455 text-[9px] font-mono" style={{ width: 62 }}>{fmtShort(span.finish)}</div>
               <div className="flex-shrink-0 flex items-center px-1 text-gray-450 text-[9px] font-mono" style={{ width: 62 }}>{fmtShort(blSpan.blStart)}</div>
               <div className="flex-shrink-0 flex items-center px-1 text-gray-455 text-[9px] font-mono" style={{ width: 62 }}>{fmtShort(blSpan.blFinish)}</div>
-              <div className="flex-shrink-0 flex items-center justify-end px-1 text-gray-500 font-bold font-mono" style={{ width: 28 }}>
-                {node.tf !== null && node.tf !== undefined ? `${node.tf}d` : ''}
-              </div>
+              {(() => {
+                const rowTf = calcMinTf(node.key);
+                const isRc = node.esHoja && rowTf !== null && (hasNegativeGlobalFloat ? rowTf === globalMinFloat : rowTf === 0);
+                const isSubc = node.esHoja && rowTf !== null && hasNegativeGlobalFloat && (rowTf > globalMinFloat && rowTf < 0);
+                const isRiesg = node.esHoja && rowTf !== null && (rowTf >= 0 && rowTf <= 20);
+                return (
+                  <div 
+                    className={`flex-shrink-0 flex items-center justify-end px-1 font-mono text-[9px] ${
+                      rowTf === null || rowTf === undefined
+                        ? 'text-slate-300'
+                        : isRc
+                          ? 'text-red-700 bg-red-100/90 px-1 rounded font-black border border-red-300 shadow-xs'
+                          : isSubc
+                            ? 'text-orange-700 bg-orange-100/80 px-1 rounded font-black border border-orange-250'
+                            : isRiesg
+                              ? 'text-amber-800 bg-amber-50 px-1 rounded font-bold border border-amber-200'
+                              : rowTf < 0
+                                ? 'text-rose-600 font-black'
+                                : !node.esHoja
+                                  ? 'text-slate-800 font-extrabold'
+                                  : 'text-slate-600 font-bold'
+                    }`} 
+                    style={{ minWidth: 32 }}
+                    title={
+                      rowTf !== null && rowTf !== undefined
+                        ? !node.esHoja
+                          ? `Total Float mín. (Jerarquía): ${rowTf}d`
+                          : isRc
+                            ? `Ruta Crítica (TF: ${rowTf}d - Float más bajo)`
+                            : isSubc
+                              ? `Subcrítica / Critical (TF: ${rowTf}d - Float negativo)`
+                              : isRiesg
+                                ? `Riesgosa (TF: ${rowTf}d - Float entre 0 y 20)`
+                                : `Total Float: ${rowTf}d`
+                        : undefined
+                    }
+                  >
+                    {rowTf !== null && rowTf !== undefined ? `${rowTf}d` : ''}
+                  </div>
+                );
+              })()}
             </div>
           );
 
@@ -2352,6 +2962,11 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
             : node.nivel === 5 ? '#FEF3C7'
             : node.nivel === 6 ? '#FFE4E6'
             : '#ECFEFF';
+
+          const rowTfVal = calcMinTf(node.key);
+          const isRc = node.esHoja && rowTfVal !== null && (hasNegativeGlobalFloat ? rowTfVal === globalMinFloat : rowTfVal === 0);
+          const isSubc = node.esHoja && rowTfVal !== null && hasNegativeGlobalFloat && (rowTfVal > globalMinFloat && rowTfVal < 0);
+          const isRiesg = node.esHoja && rowTfVal !== null && (rowTfVal >= 0 && rowTfVal <= 20);
 
           barRows.push(
             <div key={`b-${node.key}`}
@@ -2372,10 +2987,11 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   background: barColor,
                   borderRadius: barH / 2,
                   opacity: barOpacity,
-                  boxShadow: node.esHoja ? '0 1px 2px rgba(0,0,0,0.15)' : 'none'
+                  border: isRc ? '2px solid #dc2626' : isSubc ? '1.5px solid #ea580c' : isRiesg ? '1px solid #d97706' : 'none',
+                  boxShadow: isRc ? '0 0 6px rgba(220, 38, 38, 0.6)' : isSubc ? '0 0 4px rgba(234, 88, 12, 0.4)' : node.esHoja ? '0 1px 2px rgba(0,0,0,0.15)' : 'none'
                 }}
                   className="flex items-center justify-end pr-1"
-                  title={`${node.desc}\n${fmtShort(span.start)} → ${fmtShort(span.finish)}\nTF: ${node.tf ?? '—'}`}>
+                  title={`${node.desc}\n${fmtShort(span.start)} → ${fmtShort(span.finish)}\n${node.esHoja ? `TF: ${rowTfVal !== null ? `${rowTfVal}d` : '—'} ${isRc ? '• [RUTA CRÍTICA]' : isSubc ? '• [SUBCRÍTICA]' : isRiesg ? '• [RIESGOSA]' : ''}` : `TF mín (jerarquía): ${rowTfVal !== null ? `${rowTfVal}d` : '—'}`}`}>
                   {node.esHoja && barW > 36 && (node.p6 === 'In Progress' || node.p6 === 'Completed') && (
                     <span className="text-[7.5px] font-black text-white px-1 uppercase leading-none truncate select-none pointer-events-none">
                       {Math.round((node.actividadRef || a_find_or_mock(node.key)).avanceAT ?? 0)}%
@@ -2409,6 +3025,10 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
         };
 
         const a_find_or_mock = (key: string) => {
+          if (key.includes('__ACT__')) {
+            const id = key.split('__ACT__')[1].split('_')[0];
+            return actividades.find(act => (act.activityId || act.id) === id) || { avance: 0, avanceAT: 0 };
+          }
           const parts = key.split('.__');
           if (parts.length > 1) {
             const id = parts[1];
@@ -2429,159 +3049,215 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           );
         }
 
-        const TABLE_W = 16 + 92 + 250 + 68 + 54 + 72 + 36 + 62 + 62 + 62 + 62 + 28; // 864px total left panel table width
+        const TABLE_W = 16 + 92 + 286 + 68 + 54 + 72 + 62 + 62 + 62 + 62 + 28; // 864px total left panel table width
+
+        const handleExportGanttXls = () => {
+          const rows: string[] = [];
+          rows.push(["Id", "Descripción", "Cantidad", "Act.Count", "Inicio", "Fin", "BL Inicio", "BL Fin", "Total Float (TF)"].join("\t"));
+
+          const htmlRowsArray: string[] = [];
+
+          const traverse = (node: any, depth: number) => {
+            if (!visibleKeys.has(node.key)) return;
+
+            const span = node.esHoja
+              ? { start: node.start, finish: node.finish }
+              : calcSpan(node.key);
+
+            const blSpan = node.esHoja
+              ? { blStart: node.blStart, blFinish: node.blFinish }
+              : calcBlSpan(node.key);
+
+            const actCount = node.esHoja ? "1" : String(calcVisibleCount(node.key));
+            const id = node.actId ? node.actId : node.wbs;
+            const descIndented = "   ".repeat(depth) + node.desc;
+            const inicioStr = fmtShort(span.start);
+            const finStr = fmtShort(span.finish);
+            const blInicioStr = fmtShort(blSpan.blStart);
+            const blFinStr = fmtShort(blSpan.blFinish);
+            const rowTf = calcMinTf(node.key);
+            const tfStr = rowTf !== null && rowTf !== undefined ? `${rowTf}d` : "—";
+
+            const act = node.actividadRef || a_find_or_mock(node.key);
+            const cantStr = node.esHoja && act?.cantidadCdo !== undefined && act?.cantidadCdo !== null
+              ? `${act.cantidadCdo.toLocaleString('es-ES')}${act.unidad || act.unit ? ' ' + (act.unidad || act.unit) : ''}`.trim()
+              : "—";
+
+            rows.push([
+              id,
+              descIndented,
+              cantStr,
+              actCount,
+              inicioStr,
+              finStr,
+              blInicioStr,
+              blFinStr,
+              tfStr
+            ].join("\t"));
+
+            // Formateo HTML para pegar en Excel
+            const isParent = !node.esHoja;
+            let bg = "#ffffff";
+            let fg = "#334155";
+            let weight = "normal";
+            let fs = "11px";
+
+            if (isParent) {
+              weight = "bold";
+              if (depth === 0) {
+                bg = "#cbd5e1";
+                fg = "#0f172a";
+                fs = "12px";
+              } else if (depth === 1) {
+                bg = "#e2e8f0";
+                fg = "#1e293b";
+                fs = "11.5px";
+              } else {
+                bg = "#f1f5f9";
+                fg = "#334155";
+                fs = "11px";
+              }
+            }
+
+            const indentHtml = "&nbsp;".repeat(depth * 5);
+            const descHtml = `${indentHtml}${node.desc}`;
+
+            const trHtml = `
+              <tr style="background-color: ${bg}; color: ${fg}; font-weight: ${weight}; font-size: ${fs};">
+                <td style="padding: 6px 12px; border: 1px solid #cbd5e1; font-family: monospace;">${id}</td>
+                <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: left;">${descHtml}</td>
+                <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace;">${cantStr}</td>
+                <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: center;">${actCount}</td>
+                <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace;">${inicioStr}</td>
+                <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace;">${finStr}</td>
+                <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace;">${blInicioStr}</td>
+                <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace;">${blFinStr}</td>
+                <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-weight: bold;">${tfStr}</td>
+              </tr>
+            `.trim();
+            htmlRowsArray.push(trHtml);
+
+            const isExp = ganttExp.has(node.key);
+            const children = childrenOf(node.key).filter(c => visibleKeys.has(c.key));
+            const hasChildren = children.length > 0;
+
+            if (isExp && hasChildren) {
+              children.forEach(c => traverse(c, depth + 1));
+            }
+          };
+
+          ganttRoots.forEach(root => {
+            traverse(root, 0);
+          });
+
+          const tsvContent = rows.join("\n");
+          const htmlRows = htmlRowsArray.join("\n");
+          const htmlContent = `
+            <table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11px; color: #334155; width: 100%;">
+              <thead>
+                <tr style="background-color: #0f172a; color: #ffffff; font-weight: bold; text-align: left;">
+                  <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold;">Id</th>
+                  <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold;">Descripción</th>
+                  <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: right;">Cantidad</th>
+                  <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: center;">Act.Count</th>
+                  <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: center;">Inicio</th>
+                  <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: center;">Fin</th>
+                  <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: center;">BL Inicio</th>
+                  <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: center;">BL Fin</th>
+                  <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: right;">TF</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${htmlRows}
+              </tbody>
+            </table>
+          `.trim();
+
+          try {
+            const clipboardItem = new ClipboardItem({
+              "text/plain": new Blob([tsvContent], { type: "text/plain" }),
+              "text/html": new Blob([htmlContent], { type: "text/html" })
+            });
+            navigator.clipboard.write([clipboardItem]).then(() => {
+              setCopiedGantt(true);
+              setTimeout(() => {
+                setCopiedGantt(false);
+              }, 2000);
+            }).catch((err) => {
+              console.error("Rich copy failed, falling back to plain text:", err);
+              navigator.clipboard.writeText(tsvContent).then(() => {
+                setCopiedGantt(true);
+                setTimeout(() => {
+                  setCopiedGantt(false);
+                }, 2000);
+              });
+            });
+          } catch (e) {
+            console.error("ClipboardItem not supported, falling back to plain text:", e);
+            navigator.clipboard.writeText(tsvContent).then(() => {
+              setCopiedGantt(true);
+              setTimeout(() => {
+                setCopiedGantt(false);
+              }, 2000);
+            });
+          }
+        };
 
         return (
-          <div className="mt-6 bg-white rounded-2xl shadow-sm border border-indigo-600 overflow-hidden">
+          <div id="gantt-card-container" className="mt-6 bg-white rounded-xl shadow-xs border border-[#D5DEE2] overflow-hidden">
             {/* Controles del Gantt */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200/80 bg-slate-50/50 flex-wrap">
-              <span className="text-xs font-black text-slate-700 mr-1 uppercase tracking-widest">Gantt</span>
-              <div className="relative min-w-40 max-w-56" ref={searchRef}>
-                <input
-                  type="text"
-                  placeholder={
-                    searchFieldType === 'descripcion' ? "Buscar..." :
-                    searchFieldType === 'cap' ? "Buscar CAP..." :
-                    searchFieldType === 'scap' ? "Buscar Scap..." :
-                    "Buscar SubC..."
-                  }
-                  value={ganttSearch}
-                  onChange={e => setGanttSearch(e.target.value)}
-                  onFocus={() => setIsSearchPopupOpen(true)}
-                  onClick={() => setIsSearchPopupOpen(true)}
-                  className="w-full pl-7 pr-7 py-1 border border-slate-250 rounded-xl text-[10.5px] font-semibold bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-mini transition-all"
-                />
-                <svg className="absolute left-2.5 top-1.5 w-3 h-3 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+            <div id="gantt-controls-toolbar" className="flex flex-col gap-2.5 px-4 py-3 border-b border-[#D5DEE2] bg-[#F5F8F9]">
+              {/* Fila 1 de Controles: Jerarquía, Status, TF, Exp/Colap, P.Ac, P6 y Export */}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="text-xs font-['Barlow_Condensed'] font-semibold text-[#14212A] mr-1 uppercase tracking-wider">Gantt</span>
+
+              {/* Toggle de Jerarquía (Vista 1 WBS vs Vista 2 Tipo - SubC - Scap - Unit) */}
+              <div className="inline-flex p-0.5 rounded-lg bg-white border border-[#D5DEE2] shadow-xs select-none shrink-0" id="gantt-hierarchy-mode-toggle">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsSearchPopupOpen(!isSearchPopupOpen);
+                  id="btn-gantt-hierarchy-wbs"
+                  onClick={() => {
+                    if (ganttHierarchyMode !== 'wbs') {
+                      setGanttHierarchyMode('wbs');
+                      setGanttExp(new Set());
+                      setSelectedRoots(new Set());
+                      setAppliedSelectedRoots(new Set());
+                      setGanttHierarchyLevel('all');
+                    }
                   }}
-                  className="absolute right-2 top-1.5 w-4 h-4 flex items-center justify-center text-slate-450 hover:text-indigo-600 transition-colors rounded hover:bg-slate-100"
-                  title="Filtros inteligentes de columnas"
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                    ganttHierarchyMode === 'wbs'
+                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#F5F8F9]'
+                  }`}
+                  title="Vista 1: WBS (Partidas / Capítulos)"
                 >
-                  <ChevronDown className="w-3.5 h-3.5" />
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>WBS</span>
                 </button>
-
-                {/* Popover inteligente */}
-                {isSearchPopupOpen && createPortal(
-                  <div
-                    id="gantt-smart-search-portal"
-                    style={{
-                      position: 'fixed',
-                      top: `${popupCoords.top + 6}px`,
-                      left: `${popupCoords.left}px`,
-                      width: `${Math.max(popupCoords.width, 280)}px`,
-                      transition: 'top 0.15s cubic-bezier(0.16, 1, 0.3, 1), left 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
-                    }}
-                    className="bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-3 text-left"
-                  >
-                    <div className="font-black text-slate-800 border-b border-slate-150 pb-2 mb-2.5 flex items-center justify-between text-[11px]">
-                      <span>Filtro Inteligente de Búsqueda</span>
-                      <span className="text-[9px] text-indigo-600 bg-indigo-50 font-bold px-1.5 py-0.5 rounded-md">Pestaña CDO</span>
-                    </div>
-                    
-                    <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider mb-2">Seleccione Columna:</p>
-                    <div className="grid grid-cols-2 gap-1.5 mb-3">
-                      {(['descripcion', 'cap', 'scap', 'subcontratista'] as const).map((field) => {
-                        const label = {
-                          descripcion: 'Descripción',
-                          cap: 'CAP',
-                          scap: 'Paquete',
-                          subcontratista: 'SubC'
-                        }[field];
-                        const col = {
-                          descripcion: 'Columna D',
-                          cap: 'Columna AI',
-                          scap: 'Columna AJ',
-                          subcontratista: 'Columna N'
-                        }[field];
-                        const isSelected = searchFieldType === field;
-                        return (
-                          <button
-                            key={field}
-                            type="button"
-                            onClick={() => {
-                              setSearchFieldType(field);
-                              setGanttSearch(''); // Reset search text when switching columns
-                            }}
-                            className={`px-2 py-2 rounded-xl border text-left flex flex-col justify-between transition-all font-bold group ${
-                              isSelected
-                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200'
-                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
-                            }`}
-                          >
-                            <span className="text-[10px]">{label}</span>
-                            <span className={`text-[8px] font-medium leading-none mt-1 ${
-                              isSelected ? 'text-indigo-205' : 'text-slate-400 group-hover:text-slate-500'
-                            }`}>{col}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Menú de selección de valores únicos */}
-                    {searchFieldType !== 'descripcion' && (
-                      <div className="border-t border-slate-150 pt-2.5">
-                        <div className="text-slate-400 text-[9px] font-bold uppercase tracking-wider mb-2 flex items-center justify-between">
-                          <span>Valores en datos:</span>
-                          <span className="text-[10px] text-slate-605 bg-slate-100 px-1.5 py-0.2 rounded-md font-bold">
-                            {getUniqueValues(searchFieldType === 'subcontratista' ? 'subcontratista' : searchFieldType).length}
-                          </span>
-                        </div>
-                        <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
-                          {getUniqueValues(searchFieldType === 'subcontratista' ? 'subcontratista' : searchFieldType).map((val) => {
-                            const isCurrentSearch = ganttSearch === val;
-                            return (
-                              <button
-                                key={val}
-                                type="button"
-                                onClick={() => {
-                                  setGanttSearch(val);
-                                  setIsSearchPopupOpen(false);
-                                }}
-                                className={`w-full text-left px-2.5 py-1.5 rounded-lg border transition-all text-[10px] break-words whitespace-normal block leading-tight ${
-                                  isCurrentSearch
-                                    ? 'bg-indigo-600 border-indigo-600 text-white font-extrabold shadow-sm'
-                                    : 'bg-slate-50 border-slate-150 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 text-slate-700 font-semibold'
-                                }`}
-                                title={val}
-                              >
-                                {val}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>,
-                  document.body
-                )}
+                <button
+                  type="button"
+                  id="btn-gantt-hierarchy-custom"
+                  onClick={() => {
+                    if (ganttHierarchyMode !== 'tipo_subc_scap_unit') {
+                      setGanttHierarchyMode('tipo_subc_scap_unit');
+                      setGanttExp(new Set());
+                      setSelectedRoots(new Set());
+                      setAppliedSelectedRoots(new Set());
+                      setGanttHierarchyLevel('all');
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                    ganttHierarchyMode === 'tipo_subc_scap_unit'
+                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#F5F8F9]'
+                  }`}
+                  title="Vista 2: Fases (Componente - Tipo - SubC - Scap - Unit)"
+                >
+                  <span className="w-2 h-2 rounded-full bg-[#2B7F52]" />
+                  <span>Fases</span>
+                </button>
               </div>
-
-              {/* Tag/Badge de búsqueda activa por columna */}
-              {searchFieldType !== 'descripcion' && (
-                <span className="px-2.5 py-1 text-[10px] bg-indigo-50 border border-indigo-200/60 text-indigo-700 rounded-xl font-bold flex items-center gap-1.5 shadow-mini shrink-0">
-                  <span className="opacity-75 font-semibold text-[8.5px] uppercase bg-indigo-200/40 px-1 py-0.2 rounded">
-                    {searchFieldType === 'cap' ? 'Col AI' : searchFieldType === 'scap' ? 'Col AJ' : 'Col N'}
-                  </span>
-                  <span className="max-w-28 truncate">{searchFieldType === 'cap' ? 'CAP' : searchFieldType === 'scap' ? 'Scap' : 'SubC'}:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchFieldType('descripcion');
-                      setGanttSearch('');
-                    }}
-                    className="w-3.5 h-3.5 flex items-center justify-center text-indigo-400 hover:text-indigo-700 hover:bg-indigo-100 rounded-full font-black leading-none"
-                    title="Restablecer a búsqueda general"
-                  >
-                    ✕
-                  </button>
-                </span>
-              )}
 
               {/* Checkbox Multi-Sel. */}
               <label id="checkbox-gantt-multi-sel" className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-650 cursor-pointer select-none bg-indigo-50/70 hover:bg-indigo-100/80 px-2.5 py-1 rounded-xl border border-indigo-200/50 hover:border-indigo-300 shadow-mini transition-all group shrink-0">
@@ -2641,7 +3317,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                           }
                         }
                       }}
-                      className={`px-2.5 py-1 rounded-lg transition-all ${active ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-850 hover:bg-white'}`}
+                      className={`px-2.5 py-1 rounded-md transition-all ${active ? 'bg-[#442dd7] text-white shadow-xs' : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white'}`}
                     >
                       {l}
                     </button>
@@ -2651,45 +3327,219 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
               {/* Filtro Total Float */}
               <div className="flex items-center gap-1 text-[9px] font-bold">
-                <span className="text-slate-400 font-black mr-0.5">TF:</span>
-                <div className="flex rounded-xl border border-slate-200/75 overflow-hidden p-0.5 bg-slate-100 font-bold">
+                <span className="text-[#5A6A74] font-black mr-0.5">TF:</span>
+                <div className="flex rounded-lg border border-[#D5DEE2] overflow-hidden p-0.5 bg-[#F5F8F9] font-bold">
                   {[
                     ['all', 'Todos'],
-                    ['0', '= 0'],
-                    ['lte50', '≤ 50']
-                  ].map(([v, l]) => (
-                    <button
-                      key={v}
-                      onClick={(e) => {
-                        setGanttExp(new Set());
-                        if (v === 'all') {
-                          setGanttFloat('all');
-                        } else {
-                          const isCtrl = e.ctrlKey || e.metaKey;
-                          if (isCtrl) {
-                            let currentList = ganttFloat === 'all' ? [] : ganttFloat.split(',').filter(Boolean);
-                            if (currentList.includes(v)) {
-                              currentList = currentList.filter(x => x !== v);
-                            } else {
-                              currentList.push(v);
-                            }
-                            setGanttFloat(currentList.length === 0 ? 'all' : currentList.join(','));
+                    ['criticas', hasNegativeGlobalFloat ? `RC (${globalMinFloat}d)` : 'RC'],
+                    ['subcriticas', 'SubCrit.'],
+                    ['riesgosas', 'Risk']
+                  ].map(([v, l]) => {
+                    const isTfActive = v === 'all'
+                      ? ganttFloat === 'all'
+                      : (() => {
+                          const list = ganttFloat.split(',').map(s => s.trim());
+                          if (v === 'criticas') return list.includes('criticas') || list.includes('0');
+                          if (v === 'subcriticas') return list.includes('subcriticas') || list.includes('negativos');
+                          if (v === 'riesgosas') return list.includes('riesgosas') || list.includes('lte20') || list.includes('lte20sub');
+                          return list.includes(v);
+                        })();
+                    return (
+                      <button
+                        key={v}
+                        onClick={(e) => {
+                          setGanttExp(new Set());
+                          if (v === 'all') {
+                            setGanttFloat('all');
                           } else {
-                            setGanttFloat((ganttFloat.split(',').includes(v) && ganttFloat.split(',').length === 1) ? 'all' : v);
+                            const isCtrl = e.ctrlKey || e.metaKey;
+                            if (isCtrl) {
+                              let currentList = ganttFloat === 'all' ? [] : ganttFloat.split(',').filter(Boolean);
+                              if (currentList.includes(v)) {
+                                currentList = currentList.filter(x => x !== v);
+                              } else {
+                                currentList.push(v);
+                              }
+                              setGanttFloat(currentList.length === 0 ? 'all' : currentList.join(','));
+                            } else {
+                              setGanttFloat(isTfActive ? 'all' : v);
+                            }
                           }
-                        }
-                      }}
-                      className={`px-2 py-1 rounded-lg transition-all ${(v === 'all' ? ganttFloat === 'all' : ganttFloat.split(',').includes(v)) ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-850 hover:bg-white'}`}
-                    >
-                      {l}
-                    </button>
-                  ))}
+                        }}
+                        className={`px-2 py-1 rounded-md transition-all ${isTfActive ? 'bg-[#442dd7] text-white shadow-xs font-bold' : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white'}`}
+                      >
+                        {l}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
+              {/* Toggle Expandir / Colapsar Todo ubicado junto a TF */}
+              <div 
+                id="gantt-exp-colap-toggle"
+                className="inline-flex p-0.5 rounded-lg border border-[#D5DEE2] bg-[#F5F8F9] font-bold text-[9.5px] shrink-0 select-none shadow-xs"
+                title="Expandir o Colapsar toda la jerarquía de partidas"
+              >
+                <button
+                  type="button"
+                  id="btn-gantt-expand-all"
+                  onClick={() => {
+                    const allParentKeys = ganttNodes.filter(n => !n.esHoja).map(n => n.key);
+                    setGanttExp(new Set(allParentKeys));
+                    setGanttHierarchyLevel('all');
+                  }}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                    ganttExp.size > 0 && ganttHierarchyLevel !== '1'
+                      ? 'bg-white text-[#442dd7] shadow-xs border border-[#D5DEE2] font-bold'
+                      : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white/60'
+                  }`}
+                  title="Expandir todas las partidas de la jerarquía"
+                >
+                  <ChevronsUpDown className="w-3.5 h-3.5 text-[#442dd7]" />
+                  <span>Exp.</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-gantt-collapse-all"
+                  onClick={() => {
+                    setGanttExp(new Set());
+                    setGanttHierarchyLevel('1');
+                  }}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                    ganttExp.size === 0 || ganttHierarchyLevel === '1'
+                      ? 'bg-white text-[#442dd7] shadow-xs border border-[#D5DEE2] font-bold'
+                      : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white/60'
+                  }`}
+                  title="Colapsar toda la jerarquía"
+                >
+                  <ChevronsDownUp className="w-3.5 h-3.5 text-[#442dd7]" />
+                  <span>Colap.</span>
+                </button>
+              </div>
 
+              {/* Filtro P.Ac (Columna AO) */}
+              <div className="relative shrink-0" ref={pacDropdownRef}>
+                <button
+                  type="button"
+                  id="btn-gantt-pac-filter"
+                  onClick={() => setIsGanttPAcDropdownOpen(!isGanttPAcDropdownOpen)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-all text-[10px] font-bold shadow-xs cursor-pointer ${
+                    ganttPAc !== 'all'
+                      ? 'bg-[#442dd7] text-white border-[#442dd7] hover:bg-[#3722b5]'
+                      : 'bg-white text-[#5A6A74] border-[#D5DEE2] hover:bg-[#F5F8F9] hover:text-[#14212A]'
+                  }`}
+                  title="Filtrar actividades por P.Ac (Columna AO CDO)"
+                >
+                  <Filter className="w-3 h-3 text-indigo-400 shrink-0" />
+                  <span className="truncate max-w-[85px]">
+                    {ganttPAc === 'all'
+                      ? 'P.Ac'
+                      : ganttPAc === '__none__'
+                      ? 'P.Ac (0)'
+                      : ganttPAc.split(',').length === 1
+                      ? `P.Ac: ${ganttPAc}`
+                      : `P.Ac (${ganttPAc.split(',').length})`}
+                  </span>
+                  <ChevronDown className={`w-3 h-3 transition-transform shrink-0 ${isGanttPAcDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
 
+                {isGanttPAcDropdownOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={(e) => { e.stopPropagation(); setIsGanttPAcDropdownOpen(false); }} 
+                    />
+                    <div 
+                      className="absolute left-0 mt-1 w-64 max-h-72 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filtro P.Ac</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGanttPAc('all');
+                              setGanttExp(new Set());
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md transition-all cursor-pointer"
+                          >
+                            ✓ Todos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGanttPAc('__none__');
+                              setGanttExp(new Set());
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md transition-all cursor-pointer"
+                          >
+                            ✗ Limpiar
+                          </button>
+                        </div>
+                      </div>
 
+                      <div className="space-y-1">
+                        {ganttPAcDisponibles.length === 0 ? (
+                          <div className="p-3 text-center text-slate-400 italic text-[10px]">No hay valores de P.Ac disponibles</div>
+                        ) : (
+                          ganttPAcDisponibles.map(pacVal => {
+                            const isSelected = ganttPAc === 'all' 
+                              ? true 
+                              : ganttPAc === '__none__'
+                              ? false
+                              : ganttPAc.split(',').map(s => s.trim().toLowerCase()).includes(pacVal.toLowerCase());
+                            return (
+                              <button
+                                key={pacVal}
+                                type="button"
+                                onClick={() => {
+                                  setGanttExp(new Set());
+                                  let current = ganttPAc === 'all' 
+                                    ? [...ganttPAcDisponibles] 
+                                    : ganttPAc === '__none__' 
+                                    ? [] 
+                                    : ganttPAc.split(',').map(s => s.trim()).filter(Boolean);
+                                  
+                                  const exists = current.some(x => x.toLowerCase() === pacVal.toLowerCase());
+                                  if (exists) {
+                                    current = current.filter(x => x.toLowerCase() !== pacVal.toLowerCase());
+                                  } else {
+                                    current.push(pacVal);
+                                  }
+
+                                  if (current.length === 0) {
+                                    setGanttPAc('__none__');
+                                  } else if (current.length === ganttPAcDisponibles.length) {
+                                    setGanttPAc('all');
+                                  } else {
+                                    setGanttPAc(current.join(','));
+                                  }
+                                }}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-indigo-50 text-indigo-900 border border-indigo-200/80 font-bold'
+                                    : 'hover:bg-slate-50 text-slate-700 border border-transparent'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 truncate">
+                                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
+                                    isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'
+                                  }`}>
+                                    {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                  </div>
+                                  <span className="truncate text-[10.5px]">{pacVal}</span>
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* Informative DD block located right next to active actions */}
               <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-2 py-1 rounded-xl border border-emerald-200/65 shadow-mini shrink-0 select-none">
@@ -2699,10 +3549,17 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   <input
                     type="date"
                     id="gantt-dd-input"
-                    value={fechaCorteState instanceof Date && !isNaN(fechaCorteState.getTime()) ? fechaCorteState.toISOString().split('T')[0] : ''}
+                    value={(() => {
+                      if (!(fechaCorteState instanceof Date) || isNaN(fechaCorteState.getTime())) return '';
+                      const y = fechaCorteState.getFullYear();
+                      const m = String(fechaCorteState.getMonth() + 1).padStart(2, '0');
+                      const d = String(fechaCorteState.getDate()).padStart(2, '0');
+                      return `${y}-${m}-${d}`;
+                    })()}
                     onChange={(e) => {
                       if (e.target.value) {
-                        setFechaCorteState(new Date(e.target.value));
+                        const [y, m, d] = e.target.value.split('-').map(Number);
+                        setFechaCorteState(new Date(y, m - 1, d, 12, 0, 0));
                       }
                     }}
                     className="bg-white border border-emerald-300 rounded px-1 py-0.5 text-[9.5px] font-bold text-slate-800 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer min-w-[85px] max-w-[95px]"
@@ -2716,6 +3573,259 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   </span>
                 )}
               </div>
+
+              {/* Dropdown Export (Exportaciones XLS y PDF) ubicado al lado de p6 */}
+              <div id="gantt-export-dropdown-container" className="relative shrink-0" ref={pythonMenuRef}>
+                <button
+                  type="button"
+                  id="btn-gantt-export-dropdown"
+                  onClick={() => setIsPythonMenuOpen(!isPythonMenuOpen)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border transition-all text-[10px] font-bold shadow-mini cursor-pointer active:scale-95 ${
+                    isPythonMenuOpen
+                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm'
+                      : isExportingGanttPdf
+                      ? 'bg-rose-50 text-rose-700 border-rose-300'
+                      : copiedGantt
+                      ? 'bg-emerald-600 text-white border-emerald-700'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                  title="Opciones de exportación (xls, PDF)"
+                >
+                  {isExportingGanttPdf ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 text-rose-600 animate-spin" />
+                      <span className="text-rose-700 font-extrabold animate-pulse">Generando A3...</span>
+                    </>
+                  ) : copiedGantt ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-white animate-scale-up" />
+                      <span>¡Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5 text-indigo-600" />
+                      <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isPythonMenuOpen ? 'rotate-180' : ''}`} />
+                    </>
+                  )}
+                </button>
+
+                {isPythonMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsPythonMenuOpen(false);
+                      }}
+                    />
+                    <div
+                      id="gantt-export-menu"
+                      className="absolute left-0 mt-1.5 w-36 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-1.5 select-none animate-fade-in space-y-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        id="btn-export-gantt-xls"
+                        onClick={() => {
+                          handleExportGanttXls();
+                          setIsPythonMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-left text-[11px] font-bold transition-all cursor-pointer group ${
+                          copiedGantt
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-800'
+                        }`}
+                        title="Copiar datos estructurados de la vista actual para Excel"
+                      >
+                        {copiedGantt ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600 animate-scale-up shrink-0" />
+                        ) : (
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform shrink-0" />
+                        )}
+                        <span>xls</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        id="btn-export-gantt-pdf"
+                        onClick={() => {
+                          handleExportGanttPdf();
+                          setIsPythonMenuOpen(false);
+                        }}
+                        disabled={isExportingGanttPdf}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-left text-[11px] font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed group ${
+                          isExportingGanttPdf
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'text-slate-700 hover:bg-rose-50 hover:text-rose-800'
+                        }`}
+                        title="Exportar imagen de toda la tarjeta GANTT a PDF en formato A3"
+                      >
+                        {isExportingGanttPdf ? (
+                          <RefreshCw className="w-3.5 h-3.5 text-rose-600 animate-spin shrink-0" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5 text-rose-600 group-hover:scale-110 transition-transform shrink-0" />
+                        )}
+                        <span>PDF</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Fila 2 de Controles: Búsqueda, Fechas, Jerarquía, Limpiar y al final Botones Procura, Flete, Montaje, Construcción */}
+            <div className="flex items-center justify-between gap-3 flex-wrap pt-1.5 border-t border-slate-200/60">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {/* Feature de Búsqueda inteligente ubicado al lado de p6 */}
+              <div className="relative min-w-40 max-w-56 shrink-0" ref={searchRef}>
+                <input
+                  type="text"
+                  placeholder={
+                    searchFieldType === 'descripcion' ? "Buscar..." :
+                    searchFieldType === 'cap' ? "Buscar CAP..." :
+                    searchFieldType === 'scap' ? "Buscar Scap..." :
+                    searchFieldType === 'subcontratista' ? "Buscar SubC..." :
+                    "Buscar P.Ac..."
+                  }
+                  value={ganttSearch}
+                  onChange={e => setGanttSearch(e.target.value)}
+                  onFocus={() => setIsSearchPopupOpen(true)}
+                  onClick={() => setIsSearchPopupOpen(true)}
+                  className="w-full pl-7 pr-7 py-1 border border-slate-250 rounded-xl text-[10.5px] font-semibold bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-mini transition-all"
+                />
+                <svg className="absolute left-2.5 top-1.5 w-3 h-3 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsSearchPopupOpen(!isSearchPopupOpen);
+                  }}
+                  className="absolute right-2 top-1.5 w-4 h-4 flex items-center justify-center text-slate-450 hover:text-indigo-600 transition-colors rounded hover:bg-slate-100 cursor-pointer"
+                  title="Filtros inteligentes de columnas"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Popover inteligente */}
+                {isSearchPopupOpen && createPortal(
+                  <div
+                    id="gantt-smart-search-portal"
+                    style={{
+                      position: 'fixed',
+                      top: `${popupCoords.top + 6}px`,
+                      left: `${popupCoords.left}px`,
+                      width: `${Math.max(popupCoords.width, 280)}px`,
+                      transition: 'top 0.15s cubic-bezier(0.16, 1, 0.3, 1), left 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+                    }}
+                    className="bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-3 text-left"
+                  >
+                    <div className="font-black text-slate-800 border-b border-slate-150 pb-2 mb-2.5 flex items-center justify-between text-[11px]">
+                      <span>Filtro Inteligente de Búsqueda</span>
+                      <span className="text-[9px] text-indigo-600 bg-indigo-50 font-bold px-1.5 py-0.5 rounded-md">Pestaña CDO</span>
+                    </div>
+                    
+                    <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider mb-2">Seleccione Columna:</p>
+                    <div className="grid grid-cols-3 gap-1.5 mb-3">
+                      {(['descripcion', 'cap', 'scap', 'subcontratista', 'pac'] as const).map((field) => {
+                        const label = {
+                          descripcion: 'Descripción',
+                          cap: 'CAP',
+                          scap: 'Paquete',
+                          subcontratista: 'SubC',
+                          pac: 'P.Ac'
+                        }[field];
+                        const col = {
+                          descripcion: 'Col. Descripción',
+                          cap: 'Col. CAP',
+                          scap: 'Col. Paquete',
+                          subcontratista: 'Col. Subcontratista',
+                          pac: 'Col. P.Ac'
+                        }[field];
+                        const isSelected = searchFieldType === field;
+                        return (
+                          <button
+                            key={field}
+                            type="button"
+                            onClick={() => {
+                              setSearchFieldType(field);
+                              setGanttSearch('');
+                            }}
+                            className={`px-2 py-2 rounded-xl border text-left flex flex-col justify-between transition-all font-bold group cursor-pointer ${
+                              isSelected
+                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                            }`}
+                          >
+                            <span className="text-[10px]">{label}</span>
+                            <span className={`text-[8px] font-medium leading-none mt-1 ${
+                              isSelected ? 'text-indigo-205' : 'text-slate-400 group-hover:text-slate-500'
+                            }`}>{col}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Menú de selección de valores únicos */}
+                    {searchFieldType !== 'descripcion' && (
+                      <div className="border-t border-slate-150 pt-2.5">
+                        <div className="text-slate-400 text-[9px] font-bold uppercase tracking-wider mb-2 flex items-center justify-between">
+                          <span>Valores en datos:</span>
+                          <span className="text-[10px] text-slate-605 bg-slate-100 px-1.5 py-0.2 rounded-md font-bold">
+                            {getUniqueValues(searchFieldType as 'cap' | 'scap' | 'subcontratista' | 'pac').length}
+                          </span>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+                          {getUniqueValues(searchFieldType as 'cap' | 'scap' | 'subcontratista' | 'pac').map((val) => {
+                            const isCurrentSearch = ganttSearch === val;
+                            return (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => {
+                                  setGanttSearch(val);
+                                  setIsSearchPopupOpen(false);
+                                }}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-lg border transition-all text-[10px] break-words whitespace-normal block leading-tight cursor-pointer ${
+                                  isCurrentSearch
+                                    ? 'bg-indigo-600 border-indigo-600 text-white font-extrabold shadow-sm'
+                                    : 'bg-slate-50 border-slate-150 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 text-slate-700 font-semibold'
+                                }`}
+                                title={val}
+                              >
+                                {val}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>,
+                  document.body
+                )}
+              </div>
+
+              {/* Tag/Badge de búsqueda activa por columna */}
+              {searchFieldType !== 'descripcion' && (
+                <span className="px-2.5 py-1 text-[10px] bg-indigo-50 border border-indigo-200/60 text-indigo-700 rounded-xl font-bold flex items-center gap-1.5 shadow-mini shrink-0">
+                  <span className="opacity-75 font-semibold text-[8.5px] uppercase bg-indigo-200/40 px-1 py-0.2 rounded">
+                    {searchFieldType === 'cap' ? 'CAP' : searchFieldType === 'scap' ? 'Paquete' : searchFieldType === 'subcontratista' ? 'SubC' : 'P.Ac'}
+                  </span>
+                  <span className="max-w-28 truncate">{searchFieldType === 'cap' ? 'CAP' : searchFieldType === 'scap' ? 'Scap' : searchFieldType === 'subcontratista' ? 'SubC' : 'P.Ac'}:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchFieldType('descripcion');
+                      setGanttSearch('');
+                    }}
+                    className="w-3.5 h-3.5 flex items-center justify-center text-indigo-400 hover:text-indigo-700 hover:bg-indigo-100 rounded-full font-black leading-none cursor-pointer"
+                    title="Restablecer a búsqueda general"
+                  >
+                    ✕
+                  </button>
+                </span>
+              )}
 
               {/* Filtro Inteligente de Fechas */}
               <div ref={smartFilterRef} className="relative shrink-0">
@@ -2798,193 +3908,68 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                 )}
               </div>
 
-              {/* Botón Exportar para Excel */}
-              <button
-                onClick={() => {
-                  const rows: string[] = [];
-                  rows.push(["Id", "Descripción", "Cantidad", "Act.Count", "BL Inicio", "BL Fin"].join("\t"));
 
-                  const htmlRowsArray: string[] = [];
 
-                  const traverse = (node: any, depth: number) => {
-                    if (!visibleKeys.has(node.key)) return;
-
-                    const blSpan = node.esHoja
-                      ? { blStart: node.blStart, blFinish: node.blFinish }
-                      : calcBlSpan(node.key);
-
-                    const actCount = node.esHoja ? "1" : String(calcVisibleCount(node.key));
-                    const id = node.actId ? node.actId : node.wbs;
-                    const descIndented = "   ".repeat(depth) + node.desc;
-                    const blInicioStr = fmtShort(blSpan.blStart);
-                    const blFinStr = fmtShort(blSpan.blFinish);
-
-                    const act = node.actividadRef || a_find_or_mock(node.key);
-                    const cantStr = node.esHoja && act?.cantidadCdo !== undefined && act?.cantidadCdo !== null
-                      ? `${act.cantidadCdo.toLocaleString('es-ES')}${act.unidad || act.unit ? ' ' + (act.unidad || act.unit) : ''}`.trim()
-                      : "—";
-
-                    rows.push([
-                      id,
-                      descIndented,
-                      cantStr,
-                      actCount,
-                      blInicioStr,
-                      blFinStr
-                    ].join("\t"));
-
-                    // Formateo HTML para pegar en Excel
-                    const isParent = !node.esHoja;
-                    let bg = "#ffffff";
-                    let fg = "#334155";
-                    let weight = "normal";
-                    let fs = "11px";
-
-                    if (isParent) {
-                      weight = "bold";
-                      if (depth === 0) {
-                        bg = "#cbd5e1";
-                        fg = "#0f172a";
-                        fs = "12px";
-                      } else if (depth === 1) {
-                        bg = "#e2e8f0";
-                        fg = "#1e293b";
-                        fs = "11.5px";
-                      } else {
-                        bg = "#f1f5f9";
-                        fg = "#334155";
-                        fs = "11px";
-                      }
+              {/* Selector de Nivel por Jerarquía */}
+              <div 
+                id="gantt-hierarchy-level-selector"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 transition-all text-[10px] font-bold shadow-mini shrink-0 group"
+                title="Desplegar para decidir hasta qué nivel de la jerarquía visualizar"
+              >
+                <Layers className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <label htmlFor="selector-gantt-nivel-jerarquia" className="text-slate-500 font-extrabold select-none cursor-pointer">
+                  Jerarquía:
+                </label>
+                <select
+                  id="selector-gantt-nivel-jerarquia"
+                  value={ganttHierarchyLevel}
+                  onChange={(e) => {
+                    const lvl = e.target.value;
+                    setGanttHierarchyLevel(lvl);
+                    if (lvl === '1') {
+                      setGanttExp(new Set());
+                    } else if (lvl === 'all') {
+                      const allParentKeys = ganttNodes.filter(n => !n.esHoja).map(n => n.key);
+                      setGanttExp(new Set(allParentKeys));
+                    } else {
+                      const targetLvl = parseInt(lvl, 10);
+                      const keysToExpand = ganttNodes
+                        .filter(n => !n.esHoja && n.nivel <= targetLvl)
+                        .map(n => n.key);
+                      setGanttExp(new Set(keysToExpand));
                     }
-
-                    const indentHtml = "&nbsp;".repeat(depth * 5);
-                    const descHtml = `${indentHtml}${node.desc}`;
-
-                    const trHtml = `
-                      <tr style="background-color: ${bg}; color: ${fg}; font-weight: ${weight}; font-size: ${fs};">
-                        <td style="padding: 6px 12px; border: 1px solid #cbd5e1; font-family: monospace;">${id}</td>
-                        <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: left;">${descHtml}</td>
-                        <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace;">${cantStr}</td>
-                        <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: center;">${actCount}</td>
-                        <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace;">${blInicioStr}</td>
-                        <td style="padding: 6px 12px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace;">${blFinStr}</td>
-                      </tr>
-                    `.trim();
-                    htmlRowsArray.push(trHtml);
-
-                    const isExp = ganttExp.has(node.key);
-                    const children = childrenOf(node.key).filter(c => visibleKeys.has(c.key));
-                    const hasChildren = children.length > 0;
-
-                    if (isExp && hasChildren) {
-                      children.forEach(c => traverse(c, depth + 1));
-                    }
-                  };
-
-                  ganttRoots.forEach(root => {
-                    traverse(root, 0);
-                  });
-
-                  const tsvContent = rows.join("\n");
-                  const htmlRows = htmlRowsArray.join("\n");
-                  const htmlContent = `
-                    <table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11px; color: #334155; width: 100%;">
-                      <thead>
-                        <tr style="background-color: #0f172a; color: #ffffff; font-weight: bold; text-align: left;">
-                          <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold;">Id</th>
-                          <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold;">Descripción</th>
-                          <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: right;">Cantidad</th>
-                          <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: center;">Act.Count</th>
-                          <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: center;">BL Inicio</th>
-                          <th style="padding: 8px 12px; border: 1px solid #cbd5e1; font-weight: bold; text-align: center;">BL Fin</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${htmlRows}
-                      </tbody>
-                    </table>
-                  `.trim();
-
-                  try {
-                    const clipboardItem = new ClipboardItem({
-                      "text/plain": new Blob([tsvContent], { type: "text/plain" }),
-                      "text/html": new Blob([htmlContent], { type: "text/html" })
-                    });
-                    navigator.clipboard.write([clipboardItem]).then(() => {
-                      setCopiedGantt(true);
-                      setTimeout(() => {
-                        setCopiedGantt(false);
-                      }, 2000);
-                    }).catch((err) => {
-                      console.error("Rich copy failed, falling back to plain text:", err);
-                      navigator.clipboard.writeText(tsvContent).then(() => {
-                        setCopiedGantt(true);
-                        setTimeout(() => {
-                          setCopiedGantt(false);
-                        }, 2000);
-                      });
-                    });
-                  } catch (e) {
-                    console.error("ClipboardItem not supported, falling back to plain text:", e);
-                    navigator.clipboard.writeText(tsvContent).then(() => {
-                      setCopiedGantt(true);
-                      setTimeout(() => {
-                        setCopiedGantt(false);
-                      }, 2000);
-                    });
-                  }
-                }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border transition-all text-[10px] font-bold shadow-mini shrink-0 cursor-pointer active:scale-95 ${
-                  copiedGantt
-                    ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700 shadow-emerald-500/15'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-950'
-                }`}
-                title="Copiar datos estructurados de la vista actual para pegar en Excel"
-              >
-                {copiedGantt ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-white animate-scale-up" />
-                    <span>¡Copiado!</span>
-                  </>
-                ) : (
-                  <>
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Export</span>
-                  </>
-                )}
-              </button>
-
-              {/* Botón Expandir Todo */}
-              <button
-                onClick={() => {
-                  const allParentKeys = ganttNodes.filter(n => !n.esHoja).map(n => n.key);
-                  setGanttExp(new Set(allParentKeys));
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-950 transition-all text-[10px] font-bold shadow-mini shrink-0 cursor-pointer active:scale-95"
-                title="Expandir todas las partidas de la jerarquía"
-              >
-                <ChevronsUpDown className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Exp.</span>
-              </button>
-
-              {/* Botón Colapsar Todo */}
-              <button
-                onClick={() => {
-                  setGanttExp(new Set());
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-950 transition-all text-[10px] font-bold shadow-mini shrink-0 cursor-pointer active:scale-95"
-                title="Colapsar toda la jerarquía"
-              >
-                <ChevronsDownUp className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Colap.</span>
-              </button>
+                  }}
+                  className="bg-transparent font-bold text-slate-800 text-[10px] outline-none cursor-pointer pr-1 hover:text-indigo-600 transition-colors"
+                >
+                  {ganttHierarchyMode === 'tipo_subc_scap_unit' ? (
+                    <>
+                      <option value="1">Nivel 1 (Componentes)</option>
+                      <option value="2">Nivel 2 (Tipologías)</option>
+                      <option value="3">Nivel 3 (Subcontratistas)</option>
+                      <option value="4">Nivel 4 (Paquetes / Scap)</option>
+                      <option value="5">Nivel 5 (Unidades)</option>
+                      <option value="all">Todos los Niveles (Actividades)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="1">Nivel 1 (Capítulos)</option>
+                      <option value="2">Nivel 2 (Subcapítulos)</option>
+                      <option value="3">Nivel 3 (Paquetes)</option>
+                      <option value="4">Nivel 4 (Subpaquetes)</option>
+                      <option value="5">Nivel 5 (Detalle)</option>
+                      <option value="all">Todos los Niveles</option>
+                    </>
+                  )}
+                </select>
+              </div>
 
               <div className="flex gap-1.5 text-[9.5px] font-bold">
-                {(ganttStatus !== 'all' || ganttFloat !== 'all' || ganttTipo !== 'all' || qg || appliedSelectedRoots.size > 0 || selectedRoots.size > 0 || blStartFilterActive || blFinishFilterActive || smartFilterActive) && (
+                {(ganttStatus !== 'all' || ganttFloat !== 'all' || ganttPAc !== 'all' || ganttTipo !== 'all' || qg || appliedSelectedRoots.size > 0 || selectedRoots.size > 0 || blStartFilterActive || blFinishFilterActive || smartFilterActive || isGanttProcuraFilter || isGanttFleteFilter || isGanttMontajeFilter || isGanttConstruccionFilter || ganttSortField !== null) && (
                   <button
                     onClick={() => {
                       setGanttStatus('all');
                       setGanttFloat('all');
+                      setGanttPAc('all');
                       setGanttTipo('all');
                       setGanttSearch('');
                       setGanttExp(new Set());
@@ -2995,6 +3980,13 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                       setBlFinishFilterActive(false);
                       setBlFinishSelectedDays(new Set());
                       setSmartFilterActive(false);
+                      setGanttHierarchyLevel('all');
+                      setIsGanttProcuraFilter(false);
+                      setIsGanttFleteFilter(false);
+                      setIsGanttMontajeFilter(false);
+                      setIsGanttConstruccionFilter(false);
+                      setGanttSortField(null);
+                      setGanttSortOrder('asc');
                     }}
                     className="px-2.5 py-1 bg-red-100 text-red-650 rounded-xl hover:bg-red-150 transition-colors font-bold uppercase tracking-wide shadow-mini"
                   >
@@ -3004,19 +3996,159 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
               </div>
             </div>
 
-            <div className="flex overflow-hidden relative" style={{ maxHeight: '70vh' }}>
+            {/* Botones Procura, Flete, Montaje, Construcción al final de la segunda fila */}
+            <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+              {/* Procura Filter Button */}
+              <button
+                type="button"
+                id="btn-gantt-filtro-procura"
+                onClick={() => setIsGanttProcuraFilter(prev => !prev)}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  isGanttProcuraFilter
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 shadow-sm ring-2 ring-blue-300'
+                    : 'bg-blue-50/90 hover:bg-blue-100 text-blue-900 border-blue-300/80 shadow-mini'
+                }`}
+                title='Filtrar actividades cuyo Activity Name inicie por "compr"'
+              >
+                <ShoppingCart className={`w-3.5 h-3.5 ${isGanttProcuraFilter ? 'text-white' : 'text-blue-700'}`} />
+                <span>Procura</span>
+                {isGanttProcuraFilter && (
+                  <span className="px-1.5 py-0.2 bg-white/20 text-white rounded-full text-[9px] font-black uppercase tracking-wider">
+                    Activo
+                  </span>
+                )}
+              </button>
+
+              {/* Flete Filter Button */}
+              <button
+                type="button"
+                id="btn-gantt-filtro-flete"
+                onClick={() => setIsGanttFleteFilter(prev => !prev)}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  isGanttFleteFilter
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-600 shadow-sm ring-2 ring-purple-300'
+                    : 'bg-purple-50/90 hover:bg-purple-100 text-purple-900 border-purple-300/80 shadow-mini'
+                }`}
+                title='Filtrar actividades cuyo Activity Name inicie por "flete"'
+              >
+                <Truck className={`w-3.5 h-3.5 ${isGanttFleteFilter ? 'text-white' : 'text-purple-700'}`} />
+                <span>Flete</span>
+                {isGanttFleteFilter && (
+                  <span className="px-1.5 py-0.2 bg-white/20 text-white rounded-full text-[9px] font-black uppercase tracking-wider">
+                    Activo
+                  </span>
+                )}
+              </button>
+
+              {/* Montaje Filter Button */}
+              <button
+                type="button"
+                id="btn-gantt-filtro-montaje"
+                onClick={() => setIsGanttMontajeFilter(prev => !prev)}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  isGanttMontajeFilter
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600 shadow-sm ring-2 ring-amber-300'
+                    : 'bg-amber-50/90 hover:bg-amber-100 text-amber-900 border-amber-300/80 shadow-mini'
+                }`}
+                title='Filtrar actividades cuyo Activity Name inicie por "Inst"'
+              >
+                <Wrench className={`w-3.5 h-3.5 ${isGanttMontajeFilter ? 'text-white' : 'text-amber-700'}`} />
+                <span>Montaje</span>
+                {isGanttMontajeFilter && (
+                  <span className="px-1.5 py-0.2 bg-white/20 text-white rounded-full text-[9px] font-black uppercase tracking-wider">
+                    Activo
+                  </span>
+                )}
+              </button>
+
+              {/* Construcción Filter Button */}
+              <button
+                type="button"
+                id="btn-gantt-filtro-construccion"
+                onClick={() => setIsGanttConstruccionFilter(prev => !prev)}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  isGanttConstruccionFilter
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-300'
+                    : 'bg-emerald-50/90 hover:bg-emerald-100 text-emerald-900 border-emerald-300/80 shadow-mini'
+                }`}
+                title="Filtrar actividades de Construcción (demás partidas que no son Procura, Flete ni Montaje)"
+              >
+                <HardHat className={`w-3.5 h-3.5 ${isGanttConstruccionFilter ? 'text-white' : 'text-emerald-700'}`} />
+                <span>Construcción</span>
+                {isGanttConstruccionFilter && (
+                  <span className="px-1.5 py-0.2 bg-white/20 text-white rounded-full text-[9px] font-black uppercase tracking-wider">
+                    Activo
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+            <div id="gantt-viewport-container" className="flex overflow-hidden relative" style={{ maxHeight: '70vh' }}>
               {/* Panel izquierdo sticky de la Tabla */}
               <div className="flex-shrink-0 border-r-2 border-slate-350 flex flex-col z-20 bg-white shadow-[3px_0_6px_rgba(0,0,0,0.05)]" style={{ width: TABLE_W }}>
-                <div className="flex-shrink-0 flex items-center bg-slate-100 border-b border-slate-200 text-[9.5px] font-black text-slate-500 tracking-wider" style={{ height: ganttZoom === 'quarter' ? ROW_H * 2 : ROW_H }}>
+                <div id="gantt-table-header" className="flex-shrink-0 flex items-center bg-slate-100 border-b border-slate-200 text-[9.5px] font-black text-slate-500 tracking-wider" style={{ height: ganttZoom === 'quarter' ? ROW_H * 2 : ROW_H }}>
                   <div style={{ width: 16 }} />
-                  <div style={{ width: 92 }} className="px-1 text-left">Id</div>
-                  <div className="flex-1 px-1 text-left">Descripción</div>
+                  <div style={{ width: 92 }} className="px-1 text-left">{ganttHierarchyMode === 'tipo_subc_scap_unit' ? 'Nivel / Id' : 'Id'}</div>
+                  <div className="flex-1 px-1 text-left">{ganttHierarchyMode === 'tipo_subc_scap_unit' ? 'Jerarquía / Descripción' : 'Descripción'}</div>
                   <div style={{ width: 68 }} className="text-right px-1" title="Cantidad CDO (Columna F)">Cant.</div>
                   <div style={{ width: 54 }} className="text-center px-1">Act.Count</div>
-                  <div style={{ width: 72 }} className="text-center cursor-help underline decoration-dotted decoration-slate-400" title="Estado de sub-actividad o Selector de Partida Nivel 1. Mantén presionado Ctrl o Cmd para seleccionar múltiples">Status</div>
-                  <div style={{ width: 36 }} className="text-right px-1">Dur.</div>
-                  <div style={{ width: 62 }} className="px-1 text-left">Inicio</div>
-                  <div style={{ width: 62 }} className="px-1 text-left">Fin</div>
+                  <div style={{ width: 72 }} className="text-center cursor-help underline decoration-dotted decoration-slate-400" title={ganttHierarchyMode === 'tipo_subc_scap_unit' ? "Estado de actividad o Selector de Componente (Nivel 1). Mantén presionado Ctrl o Cmd para seleccionar múltiples" : "Estado de sub-actividad o Selector de Partida Nivel 1. Mantén presionado Ctrl o Cmd para seleccionar múltiples"}>Status</div>
+                  <div 
+                    style={{ width: 62 }} 
+                    onClick={() => handleToggleDateSort('start')}
+                    className={`px-1 text-left flex items-center justify-between cursor-pointer select-none group transition-colors ${
+                      ganttSortField === 'start'
+                        ? 'text-indigo-700 bg-indigo-50/90 font-black'
+                        : 'hover:text-indigo-600 hover:bg-slate-200/60'
+                    }`}
+                    title={
+                      ganttSortField === 'start'
+                        ? ganttSortOrder === 'asc'
+                          ? "Orden: Más antiguo a más reciente (Earliest → Latest). Clic para ordenar de más reciente a más antiguo."
+                          : "Orden: Más reciente a más antiguo (Latest → Earliest). Clic para restablecer orden."
+                        : "Ordenar por fecha de Inicio (Earliest a Latest)"
+                    }
+                  >
+                    <span>Inicio</span>
+                    {ganttSortField === 'start' ? (
+                      ganttSortOrder === 'asc' ? (
+                        <ArrowUp className="w-3 h-3 text-indigo-600 stroke-[2.5] shrink-0" />
+                      ) : (
+                        <ArrowDown className="w-3 h-3 text-indigo-600 stroke-[2.5] shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-2.5 h-2.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    )}
+                  </div>
+                  <div 
+                    style={{ width: 62 }} 
+                    onClick={() => handleToggleDateSort('finish')}
+                    className={`px-1 text-left flex items-center justify-between cursor-pointer select-none group transition-colors ${
+                      ganttSortField === 'finish'
+                        ? 'text-indigo-700 bg-indigo-50/90 font-black'
+                        : 'hover:text-indigo-600 hover:bg-slate-200/60'
+                    }`}
+                    title={
+                      ganttSortField === 'finish'
+                        ? ganttSortOrder === 'asc'
+                          ? "Orden: Más antiguo a más reciente (Earliest → Latest). Clic para ordenar de más reciente a más antiguo."
+                          : "Orden: Más reciente a más antiguo (Latest → Earliest). Clic para restablecer orden."
+                        : "Ordenar por fecha de Fin (Earliest a Latest)"
+                    }
+                  >
+                    <span>Fin</span>
+                    {ganttSortField === 'finish' ? (
+                      ganttSortOrder === 'asc' ? (
+                        <ArrowUp className="w-3 h-3 text-indigo-600 stroke-[2.5] shrink-0" />
+                      ) : (
+                        <ArrowDown className="w-3 h-3 text-indigo-600 stroke-[2.5] shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-2.5 h-2.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    )}
+                  </div>
                   <div ref={blStartFilterRef} style={{ width: 62 }} className="px-1 text-left relative flex items-center justify-between group">
                     <span>BL Inicio</span>
                     <button 
@@ -3063,9 +4195,10 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                     </button>
                     {isBlFinishFilterOpen && renderBlFinishFilterDropdown()}
                   </div>
-                  <div style={{ width: 28 }} className="text-right px-1 pr-1.5">Tf</div>
+                  <div style={{ width: 28 }} className="text-right px-1 pr-1.5 cursor-help" title="Total Float (TF): Despliega el menor valor según la jerarquía">Tf</div>
                 </div>
                 <div
+                  id="gantt-body-scroll-container"
                   className="flex-1 overflow-y-scroll"
                   ref={ganttBodyRef}
                   style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -3127,6 +4260,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
                 {/* Contenedor principal de barras (con scroll vertical y horizontal) */}
                 <div
+                  id="gantt-bars-scroll-container"
                   className={`flex-1 overflow-auto ${dragActive ? 'select-none' : ''}`}
                   style={{ cursor: dragActive ? 'grabbing' : 'grab' }}
                   ref={el => {
@@ -3152,7 +4286,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   onMouseUp={handleGanttMouseUpOrLeave}
                   onMouseLeave={handleGanttMouseUpOrLeave}
                 >
-                  <div style={{ width: TOTAL_W, position: 'relative' }}>
+                  <div id="gantt-bars-inner-container" style={{ width: TOTAL_W, position: 'relative' }}>
                     {/* Líneas de cuadrícula vertical */}
                     {timeCols.map((col, i) => (
                       <div
@@ -3466,13 +4600,16 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
         );
       })()}
 
-      {/* Control Semanal PG-004 vs CDO V- tabla */}
+      {/* Tarjeta Colapsable: Análisis de Proyecto (Visión por Paquetes SCAP a 4 semanas por Componente) */}
       {!tipologiaSeleccionada && !partidaSeleccionada && (
-        <ControlSemanalTabla
-          actividades={actividades}
-          dataPlanificadoPG004={dataPlanificadoPG004}
-          baseVenta={baseVenta}
-        />
+        <div id="cronograma-analisis-proyecto-container" className="w-full pt-2">
+          <AnalisisProyectoCard
+            actividades={actividades}
+            dataPlanificadoPG004={dataPlanificadoPG004}
+            baseVenta={baseVenta}
+            fechaCorte={fechaCorteState}
+          />
+        </div>
       )}
 
       {/* Partida Seleccionada view detail */}
@@ -3623,17 +4760,22 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
         const isEquipmentActivity = (a: any) => {
           if (!a.esItemHoja) return false;
 
-          // Excluir equipos/paquetes con activityId conteniendo 'p6'
+          const scapLower = String(a.scap || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          const isValvula = scapLower === 'valvulas' || /valvul/i.test(scapLower);
+
+          // Excluir equipos/paquetes con activityId conteniendo 'p6', EXCEPTO para SCAP de válvulas
           const actId = (a.activityId || '').toLowerCase();
           const pId = (a.id || '').toLowerCase();
-          if (actId.includes('p6') || pId.includes('p6')) {
+          if (!isValvula && (actId.includes('p6') || pId.includes('p6'))) {
             return false;
           }
 
-          // Excluir bloque p.D "Actividades pendientes de confirmar por el Ingeniero"
-          const rawWbs = a.wbs || '';
-          const wbs = rawWbs.replace(/^p\d{4}\./, 'p.');
-          if (wbs.startsWith('p.D') || wbs.toLowerCase().startsWith('pd')) return false;
+          // Excluir bloque p.D "Actividades pendientes de confirmar por el Ingeniero" (excepto válvulas)
+          if (!isValvula) {
+            const rawWbs = a.wbs || '';
+            const wbs = rawWbs.replace(/^p\d{4}\./, 'p.');
+            if (wbs.startsWith('p.D') || wbs.toLowerCase().startsWith('pd')) return false;
+          }
 
           // Excluir actividades de procura (procura, procurement) pero mantener las de "compra" o "adquisición"
           const descLower = (a.descripcion || '').toLowerCase();
@@ -4790,7 +5932,21 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                                       {/* Secciones de Paquete de este Subcontractor */}
                                       {!isSubcCollapsed && (
                                         <div className="divide-y divide-slate-100">
-                                          {Object.entries(scapGroups).map(([scName, scapItems]) => {
+                                          {Object.entries(scapGroups).sort(([, aItems], [, bItems]) => {
+                                            const getMinBlFinish = (items: any[]) => {
+                                              let minT = Infinity;
+                                              items.forEach(it => {
+                                                const f = it.blFinish || it.finish;
+                                                if (f instanceof Date && !isNaN(f.getTime())) {
+                                                  if (f.getTime() < minT) minT = f.getTime();
+                                                }
+                                              });
+                                              return minT;
+                                            };
+                                            const diff = getMinBlFinish(aItems) - getMinBlFinish(bItems);
+                                            if (diff !== 0) return diff;
+                                            return 0;
+                                          }).map(([scName, scapItems]) => {
                                           // Group by WBS
                                           const wbsGroups: Record<string, { wbsName: string; items: any[] }> = {};
                                           scapItems.forEach(it => {
@@ -5158,7 +6314,21 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                           {/* Secciones de SCAP (now Paquete) */}
                           {!collapsedGroups[subC] && (
                             <div className="divide-y divide-slate-150">
-                                {Object.entries(scapGroups).map(([scName, scapItems]) => {
+                                {Object.entries(scapGroups).sort(([, aItems], [, bItems]) => {
+                                  const getMinBlFinish = (items: any[]) => {
+                                    let minT = Infinity;
+                                    items.forEach(it => {
+                                      const f = it.blFinish || it.finish;
+                                      if (f instanceof Date && !isNaN(f.getTime())) {
+                                        if (f.getTime() < minT) minT = f.getTime();
+                                      }
+                                    });
+                                    return minT;
+                                  };
+                                  const diff = getMinBlFinish(aItems) - getMinBlFinish(bItems);
+                                  if (diff !== 0) return diff;
+                                  return 0;
+                                }).map(([scName, scapItems]) => {
                                 // Agrupar items de este SCAP por WBS limpia
                                 const wbsGroups: Record<string, { wbsName: string; items: any[] }> = {};
                                 scapItems.forEach(it => {
@@ -5611,6 +6781,23 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           </div>
         );
       })()}
+
+      {/* Tarjeta Colapsable: Control de Ejecución (Control Semanal PG-004 vs CDO V-) */}
+      {!tipologiaSeleccionada && !partidaSeleccionada && (
+        <div id="cronograma-control-ejecucion-container" className="w-full pt-2">
+          {renderBottomControl ? (
+            <ControlSemanalTabla
+              actividades={actividades}
+              dataPlanificadoPG004={dataPlanificadoPG004}
+              baseVenta={baseVenta}
+            />
+          ) : (
+            <div className="bg-white rounded-xl p-4 border border-slate-200 text-center text-xs text-slate-400 font-medium animate-pulse">
+              Cargando tabla de control de ejecución...
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

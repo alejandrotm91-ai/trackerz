@@ -7,6 +7,7 @@ import React from 'react';
 import { Search, ChevronDown, ChevronRight, CircleDollarSign, TrendingUp, Calendar, Clock, TrendingDown, Download } from 'lucide-react';
 import { ctTipoLabel, ctTipoCfg, ctFmt, ctFmtM, ctPf } from '../utils/helpers';
 import { CdoVsPlanillaTab } from './CdoVsPlanillaTab';
+import { CurvaAvanceEconomico } from './CurvaAvanceEconomico';
 import { PlanillaItem } from '../types';
 
 interface PlanillaTabProps {
@@ -29,6 +30,11 @@ interface PlanillaTabProps {
   setCtSoloCert: (v: boolean) => void;
   certOpen: boolean;
   setCertOpen: (v: boolean) => void;
+  actividades?: any[];
+  dataPlanificadoPG004?: any;
+  datosCurvaAvance?: any;
+  expandedYears?: Set<any>;
+  setExpandedYears?: React.Dispatch<React.SetStateAction<Set<any>>>;
 }
 
 export const PlanillaTab: React.FC<PlanillaTabProps> = ({
@@ -51,6 +57,11 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
   setCtSoloCert,
   certOpen,
   setCertOpen,
+  actividades,
+  dataPlanificadoPG004,
+  datosCurvaAvance,
+  expandedYears,
+  setExpandedYears,
 }) => {
   if (!planillaInfo) return null;
 
@@ -209,89 +220,85 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           
           {/* 1. MONTO CONTRATADO */}
-          <div className="border border-indigo-200/70 rounded-[14px] p-3 bg-white shadow-mini flex flex-col justify-between min-h-[82px]">
+          <div className="border border-[#D5DEE2] rounded-xl p-3 bg-white shadow-xs flex flex-col justify-between min-h-[82px]">
             <div className="flex items-start justify-between gap-2">
-              <span className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+              <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none">
                 Monto Contratado
               </span>
-              <div className="p-1.5 bg-indigo-50/50 border border-indigo-100/80 text-indigo-650 rounded-[10px] flex-shrink-0">
+              <div className="p-1.5 bg-[#EEECFB] text-[#442dd7] rounded-lg flex-shrink-0">
                 <CircleDollarSign className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-1.5">
-              <div className="text-[16px] md:text-[18px] font-extrabold text-slate-900 tracking-tight leading-tight">
+              <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#14212A] tracking-tight leading-tight">
                 ${ctFmt(T.contrato)}
               </div>
             </div>
           </div>
 
-          {" "}
           {/* 2. EJECUTADO ACUMULADO */}
-          <div className="border border-indigo-200/70 rounded-[14px] p-3 bg-white shadow-mini flex flex-col justify-between min-h-[82px]">
+          <div className="border border-[#D5DEE2] rounded-xl p-3 bg-white shadow-xs flex flex-col justify-between min-h-[82px]">
             <div className="flex items-start justify-between gap-2">
-              <span className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+              <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none">
                 Ejecutado Acumulado
               </span>
-              <div className="p-1.5 bg-emerald-50/50 border border-emerald-100/80 text-emerald-600 rounded-[10px] flex-shrink-0">
+              <div className="p-1.5 bg-emerald-50 text-emerald-700 rounded-lg flex-shrink-0">
                 <TrendingUp className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-1.5">
-              <div className="text-[16px] md:text-[18px] font-extrabold text-emerald-700 tracking-tight leading-tight">
+              <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#2B7F52] tracking-tight leading-tight">
                 ${ctFmt(T.acum)}
               </div>
             </div>
           </div>
 
-          {" "}
           {/* 3. AVANCE PERÍODO */}
-          <div className="border border-indigo-200/70 rounded-[14px] p-3 bg-white shadow-mini flex flex-col justify-between min-h-[82px]">
+          <div className="border border-[#D5DEE2] rounded-xl p-3 bg-white shadow-xs flex flex-col justify-between min-h-[82px]">
             <div className="flex items-start justify-between gap-2">
-              <span className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none flex items-center gap-1.5">
                 Avance Período
               </span>
-              <div className="p-1.5 bg-violet-50/50 border border-violet-100/80 text-violet-650 rounded-[10px] flex-shrink-0">
+              <div className="p-1.5 bg-[#EEECFB] text-[#442dd7] rounded-lg flex-shrink-0">
                 <Calendar className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-1.5">
-              <div className="text-[16px] md:text-[18px] font-extrabold text-indigo-700 tracking-tight leading-tight">
+              <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#442dd7] tracking-tight leading-tight">
                 ${ctFmt(T.cert)}
               </div>
             </div>
           </div>
 
-          {" "}
           {/* 4. SALDO POR EJECUTAR */}
-          <div className="border border-indigo-200/70 rounded-[14px] p-3 bg-white shadow-mini flex flex-col justify-between min-h-[82px]">
+          <div className="border border-[#D5DEE2] rounded-xl p-3 bg-white shadow-xs flex flex-col justify-between min-h-[82px]">
             <div className="flex items-start justify-between gap-2">
-              <span className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+              <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none">
                 Saldo Por Ejecutar
               </span>
-              <div className="p-1.5 bg-amber-50/50 border border-amber-100/80 text-amber-600 rounded-[10px] flex-shrink-0">
+              <div className="p-1.5 bg-amber-50 text-amber-700 rounded-lg flex-shrink-0">
                 <Clock className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-1.5">
-              <div className="text-[16px] md:text-[18px] font-extrabold text-amber-700 tracking-tight leading-tight">
+              <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#A86B12] tracking-tight leading-tight">
                 ${ctFmt(T.saldo)}
               </div>
             </div>
           </div>
 
-          {" "}
           {/* 5. EXCEDENTES */}
-          <div className="border border-indigo-200/70 rounded-[14px] p-3 bg-white shadow-mini flex flex-col justify-between min-h-[82px]">
+          <div className="border border-[#D5DEE2] rounded-xl p-3 bg-white shadow-xs flex flex-col justify-between min-h-[82px]">
             <div className="flex items-start justify-between gap-2">
-              <span className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+              <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none">
                 Excedentes
               </span>
-              <div className="p-1.5 bg-rose-50/50 border border-rose-100/80 text-rose-500 rounded-[10px] flex-shrink-0">
+              <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg flex-shrink-0">
                 <TrendingDown className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-1.5">
-              <div className="text-[16px] md:text-[18px] font-extrabold text-rose-650 tracking-tight leading-tight">
+              <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#B83227] tracking-tight leading-tight">
                 ${ctFmt(T.exc)}
               </div>
             </div>
@@ -302,12 +309,12 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
 
       {/* Resumen Contrato + Enmiendas */}
       {planillaEnmiendas.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm p-5 border border-indigo-600">
-          <h2 className="text-base font-bold text-indigo-950 mb-3">Resumen Contrato + Enmiendas</h2>
+        <div className="bg-white rounded-xl shadow-xs p-5 border border-[#D5DEE2]">
+          <h2 className="text-base font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wide mb-3">Resumen Contrato + Enmiendas</h2>
           <div className="overflow-x-auto text-xs">
             <table className="min-w-full text-xs">
               <thead>
-                <tr className="bg-gray-100 font-semibold text-gray-600 border-b">
+                <tr className="bg-[#F5F8F9] font-semibold text-[#5A6A74] border-b border-[#D5DEE2]">
                   <th className="w-6"></th>
                   <th className="px-3 py-2 text-left">Enmienda</th>
                   <th className="px-3 py-2 text-right">Contrato Acum.</th>
@@ -776,6 +783,15 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
       {planillaCDOvsS && Object.keys(planillaCDOvsS.F || {}).length > 0 && (
         <CdoVsPlanillaTab cdoVsS={planillaCDOvsS} />
       )}
+
+      {/* Curva de Avance Económico colapsable ubicada debajo de Comparación CDO vs Planilla */}
+      <CurvaAvanceEconomico
+        actividades={actividades}
+        dataPlanificadoPG004={dataPlanificadoPG004}
+        datosCurvaAvance={datosCurvaAvance}
+        expandedYears={expandedYears}
+        setExpandedYears={setExpandedYears}
+      />
     </div>
   );
 };

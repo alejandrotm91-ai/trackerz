@@ -6,9 +6,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Actividad, PlanillaItem } from '../types';
-import { normalizeText, ctPf } from '../utils/helpers';
+import { normalizeText, ctPf, isIgnoredFinishDate } from '../utils/helpers';
 import { loadLatestPlanFromFirebase, savePlanToFirebase, testFirestoreConnection } from '../utils/firebaseSync';
 import { savePlanToLocalStorage, loadPlanFromLocalStorage } from '../utils/localStorageBackup';
+import { parseWbsAndDescription, hasDirectoOrDSegment } from '../utils/masterCdoHierarchy';
 import { db, auth } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -169,6 +170,24 @@ export function rebuildAggregatedDates(actividadesProcesadas: Actividad[]): Acti
     if (a.finish && typeof a.finish === 'string') {
       a.finish = new Date(a.finish);
       if (isNaN(a.finish.getTime())) a.finish = null;
+    }
+
+    // Actualizar fechas baseline para actividades que al no estar en la partida D tienen BL inicio y BL Fin 30-abr-27
+    const rawWbs = String(a.wbs || a.wbsRaw || '').trim();
+    const partidaStr = String(a.partidas || (a as any).partida || '').trim();
+    const isPD = hasDirectoOrDSegment(rawWbs) ||
+      /^p\.d(\.|$)/i.test(rawWbs) ||
+      /^d(\.|$)/i.test(rawWbs) ||
+      /^partida d/i.test(partidaStr) ||
+      /^d(\.|$)/i.test(partidaStr);
+
+    if (!isPD) {
+      const isBlStart30Abr = isIgnoredFinishDate(a.blStart);
+      const isBlFinish30Abr = isIgnoredFinishDate(a.blFinish);
+      if (isBlStart30Abr || isBlFinish30Abr) {
+        if (isBlStart30Abr && a.start) a.blStart = a.start;
+        if (isBlFinish30Abr && a.finish) a.blFinish = a.finish;
+      }
     }
   });
 
@@ -421,6 +440,7 @@ export function useMasterPlan(isLoggedIn = false) {
   const [filterLevel, setFilterLevel] = useState<string>('all');
   const [filterTipologia, setFilterTipologia] = useState<string>('all');
   const [tipologiaSeleccionada, setTipologiaSeleccionada] = useState<string | null>(null); // Para ver detalle de items
+  const [componenteSeleccionado, setComponenteSeleccionado] = useState<string | null>(null); // Filtro por Componente (Columna AN)
   const [expandedRESPs, setExpandedRESPs] = useState<Set<string>>(new Set());
   const [expandedTipos, setExpandedTipos] = useState<Set<string>>(new Set());
   const [expandedSCAPs, setExpandedSCAPs] = useState<Set<string>>(new Set());
@@ -468,6 +488,7 @@ export function useMasterPlan(isLoggedIn = false) {
   const [ganttSearch, setGanttSearch] = useState<string>('');
   const [ganttStatus, setGanttStatus] = useState<string>('all');
   const [ganttFloat, setGanttFloat] = useState<string>('all');
+  const [ganttPAc, setGanttPAc] = useState<string>('all');
   const [ganttMetricsOpen, setGanttMetricsOpen] = useState<boolean>(true);
   const [ganttTipoOpen, setGanttTipoOpen] = useState<boolean>(true);
   const [ganttTipo, setGanttTipo] = useState<string>('all');
@@ -943,6 +964,9 @@ export function useMasterPlan(isLoggedIn = false) {
       if (tipologiaSeleccionada) {
         itemsHijos = itemsHijos.filter(a => a.tipo === tipologiaSeleccionada);
       }
+      if (componenteSeleccionado) {
+        itemsHijos = itemsHijos.filter(a => ((a.componente || '').trim() || 'Sin Componente') === componenteSeleccionado);
+      }
       if (isRespFilterActive) {
         itemsHijos = itemsHijos.filter(a => matchesRespFilter(a));
       }
@@ -960,6 +984,7 @@ export function useMasterPlan(isLoggedIn = false) {
     const itemsHijos = actividades.filter(a => {
       if (!a.esItemHoja) return false;
       if (tipologiaSeleccionada && a.tipo !== tipologiaSeleccionada) return false;
+      if (componenteSeleccionado && (((a.componente || '').trim() || 'Sin Componente') !== componenteSeleccionado)) return false;
       if (isRespFilterActive && !matchesRespFilter(a)) return false;
       
       const itemPath = cleanWbs(a.wbs || '');
@@ -978,7 +1003,22 @@ export function useMasterPlan(isLoggedIn = false) {
   };
 
   const calcularAvance = (item: any) => {
-    if (item && item.avanceAT !== undefined && item.avanceAT !== null) {
+    if (!item) return 0;
+    const vals = calcularValoresReales(item);
+    if (vals && vals.venta > 0 && vals.ventaEjecutada > 0) {
+      return Number(((vals.ventaEjecutada / vals.venta) * 100).toFixed(2));
+    }
+    if (vals && vals.ventaPlan > 0 && vals.ventaEjecutada > 0) {
+      return Number(((vals.ventaEjecutada / vals.ventaPlan) * 100).toFixed(2));
+    }
+    if (item.avanceAT !== undefined && item.avanceAT !== null) {
+      const parsed = Number(item.avanceAT);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    if (vals && vals.venta > 0) {
+      return 0;
+    }
+    if (item.avanceAT !== undefined && item.avanceAT !== null) {
       const parsed = Number(item.avanceAT);
       return isNaN(parsed) ? 0 : parsed;
     }
@@ -998,6 +1038,9 @@ export function useMasterPlan(isLoggedIn = false) {
     let itemsHoja = actividades.filter(a => a.esItemHoja);
     if (tipologiaSeleccionada) {
       itemsHoja = itemsHoja.filter(a => a.tipo === tipologiaSeleccionada);
+    }
+    if (componenteSeleccionado) {
+      itemsHoja = itemsHoja.filter(a => ((a.componente || '').trim() || 'Sin Componente') === componenteSeleccionado);
     }
     if (isRespFilterActive) {
       itemsHoja = itemsHoja.filter(a => matchesRespFilter(a));
@@ -1097,6 +1140,52 @@ export function useMasterPlan(isLoggedIn = false) {
       tip.avance = tip.venta > 0 ? ((tip.ventaEjecutada / tip.venta) * 100).toFixed(2) : 0;
     });
 
+    // Construcción de Componentes (Columna AN)
+    const componentes: Record<string, any> = {};
+    const baseItemsForComponentes = actividades.filter(a => {
+      if (!a.esItemHoja) return false;
+      if (isRespFilterActive && !matchesRespFilter(a)) return false;
+      return true;
+    });
+
+    baseItemsForComponentes.forEach(item => {
+      const compRaw = (item.componente || '').trim();
+      const comp = compRaw || 'Sin Componente';
+      if (!componentes[comp]) {
+        componentes[comp] = {
+          nombre: comp,
+          venta: 0,
+          ventaEjecutada: 0,
+          saldo: 0,
+          items: 0
+        };
+      }
+      const ventaBase = getVB(item);
+      componentes[comp].venta += ventaBase;
+      componentes[comp].ventaEjecutada += item.ventaEjecutada;
+      componentes[comp].saldo += (ventaBase - (item.ventaEjecutada || 0));
+      
+      const isArtificial = item.totalFloat === null && !['Completed', 'In Progress', 'Not Started'].includes(item.p6Status);
+      if (!isArtificial) {
+        componentes[comp].items += 1;
+      }
+    });
+
+    Object.values(componentes).forEach(c => {
+      c.avance = c.venta > 0 ? ((c.ventaEjecutada / c.venta) * 100).toFixed(2) : 0;
+    });
+
+    const sortedComponentes = Object.values(componentes).sort((a: any, b: any) => {
+      const matchA = a.nombre.match(/^(\d+)\./);
+      const matchB = b.nombre.match(/^(\d+)\./);
+      if (matchA && matchB) {
+        return parseInt(matchA[1], 10) - parseInt(matchB[1], 10);
+      }
+      if (matchA) return -1;
+      if (matchB) return 1;
+      return b.venta - a.venta;
+    });
+
     const partidasPrincipales = actividades.filter(a => a.nivel === 2 && !a.esItemHoja);
 
     const nonArtificialItemsHojaCount = itemsHoja.filter(a => {
@@ -1130,9 +1219,10 @@ export function useMasterPlan(isLoggedIn = false) {
             ? ((totalVentaEjecutadaPeriodo / totalVentaPlanPeriodo) * 100).toFixed(2) 
             : (totalVentaEjecutadaPeriodo > 0 ? '100.00' : '0.00'))
         : (totalVenta > 0 ? ((totalVentaEjecutada / totalVenta) * 100).toFixed(2) : '0.00'),
-      tipologias: Object.values(tipologias).sort((a: any, b: any) => b.venta - a.venta)
+      tipologias: Object.values(tipologias).sort((a: any, b: any) => b.venta - a.venta),
+      componentes: sortedComponentes
     };
-  }, [actividades, tipologiaSeleccionada, filterResp, periodoSeleccionado, baseVenta, selectedPlanForGrid]);
+  }, [actividades, tipologiaSeleccionada, componenteSeleccionado, filterResp, periodoSeleccionado, baseVenta, selectedPlanForGrid]);
 
   // Stats de Cronograma
   const statsCronograma = useMemo(() => {
@@ -1228,8 +1318,38 @@ export function useMasterPlan(isLoggedIn = false) {
       p.promedioAtrasoFin = p.itemsAtrasadosFin > 0 ? Math.round(p.sumAtrasoFin / p.itemsAtrasadosFin) : 0;
     });
     
-    const acCriticasVal = itemsHoja.filter(a => a.totalFloat === 0 && (a.p6Status === 'In Progress' || a.p6Status === 'Not Started')).length;
-    const acSubcriticasVal = Math.max(0, itemsHoja.filter(a => a.totalFloat !== null && a.totalFloat < 40).length - acCriticasVal);
+    const getP6Cat = (val: any) => {
+      const s = String(val || '').trim().toLowerCase();
+      if (s === 'completed' || s.includes('complet') || s.includes('finaliz')) return 'Completed';
+      if (s === 'in progress' || s.includes('progress') || s.includes('progreso') || s.includes('curso')) return 'In Progress';
+      if (s === 'not started' || s.includes('not start') || s.includes('no inic') || s.includes('no-inic')) return 'Not Started';
+      return 'other';
+    };
+
+    const validFloats = itemsHoja
+      .map(a => a.totalFloat)
+      .filter((f): f is number => f !== null && f !== undefined && !isNaN(Number(f)))
+      .map(f => Number(f));
+    const minFloat = validFloats.length > 0 ? Math.min(...validFloats) : 0;
+    const hasNegative = minFloat < 0;
+
+    const acCriticasVal = itemsHoja.filter(a => {
+      if (a.totalFloat === null || a.totalFloat === undefined || isNaN(Number(a.totalFloat))) return false;
+      const v = Number(a.totalFloat);
+      return hasNegative ? v === minFloat : v === 0;
+    }).length;
+
+    const acSubcriticasVal = itemsHoja.filter(a => {
+      if (a.totalFloat === null || a.totalFloat === undefined || isNaN(Number(a.totalFloat))) return false;
+      const v = Number(a.totalFloat);
+      return hasNegative ? (v > minFloat && v < 0) : false;
+    }).length;
+
+    const acRiesgosasVal = itemsHoja.filter(a => {
+      if (a.totalFloat === null || a.totalFloat === undefined || isNaN(Number(a.totalFloat))) return false;
+      const v = Number(a.totalFloat);
+      return v >= 0 && v <= 20;
+    }).length;
 
     return {
       totalItems: itemsHoja.length,
@@ -1239,11 +1359,14 @@ export function useMasterPlan(isLoggedIn = false) {
       promedioAtrasoFin: Math.round(promedioAtrasoFin),
       itemsCriticos: itemsCriticos.length,
       acTotal: itemsHoja.length,
-      acCompletadas: itemsHoja.filter(a => a.p6Status === 'Completed').length,
-      acEnCurso: itemsHoja.filter(a => a.p6Status === 'In Progress').length,
-      acNoIniciadas: itemsHoja.filter(a => a.p6Status === 'Not Started').length,
+      acCompletadas: itemsHoja.filter(a => getP6Cat(a.p6Status || a.status) === 'Completed').length,
+      acEnCurso: itemsHoja.filter(a => getP6Cat(a.p6Status || a.status) === 'In Progress').length,
+      acNoIniciadas: itemsHoja.filter(a => getP6Cat(a.p6Status || a.status) === 'Not Started').length,
       acCriticas: acCriticasVal,
       acSubcriticas: acSubcriticasVal,
+      acRiesgosas: acRiesgosasVal,
+      minFloat,
+      hasNegativeFloat: hasNegative,
       tipologias: Object.values(tipologias),
       partidas: Object.values(partidas).sort((a: any, b: any) => {
         const ka = a.wbs.replace('p.', ''), kb = b.wbs.replace('p.', '');
@@ -1624,6 +1747,32 @@ export function useMasterPlan(isLoggedIn = false) {
   const filteredActividades = useMemo(() => {
     let filtered = actividades;
 
+    if (componenteSeleccionado) {
+      const itemsDeComponente = actividades.filter(a => a.esItemHoja && (((a.componente || '').trim() || 'Sin Componente') === componenteSeleccionado));
+      const partidasConItems = new Set<string>();
+      
+      itemsDeComponente.forEach(item => {
+        const itemWbs = item.wbs;
+        if (itemWbs && itemWbs.startsWith('p') && itemWbs.includes('.')) {
+          const parts = itemWbs.split('.');
+          const itemPath = parts.slice(1).join('.'); 
+          const pathParts = itemPath.split('.');
+          for (let i = 1; i <= pathParts.length; i++) {
+            const partidaPath = pathParts.slice(0, i).join('.');
+            partidasConItems.add('p.' + partidaPath);
+          }
+        }
+      });
+      
+      filtered = actividades.filter(a => {
+        if (a.esItemHoja && (((a.componente || '').trim() || 'Sin Componente') === componenteSeleccionado)) return true;
+        if (!a.esItemHoja && partidasConItems.has(a.wbs)) return true;
+        return false;
+      });
+      
+      return filtered;
+    }
+
     if (tipologiaSeleccionada) {
       const itemsDeTipologia = actividades.filter(a => a.esItemHoja && a.tipo === tipologiaSeleccionada);
       const partidasConItems = new Set<string>();
@@ -1728,9 +1877,9 @@ export function useMasterPlan(isLoggedIn = false) {
     }
 
     return filtered;
-  }, [actividades, searchTerm, filterLevel, filterTipologia, tipologiaSeleccionada, filterResp]);
+  }, [actividades, searchTerm, filterLevel, filterTipologia, tipologiaSeleccionada, componenteSeleccionado, filterResp]);
 
-  // Auto-expandir partidas cuando hay búsqueda activa
+  // Auto-expandir partidas cuando hay búsqueda activa o filtro por componente/tipología
   useEffect(() => {
     if (!actividades || actividades.length === 0 || !filteredActividades) return;
     
@@ -1757,10 +1906,20 @@ export function useMasterPlan(isLoggedIn = false) {
       if (partidasAExpandir.size > 0) {
         setExpandedItems(partidasAExpandir);
       }
-    } else if (!tipologiaSeleccionada && expandedItems.size > 0) {
+    } else if (componenteSeleccionado) {
+      const partidasAExpandir = new Set<string>();
+      filteredActividades.forEach(item => {
+        if (!item.esItemHoja) {
+          partidasAExpandir.add(item.id);
+        }
+      });
+      if (partidasAExpandir.size > 0) {
+        setExpandedItems(partidasAExpandir);
+      }
+    } else if (!tipologiaSeleccionada && !componenteSeleccionado && expandedItems.size > 0) {
       setExpandedItems(new Set());
     }
-  }, [searchTerm, actividades, tipologiaSeleccionada, filteredActividades]);
+  }, [searchTerm, actividades, tipologiaSeleccionada, componenteSeleccionado, filteredActividades]);
 
   const toggleExpand = (id: string) => {
     setExpandedItems(prev => {
@@ -1879,15 +2038,146 @@ export function useMasterPlan(isLoggedIn = false) {
 
         const row1 = jsonData[0] || [];
 
+        // Encontrar columna para P.Ac (Fila 2 en Excel / headers = jsonData[1])
+        let pAcColIndex = -1;
+        for (let c = 0; c < headers.length; c++) {
+          const hText = String(headers[c] || '').trim().toLowerCase();
+          if (hText === 'p.ac' || hText === 'p. ac' || hText === 'pac' || hText === 'p_ac' || hText.startsWith('p.ac')) {
+            pAcColIndex = c;
+            break;
+          }
+        }
+
+        // Encontrar columna para Step (Columna H por defecto, índice 7: A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7)
+        let stepColIndex = 7;
+        for (let c = 0; c < headers.length; c++) {
+          const hText = String(headers[c] || '').trim().toLowerCase();
+          if (hText === 'step' || hText.startsWith('step')) {
+            stepColIndex = c;
+            break;
+          }
+        }
+        if (stepColIndex === 7) {
+          for (let c = 0; c < row1.length; c++) {
+            const hText = String(row1[c] || '').trim().toLowerCase();
+            if (hText === 'step' || hText.startsWith('step')) {
+              stepColIndex = c;
+              break;
+            }
+          }
+        }
+
         const maxCols = Math.max(
           headers.length,
           row1.length,
           ...jsonData.slice(0, 10).map(r => (r ? r.length : 0))
         );
 
-        // Check if there are explicit V- / Venta headers in the time-phased section (col >= 48)
+        // Helper para normalizar encabezados (sin tildes, minúsculas, espacios colapsados)
+        const normalizeH = (val: any) =>
+          String(val || '')
+            .trim()
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/\s+/g, ' ');
+
+        const findHeaderCol = (predicate: (h: string) => boolean, fallback: number): number => {
+          // 1. Buscar en fila 2 (headers = jsonData[1])
+          for (let c = 0; c < headers.length; c++) {
+            const h = normalizeH(headers[c]);
+            if (h && predicate(h)) return c;
+          }
+          // 2. Buscar en fila 1 (row1 = jsonData[0])
+          for (let c = 0; c < row1.length; c++) {
+            const h = normalizeH(row1[c]);
+            if (h && predicate(h)) return c;
+          }
+          return fallback;
+        };
+
+        // Detección dinámica de formato (con o sin columnas J, K, L, M eliminadas)
+        let detectedSubcCol = -1;
+        let detectedStatusCol = -1;
+        for (let c = 0; c < Math.min(maxCols, 35); c++) {
+          const h = normalizeH(headers[c]) || normalizeH(row1[c]);
+          if (detectedSubcCol === -1 && (h.includes('subcontrat') || h === 'subc' || h.startsWith('subc ') || h === 'sub-contratista')) {
+            detectedSubcCol = c;
+          }
+          if (detectedStatusCol === -1 && (h === 'p6' || h.startsWith('p6') || h === 'status' || h === 'estado' || h === 'activity status' || h.includes('status'))) {
+            detectedStatusCol = c;
+          }
+        }
+
+        // Validación directa de Col S (18) y Col X (23) en formato nuevo
+        const h18 = normalizeH(headers[18]) || normalizeH(row1[18]);
+        const isCol18P6 = h18 === 'p6' || h18.startsWith('p6') || h18 === 'status';
+
+        const h23 = normalizeH(headers[23]) || normalizeH(row1[23]);
+        const isCol23Float = h23 === 'float' || h23.includes('float') || h23.includes('holgura');
+
+        // Si Col 18 es p6/status, o Col 23 es float, o Subcontratista está en columna 8-10 (Col J=9), es el formato nuevo sin J-M.
+        // Si Subcontratista está en columna 12-14 (Col N=13) o Status en columna 21-23 (Col W=22), es el formato original.
+        const isNewLayoutWithoutJKLM = isCol18P6 || isCol23Float || (detectedSubcCol >= 8 && detectedSubcCol <= 10) || (detectedStatusCol >= 17 && detectedStatusCol <= 19);
+        const hasOldContractCols = !isNewLayoutWithoutJKLM;
+        const colShift = hasOldContractCols ? 0 : -4;
+
+        // Detección de inicio de columnas semanales V-
+        let detectedWeeklyStartCol = -1;
+        for (let col = 35; col < maxCols; col++) {
+          const hStr = String(headers[col] || '').trim().toUpperCase();
+          const r1Str = String(row1[col] || '').trim().toUpperCase();
+          if (hStr.startsWith('V-') || hStr.startsWith('V_') || hStr.startsWith('V ') ||
+              r1Str.startsWith('V-') || r1Str.startsWith('V_') || r1Str.startsWith('V ')) {
+            detectedWeeklyStartCol = col;
+            break;
+          }
+        }
+
+        const colIndices = {
+          wbs: 0,
+          idOrig: 1,
+          activityId: 2,
+          activityName: 3,
+          unidad: 4,
+          cantidad: 5,
+          precio: 6,
+          step: stepColIndex,
+          venta: 8,
+          subcontratista: findHeaderCol(h => h.includes('subcontrat') || h === 'subc' || h.startsWith('subc ') || h === 'sub-contratista', isNewLayoutWithoutJKLM ? 9 : 13),
+          avanceFisico: findHeaderCol(h => (h.includes('avance') && (h.includes('fisic') || h.includes('%'))) || h.includes('activity % complete'), isNewLayoutWithoutJKLM ? 10 : 14),
+          status: findHeaderCol(h => h === 'p6' || h.startsWith('p6') || h.endsWith('p6') || h === 'status' || h === 'estado' || h.includes('activity status') || h.includes('status'), isNewLayoutWithoutJKLM ? 18 : 22),
+          blStart: findHeaderCol(h => (h.includes('bl') || h.includes('baseline') || h.includes('linea base')) && (h.includes('start') || h.includes('inicio')), isNewLayoutWithoutJKLM ? 19 : 23),
+          blFinish: findHeaderCol(h => (h.includes('bl') || h.includes('baseline') || h.includes('linea base')) && (h.includes('finish') || h.includes('fin')), isNewLayoutWithoutJKLM ? 20 : 24),
+          start: findHeaderCol(h => !h.includes('bl') && !h.includes('baseline') && !h.includes('linea base') && (h === 'start' || h === 'inicio' || h.includes('actual start') || h.includes('fecha inicio')), isNewLayoutWithoutJKLM ? 21 : 25),
+          finish: findHeaderCol(h => !h.includes('bl') && !h.includes('baseline') && !h.includes('linea base') && (h === 'finish' || h === 'fin' || h.includes('actual finish') || h.includes('fecha fin')), isNewLayoutWithoutJKLM ? 22 : 26),
+          totalFloat: findHeaderCol(h => h === 'float' || h.includes('total float') || h.includes('holgura') || h.includes('float'), isNewLayoutWithoutJKLM ? 23 : 27),
+          macro: findHeaderCol(h => h === 'macro' || h.startsWith('macro'), isNewLayoutWithoutJKLM ? 24 : 28),
+          grupo: findHeaderCol(h => h === 'grupo' || h.startsWith('grupo'), isNewLayoutWithoutJKLM ? 25 : 29),
+          ubicacion: findHeaderCol(h => h.includes('ubicacion') || h.includes('location'), isNewLayoutWithoutJKLM ? 26 : 30),
+          proceso: findHeaderCol(h => h.includes('proceso') || h.includes('process'), isNewLayoutWithoutJKLM ? 27 : 31),
+          partidas: findHeaderCol(h => h.includes('partida'), isNewLayoutWithoutJKLM ? 28 : 32),
+          tipo: findHeaderCol(h => h === 'tipo' || h === 'tipologia' || h.startsWith('tipo ') || h.includes('disciplina'), isNewLayoutWithoutJKLM ? 29 : 33),
+          cap: findHeaderCol(h => h === 'cap' || h.startsWith('cap'), isNewLayoutWithoutJKLM ? 30 : 34),
+          scap: findHeaderCol(h => h === 'scap' || h.startsWith('scap') || h.includes('paquete'), isNewLayoutWithoutJKLM ? 31 : 35),
+          unit: findHeaderCol(h => h === 'unit', isNewLayoutWithoutJKLM ? 32 : 36),
+          componente: findHeaderCol(h => h.includes('componente') || h === 'comp' || h.startsWith('component') || h === 'columna aj' || h === 'aj', isNewLayoutWithoutJKLM ? 35 : 39),
+          resp: findHeaderCol(h => h.includes('resp') && !h.includes('p.ac') && !h.includes('pac'), isNewLayoutWithoutJKLM ? 36 : 40),
+          pAc: pAcColIndex >= 0 ? pAcColIndex : findHeaderCol(h => h === 'p.ac' || h === 'p. ac' || h === 'pac' || h.startsWith('p.ac'), isNewLayoutWithoutJKLM ? 36 : 40),
+          balance: findHeaderCol(h => h.includes('balance') || h.includes('saldo'), isNewLayoutWithoutJKLM ? 39 : 43),
+          ventaPlan: findHeaderCol(h => (h.includes('venta') && h.includes('plan')) || h === 'v. plan' || h === 'v plan', isNewLayoutWithoutJKLM ? 40 : 44),
+          avanceAt: findHeaderCol(h => h.includes('avance at') || h.includes('a.t.') || h === 'at', isNewLayoutWithoutJKLM ? 41 : 45),
+          ventaEx: findHeaderCol(h => (h.includes('venta') && (h.includes('ex') || h.includes('ejecut'))) || h === 'v. ex' || h === 'v ex' || h === 'v. ejec', isNewLayoutWithoutJKLM ? 43 : 47),
+          weeklyStart: detectedWeeklyStartCol > 0 ? detectedWeeklyStartCol : (isNewLayoutWithoutJKLM ? 44 : 48)
+        };
+
+        const weeklyStartCol = colIndices.weeklyStart;
+
+        console.log(`Formato CDO detectado: ${hasOldContractCols ? 'Original con columnas J-M' : 'Optimizado sin columnas J-M'}. Desplazamiento: ${colShift}, Semanas inician en col: ${weeklyStartCol}`, colIndices);
+
+        // Check if there are explicit V- / Venta headers in the time-phased section
         let hasExplicitVHeaders = false;
-        for (let col = 48; col < maxCols; col++) {
+        for (let col = weeklyStartCol; col < maxCols; col++) {
           const hStr = String(headers[col] || '').trim().toUpperCase();
           const r1Str = String(row1[col] || '').trim().toUpperCase();
           if (hStr.startsWith('V-') || hStr.startsWith('V_') || hStr === 'V' || hStr.includes('VENTA') ||
@@ -1899,8 +2189,8 @@ export function useMasterPlan(isLoggedIn = false) {
 
         let lastDateFromRow0: Date | null = null;
 
-        // Time-phased weekly execution columns in CDO start after fixed metadata columns (col >= 48)
-        for (let col = 48; col < maxCols; col++) {
+        // Time-phased weekly execution columns in CDO start after fixed metadata columns
+        for (let col = weeklyStartCol; col < maxCols; col++) {
           const header = headers[col];
           const headerStr = header ? String(header).trim() : '';
           const r1Value = row1[col];
@@ -2106,10 +2396,10 @@ export function useMasterPlan(isLoggedIn = false) {
               });
             });
 
-            const valAV_col = helperParseNum(r[47]);
+            const valAV_col = helperParseNum(r[colIndices.ventaEx]);
             const valAV = valAV_col > 0 ? valAV_col : weeklySum;
-            const valAS = helperParseNum(r[44]);
-            const valColI = helperParseNum(r[8]);
+            const valAS = helperParseNum(r[colIndices.ventaPlan]);
+            const valColI = helperParseNum(r[colIndices.venta]);
 
             keysToRegister.forEach(k => {
               sumAVByColA.set(k, (sumAVByColA.get(k) || 0) + valAV);
@@ -2129,7 +2419,11 @@ export function useMasterPlan(isLoggedIn = false) {
           const wbs = row[0];
           if (!wbs) continue;
           const wbsStr = String(wbs).trim();
-          if (wbsStr.toLowerCase().includes('p6')) {
+          const rawScap = colIndices.scap >= 0 ? row[colIndices.scap] : null;
+          const scapStr = String(rawScap || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const isValvulaScap = scapStr === 'valvulas' || /valvul/i.test(scapStr);
+
+          if (!isValvulaScap && wbsStr.toLowerCase().includes('p6')) {
             continue;
           }
 
@@ -2168,6 +2462,25 @@ export function useMasterPlan(isLoggedIn = false) {
             }
           }
 
+          // Columna H de CDO: Step (índice 7 o stepColIndex)
+          const rawStep = (stepColIndex >= 0 && row[stepColIndex] !== undefined && row[stepColIndex] !== null)
+            ? row[stepColIndex]
+            : (row[7] !== undefined && row[7] !== null ? row[7] : null);
+          let stepVal: number | null = null;
+          if (rawStep !== null && rawStep !== undefined) {
+            if (typeof rawStep === 'number') {
+              stepVal = isNaN(rawStep) ? null : rawStep;
+            } else {
+              const cleaned = String(rawStep).replace(/[$,]/g, '').trim();
+              if (cleaned !== '') {
+                const parsed = parseFloat(cleaned);
+                if (!isNaN(parsed)) {
+                  stepVal = parsed;
+                }
+              }
+            }
+          }
+
           const parseNum = (val: any): number => {
             if (typeof val === 'number') return isNaN(val) ? 0 : val;
             if (!val) return 0;
@@ -2176,34 +2489,57 @@ export function useMasterPlan(isLoggedIn = false) {
             return isNaN(parsed) ? 0 : parsed;
           };
 
-          const venta = parseNum(row[8]);
-          const ventaM = parseNum(row[12]);
-          const ventaPlan = parseNum(row[44]);
-          const ventaEx = parseNum(row[47]);
-          const balance = parseNum(row[43]);
-          const macro = row[28];
-          const grupo = row[29];
-          const partidas = row[32];
-          const tipo = row[33];
-          const subcontratista = row[13];
-          const ubicacion = row[30];
-          const proceso = row[31];
-          const cap = row[34];
-          const scap = row[35];
-          const unit = row[36];
-          const componente = row[39];
-          const resp = row[40];
-          const status = row[22];
-
-          let wbsCode: string, wbsDescripcion: string | null;
-          if (wbsStr.includes('  ')) {
-            const parts = wbsStr.split('  ');
-            wbsCode = parts[0].trim();
-            wbsDescripcion = parts.slice(1).join('  ').trim();
-          } else {
-            wbsCode = wbsStr;
-            wbsDescripcion = null;
+          const venta = parseNum(row[colIndices.venta]);
+          const ventaM = hasOldContractCols ? parseNum(row[12]) : venta;
+          const ventaPlan = parseNum(row[colIndices.ventaPlan]);
+          const ventaEx = parseNum(row[colIndices.ventaEx]);
+          const balance = parseNum(row[colIndices.balance]);
+          const macro = row[colIndices.macro];
+          const grupo = row[colIndices.grupo];
+          const partidas = row[colIndices.partidas];
+          const tipo = row[colIndices.tipo];
+          const subcontratista = row[colIndices.subcontratista];
+          const ubicacion = row[colIndices.ubicacion];
+          const proceso = row[colIndices.proceso];
+          const cap = row[colIndices.cap];
+          const scap = row[colIndices.scap];
+          const unit = row[colIndices.unit];
+          const rawComponente = (colIndices.componente >= 0 && row[colIndices.componente] !== undefined && row[colIndices.componente] !== null && String(row[colIndices.componente]).trim() !== '')
+            ? row[colIndices.componente]
+            : (row[35] !== undefined && row[35] !== null && String(row[35]).trim() !== ''
+              ? row[35]
+              : (row[39] !== undefined && row[39] !== null ? row[39] : ''));
+          const componente = rawComponente !== undefined && rawComponente !== null ? String(rawComponente).trim() : '';
+          const resp = row[colIndices.resp];
+          const rawPAc = (colIndices.pAc >= 0 && row[colIndices.pAc] !== undefined && row[colIndices.pAc] !== null)
+            ? row[colIndices.pAc]
+            : null;
+          const pAc = rawPAc !== null && rawPAc !== undefined ? String(rawPAc).trim() : '';
+          let rawStatus = (row[colIndices.status] !== undefined && row[colIndices.status] !== null)
+            ? String(row[colIndices.status]).trim()
+            : '';
+          if (!rawStatus && row[18] !== undefined && row[18] !== null) {
+            const s18 = String(row[18]).trim();
+            const s18L = s18.toLowerCase();
+            if (s18L.includes('progress') || s18L.includes('completed') || s18L.includes('start') || s18L.includes('progreso') || s18L.includes('iniciad')) {
+              rawStatus = s18;
+            }
           }
+
+          let canonicalP6Status = rawStatus;
+          const statusLower = rawStatus.toLowerCase();
+          if (statusLower === 'completed' || statusLower.includes('complet') || statusLower.includes('finaliz')) {
+            canonicalP6Status = 'Completed';
+          } else if (statusLower === 'in progress' || statusLower.includes('progress') || statusLower.includes('progreso') || statusLower.includes('curso')) {
+            canonicalP6Status = 'In Progress';
+          } else if (statusLower === 'not started' || statusLower.includes('not start') || statusLower.includes('no iniciad') || statusLower.includes('no inic') || statusLower.includes('no-inic')) {
+            canonicalP6Status = 'Not Started';
+          }
+          const status = canonicalP6Status || rawStatus;
+
+          const parsedColA = parseWbsAndDescription(wbsStr);
+          const wbsCode = parsedColA.wbs || wbsStr;
+          const wbsDescripcion = parsedColA.description || null;
 
           const certificacionesPorFecha: Record<string, number> = {};
           
@@ -2234,8 +2570,17 @@ export function useMasterPlan(isLoggedIn = false) {
               }
             }
 
-            if (p6Exec) {
+            if (p6Exec && Object.keys(p6Exec).length > 0) {
               Object.entries(p6Exec).forEach(([fechaKey, valor]) => {
+                if (valor > 0) certificacionesPorFecha[fechaKey] = valor;
+              });
+            } else {
+              Object.entries(fechasPorColumnaCDO).forEach(([colStr, fechaKey]) => {
+                const col = parseInt(colStr);
+                let valorRaw = row[col];
+                let valor = 0;
+                if (typeof valorRaw === 'number') valor = valorRaw;
+                else if (typeof valorRaw === 'string') valor = parseFloat(valorRaw.replace(/[$,]/g, '')) || 0;
                 if (valor > 0) certificacionesPorFecha[fechaKey] = valor;
               });
             }
@@ -2259,21 +2604,33 @@ export function useMasterPlan(isLoggedIn = false) {
             }
           }
 
-          const blStart = row[23];
-          const blFinish = row[24];
-          const start = row[25];
-          const finish = row[26];
+          const blStart = row[colIndices.blStart];
+          const blFinish = row[colIndices.blFinish];
+          const start = row[colIndices.start];
+          const finish = row[colIndices.finish];
 
-          const blStartDate  = excelDateToJSDate(blStart);
-          const blFinishDate = excelDateToJSDate(blFinish);
+          const nivel = wbsCode.split('.').length;
+          const esItemHoja = !!activityId;
+
+          let blStartDate  = excelDateToJSDate(blStart);
+          let blFinishDate = excelDateToJSDate(blFinish);
           const startDate    = excelDateToJSDate(start);
           const finishDate   = excelDateToJSDate(finish);
+
+          if (esItemHoja && !hasDirectoOrDSegment(wbsCode || wbsStr || '')) {
+            const isBlStart30Abr = isIgnoredFinishDate(blStartDate);
+            const isBlFinish30Abr = isIgnoredFinishDate(blFinishDate);
+            if (isBlStart30Abr || isBlFinish30Abr) {
+              if (isBlStart30Abr && startDate) blStartDate = startDate;
+              if (isBlFinish30Abr && finishDate) blFinishDate = finishDate;
+            }
+          }
 
           const today = new Date();
           today.setHours(23, 59, 59, 999);
 
-          const isCompleted = status === 'Completed' || (typeof row[14] === 'number' && row[14] >= 1);
-          const isStarted = status === 'In Progress' || status === 'Completed' || (typeof row[14] === 'number' && row[14] > 0);
+          const isCompleted = status === 'Completed' || (typeof row[colIndices.avanceFisico] === 'number' && row[colIndices.avanceFisico] >= 1);
+          const isStarted = status === 'In Progress' || status === 'Completed' || (typeof row[colIndices.avanceFisico] === 'number' && row[colIndices.avanceFisico] > 0);
 
           const targetStart = (blStartDate && !isNaN(blStartDate.getTime())) ? blStartDate : (startDate && !isNaN(startDate.getTime()) ? startDate : null);
           const targetFinish = (blFinishDate && !isNaN(blFinishDate.getTime())) ? blFinishDate : (finishDate && !isNaN(finishDate.getTime()) ? finishDate : null);
@@ -2304,12 +2661,35 @@ export function useMasterPlan(isLoggedIn = false) {
 
           const diasAtrasoMaximo = estaAtrasadoCronograma ? Math.max(diasAtrasoInicio, diasAtrasoFin) : 0;
           
-          const nivel = wbsCode.split('.').length;
-          const esItemHoja = !!activityId;
-          const totalFloatVal = typeof row[27] === 'number' ? row[27] : null;
+          let totalFloatVal: number | null = null;
+          let rawFloat = row[colIndices.totalFloat];
+          if ((rawFloat === null || rawFloat === undefined || rawFloat === '') && row[23] !== undefined && row[23] !== null && row[23] !== '') {
+            rawFloat = row[23];
+          }
+          if (rawFloat !== null && rawFloat !== undefined && rawFloat !== '') {
+            if (typeof rawFloat === 'number') {
+              totalFloatVal = isNaN(rawFloat) ? null : rawFloat;
+            } else {
+              let cleanedFloat = String(rawFloat).replace(/[$,dD\s]/g, '').trim();
+              if (cleanedFloat !== '') {
+                let isNeg = false;
+                if (cleanedFloat.startsWith('(') && cleanedFloat.endsWith(')')) {
+                  isNeg = true;
+                  cleanedFloat = cleanedFloat.slice(1, -1).trim();
+                } else if (cleanedFloat.startsWith('-')) {
+                  isNeg = true;
+                  cleanedFloat = cleanedFloat.slice(1).trim();
+                }
+                const parsedFloat = parseFloat(cleanedFloat);
+                if (!isNaN(parsedFloat)) {
+                  totalFloatVal = isNeg ? -Math.abs(parsedFloat) : parsedFloat;
+                }
+              }
+            }
+          }
 
           let avanceATVal: number | null = null;
-          const rawAt = row[45];
+          const rawAt = row[colIndices.avanceAt];
           if (rawAt !== null && rawAt !== undefined && rawAt !== '') {
             if (typeof rawAt === 'number') {
               if (rawAt > 0 && rawAt <= 1.0) {
@@ -2395,7 +2775,7 @@ export function useMasterPlan(isLoggedIn = false) {
             ventaEjecutada: Number(finalVentaEx) || 0,
             balance,
             saldo: (Number(finalVenta) || 0) - (Number(finalVentaEx) || 0),
-            excedente: (finalVentaEx && Number(finalVentaEx) > 0) ? (Number(finalVentaEx) - (Number(ventaM) || 0)) : 0,
+            excedente: (finalVentaEx && Number(finalVentaEx) > 0) ? (Number(finalVentaEx) - (Number(ventaM) || Number(finalVenta) || 0)) : 0,
             partidas: partidas ? String(partidas) : '',
             tipo: tipo ? String(tipo) : 'Otros',
             subcontratista: subcontratista ? String(subcontratista) : '',
@@ -2407,6 +2787,7 @@ export function useMasterPlan(isLoggedIn = false) {
             componente: componente ? String(componente).trim() : '',
             unit: unit ? String(unit) : '',
             resp: resp ? String(resp) : '',
+            pAc: pAc || '',
             grupo: grupo ? String(grupo).trim() : '',
             status: status ? String(status) : '',
             ventaFebrero: 0, 
@@ -2421,11 +2802,12 @@ export function useMasterPlan(isLoggedIn = false) {
             diasAtrasoMaximo,
             estaAtrasadoCronograma,
             totalFloat: totalFloatVal,
-            p6Status: row[22] ? String(row[22]).trim() : '',
+            p6Status: canonicalP6Status || rawStatus,
             avanceAT: avanceATVal,
             idOrig: idOrig ? String(idOrig).trim() : null,
             cantidadCdo: cantidadCdoVal,
-            precio: precioVal
+            precio: precioVal,
+            step: stepVal
           });
         }
 
@@ -2670,7 +3052,7 @@ export function useMasterPlan(isLoggedIn = false) {
             for (let i = 2; i < jsonData.length; i++) {
               const r = jsonData[i];
               if (!r) continue;
-              const info = { macro: String(r[28] || '').trim(), tipo: String(r[33] || '').trim() };
+              const info = { macro: String(r[colIndices.macro] || '').trim(), tipo: String(r[colIndices.tipo] || '').trim() };
               if (r[1]) cdoLookup.set(String(r[1]).trim().toLowerCase(), info);
               if (r[2]) cdoLookupF.set(String(r[2]).trim().toLowerCase(), info);
             }
@@ -2822,14 +3204,14 @@ export function useMasterPlan(isLoggedIn = false) {
                 const actId = r[2] ? String(r[2]).trim().toLowerCase() : '';
                 const desc = r[3] ? String(r[3]).trim() : ''; // Description is in Column D (index 3)
                 const wbs = r[0] ? String(r[0]).trim().toLowerCase() : '';
-                const val = ctPf(r[47]);
-                const partidaColAG = r[32] ? String(r[32]).trim() : 'Sin Partida';
-                const capColAI = r[34] ? String(r[34]).trim() : 'Sin CAP';
+                const val = ctPf(r[colIndices.ventaEx]);
+                const partidaColAG = r[colIndices.partidas] ? String(r[colIndices.partidas]).trim() : 'Sin Partida';
+                const capColAI = r[colIndices.cap] ? String(r[colIndices.cap]).trim() : 'Sin CAP';
                 _cdoAV.set(k, (_cdoAV.get(k) || 0) + val);
                 if (actId) {
                   _cdoAVByActId.set(actId, val);
                 }
-                if (!_cdoTipo.has(k) && r[33]) _cdoTipo.set(k, String(r[33]).trim());
+                if (!_cdoTipo.has(k) && r[colIndices.tipo]) _cdoTipo.set(k, String(r[colIndices.tipo]).trim());
                 allCdoRows.push({ wbs, idOrig: k, actId, desc, val, partidaColAG, capColAI });
               }
 
@@ -3660,6 +4042,7 @@ export function useMasterPlan(isLoggedIn = false) {
     filterLevel, setFilterLevel,
     filterTipologia, setFilterTipologia,
     tipologiaSeleccionada, setTipologiaSeleccionada,
+    componenteSeleccionado, setComponenteSeleccionado,
     expandedRESPs, setExpandedRESPs,
     expandedTipos, setExpandedTipos,
     expandedSCAPs, setExpandedSCAPs,
@@ -3699,6 +4082,7 @@ export function useMasterPlan(isLoggedIn = false) {
     ganttSearch, setGanttSearch,
     ganttStatus, setGanttStatus,
     ganttFloat, setGanttFloat,
+    ganttPAc, setGanttPAc,
     ganttMetricsOpen, setGanttMetricsOpen,
     ganttTipoOpen, setGanttTipoOpen,
     ganttTipo, setGanttTipo,

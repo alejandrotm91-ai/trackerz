@@ -601,6 +601,7 @@ export async function loadLatestPlanFromFirebase(
     a.ventaFebrero = a.ventaFebrero ?? 0;
     a.cantidadCdo = a.cantidadCdo ?? null;
     a.precio = a.precio ?? null;
+    a.step = a.step ?? null;
     a.certificaciones = a.certificaciones ?? {};
     a.certificacionesPorFecha = a.certificacionesPorFecha ?? {};
     a.diasAtrasoInicio = a.diasAtrasoInicio ?? 0;

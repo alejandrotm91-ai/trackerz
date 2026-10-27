@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Back buddy gradients (deeper red) -->
+    <radialGradient id="backHead" cx="38%" cy="32%" r="65%">
+      <stop offset="0%" stop-color="#FF6B6B" />
+      <stop offset="35%" stop-color="#E53935" />
+      <stop offset="85%" stop-color="#C62828" />
+      <stop offset="100%" stop-color="#8E0000" />
+    </radialGradient>
+    <linearGradient id="backBody" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#E53935" />
+      <stop offset="60%" stop-color="#C62828" />
+      <stop offset="100%" stop-color="#7F0000" />
+    </linearGradient>
+
+    <!-- Front buddy gradients (vibrant glossy red) -->
+    <radialGradient id="frontHead" cx="35%" cy="30%" r="68%">
+      <stop offset="0%" stop-color="#FF9E9E" />
+      <stop offset="25%" stop-color="#FF5252" />
+      <stop offset="70%" stop-color="#E53935" />
+      <stop offset="100%" stop-color="#B71C1C" />
+    </radialGradient>
+    <linearGradient id="frontBody" x1="15%" y1="0%" x2="75%" y2="100%">
+      <stop offset="0%" stop-color="#FF6659" />
+      <stop offset="35%" stop-color="#EB3B3B" />
+      <stop offset="80%" stop-color="#D32F2F" />
+      <stop offset="100%" stop-color="#9A0007" />
+    </linearGradient>
+
+    <!-- Glossy light sheen -->
+    <linearGradient id="sheen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.85" />
+      <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- Soft 3D shadow between front and back buddy -->
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="-1.5" dy="1.5" stdDeviation="1.5" flood-color="#4A0000" flood-opacity="0.55" />
+    </filter>
+  </defs>
+
+  <!-- BACK BUDDY (Right and slightly higher) -->
+  <g id="back-buddy">
+    <!-- Back Body -->
+    <path d="M 28 60 C 28 44 33 33 44 33 C 55 33 61 44 61 60 Z" fill="url(#backBody)" />
+    <!-- Back Body subtle sheen -->
+    <path d="M 33 58 C 33 46 36 36 44 36 C 52 36 56 46 56 58 Z" fill="url(#sheen)" opacity="0.25" />
+    <!-- Back Head -->
+    <ellipse cx="44" cy="18" rx="10" ry="10.5" fill="url(#backHead)" />
+    <!-- Back Head gloss reflection -->
+    <ellipse cx="41.5" cy="14" rx="4.5" ry="3.5" fill="url(#sheen)" />
+  </g>
+
+  <!-- FRONT BUDDY (Left and foreground) -->
+  <g id="front-buddy" filter="url(#shadow)">
+    <!-- Front Body -->
+    <path d="M 4 60 C 4 41 12 30 24 30 C 36 30 44 41 44 60 Z" fill="url(#frontBody)" />
+    <!-- Front Body sheen highlight -->
+    <path d="M 9 58 C 9 44 14 34 24 34 C 33 34 38 44 39 58 C 35 50 30 48 24 48 C 18 48 13 50 9 58 Z" fill="url(#sheen)" opacity="0.4" />
+    <!-- Front Head -->
+    <ellipse cx="24" cy="19" rx="11.5" ry="12" fill="url(#frontHead)" />
+    <!-- Front Head glossy reflection -->
+    <ellipse cx="20.5" cy="14" rx="5.5" ry="4" fill="url(#sheen)" />
+  </g>
+</svg>

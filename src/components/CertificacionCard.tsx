@@ -24,6 +24,7 @@ export interface CertificacionCardProps {
   planillaTipRes?: any[];
   planillaHojas?: any[];
   idPrefix?: string;
+  showHeader?: boolean;
   showKpis?: boolean;
   showEnmiendas?: boolean;
   tipologiaTitle?: string;
@@ -36,6 +37,7 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
   planillaTipRes,
   planillaHojas,
   idPrefix = 'certificacion',
+  showHeader = true,
   showKpis = true,
   showEnmiendas = true,
   tipologiaTitle = 'Certificación',
@@ -80,107 +82,109 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
   return (
     <div
       id={`${idPrefix}-container`}
-      className="bg-white rounded-3xl border border-indigo-600 shadow-md p-4 sm:p-5 space-y-5"
+      className="bg-white rounded-xl border border-[#D5DEE2] shadow-xs p-3 sm:p-4 space-y-4"
     >
-      <div className="flex items-center gap-3 border-b border-indigo-50 pb-3">
-        <div className="w-9 h-9 bg-indigo-550/10 rounded-xl flex items-center justify-center text-indigo-700">
-          <FileSpreadsheet className="w-4.5 h-4.5 font-black text-indigo-600" />
+      {showHeader && (
+        <div className="flex items-center gap-3 border-b border-[#D5DEE2] pb-3">
+          <div className="w-9 h-9 bg-[#EEECFB] rounded-lg flex items-center justify-center text-[#442dd7]">
+            <FileSpreadsheet className="w-4.5 h-4.5 text-[#442dd7]" />
+          </div>
+          <div>
+            <h2 className="text-base font-['Barlow_Condensed'] font-semibold text-[#14212A] tracking-wide uppercase">Certificación</h2>
+            <p className="text-[11px] text-[#5A6A74] font-medium font-sans">
+              Valuaciones semanales, enmiendas y planilla contractual consolidada
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-lg font-black text-slate-800 tracking-tight">Certificación</h2>
-          <p className="text-[11px] text-slate-400 font-medium font-sans">
-            Valuaciones semanales, enmiendas y planilla contractual consolidada
-          </p>
-        </div>
-      </div>
+      )}
 
       {planillaInfo ? (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* KPIs Grid */}
           {showKpis && (
             <div id={`${idPrefix}-kpi-grid`} className="w-full">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
                 {/* 1. MONTO CONTRATADO */}
-                <div className="border border-indigo-200/70 rounded-[14px] p-3 bg-white shadow-mini flex flex-col justify-between min-h-[82px]">
+                <div className="border border-[#D5DEE2] rounded-xl p-2.5 bg-white shadow-xs flex flex-col justify-between min-h-[76px]">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+                    <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none">
                       Monto Contratado
                     </span>
-                    <div className="p-1.5 bg-indigo-50/50 border border-indigo-100/80 text-indigo-650 rounded-[10px] flex-shrink-0">
+                    <div className="p-1.5 bg-[#EEECFB] text-[#442dd7] rounded-lg flex-shrink-0">
                       <CircleDollarSign className="w-3.5 h-3.5" />
                     </div>
                   </div>
                   <div className="mt-1.5">
-                    <div className="text-[16px] md:text-[18px] font-extrabold text-slate-900 tracking-tight leading-tight">
-                      ${ctFmt(T.contrato)}
+                    <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#14212A] tracking-tight leading-tight">
+                      {ctFmt(T.contrato)}
                     </div>
                   </div>
                 </div>
 
                 {/* 2. EJECUTADO ACUMULADO */}
-                <div className="border border-indigo-200/70 rounded-[14px] p-3 bg-white shadow-mini flex flex-col justify-between min-h-[82px]">
+                <div className="border border-[#D5DEE2] rounded-xl p-2.5 bg-white shadow-xs flex flex-col justify-between min-h-[76px]">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+                    <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none">
                       Ejecutado Acumulado
                     </span>
-                    <div className="p-1.5 bg-emerald-50/50 border border-emerald-100/80 text-emerald-600 rounded-[10px] flex-shrink-0">
+                    <div className="p-1.5 bg-emerald-50 text-emerald-700 rounded-lg flex-shrink-0">
                       <TrendingUp className="w-3.5 h-3.5" />
                     </div>
                   </div>
                   <div className="mt-1.5">
-                    <div className="text-[16px] md:text-[18px] font-extrabold text-emerald-700 tracking-tight leading-tight">
-                      ${ctFmt(T.acum)}
+                    <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#2B7F52] tracking-tight leading-tight">
+                      {ctFmt(T.acum)}
                     </div>
                   </div>
                 </div>
 
                 {/* 3. AVANCE PERÍODO */}
-                <div className="border border-indigo-200/70 rounded-[14px] p-3 bg-white shadow-mini flex flex-col justify-between min-h-[82px]">
+                <div className="border border-[#D5DEE2] rounded-xl p-2.5 bg-white shadow-xs flex flex-col justify-between min-h-[76px]">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none flex items-center gap-1.5">
                       Avance Período
                     </span>
-                    <div className="p-1.5 bg-violet-50/50 border border-violet-100/80 text-violet-650 rounded-[10px] flex-shrink-0">
+                    <div className="p-1.5 bg-[#EEECFB] text-[#442dd7] rounded-lg flex-shrink-0">
                       <Calendar className="w-3.5 h-3.5" />
                     </div>
                   </div>
                   <div className="mt-1.5">
-                    <div className="text-[16px] md:text-[18px] font-extrabold text-indigo-700 tracking-tight leading-tight">
-                      ${ctFmt(T.cert)}
+                    <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#442dd7] tracking-tight leading-tight">
+                      {ctFmt(T.cert)}
                     </div>
                   </div>
                 </div>
 
                 {/* 4. SALDO POR EJECUTAR */}
-                <div className="border border-indigo-200/70 rounded-[14px] p-3 bg-white shadow-mini flex flex-col justify-between min-h-[82px]">
+                <div className="border border-[#D5DEE2] rounded-xl p-2.5 bg-white shadow-xs flex flex-col justify-between min-h-[76px]">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+                    <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none">
                       Saldo Por Ejecutar
                     </span>
-                    <div className="p-1.5 bg-amber-50/50 border border-amber-100/80 text-amber-600 rounded-[10px] flex-shrink-0">
+                    <div className="p-1.5 bg-amber-50 text-amber-700 rounded-lg flex-shrink-0">
                       <Clock className="w-3.5 h-3.5" />
                     </div>
                   </div>
                   <div className="mt-1.5">
-                    <div className="text-[16px] md:text-[18px] font-extrabold text-amber-700 tracking-tight leading-tight">
-                      ${ctFmt(T.saldo)}
+                    <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#A86B12] tracking-tight leading-tight">
+                      {ctFmt(T.saldo)}
                     </div>
                   </div>
                 </div>
 
                 {/* 5. EXCEDENTES */}
-                <div className="border border-indigo-200/70 rounded-[14px] p-3 bg-white shadow-mini flex flex-col justify-between min-h-[82px]">
+                <div className="border border-[#D5DEE2] rounded-xl p-2.5 bg-white shadow-xs flex flex-col justify-between min-h-[76px]">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider leading-none">
+                    <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none">
                       Excedentes
                     </span>
-                    <div className="p-1.5 bg-rose-50/50 border border-rose-100/80 text-rose-500 rounded-[10px] flex-shrink-0">
+                    <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg flex-shrink-0">
                       <TrendingDown className="w-3.5 h-3.5" />
                     </div>
                   </div>
                   <div className="mt-1.5">
-                    <div className="text-[16px] md:text-[18px] font-extrabold text-rose-650 tracking-tight leading-tight">
-                      ${ctFmt(T.exc)}
+                    <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#B83227] tracking-tight leading-tight">
+                      {ctFmt(T.exc)}
                     </div>
                   </div>
                 </div>
@@ -192,24 +196,24 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
           {showEnmiendas && planillaEnmiendas && planillaEnmiendas.length > 0 && (
             <div
               id={`${idPrefix}-enmiendas-box`}
-              className="p-3 sm:p-4 bg-white border border-slate-100 rounded-2xl shadow-mini"
+              className="p-2.5 sm:p-3 bg-white border border-slate-100 rounded-2xl shadow-mini"
             >
-              <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-2.5">
+              <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-2">
                 Resumen Contrato + Enmiendas
               </h3>
               <div className="overflow-x-auto">
-                <table className="w-full text-[11px] sm:text-xs">
+                <table className="w-full text-[10.5px] sm:text-[11px]">
                   <thead>
                     <tr className="bg-slate-50 font-bold text-slate-500 border-b border-slate-100 text-left">
-                      <th className="w-6 py-2 px-1"></th>
-                      <th className="px-2 py-2 text-left">Enmienda</th>
-                      <th className="px-2 py-2 text-right">Contrato Acum.</th>
-                      <th className="px-2 py-2 text-right">Incremento</th>
-                      <th className="px-2 py-2 text-right">Monto</th>
-                      <th className="px-2 py-2 text-right">Planillado</th>
-                      <th className="px-2 py-2 text-right">% Ejec.</th>
-                      <th className="px-2 py-2 text-right">Saldo</th>
-                      <th className="px-2 py-2 text-right">Excedentes</th>
+                      <th className="w-5 py-1.5 px-0.5"></th>
+                      <th className="px-1.5 py-1.5 text-left">Enmienda</th>
+                      <th className="px-1.5 py-1.5 text-right">Contrato Acum.</th>
+                      <th className="px-1.5 py-1.5 text-right">Incremento</th>
+                      <th className="px-1.5 py-1.5 text-right">Monto</th>
+                      <th className="px-1.5 py-1.5 text-right">Planillado</th>
+                      <th className="px-1.5 py-1.5 text-right">% Ejec.</th>
+                      <th className="px-1.5 py-1.5 text-right">Saldo</th>
+                      <th className="px-1.5 py-1.5 text-right">Excedentes</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -261,42 +265,42 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
                                   }`}
                                   onClick={() => handleToggleLocalEnm(ei)}
                                 >
-                                  <td className="px-1 py-1.5 text-gray-450">
+                                  <td className="px-0.5 py-1 text-gray-450">
                                     {isExp ? (
                                       <ChevronDown className="w-3.5 h-3.5" />
                                     ) : (
                                       <ChevronRight className="w-3.5 h-3.5" />
                                     )}
                                   </td>
-                                  <td className="px-2 py-1.5 font-bold text-blue-800 whitespace-nowrap">{lbl}</td>
-                                  <td className="px-2 py-1.5 text-right text-gray-400 whitespace-nowrap font-mono">
-                                    {s.contratoAcum > 0 ? '$' + ctFmt(s.contratoAcum) : '—'}
+                                  <td className="px-1.5 py-1 font-bold text-blue-800 whitespace-nowrap">{lbl}</td>
+                                  <td className="px-1.5 py-1 text-right text-gray-400 whitespace-nowrap font-mono">
+                                    {s.contratoAcum > 0 ? ctFmt(s.contratoAcum) : '—'}
                                   </td>
-                                  <td className="px-2 py-1.5 text-right text-indigo-600 whitespace-nowrap font-mono">
-                                    {s.incremento > 0 ? '$' + ctFmt(s.incremento) : '—'}
+                                  <td className="px-1.5 py-1 text-right text-indigo-600 whitespace-nowrap font-mono">
+                                    {s.incremento > 0 ? ctFmt(s.incremento) : '—'}
                                   </td>
-                                  <td className="px-2 py-1.5 text-right font-medium text-slate-800 whitespace-nowrap font-mono">
-                                    ${ctFmt(s.monto)}
+                                  <td className="px-1.5 py-1 text-right font-medium text-slate-800 whitespace-nowrap font-mono">
+                                    {ctFmt(s.monto)}
                                   </td>
-                                  <td className="px-2 py-1.5 text-right text-green-700 font-semibold whitespace-nowrap font-mono">
-                                    ${ctFmt(s.planillado)}
+                                  <td className="px-1.5 py-1 text-right text-green-700 font-semibold whitespace-nowrap font-mono">
+                                    {ctFmt(s.planillado)}
                                   </td>
-                                  <td className="px-2 py-1.5 text-right font-bold text-slate-700 whitespace-nowrap">
+                                  <td className="px-1.5 py-1 text-right font-bold text-slate-700 whitespace-nowrap">
                                     {ej}%
                                   </td>
                                   <td
-                                    className={`px-2 py-1.5 text-right font-semibold whitespace-nowrap font-mono ${
+                                    className={`px-1.5 py-1 text-right font-semibold whitespace-nowrap font-mono ${
                                       s.saldo >= 0 ? 'text-orange-600' : 'text-red-600'
                                     }`}
                                   >
                                     {s.saldo !== 0
                                       ? s.saldo < 0
-                                        ? '($' + ctFmt(Math.abs(s.saldo)) + ')'
-                                        : '$' + ctFmt(s.saldo)
+                                        ? '(' + ctFmt(Math.abs(s.saldo)) + ')'
+                                        : ctFmt(s.saldo)
                                       : '—'}
                                   </td>
-                                  <td className="px-2 py-1.5 text-right text-red-500 whitespace-nowrap font-mono">
-                                    {s.excedentes > 0 ? '$' + ctFmt(s.excedentes) : '—'}
+                                  <td className="px-1.5 py-1 text-right text-red-500 whitespace-nowrap font-mono">
+                                    {s.excedentes > 0 ? ctFmt(s.excedentes) : '—'}
                                   </td>
                                 </tr>
                                 {isExp &&
@@ -310,38 +314,38 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
                                         key={`f-${ei}-${fi}`}
                                         className="bg-slate-50/40 text-slate-500 border-t border-slate-100 hover:bg-slate-100/50 transition-colors"
                                       >
-                                        <td className="px-1 py-1 text-gray-300"></td>
-                                        <td className="px-2 py-1 pl-4 font-semibold text-slate-600">
+                                        <td className="px-0.5 py-1 text-gray-300"></td>
+                                        <td className="px-1.5 py-1 pl-3 font-semibold text-slate-600">
                                           {f.tipo}
                                         </td>
-                                        <td className="px-2 py-1 text-right text-slate-400 font-mono whitespace-nowrap">
-                                          {f.contratoAcum > 0 ? '$' + ctFmt(f.contratoAcum) : '—'}
+                                        <td className="px-1.5 py-1 text-right text-slate-400 font-mono whitespace-nowrap">
+                                          {f.contratoAcum > 0 ? ctFmt(f.contratoAcum) : '—'}
                                         </td>
-                                        <td className="px-2 py-1 text-right text-indigo-500 font-mono whitespace-nowrap">
-                                          {f.incremento > 0 ? '$' + ctFmt(f.incremento) : '—'}
+                                        <td className="px-1.5 py-1 text-right text-indigo-500 font-mono whitespace-nowrap">
+                                          {f.incremento > 0 ? ctFmt(f.incremento) : '—'}
                                         </td>
-                                        <td className="px-2 py-1 text-right text-slate-705 font-medium font-mono whitespace-nowrap">
-                                          ${ctFmt(f.monto)}
+                                        <td className="px-1.5 py-1 text-right text-slate-705 font-medium font-mono whitespace-nowrap">
+                                          {ctFmt(f.monto)}
                                         </td>
-                                        <td className="px-2 py-1 text-right text-green-600 font-medium font-mono whitespace-nowrap">
-                                          ${ctFmt(f.planillado)}
+                                        <td className="px-1.5 py-1 text-right text-green-600 font-medium font-mono whitespace-nowrap">
+                                          {ctFmt(f.planillado)}
                                         </td>
-                                        <td className="px-2 py-1 text-right font-semibold whitespace-nowrap">
+                                        <td className="px-1.5 py-1 text-right font-semibold whitespace-nowrap">
                                           {fej}%
                                         </td>
                                         <td
-                                          className={`px-2 py-1 text-right font-mono whitespace-nowrap ${
+                                          className={`px-1.5 py-1 text-right font-mono whitespace-nowrap ${
                                             f.saldo >= 0 ? 'text-orange-550' : 'text-red-500'
                                           }`}
                                         >
                                           {f.saldo !== 0
                                             ? f.saldo < 0
-                                              ? '($' + ctFmt(Math.abs(f.saldo)) + ')'
-                                              : '$' + ctFmt(f.saldo)
+                                              ? '(' + ctFmt(Math.abs(f.saldo)) + ')'
+                                              : ctFmt(f.saldo)
                                             : '—'}
                                         </td>
-                                        <td className="px-2 py-1 text-right text-red-400 font-mono whitespace-nowrap">
-                                          {f.excedentes > 0 ? '$' + ctFmt(f.excedentes) : '—'}
+                                        <td className="px-1.5 py-1 text-right text-red-400 font-mono whitespace-nowrap">
+                                          {f.excedentes > 0 ? ctFmt(f.excedentes) : '—'}
                                         </td>
                                       </tr>
                                     );
@@ -352,36 +356,36 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
 
                           {/* Total Row */}
                           <tr className="bg-slate-100/90 border-t-2 border-slate-350 font-bold text-slate-900">
-                            <td className="px-1 py-2"></td>
-                            <td className="px-2 py-2 font-extrabold text-slate-800">Total</td>
-                            <td className="px-2 py-2 text-right text-slate-600 font-bold font-mono whitespace-nowrap">
-                              ${ctFmt(totalContratoAcum)}
+                            <td className="px-0.5 py-1.5"></td>
+                            <td className="px-1.5 py-1.5 font-extrabold text-slate-800">Total</td>
+                            <td className="px-1.5 py-1.5 text-right text-slate-600 font-bold font-mono whitespace-nowrap">
+                              {ctFmt(totalContratoAcum)}
                             </td>
-                            <td className="px-2 py-2 text-right text-indigo-700 font-bold font-mono whitespace-nowrap">
-                              {totalEnmIncremento > 0 ? '$' + ctFmt(totalEnmIncremento) : '—'}
+                            <td className="px-1.5 py-1.5 text-right text-indigo-700 font-bold font-mono whitespace-nowrap">
+                              {totalEnmIncremento > 0 ? ctFmt(totalEnmIncremento) : '—'}
                             </td>
-                            <td className="px-2 py-2 text-right font-black text-slate-900 font-mono whitespace-nowrap">
-                              ${ctFmt(totalEnmMonto)}
+                            <td className="px-1.5 py-1.5 text-right font-black text-slate-900 font-mono whitespace-nowrap">
+                              {ctFmt(totalEnmMonto)}
                             </td>
-                            <td className="px-2 py-2 text-right text-green-700 font-black font-mono whitespace-nowrap">
-                              ${ctFmt(totalEnmPlanillado)}
+                            <td className="px-1.5 py-1.5 text-right text-green-700 font-black font-mono whitespace-nowrap">
+                              {ctFmt(totalEnmPlanillado)}
                             </td>
-                            <td className="px-2 py-2 text-right font-black text-slate-900 whitespace-nowrap">
+                            <td className="px-1.5 py-1.5 text-right font-black text-slate-900 whitespace-nowrap">
                               {totalEnmPctEjec}%
                             </td>
                             <td
-                              className={`px-2 py-2 text-right font-black font-mono whitespace-nowrap ${
+                              className={`px-1.5 py-1.5 text-right font-black font-mono whitespace-nowrap ${
                                 totalEnmSaldo >= 0 ? 'text-orange-750' : 'text-red-700'
                               }`}
                             >
                               {totalEnmSaldo !== 0
                                 ? totalEnmSaldo < 0
-                                  ? '($' + ctFmt(Math.abs(totalEnmSaldo)) + ')'
-                                  : '$' + ctFmt(totalEnmSaldo)
+                                  ? '(' + ctFmt(Math.abs(totalEnmSaldo)) + ')'
+                                  : ctFmt(totalEnmSaldo)
                                 : '—'}
                             </td>
-                            <td className="px-2 py-2 text-right text-red-650 font-black font-mono whitespace-nowrap">
-                              {totalEnmExcedentes > 0 ? '$' + ctFmt(totalEnmExcedentes) : '—'}
+                            <td className="px-1.5 py-1.5 text-right text-red-650 font-black font-mono whitespace-nowrap">
+                              {totalEnmExcedentes > 0 ? ctFmt(totalEnmExcedentes) : '—'}
                             </td>
                           </tr>
                         </React.Fragment>
@@ -400,21 +404,21 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
               return (
                 <div
                   id={`${idPrefix}-tipologia-box`}
-                  className="w-full p-3 sm:p-4 bg-white border border-slate-100 rounded-2xl shadow-mini"
+                  className="w-full p-2.5 sm:p-3 bg-white border border-slate-100 rounded-2xl shadow-mini"
                 >
-                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-2.5">
+                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-2">
                     {tipologiaTitle}
                   </h3>
                   <div className="w-full overflow-x-auto">
-                    <table className="w-full text-[11px] sm:text-xs text-left border-collapse">
+                    <table className="w-full text-[10.5px] sm:text-xs text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold">
-                          <th className="px-2 sm:px-3 py-2 text-left">Tipo</th>
-                          <th className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">Monto Contrato</th>
-                          <th className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">Planillado</th>
-                          <th className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">% Avance</th>
-                          <th className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">Saldo</th>
-                          <th className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">Excedentes</th>
+                          <th className="px-1.5 sm:px-2 py-1.5 text-left">Tipo</th>
+                          <th className="px-1.5 sm:px-2 py-1.5 text-right whitespace-nowrap">Monto Contrato</th>
+                          <th className="px-1.5 sm:px-2 py-1.5 text-right whitespace-nowrap">Planillado</th>
+                          <th className="px-1.5 sm:px-2 py-1.5 text-right whitespace-nowrap">% Avance</th>
+                          <th className="px-1.5 sm:px-2 py-1.5 text-right whitespace-nowrap">Saldo</th>
+                          <th className="px-1.5 sm:px-2 py-1.5 text-right whitespace-nowrap">Excedentes</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -429,14 +433,14 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
                                   : 'hover:bg-slate-50/50'
                               }`}
                             >
-                              <td className="px-2 sm:px-3 py-2 font-medium text-slate-800">{t.label || t.tipo}</td>
-                              <td className="px-2 sm:px-3 py-2 text-right font-semibold font-mono whitespace-nowrap">
-                                ${ctFmt(t.monto)}
+                              <td className="px-1.5 sm:px-2 py-1.5 font-medium text-slate-800">{t.label || t.tipo}</td>
+                              <td className="px-1.5 sm:px-2 py-1.5 text-right font-semibold font-mono whitespace-nowrap">
+                                {ctFmt(t.monto)}
                               </td>
-                              <td className="px-2 sm:px-3 py-2 text-right text-green-700 font-mono whitespace-nowrap">
-                                ${ctFmt(t.planillado)}
+                              <td className="px-1.5 sm:px-2 py-1.5 text-right text-green-700 font-mono whitespace-nowrap">
+                                {ctFmt(t.planillado)}
                               </td>
-                              <td className="px-2 sm:px-3 py-2 text-right font-semibold text-slate-800 whitespace-nowrap">
+                              <td className="px-1.5 sm:px-2 py-1.5 text-right font-semibold text-slate-800 whitespace-nowrap">
                                 {isTot
                                   ? avanceCertPct
                                   : t.monto > 0
@@ -445,18 +449,18 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
                                 %
                               </td>
                               <td
-                                className={`px-2 sm:px-3 py-2 text-right font-semibold font-mono whitespace-nowrap ${
+                                className={`px-1.5 sm:px-2 py-1.5 text-right font-semibold font-mono whitespace-nowrap ${
                                   t.saldo >= 0 ? 'text-orange-600' : 'text-red-650'
                                 }`}
                               >
                                 {t.saldo !== 0
                                   ? t.saldo < 0
-                                    ? '($' + ctFmt(Math.abs(t.saldo)) + ')'
-                                    : '$' + ctFmt(t.saldo)
+                                    ? '(' + ctFmt(Math.abs(t.saldo)) + ')'
+                                    : ctFmt(t.saldo)
                                   : '—'}
                               </td>
-                              <td className="px-2 sm:px-3 py-2 text-right text-red-600 font-mono whitespace-nowrap">
-                                ${ctFmt(t.excedentes)}
+                              <td className="px-1.5 sm:px-2 py-1.5 text-right text-red-600 font-mono whitespace-nowrap">
+                                {ctFmt(t.excedentes)}
                               </td>
                             </tr>
                           );

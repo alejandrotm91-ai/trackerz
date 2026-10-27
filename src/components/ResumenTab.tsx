@@ -54,7 +54,11 @@ export const ResumenTab: React.FC<ResumenTabProps> = ({
   }, [baseVenta, setBaseVenta]);
 
   return (
-    <div id="resumen-tab-content" className="space-y-8 animate-fade-in">
+    <div 
+      id="resumen-tab-content" 
+      style={{ fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif" }} 
+      className="space-y-8 animate-fade-in font-['Segoe_UI',sans-serif]"
+    >
       
       {/* 1. SECCIÓN: AVANCE DE OBRA */}
       <div id="avance-obra-container" className="bg-white rounded-3xl border border-indigo-600 shadow-md p-6 space-y-6">

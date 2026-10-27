@@ -66,6 +66,16 @@ service cloud.firestore {
       }
     }
 
+    match /master_cdo_plans/{planId} {
+      allow read: if true;
+      allow write: if true;
+
+      match /chunks/{chunkId} {
+        allow read: if true;
+        allow write: if true;
+      }
+    }
+
     match /test/{docId} {
       allow read: if true;
       allow write: if true;
