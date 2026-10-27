@@ -5050,44 +5050,44 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       const compPctDesvVal = compPctEjecVal - compPctPlanVal;
 
                       return (
-                        <tr key={comp} className="ht-g lv1 bg-slate-50 text-slate-800 font-bold transition-colors border-b border-slate-200 shadow-2xs whitespace-nowrap">
+                        <tr key={comp} className="text-slate-800 hover:bg-slate-50/50 transition-colors whitespace-nowrap">
                           <td className="w-1 whitespace-nowrap px-2 py-2 pl-1.5 overflow-hidden">
                             <div className="flex items-center gap-1 whitespace-nowrap overflow-hidden min-w-0">
-                              <span className="text-[11.5px] tracking-wide text-indigo-700 font-bold whitespace-nowrap truncate min-w-0" title={comp}>🏛️ {comp}</span>
+                              <span className="font-medium text-slate-800 whitespace-nowrap truncate min-w-0" title={comp}>🏛️ {comp}</span>
                             </div>
                           </td>
                           <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-slate-900 cursor-help font-bold whitespace-nowrap" 
+                            className="px-2.5 py-2.5 text-right font-mono text-slate-900 cursor-help font-semibold whitespace-nowrap" 
                             title={`Monto Exacto Contrato: $${fmtMoney(compTot.contrato)}`}
                           >
                             ${fmtMillions(compTot.contrato)}
                           </td>
                           <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-indigo-700 cursor-help font-bold whitespace-nowrap" 
+                            className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" 
                             title={`Monto Exacto Plan: $${fmtMoney(compTot.plan)}`}
                           >
                             ${fmtMillions(compTot.plan)}
                           </td>
                           <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-slate-800 cursor-help font-bold whitespace-nowrap" 
+                            className="px-2.5 py-2.5 text-right font-mono text-green-700 cursor-help whitespace-nowrap" 
                             title={`Monto Exacto Ejec: $${fmtMoney(compTot.ejec)}`}
                           >
                             ${fmtMillions(compTot.ejec)}
                           </td>
                           <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-indigo-700 cursor-help font-bold whitespace-nowrap" 
+                            className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" 
                             title={`% Plan (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: $${fmtMoney(compBasePct)}): ${compPctPlanVal.toFixed(4)}%`}
                           >
                             {compPctPlanVal.toFixed(2)}%
                           </td>
                           <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-rose-700 cursor-help font-bold whitespace-nowrap" 
+                            className="px-2.5 py-2.5 text-right font-mono text-slate-800 cursor-help font-semibold whitespace-nowrap" 
                             title={`% Ejec (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: $${fmtMoney(compBasePct)}): ${compPctEjecVal.toFixed(4)}%`}
                           >
                             {compPctEjecVal.toFixed(2)}%
                           </td>
                           <td 
-                            className={`px-2.5 py-2.5 text-right font-mono font-black cursor-help whitespace-nowrap ${compPctDesvVal < 0 ? 'text-red-700' : 'text-emerald-700'}`} 
+                            className={`px-2.5 py-2.5 text-right font-mono font-semibold cursor-help whitespace-nowrap ${compPctDesvVal < 0 ? 'text-red-600' : 'text-green-700'}`} 
                             title={`Monto Exacto Variación: ${fmtDNum(compTot.desv)} | % Variación (% Ejec - % Plan): ${compPctDesvVal.toFixed(4)}%`}
                           >
                             {compPctDesvVal > 0 ? `+${compPctDesvVal.toFixed(2)}%` : `${compPctDesvVal.toFixed(2)}%`}
