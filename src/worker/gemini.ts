@@ -1,25 +1,23 @@
-import express from "express";
-import path from "path";
-import { createServer as createViteServer } from "vite";
+// Endpoints de Gemini portados desde server.ts (Express) a Cloudflare Workers.
+// Los prompts son idénticos a los originales; solo cambia cómo se recibe la petición.
 import { GoogleGenAI } from "@google/genai";
-import dotenv from "dotenv";
-import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
-import { saveMasterPlanToDb, getMasterPlanFromDb } from './src/db/masterCdo.ts';
+import type { Env } from "./env";
 
+export interface LegacyReq { body: any }
+export interface LegacyRes {
+  status(code: number): LegacyRes;
+  json(data: unknown): void;
+}
 
-dotenv.config();
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || "",
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
-});
+function makeAi(apiKey: string) {
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: { headers: { "User-Agent": "aistudio-build" } },
+  });
+}
 
 // Helper function to retry Gemini API calls with exponential backoff on transient errors (503, 429, UNAVAILABLE)
-async function generateContentWithRetry(params: {
+async function generateContentWithRetry(ai: GoogleGenAI, params: {
   model: string;
   contents: any;
   config?: any;
@@ -51,32 +49,14 @@ async function generateContentWithRetry(params: {
   }
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
 
-  // Add JSON parsing middlewares with moderate bounds
-  app.use(express.json({ limit: "20mb" }));
-  app.use(express.urlencoded({ limit: "20mb", extended: true }));
-
-  // Static assets from public folder
-  app.use(express.static(path.join(process.cwd(), "public")));
-  app.get(["/favicon.svg", "/favicon.ico"], (req, res) => {
-    res.type("image/svg+xml").sendFile(path.join(process.cwd(), "public", "favicon.svg"));
-  });
-
-  // API routes first
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
-  });
-
-  app.post("/api/gemini/analyze", async (req, res) => {
+export async function analyze(req: LegacyReq, res: LegacyRes, env: Env) {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(400).json({
           error: "API_KEY_MISSING",
-          message: "La variable de entorno GEMINI_API_KEY no está configurada. Por favor configúrala en el menú 'Settings > Secrets' en la esquina superior derecha."
+          message: "La variable de entorno GEMINI_API_KEY no está configurada. Configúrala como secreto en Cloudflare (wrangler secret put GEMINI_API_KEY)."
         });
       }
 
@@ -125,7 +105,7 @@ ${activitiesSummaryText}
         userPrompt += `\nGenera un análisis de salud general del proyecto, identifica los mayores cuellos de botella del cronograma (analizando las sub-partidas prioritarias) y propón un plan de acción concreto de 3 pasos clave para recuperar la holgura en las partidas críticas.`;
       }
 
-      const response = await generateContentWithRetry({
+      const response = await generateContentWithRetry(makeAi(apiKey), {
         model: "gemini-3.5-flash",
         contents: userPrompt,
         config: {
@@ -156,15 +136,15 @@ ${activitiesSummaryText}
         message: errorMessage
       });
     }
-  });
+  }
 
-  app.post("/api/gemini/equipment-analyze", async (req, res) => {
+export async function equipmentAnalyze(req: LegacyReq, res: LegacyRes, env: Env) {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(400).json({
           error: "API_KEY_MISSING",
-          message: "La variable de entorno GEMINI_API_KEY no está configurada. Por favor configúrala en el menú 'Settings > Secrets' en la esquina superior derecha."
+          message: "La variable de entorno GEMINI_API_KEY no está configurada. Configúrala como secreto en Cloudflare (wrangler secret put GEMINI_API_KEY)."
         });
       }
 
@@ -193,7 +173,7 @@ Por favor, responde con las siguientes directrices:
       
       prompt += `\nNueva consulta del usuario: ${userQuestion}\n`;
 
-      const response = await generateContentWithRetry({
+      const response = await generateContentWithRetry(makeAi(apiKey), {
         model: "gemini-3.5-flash",
         contents: prompt,
         config: {
@@ -224,15 +204,15 @@ Por favor, responde con las siguientes directrices:
         message: errorMessage
       });
     }
-  });
+  }
 
-  app.post("/api/gemini/crono-report", async (req, res) => {
+export async function cronoReport(req: LegacyReq, res: LegacyRes, env: Env) {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(400).json({
           error: "API_KEY_MISSING",
-          message: "La variable de entorno GEMINI_API_KEY no está configurada. Por favor configúrala en el menú 'Settings > Secrets' en la esquina superior derecha."
+          message: "La variable de entorno GEMINI_API_KEY no está configurada. Configúrala como secreto en Cloudflare (wrangler secret put GEMINI_API_KEY)."
         });
       }
 
@@ -306,7 +286,7 @@ ${JSON.stringify(areaData, null, 2)}
 
 Por favor, genera el Reporte Analítico de Inteligencia Artificial por Área, Tipología y Equipamiento por SCAP según la estructura requerida.`;
 
-      const response = await generateContentWithRetry({
+      const response = await generateContentWithRetry(makeAi(apiKey), {
         model: "gemini-3.6-flash",
         contents: userPrompt,
         config: {
@@ -338,62 +318,4 @@ Por favor, genera el Reporte Analítico de Inteligencia Artificial por Área, Ti
         message: errorMessage
       });
     }
-  });
-
-  
-  // Master CDO Sync API Routes
-  app.post("/api/master-cdo/save", requireAuth, async (req: AuthRequest, res) => {
-    try {
-      const { planId, planData, items } = req.body;
-      if (!planId || !planData || !items) {
-        return res.status(400).json({ error: 'Missing required data' });
-      }
-      
-      // Update the updater info with the authenticated user's email
-      planData.updatedBy = req.user?.email || planData.updatedBy || 'Unknown User';
-      
-      await saveMasterPlanToDb(planId, planData, items);
-      res.json({ success: true, message: 'Plan saved successfully' });
-    } catch (error: any) {
-      console.error("Failed to save master plan:", error);
-      res.status(500).json({ error: error.message || "Failed to save master plan" });
-    }
-  });
-
-  app.get("/api/master-cdo/load/:planId", requireAuth, async (req: AuthRequest, res) => {
-    try {
-      const planId = req.params.planId;
-      const data = await getMasterPlanFromDb(planId);
-      if (!data) {
-        return res.status(404).json({ error: 'Plan not found' });
-      }
-      res.json(data);
-    } catch (error: any) {
-      console.error("Failed to load master plan:", error);
-      res.status(500).json({ error: error.message || "Failed to load master plan" });
-    }
-  });
-
-  // Vite middleware for development, static assets for production
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-    console.log("Vite dev server mounted running on http://0.0.0.0:3000");
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-    console.log("Production static files mounted from dist/ hosting on http://0.0.0.0:3000");
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Express server running on port ${PORT}`);
-  });
-}
-
-startServer();

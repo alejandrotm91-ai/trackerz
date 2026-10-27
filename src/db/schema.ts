@@ -1,60 +1,28 @@
-import { pgTable, text, boolean, doublePrecision, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
 
-export const masterPlans = pgTable("master_plans", {
+// Base de datos D1 (SQLite). Los campos JSON se guardan como texto.
+export const masterPlans = sqliteTable("master_plans", {
   id: text("id").primaryKey(),
   fileName: text("file_name").notNull(),
-  totalRows: doublePrecision("total_rows").default(0),
+  totalRows: real("total_rows").default(0),
   updatedAt: text("updated_at"),
   updatedBy: text("updated_by"),
-  totales: jsonb("totales"), // MasterCdoTotals
+  totales: text("totales", { mode: "json" }), // MasterCdoTotals
 });
 
-export const masterWeeks = pgTable("master_weeks", {
+export const masterWeeks = sqliteTable("master_weeks", {
   id: text("id").primaryKey(),
   planId: text("plan_id").references(() => masterPlans.id).notNull(),
   fecha: text("fecha").notNull(),
   label: text("label").notNull(),
-  cerrada: boolean("cerrada").default(false),
-});
+  cerrada: integer("cerrada", { mode: "boolean" }).default(false),
+}, (t) => [index("master_weeks_plan_idx").on(t.planId)]);
 
-export const masterItems = pgTable("master_items", {
+// Cada partida se guarda completa como JSON en `data`. D1 limita cada consulta a
+// 100 parámetros, así que con ~30 columnas se necesitarían miles de consultas.
+export const masterItems = sqliteTable("master_items", {
   id: text("id").primaryKey(),
   planId: text("plan_id").references(() => masterPlans.id).notNull(),
   wbs: text("wbs").notNull(),
-  idOrig: text("id_orig").notNull(),
-  activityId: text("activity_id"),
-  descripcion: text("descripcion").notNull(),
-  unidad: text("unidad"),
-  cantidadPresupuesto: doublePrecision("cantidad_presupuesto").default(0),
-  precio: doublePrecision("precio").default(0),
-  step: doublePrecision("step").default(1),
-  venta: doublePrecision("venta").default(0),
-  subcontratista: text("subcontratista"),
-  pAc: text("p_ac"),
-  cap: text("cap"),
-  scap: text("scap"),
-  proceso: text("proceso"),
-  status: text("status"),
-  esItemHoja: boolean("es_item_hoja").default(true),
-  wbsRaw: text("wbs_raw"),
-  wbsDesc: text("wbs_desc"),
-  macro: text("macro"),
-  grupo: text("grupo"),
-  tipo: text("tipo"),
-  partidas: text("partidas"),
-  componente: text("componente"),
-  unit: text("unit"),
-  ubicacion: text("ubicacion"),
-  resp: text("resp"),
-  notas: text("notas"),
-  cantidadesSemanales: jsonb("cantidades_semanales").default('{}'),
-  ventasSemanales: jsonb("ventas_semanales").default('{}'),
-});
-
-export const masterItemProgress = pgTable("master_item_progress", {
-  id: text("id").primaryKey(), // composite of itemId + weekId
-  itemId: text("item_id").references(() => masterItems.id).notNull(),
-  weekId: text("week_id").references(() => masterWeeks.id).notNull(),
-  cantidad: doublePrecision("cantidad").default(0),
-  venta: doublePrecision("venta").default(0),
-});
+  data: text("data", { mode: "json" }).notNull(), // MasterCdoItem
+}, (t) => [index("master_items_plan_idx").on(t.planId)]);
