@@ -5050,7 +5050,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       const compPctDesvVal = compPctEjecVal - compPctPlanVal;
 
                       return (
-                        <tr key={comp} className="bg-slate-50 text-slate-800 font-bold transition-colors border-b border-slate-200 shadow-2xs whitespace-nowrap">
+                        <tr key={comp} className="ht-g lv1 bg-slate-50 text-slate-800 font-bold transition-colors border-b border-slate-200 shadow-2xs whitespace-nowrap">
                           <td className="w-1 whitespace-nowrap px-2 py-2 pl-1.5 overflow-hidden">
                             <div className="flex items-center gap-1 whitespace-nowrap overflow-hidden min-w-0">
                               <span className="text-[11.5px] tracking-wide text-indigo-700 font-bold whitespace-nowrap truncate min-w-0" title={comp}>🏛️ {comp}</span>
@@ -5109,7 +5109,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                 )}
               </tbody>
               <tfoot className="bg-[#442dd7] text-white font-extrabold text-xs shadow-md border-t-2 border-indigo-700">
-                <tr>
+                <tr className="ht-g lv0">
                   <td 
                     className={`border-t border-[#3722b5] overflow-hidden ${
                       soloTablaYSemana 

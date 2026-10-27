@@ -429,7 +429,7 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
                               key={i}
                               className={`border-t border-slate-100 ${
                                 isTot
-                                  ? 'bg-blue-50/70 font-bold text-slate-900 border-t-2 border-slate-200'
+                                  ? 'ht-g lv0 bg-blue-50/70 font-bold text-slate-900 border-t-2 border-slate-200'
                                   : 'hover:bg-slate-50/50'
                               }`}
                             >

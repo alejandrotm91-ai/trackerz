@@ -8,6 +8,7 @@ import { Actividad } from '../types';
 import { Sparkles, Calendar, DollarSign, Clock, Layers, TrendingUp, TrendingDown, MapPin, CheckCircle2, ChevronRight, Download, Filter, Eye, Info, Hash, FileText, Sparkle } from 'lucide-react';
 import { ControlSemanalTabla } from './ControlSemanalTabla';
 import { CertificacionCard } from './CertificacionCard';
+import { MacWindow } from './MacWindow';
 import { PersonalTrendChart } from './PersonalTrendChart';
 import { usePersonalData } from '../hooks/usePersonalData';
 import { exportCaratulaToPdfA3 } from '../utils/exportCaratulaPdf';
@@ -664,20 +665,11 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
           </div>
 
           {/* 2. MILESTONES TABLE (Fechas más tardías Z y AA por componente) */}
-          <div id="card-milestones-table" className="bg-white rounded-xl p-4 sm:p-5 border border-[#D5DEE2] shadow-xs overflow-hidden">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#442dd7]" />
-                <span>Hitos Principales por Componente</span>
-                <span className="bg-[#EEECFB] text-[#442dd7] border border-[#442dd7]/30 px-2 py-0.5 rounded-full text-[10px] font-bold normal-case">
-                  Merinos
-                </span>
-              </div>
-              <span className="text-[10px] font-semibold text-[#5A6A74]">
-                Fechas Tardías (Cols Z & AA)
-              </span>
-            </div>
-
+          <MacWindow
+            id="card-milestones-table"
+            title="Hitos principales por componente"
+            extra="Merinos · Fechas tardías (Z y AA)"
+          >
             <div className="overflow-x-auto rounded-xl border border-[#D5DEE2]">
               <table className="w-full text-xs text-left border-collapse">
                 <thead>
@@ -745,11 +737,11 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
             </div>
 
             <div className="mt-2 text-right">
-              <span className="text-[10px] text-[#5A6A74] font-mono">
+              <span className="ht-note">
                 * Valores negativos en Float indican desfase en días respecto a la línea base.
               </span>
             </div>
-          </div>
+          </MacWindow>
 
           {/* 3. UBICACION / DESGLOSE EN ÁRBOL */}
           <div id="card-ubicacion-tree" className="bg-white rounded-xl p-4 sm:p-5 border border-[#D5DEE2] shadow-xs overflow-hidden">
@@ -832,13 +824,16 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
 
         {/* RIGHT COLUMN: Tabla de Control de Ejecución (Solo tabla y dropdown de semana) + Certificación */}
         <div className="lg:col-span-7 space-y-6">
-          <ControlSemanalTabla
-            actividades={actividades}
-            dataPlanificadoPG004={dataPlanificadoPG004}
-            baseVenta={baseVenta}
-            soloTablaYSemana={true}
-          />
+          <MacWindow title="Avance por componente" extra="V. Contrato · Plan · Ejecutado">
+            <ControlSemanalTabla
+              actividades={actividades}
+              dataPlanificadoPG004={dataPlanificadoPG004}
+              baseVenta={baseVenta}
+              soloTablaYSemana={true}
+            />
+          </MacWindow>
 
+          <MacWindow title="Certificación" extra="Planilla contractual por tipología">
           <CertificacionCard
             planillaInfo={planillaInfo}
             planillaTotales={planillaTotales}
@@ -850,6 +845,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
             showKpis={false}
             showEnmiendas={false}
           />
+          </MacWindow>
         </div>
 
       </div>
