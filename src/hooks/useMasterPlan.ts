@@ -2250,10 +2250,22 @@ export function useMasterPlan(isLoggedIn = false) {
         const sumColIByColA = new Map<string, number>();
         const p6ExecutionByWbsColA = new Map<string, Record<string, number>>();
 
+        // Las partidas de una actividad P6 (Col A con "p6") se ocultan y su valor se suma a la actividad,
+        // salvo las válvulas (SCAP "Válvulas"), que se muestran como filas propias.
+        const esValvulaScap = (rawScap: any): boolean => {
+          const s = String(rawScap || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+          return s === 'valvulas' || /valvul/i.test(s);
+        };
+        const esValvulaHijaP6 = (r: any[]): boolean =>
+          String(r[0] || '').toLowerCase().includes('p6') &&
+          colIndices.scap >= 0 && esValvulaScap(r[colIndices.scap]);
+
         for (let j = 2; j < jsonData.length; j++) {
           const r = jsonData[j];
           if (!r) continue;
-          
+          // Las válvulas ya cuentan en su propia fila: no sumarlas también a su actividad.
+          if (esValvulaHijaP6(r)) continue;
+
           const colA = String(r[0] || '').trim().toLowerCase();
           const colC = String(r[2] || '').trim().toLowerCase();
           const codePart = colA.includes('  ') ? colA.split('  ')[0].trim() : colA;
@@ -2322,11 +2334,8 @@ export function useMasterPlan(isLoggedIn = false) {
           const wbs = row[0];
           if (!wbs) continue;
           const wbsStr = String(wbs).trim();
-          const rawScap = colIndices.scap >= 0 ? row[colIndices.scap] : null;
-          const scapStr = String(rawScap || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          const isValvulaScap = scapStr === 'valvulas' || /valvul/i.test(scapStr);
-
-          if (!isValvulaScap && wbsStr.toLowerCase().includes('p6')) {
+          // Partidas de actividades P6: se ocultan (su valor ya est\u00e1 en la actividad), salvo las v\u00e1lvulas.
+          if (wbsStr.toLowerCase().includes('p6') && !esValvulaHijaP6(row)) {
             continue;
           }
 
@@ -2453,7 +2462,9 @@ export function useMasterPlan(isLoggedIn = false) {
           // Criterios simultáneos para avance semanal ejecutado (Columnas V-):
           // Criterio 1: Si el Activity ID (Col C) o WBS contiene "p6", realizar sumar.si por WBS (Col A) en las semanas con "V-"
           // Criterio 2: Si el Activity ID (Col C) NO contiene "p6", tomar el valor directamente de la propia fila en las semanas con "V-"
-          const isP6Activity = actIdCleanForP6.includes('p6') || wbsCleanForP6.includes('p6') || rawWbsCleanForP6.includes('p6');
+          // Una válvula dentro de una actividad P6 usa solo los valores de su propia fila.
+          const isP6Activity = !esValvulaHijaP6(row) &&
+            (actIdCleanForP6.includes('p6') || wbsCleanForP6.includes('p6') || rawWbsCleanForP6.includes('p6'));
 
           if (isP6Activity) {
             let p6Exec: Record<string, number> | null = null;
@@ -2631,21 +2642,21 @@ export function useMasterPlan(isLoggedIn = false) {
             ].filter(Boolean);
 
             for (const k of possibleKeys) {
-              if (sumASByColA.has(k) && sumASByColA.get(k)! > 0) {
+              if (sumASByColA.has(k)) {
                 finalVentaPlan = sumASByColA.get(k)!;
                 break;
               }
             }
 
             for (const k of possibleKeys) {
-              if (sumAVByColA.has(k) && sumAVByColA.get(k)! > 0) {
+              if (sumAVByColA.has(k)) {
                 finalVentaEx = sumAVByColA.get(k)!;
                 break;
               }
             }
 
             for (const k of possibleKeys) {
-              if (sumColIByColA.has(k) && sumColIByColA.get(k)! > 0) {
+              if (sumColIByColA.has(k)) {
                 finalVenta = sumColIByColA.get(k)!;
                 break;
               }
