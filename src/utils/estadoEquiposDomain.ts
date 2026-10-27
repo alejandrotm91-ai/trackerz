@@ -21,7 +21,7 @@ export const GRMAP: Record<string, StageKey> = {
   '04': 'F'
 };
 
-export const LS_KEY = 'eqStatusMerinos.raw.v5';
+export const LS_KEY = 'eqStatusMerinos.raw.v6';
 export const UI_LS_KEY = 'eqStatusMerinos.ui';
 
 const nf1 = new Intl.NumberFormat('es-EC', { maximumFractionDigits: 1 });
