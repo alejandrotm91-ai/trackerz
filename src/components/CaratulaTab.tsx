@@ -142,7 +142,7 @@ const DialGauge: React.FC<{
 
   return (
     <div id={`${idPrefix}-dial-gauge`} className="flex flex-col items-center select-none">
-      <div className="relative w-44 h-26 sm:w-48 sm:h-28 flex items-end justify-center overflow-hidden">
+      <div className="relative w-32 h-[4.5rem] sm:w-36 sm:h-20 flex items-end justify-center overflow-hidden">
         <svg viewBox="0 0 200 110" className="w-full h-full">
           {/* Background Track Arc */}
           <path
@@ -167,14 +167,14 @@ const DialGauge: React.FC<{
 
         {/* Big Central Value inside the arch */}
         <div className="absolute inset-0 flex flex-col items-center justify-end pb-1.5 pointer-events-none">
-          <span className={`text-2xl sm:text-3xl font-['Barlow_Condensed'] font-semibold tracking-tight ${currentValueColor}`}>
+          <span className={`text-xl sm:text-2xl font-['Barlow_Condensed'] font-semibold tracking-tight ${currentValueColor}`}>
             {currentValueStr}
           </span>
         </div>
       </div>
 
       {/* Subtitle / Unit label */}
-      <div className="mt-1 text-xs font-semibold text-[#5A6A74] tracking-wide">
+      <div className="mt-0.5 text-[11px] font-semibold text-[#5A6A74] tracking-wide">
         {unit}
       </div>
     </div>
@@ -616,16 +616,16 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* LEFT / MAIN COLUMN: Vertical Stack */}
-        <div className="lg:col-span-5 space-y-6">
+        <div className="lg:col-span-5 space-y-4">
           
           {/* 1. TOP SECTION: 3 SEMI-CIRCLE GAUGES */}
-          <div id="card-top-gauges" className="bg-white rounded-xl p-5 border border-[#D5DEE2] shadow-xs">
-            <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] mb-4 pb-2 border-b border-[#D5DEE2] flex items-center justify-between">
+          <div id="card-top-gauges" className="bg-white rounded-xl px-4 py-3 border border-[#D5DEE2] shadow-xs">
+            <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] mb-2 pb-1.5 border-b border-[#D5DEE2] flex items-center justify-between">
               <span>Indicadores Generales de Desempeño</span>
               <span className="text-[11px] font-normal text-[#5A6A74]">Corte Actual</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center justify-items-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center justify-items-center">
               {/* Gauge 1: % Avance Proyecto */}
               <DialGauge
                 idPrefix="pct-proyecto"
@@ -736,16 +736,16 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
               </table>
             </div>
 
-            <div className="mt-2 text-right">
-              <span className="ht-note">
+            <div className="mt-1 text-right leading-none">
+              <span className="ht-note text-[11px]">
                 * Valores negativos en Float indican desfase en días respecto a la línea base.
               </span>
             </div>
           </MacWindow>
 
           {/* 3. UBICACION / DESGLOSE EN ÁRBOL */}
-          <div id="card-ubicacion-tree" className="bg-white rounded-xl p-4 sm:p-5 border border-[#D5DEE2] shadow-xs overflow-hidden">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#D5DEE2]">
+          <div id="card-ubicacion-tree" className="bg-white rounded-xl px-4 py-3 border border-[#D5DEE2] shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-[#D5DEE2]">
               <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[#442dd7] shrink-0" />
                 <span>Ubicación</span>
@@ -756,21 +756,21 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
             </div>
 
             {/* Tree bifurcation / branch layout */}
-            <div className="flex items-center justify-between gap-2 sm:gap-4 py-2 w-full">
+            <div className="flex items-center justify-between gap-2 sm:gap-4 w-full">
               
               {/* Root Node: Avance Ejecutado Total */}
               <div className="flex flex-col items-end text-right flex-1 min-w-0">
-                <div className="w-full h-3 bg-[#442dd7] rounded-xs mb-1.5 shadow-xs" />
+                <div className="w-full h-2 bg-[#442dd7] rounded-xs mb-1 shadow-xs" />
                 <div className="text-xs font-bold text-[#14212A] tracking-tight truncate w-full">
                   Avance_Ejecutado
                 </div>
-                <div className="text-xs sm:text-[13px] font-bold text-[#5A6A74] font-mono truncate w-full">
+                <div className="text-xs leading-tight font-bold text-[#5A6A74] font-mono truncate w-full">
                   {fmtCurrency(totalEjec)}
                 </div>
               </div>
 
               {/* Connecting Tree SVG Splines */}
-              <div className="w-8 sm:w-12 h-20 sm:h-24 flex items-center justify-center shrink-0">
+              <div className="w-8 sm:w-12 h-14 flex items-center justify-center shrink-0">
                 <svg viewBox="0 0 60 100" className="w-full h-full text-[#D5DEE2] stroke-current fill-none" preserveAspectRatio="none">
                   {ubicacionData.length === 1 && (
                     <path d="M 0 50 L 60 50" strokeWidth="2.5" />
@@ -792,24 +792,24 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
               </div>
 
               {/* Branch Nodes (Merinos, Progreso, etc.) */}
-              <div className="flex flex-col gap-3.5 sm:gap-4 flex-1 min-w-0">
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                 {ubicacionData.map((u) => {
                   return (
                     <div key={u.nombre} className="flex flex-col items-start text-left w-full">
                       {/* Bar Gauge */}
-                      <div className="w-full h-3 bg-[#EEF2F3] rounded-xs mb-1.5 overflow-hidden border border-[#D5DEE2] relative">
+                      <div className="w-full h-2 bg-[#EEF2F3] rounded-xs mb-0.5 overflow-hidden border border-[#D5DEE2] relative">
                         <div
                           className="h-full bg-[#442dd7] transition-all duration-500"
                           style={{ width: `${Math.min(100, Math.max(8, u.porcentaje))}%` }}
                         />
                       </div>
-                      <div className="text-xs font-bold text-[#14212A] flex items-center justify-between w-full gap-1">
+                      <div className="text-xs leading-tight font-bold text-[#14212A] flex items-center justify-between w-full gap-1">
                         <span className="truncate">{u.nombre}</span>
                         <span className="text-[10px] font-bold text-[#442dd7] font-mono shrink-0">
                           {u.porcentaje.toFixed(1)}%
                         </span>
                       </div>
-                      <div className="text-xs sm:text-[13px] font-bold text-[#5A6A74] font-mono truncate w-full">
+                      <div className="text-xs leading-tight font-bold text-[#5A6A74] font-mono truncate w-full">
                         {fmtCurrency(u.ventaEjec)}
                       </div>
                     </div>
@@ -823,7 +823,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
         </div>
 
         {/* RIGHT COLUMN: Tabla de Control de Ejecución (Solo tabla y dropdown de semana) + Certificación */}
-        <div className="lg:col-span-7 space-y-6">
+        <div className="lg:col-span-7 space-y-4">
           <MacWindow title="Avance por componente" extra="V. Contrato · Plan · Ejecutado">
             <ControlSemanalTabla
               actividades={actividades}

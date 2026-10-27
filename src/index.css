@@ -113,17 +113,6 @@ kbd {
   background: linear-gradient(#ececec, #dcdcdc);
   border-bottom: 1px solid #c8c8c8;
 }
-.mac-dots { display: flex; gap: 8px; }
-.mac-dots i {
-  display: block;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .2);
-}
-.mac-dots i:nth-child(1) { background: #ff5f57; }
-.mac-dots i:nth-child(2) { background: #febc2e; }
-.mac-dots i:nth-child(3) { background: #28c840; }
 .mac-title {
   min-width: 0;
   overflow: hidden;

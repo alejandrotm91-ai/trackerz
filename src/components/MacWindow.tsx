@@ -9,16 +9,14 @@ interface MacWindowProps {
 }
 
 /**
- * Ventana estilo macOS (barra con los tres botones) que envuelve tablas.
+ * Ventana estilo macOS (barra de título gris) que envuelve tablas.
  * El contenido usa el tema de tabla jerárquica `.ht-theme` (ver index.css).
  */
 export function MacWindow({ title, extra, id, children }: MacWindowProps) {
   return (
     <section className="mac-window" id={id}>
       <div className="mac-titlebar">
-        <span className="mac-dots" aria-hidden="true">
-          <i /><i /><i />
-        </span>
+        <span aria-hidden="true" />
         <span className="mac-title">{title}</span>
         {extra && <span className="mac-extra">{extra}</span>}
       </div>
