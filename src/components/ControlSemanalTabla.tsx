@@ -157,89 +157,54 @@ export interface DynamicHierarchyNode {
   children?: DynamicHierarchyNode[];
 }
 
+// Niveles de la jerarquía: gama clara del morado de la app (#442dd7), del más oscuro al blanco.
 const LEVEL_STYLES = [
   {
-    bg: 'bg-slate-50 hover:bg-slate-100/90 text-slate-800 font-bold border-b border-slate-200 shadow-2xs',
-    text: 'text-indigo-700',
-    badge: 'bg-slate-900 text-white',
-    subText: 'text-slate-500',
-    chevron: 'text-slate-600',
-    dateText: 'text-slate-600',
-    vContrato: 'text-slate-900',
-    vPlan: 'text-indigo-700 font-bold',
-    vEjec: 'text-slate-800',
+    bg: 'bg-[#ddd9f8] hover:bg-[#d2cdf6] text-[#14212A] font-semibold border-b border-[#c7c0f3]',
+    text: 'text-[#14212A]',
+    badge: 'bg-white text-[#442dd7] border border-[#c7c0f3]',
+    subText: 'text-[#5A6A74]',
+    chevron: 'text-[#5A6A74]',
+    dateText: 'text-[#5A6A74]',
+    vContrato: 'text-[#14212A] font-semibold',
+    vPlan: 'text-slate-700',
+    vEjec: 'text-green-700',
     vSobre: 'text-amber-700'
   },
   {
-    bg: 'bg-indigo-900/95 text-white hover:bg-[#442dd7] font-extrabold border-b border-indigo-950 shadow-xs',
-    text: 'text-white',
-    badge: 'bg-indigo-100 text-indigo-800',
-    subText: 'text-indigo-200',
-    chevron: 'text-indigo-200',
-    dateText: 'text-indigo-100',
-    vContrato: 'text-white',
-    vPlan: 'text-indigo-200',
-    vEjec: 'text-slate-300',
-    vSobre: 'text-amber-300'
-  },
-  {
-    bg: 'bg-purple-100/90 hover:bg-purple-200/90 text-purple-950 font-extrabold border-b border-purple-200 border-l-2 border-l-purple-600',
-    text: 'text-purple-950',
-    badge: 'bg-purple-200 text-purple-900',
-    subText: 'text-purple-700',
-    chevron: 'text-purple-700',
-    dateText: 'text-purple-800',
-    vContrato: 'text-purple-950',
-    vPlan: 'text-indigo-700',
-    vEjec: 'text-slate-600',
+    bg: 'bg-[#eeecfb] hover:bg-[#e4e1f9] text-[#14212A] font-semibold border-b border-[#ddd9f8]',
+    text: 'text-[#14212A]',
+    badge: 'bg-white text-[#442dd7] border border-[#c7c0f3]',
+    subText: 'text-[#5A6A74]',
+    chevron: 'text-[#5A6A74]',
+    dateText: 'text-[#5A6A74]',
+    vContrato: 'text-[#14212A] font-semibold',
+    vPlan: 'text-slate-700',
+    vEjec: 'text-green-700',
     vSobre: 'text-amber-700'
   },
   {
-    bg: 'bg-emerald-100/90 hover:bg-emerald-200/90 text-emerald-950 font-bold border-b border-emerald-200 border-l-2 border-l-emerald-600',
-    text: 'text-emerald-950',
-    badge: 'bg-emerald-200 text-emerald-900',
-    subText: 'text-emerald-800',
-    chevron: 'text-emerald-800',
-    dateText: 'text-emerald-800',
-    vContrato: 'text-emerald-950',
-    vPlan: 'text-indigo-700',
-    vEjec: 'text-slate-600',
+    bg: 'bg-[#f6f5fd] hover:bg-[#eeecfb] text-[#14212A] font-semibold border-b border-[#eeecfb]',
+    text: 'text-[#14212A]',
+    badge: 'bg-white text-[#442dd7] border border-[#c7c0f3]',
+    subText: 'text-[#5A6A74]',
+    chevron: 'text-[#5A6A74]',
+    dateText: 'text-[#5A6A74]',
+    vContrato: 'text-[#14212A] font-semibold',
+    vPlan: 'text-slate-700',
+    vEjec: 'text-green-700',
     vSobre: 'text-amber-700'
   },
   {
-    bg: 'bg-sky-100/90 hover:bg-sky-200/90 text-sky-950 font-bold border-b border-sky-200 border-l-2 border-l-sky-600',
-    text: 'text-sky-950',
-    badge: 'bg-sky-200 text-sky-900',
-    subText: 'text-sky-700',
-    chevron: 'text-sky-700',
-    dateText: 'text-sky-800',
-    vContrato: 'text-sky-950',
-    vPlan: 'text-indigo-700',
-    vEjec: 'text-slate-600',
-    vSobre: 'text-amber-700'
-  },
-  {
-    bg: 'bg-amber-100/90 hover:bg-amber-200/90 text-amber-950 font-semibold border-b border-amber-200 border-l-2 border-l-amber-600',
-    text: 'text-amber-950',
-    badge: 'bg-amber-200 text-amber-900',
-    subText: 'text-amber-800',
-    chevron: 'text-amber-800',
-    dateText: 'text-amber-800',
-    vContrato: 'text-amber-950',
-    vPlan: 'text-indigo-700',
-    vEjec: 'text-slate-600',
-    vSobre: 'text-amber-700'
-  },
-  {
-    bg: 'bg-teal-100/90 hover:bg-teal-200/90 text-teal-950 font-semibold border-b border-teal-200 border-l-2 border-l-teal-600',
-    text: 'text-teal-950',
-    badge: 'bg-teal-200 text-teal-900',
-    subText: 'text-teal-800',
-    chevron: 'text-teal-800',
-    dateText: 'text-teal-800',
-    vContrato: 'text-teal-950',
-    vPlan: 'text-indigo-700',
-    vEjec: 'text-slate-600',
+    bg: 'bg-[#ffffff] hover:bg-[#f6f5fd] text-[#14212A] font-semibold border-b border-[#efefed]',
+    text: 'text-[#14212A]',
+    badge: 'bg-white text-[#442dd7] border border-[#c7c0f3]',
+    subText: 'text-[#5A6A74]',
+    chevron: 'text-[#5A6A74]',
+    dateText: 'text-[#5A6A74]',
+    vContrato: 'text-[#14212A] font-semibold',
+    vPlan: 'text-slate-700',
+    vEjec: 'text-green-700',
     vSobre: 'text-amber-700'
   }
 ];
@@ -2779,38 +2744,27 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   };
 
   return (
-    <div className={`bg-white rounded-2xl shadow-sm border border-slate-200/90 relative ${isCardCollapsed ? 'overflow-hidden' : 'overflow-visible'} animate-fade-in ${soloTablaYSemana ? 'mt-0' : 'mt-6'}`} id="tarjeta-kpi-avance-semanal">
+    <div className={`bg-white rounded-xl shadow-xs border border-[#D5DEE2] relative ${isCardCollapsed ? 'overflow-hidden' : 'overflow-visible'} animate-fade-in ${soloTablaYSemana ? 'mt-0' : 'mt-6'}`} id="tarjeta-kpi-avance-semanal">
       {/* Header Bar */}
       {!soloTablaYSemana && (
         <div 
           onClick={() => setIsCardCollapsed(!isCardCollapsed)}
-          className={`bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 px-5 py-4 text-white flex items-center justify-between flex-wrap gap-3 cursor-pointer select-none hover:opacity-95 transition-all relative ${isExpandMenuOpen ? 'z-50' : 'z-30'} ${isCardCollapsed ? 'rounded-2xl' : 'rounded-t-2xl'}`}
+          className={`bg-[#F5F8F9] hover:bg-[#EEF2F3] px-4 py-2 flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 cursor-pointer select-none transition-colors relative ${isExpandMenuOpen ? 'z-50' : 'z-30'} ${isCardCollapsed ? 'rounded-xl' : 'rounded-t-xl border-b border-[#D5DEE2]'}`}
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-700/50 rounded-xl border border-indigo-500/40">
-              {isCardCollapsed ? <ChevronRight className="w-5 h-5 text-indigo-200" /> : <ChevronDown className="w-5 h-5 text-indigo-200" />}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
-                  <span>📅 Control de Ejecución</span>
-                </h3>
-                <span className="text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase">
-                  {currentWeekLabel}
-                </span>
-              </div>
-            </div>
-          </div>
+          <span className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider flex items-center gap-1.5">
+            <span className="text-[#5A6A74] text-xs normal-case">{isCardCollapsed ? '▼' : '▲'}</span>
+            <span>Control de Ejecución · <span className="text-[#5A6A74] font-mono normal-case">{currentWeekLabel}</span></span>
+          </span>
 
           <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
             {/* Botón Filtro Float Negativo (Reloj) */}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setFilterFloatNegativo(prev => !prev); }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95 ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95 ${
                 filterFloatNegativo
-                  ? 'bg-rose-500 text-white border-rose-300 shadow-rose-900/30 ring-2 ring-rose-300/80 font-black'
-                  : 'border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white'
+                  ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
+                  : 'border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A]'
               }`}
               title={
                 filterFloatNegativo
@@ -2821,7 +2775,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             >
               <span className="text-sm select-none" role="img" aria-label="Reloj">⏰</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
-                filterFloatNegativo ? 'bg-white text-rose-700' : 'bg-rose-500/30 text-rose-200 border border-rose-400/40'
+                filterFloatNegativo ? 'bg-white text-rose-700' : 'bg-rose-50 text-rose-700 border border-rose-200'
               }`}>
                 {totalFloatNegativoCount}
               </span>
@@ -2831,15 +2785,15 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setModoEV(prev => !prev); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95 ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95 ${
                 modoEV
-                  ? 'bg-amber-400 text-amber-950 border-amber-300 shadow-amber-900/30 ring-2 ring-amber-300/80 font-black'
-                  : 'border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white'
+                  ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
+                  : 'border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A]'
               }`}
               title={modoEV ? "Modo E.V activo: V.Ejec topeado a V.Contrato y columna Sobre Ejecución visible. Clic para desactivar." : "Activar modo E.V (Earned Value): recalcula V.Ejec (máx. V.Contrato) y muestra columna Sobre Ejecución"}
               id="btn-toggle-modo-ev-header"
             >
-              <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${modoEV ? 'bg-amber-600 text-white' : 'bg-indigo-900/80 text-amber-300'}`}>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${modoEV ? 'bg-amber-400 text-amber-950' : 'bg-amber-50 text-amber-700'}`}>
                 E.V
               </span>
               <span>{modoEV ? 'Modo E.V (ON)' : 'Modo E.V'}</span>
@@ -2850,13 +2804,13 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIsHierarchyModalOpen(true); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95"
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A] transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95"
                 title="Organizar la jerarquía de la tabla (CAP, SCAP, Partidas, etc. estilo Power BI)"
                 id="btn-organizar-jerarquia-header"
               >
-                <SlidersHorizontal className="w-4 h-4 text-indigo-200" />
+                <SlidersHorizontal className="w-4 h-4 text-[#5A6A74]" />
                 <span>Jerarquía</span>
-                <span className="text-[10px] bg-indigo-900/90 text-indigo-200 px-1.5 py-0.2 rounded font-mono font-bold">
+                <span className="text-[10px] bg-[#EEF2F3] text-[#5A6A74] px-1.5 py-0.2 rounded font-mono font-bold">
                   {activeHierarchy.length}
                 </span>
               </button>
@@ -2867,18 +2821,18 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIsExpandMenuOpen(!isExpandMenuOpen); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95"
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A] transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95"
                 id="btn-expandir-nivel-control-semanal"
               >
-                <ChevronsUpDown className="w-4 h-4 text-indigo-200" />
+                <ChevronsUpDown className="w-4 h-4 text-[#5A6A74]" />
                 <span>Exp. Nivel</span>
-                <ChevronDown className="w-3 h-3 text-indigo-300 ml-0.5" />
+                <ChevronDown className="w-3 h-3 text-[#5A6A74] ml-0.5" />
               </button>
 
               {isExpandMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsExpandMenuOpen(false); }} />
-                  <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 py-1.5 text-xs animate-fade-in select-none text-slate-800 ring-1 ring-black/10">
+                  <div className="ht-dd absolute right-0 mt-2 w-64 bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 py-1.5 text-xs animate-fade-in select-none text-slate-800 ring-1 ring-black/10">
                     <div className="px-3.5 py-1.5 font-bold text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-100 flex items-center justify-between">
                       <span>Expandir Jerarquía</span>
                       <span className="text-[9px] text-indigo-600 font-semibold">Tabla Semanal</span>
@@ -2925,20 +2879,20 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
 
             <button
               onClick={handleCollapseAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A] transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95"
               title="Colapsar todo"
               id="btn-colapsar-control-semanal"
             >
-              <ChevronsDownUp className="w-4 h-4 text-indigo-200" />
+              <ChevronsDownUp className="w-4 h-4 text-[#5A6A74]" />
               <span>Colapsar</span>
             </button>
 
             <button
               onClick={handleCopyTableForExcel}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95 ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95 ${
                 copied
-                  ? 'bg-emerald-600 border-emerald-400 text-white shadow-emerald-900/30'
-                  : 'border-emerald-500/50 bg-emerald-700/90 hover:bg-emerald-600 text-white'
+                  ? 'bg-emerald-600 border-emerald-600 text-white'
+                  : 'border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A]'
               }`}
               title="Copiar tabla filtrada para Excel con formato y colores por jerarquía"
               id="btn-copiar-excel-control-semanal"
@@ -2950,7 +2904,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                 </>
               ) : (
                 <>
-                  <Copy className="w-4 h-4 text-emerald-200" />
+                  <Copy className="w-4 h-4 text-emerald-700" />
                   <span>Copiar Tabla</span>
                 </>
               )}
@@ -2992,7 +2946,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsWeekDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 min-w-[320px] sm:min-w-[380px] max-w-[90vw] mt-1.5 max-h-[460px] overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2.5 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
+                    className="ht-dd absolute left-0 min-w-[320px] sm:min-w-[380px] max-w-[90vw] mt-1.5 max-h-[460px] overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2.5 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Header with Quick Actions */}
@@ -3328,7 +3282,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsPAcDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 min-w-[260px] sm:min-w-[300px] max-w-[90vw] mt-1.5 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
+                    className="ht-dd absolute left-0 min-w-[260px] sm:min-w-[300px] max-w-[90vw] mt-1.5 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3477,7 +3431,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         onClick={(e) => { e.stopPropagation(); setIsPartidasDropdownOpen(false); }} 
                       />
                       <div 
-                        className="absolute left-0 min-w-[280px] sm:min-w-[320px] max-w-[90vw] mt-1.5 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
+                        className="ht-dd absolute left-0 min-w-[280px] sm:min-w-[320px] max-w-[90vw] mt-1.5 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3587,7 +3541,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsTipologiaDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3670,7 +3624,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsStatusDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3774,7 +3728,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsPartidaDDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 min-w-[220px] mt-1 bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
+                    className="ht-dd absolute left-0 min-w-[220px] mt-1 bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between">
@@ -3911,7 +3865,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsVariacionDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 right-0 mt-1 bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 right-0 mt-1 bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between">
@@ -4039,7 +3993,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsSubCDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="sticky top-0 bg-white z-10 pb-1 pt-0.5 border-b border-slate-100 mb-1.5">
@@ -4577,7 +4531,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         {isPresetMenuOpen && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setIsPresetMenuOpen(false)} />
-                            <div className="absolute right-0 mt-1.5 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-xs ring-1 ring-black/10">
+                            <div className="ht-dd absolute right-0 mt-1.5 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-xs ring-1 ring-black/10">
                               <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
                                 Plantillas de Jerarquía
                               </div>
@@ -4618,7 +4572,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                           {isAddDimMenuOpen && (
                             <>
                               <div className="fixed inset-0 z-40" onClick={() => setIsAddDimMenuOpen(false)} />
-                              <div className="absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-xs ring-1 ring-black/10">
+                              <div className="ht-dd absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-xs ring-1 ring-black/10">
                                 <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
                                   Agregar Campo
                                 </div>

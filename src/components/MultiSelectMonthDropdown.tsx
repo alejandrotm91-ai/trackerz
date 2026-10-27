@@ -184,7 +184,7 @@ export const MultiSelectMonthDropdown: React.FC<MultiSelectMonthDropdownProps> =
         onClick={() => setIsOpen(!isOpen)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className={`w-full text-xs bg-white border rounded-xl px-2.5 py-2 font-medium text-left flex items-center justify-between transition-all cursor-pointer ${
+        className={`ht-trigger w-full text-xs bg-white border rounded-xl px-2.5 py-2 font-medium text-left flex items-center justify-between transition-all cursor-pointer ${
           isOpen
             ? 'border-indigo-500 ring-2 ring-indigo-500/20 text-indigo-900 bg-indigo-50/20'
             : hasActiveSelection
@@ -212,7 +212,7 @@ export const MultiSelectMonthDropdown: React.FC<MultiSelectMonthDropdownProps> =
 
       {/* Popover Menu */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 min-w-[250px]">
+        <div className="ht-dd absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 min-w-[250px]">
           {/* Header & Quick Search */}
           <div className="p-2 border-b border-slate-100 bg-slate-50/80 space-y-1.5">
             <div className="relative">

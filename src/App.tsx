@@ -2012,7 +2012,7 @@ export default function App() {
         {/* ACTIVE TAB ROUTING (KEEP-ALIVE CACHING FOR ZERO-LAG TAB SWITCHING) */}
         <div id="active-tab-container" className="space-y-6">
           {visitedTabs.has('caratula') && (
-            <div id="tab-resumen-wrapper" style={{ display: pc.activeTab === 'caratula' ? 'block' : 'none' }}>
+            <div id="tab-resumen-wrapper" className="ht-theme" style={{ display: pc.activeTab === 'caratula' ? 'block' : 'none' }}>
               <CaratulaTab
                 actividades={pc.actividades}
                 stats={pc.stats}
@@ -2031,19 +2031,19 @@ export default function App() {
           )}
 
           {visitedTabs.has('personal') && (
-            <div style={{ display: pc.activeTab === 'personal' ? 'block' : 'none' }}>
+            <div className="ht-theme" style={{ display: pc.activeTab === 'personal' ? 'block' : 'none' }}>
               <PersonalTab />
             </div>
           )}
 
           {visitedTabs.has('proceso') && (
-            <div style={{ display: pc.activeTab === 'proceso' ? 'block' : 'none' }}>
+            <div className="ht-theme" style={{ display: pc.activeTab === 'proceso' ? 'block' : 'none' }}>
               <ProcesoTab />
             </div>
           )}
 
           {visitedTabs.has('master') && (
-            <div style={{ display: pc.activeTab === 'master' ? 'block' : 'none' }}>
+            <div className="ht-theme" style={{ display: pc.activeTab === 'master' ? 'block' : 'none' }}>
               <MasterTab
                 actividades={pc.actividades}
                 mapaColumnasMes={pc.mapaColumnasMes}
@@ -2083,13 +2083,13 @@ export default function App() {
           )}
 
           {visitedTabs.has('economico') && (
-            <div style={{ display: pc.activeTab === 'economico' ? 'block' : 'none' }}>
+            <div className="ht-theme" style={{ display: pc.activeTab === 'economico' ? 'block' : 'none' }}>
               {renderAvancePartidasContent()}
             </div>
           )}
 
           {visitedTabs.has('cronograma') && (
-            <div id="tab-cronograma-wrapper" style={{ display: pc.activeTab === 'cronograma' ? 'block' : 'none' }}>
+            <div id="tab-cronograma-wrapper" className="ht-theme" style={{ display: pc.activeTab === 'cronograma' ? 'block' : 'none' }}>
               <CronogramaTab
                 actividades={pc.actividades}
                 statsCronograma={pc.statsCronograma}
@@ -2170,7 +2170,7 @@ export default function App() {
           )}
 
           {visitedTabs.has('planilla') && (
-            <div style={{ display: pc.activeTab === 'planilla' ? 'block' : 'none' }}>
+            <div className="ht-theme" style={{ display: pc.activeTab === 'planilla' ? 'block' : 'none' }}>
               <PlanillaTab
                 planillaInfo={pc.planillaInfo}
                 planillaCDOvsS={pc.planillaCDOvsS}

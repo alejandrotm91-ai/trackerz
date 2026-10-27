@@ -2044,9 +2044,9 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                         <tr className="bg-slate-50/90 border-b border-slate-200">
                           <td colSpan={10} className="p-3 pl-8">
                             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-                              <div className="px-3 py-2 bg-indigo-900 text-white font-extrabold text-[11px] flex items-center justify-between">
+                              <div className="px-3 py-2 bg-[#F5F8F9] border-b border-[#D5DEE2] text-[#14212A] font-semibold text-[11px] flex items-center justify-between">
                                 <span>Actividades detalladas en {pkg.scapName} (CAP: {cap.capName})</span>
-                                <span className="text-[10px] text-indigo-200 font-mono font-normal">
+                                <span className="text-[10px] text-[#5A6A74] font-mono font-normal">
                                   {pkg.activities.length} partidas registradas
                                 </span>
                               </div>
@@ -2214,61 +2214,22 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
   return (
     <div 
       id="tarjeta-analisis-proyecto"
-      className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden animate-fade-in transition-all"
+      className="bg-white rounded-xl shadow-xs border border-[#D5DEE2] overflow-hidden animate-fade-in transition-all"
     >
-      {/* 1. Header Bar: Identidad Ejecutiva y Toggle Colapsable */}
+      {/* 1. Barra de título (estilo "Estado de Actividades") */}
       <div 
         onClick={() => setIsCardCollapsed(!isCardCollapsed)}
-        className="bg-gradient-to-r from-indigo-950 via-indigo-900 to-slate-900 px-5 py-4 text-white flex items-center justify-between flex-wrap gap-3 cursor-pointer select-none hover:opacity-95 transition-all"
+        className={`flex items-center justify-between flex-wrap gap-x-4 gap-y-1 px-4 py-2 bg-[#F5F8F9] hover:bg-[#EEF2F3] cursor-pointer select-none ${isCardCollapsed ? '' : 'border-b border-[#D5DEE2]'}`}
         title="Hacer clic para expandir o colapsar el Análisis de Proyecto"
       >
+        <span className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">
+          Análisis de Proyecto · <span className="text-[#5A6A74] font-mono normal-case" title="Actividades filtradas por estado P6: In Progress o Not Started">P6: In Progress &amp; Not Started</span>
+        </span>
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-700/50 rounded-xl border border-indigo-500/40 text-indigo-200 shrink-0 hover:bg-indigo-600/60 transition-colors">
-            {isCardCollapsed ? (
-              <ChevronRight className="w-5 h-5 text-indigo-200" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-indigo-200" />
-            )}
-          </div>
-          <div className="p-2.5 bg-indigo-700/50 rounded-xl border border-indigo-500/40 shadow-inner shrink-0">
-            <Layers className="w-5 h-5 text-indigo-200" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
-                Análisis de Proyecto
-              </h3>
-              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30" title="Actividades filtradas por estado P6: In Progress o Not Started">
-                P6: In Progress &amp; Not Started
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          {/* Executive KPI Counter Pills */}
-          <div className="hidden sm:flex items-center gap-2 bg-indigo-950/60 p-1 rounded-xl border border-indigo-800/60">
-            <div className="px-2.5 py-1 rounded-lg bg-indigo-800/40 text-center">
-              <span className="block text-[9px] text-indigo-300 font-bold uppercase">Componentes</span>
-              <span className="text-xs font-black text-white">{totalActiveComponents}</span>
-            </div>
-            <div className="px-2.5 py-1 rounded-lg bg-indigo-800/40 text-center">
-              <span className="block text-[9px] text-slate-300 font-bold uppercase">Procesos (AF)</span>
-              <span className="text-xs font-black text-white">{totalActiveProcesos}</span>
-            </div>
-            <div className="px-2.5 py-1 rounded-lg bg-indigo-800/40 text-center">
-              <span className="block text-[9px] text-indigo-300 font-bold uppercase">Capítulos CAP</span>
-              <span className="text-xs font-black text-white">{totalActiveCaps}</span>
-            </div>
-            <div className="px-2.5 py-1 rounded-lg bg-indigo-800/40 text-center">
-              <span className="block text-[9px] text-indigo-300 font-bold uppercase">Paquetes SCAP</span>
-              <span className="text-xs font-black text-white">{totalScapPackages}</span>
-            </div>
-            <div className="px-2.5 py-1 rounded-lg bg-indigo-800/40 text-center">
-              <span className="block text-[9px] text-indigo-300 font-bold uppercase">Actividades</span>
-              <span className="text-xs font-black text-white">{totalScheduledActivities}</span>
-            </div>
-          </div>
+          <span className="hidden sm:inline text-[11px] text-[#5A6A74] font-mono">
+            Componentes <b className="text-[#14212A]">{totalActiveComponents}</b> · Procesos <b className="text-[#14212A]">{totalActiveProcesos}</b> · CAP <b className="text-[#14212A]">{totalActiveCaps}</b> · SCAP <b className="text-[#14212A]">{totalScapPackages}</b> · Actividades <b className="text-[#14212A]">{totalScheduledActivities}</b>
+          </span>
+          <span className="text-[#5A6A74] text-xs">{isCardCollapsed ? '▼' : '▲'}</span>
         </div>
       </div>
 
@@ -2932,29 +2893,29 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                 return (
                   <div
                     key={compGroup.componente}
-                    className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all"
+                    className="bg-white rounded-xl border border-[#D5DEE2] shadow-xs overflow-hidden transition-all"
                   >
                     {/* Component Header Accordion Bar styled in #4f39f6 */}
                     <div
                       onClick={() => toggleComponent(compGroup.componente)}
-                      className="bg-[#4f39f6] text-white px-4 py-3 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#432fe0] transition-colors select-none shadow-xs"
+                      className="bg-[#ddd9f8] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#d2cdf6] transition-colors select-none"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-1.5 bg-white/20 text-white rounded-lg border border-white/30 shrink-0">
-                          <Building2 className="w-4 h-4 text-white" />
+                        <div className="p-1 bg-white text-[#442dd7] rounded-lg border border-[#c7c0f3] shrink-0">
+                          <Building2 className="w-4 h-4 text-[#442dd7]" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-extrabold text-xs sm:text-sm tracking-wide text-white uppercase">
+                            <h4 className="font-['Barlow_Condensed'] font-semibold text-[13px] tracking-wider text-[#14212A] uppercase">
                               Componente: {compGroup.componente}
                             </h4>
-                            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                               {compGroup.caps.length} {compGroup.caps.length === 1 ? 'Capítulo CAP' : 'Capítulos CAP'}
                             </span>
-                            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-black/20 text-white border border-white/20">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                               {compGroup.totalPackagesCount} {compGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
                             </span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/20 text-indigo-100 border border-white/20">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                               {compGroup.totalActivitiesCount} actividades
                             </span>
                           </div>
@@ -2963,14 +2924,14 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
 
                       <div className="flex items-center gap-3">
                         {/* 4-week active presence mini pills */}
-                        <div className="hidden sm:flex items-center gap-1 bg-black/25 p-1 rounded-lg border border-white/15 text-[10px] font-mono">
+                        <div className="hidden sm:flex items-center gap-1 bg-white p-1 rounded-lg border border-[#c7c0f3] text-[10px] font-mono">
                           {fourWeeks.map((w, idx) => (
                             <span
                               key={w.weekNum}
                               className={`px-1.5 py-0.5 rounded font-bold ${
                                 compGroup.inWeeks[idx]
-                                  ? 'bg-emerald-400/30 text-emerald-200 border border-emerald-300/40'
-                                  : 'text-white/40'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'text-[#a3aab0]'
                               }`}
                               title={compGroup.inWeeks[idx] ? `Activo en ${w.label}` : `Sin actividad en ${w.label}`}
                             >
@@ -2979,7 +2940,7 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                           ))}
                         </div>
 
-                        <div className="text-white/90">
+                        <div className="text-[#5A6A74]">
                           <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                         </div>
                       </div>
@@ -3004,30 +2965,30 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                 return (
                   <div
                     key={procesoGroup.proceso}
-                    className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden transition-all"
+                    className="bg-white rounded-xl border border-[#D5DEE2] shadow-xs overflow-hidden transition-all"
                   >
                     {/* Proceso Header Accordion Bar */}
                     <div
                       onClick={() => toggleProceso(procesoGroup.proceso)}
-                      className="bg-slate-500 text-white px-4 py-3 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-slate-600 transition-colors select-none shadow-xs"
+                      className="bg-[#eeecfb] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#e4e1f9] transition-colors select-none"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-1.5 bg-white/20 text-white rounded-lg border border-white/30 shrink-0">
-                          <FolderKanban className="w-4 h-4 text-white" />
+                        <div className="p-1 bg-white text-[#442dd7] rounded-lg border border-[#c7c0f3] shrink-0">
+                          <FolderKanban className="w-4 h-4 text-[#442dd7]" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-extrabold text-xs sm:text-sm tracking-wide text-white uppercase flex items-center gap-1.5">
+                            <h4 className="font-['Barlow_Condensed'] font-semibold text-[13px] tracking-wider text-[#14212A] uppercase flex items-center gap-1.5">
                               <span>Proceso (Col. AF):</span>
-                              <span className="text-slate-100">{procesoGroup.proceso}</span>
+                              <span className="text-[#442dd7]">{procesoGroup.proceso}</span>
                             </h4>
-                            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                               {procesoGroup.caps.length} {procesoGroup.caps.length === 1 ? 'Capítulo CAP' : 'Capítulos CAP'}
                             </span>
-                            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-black/20 text-white border border-white/20">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                               {procesoGroup.totalPackagesCount} {procesoGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
                             </span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/20 text-slate-100 border border-white/20">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                               {procesoGroup.totalActivitiesCount} actividades
                             </span>
                           </div>
@@ -3042,8 +3003,8 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                               key={w.weekNum}
                               className={`px-1.5 py-0.5 rounded font-bold ${
                                 procesoGroup.inWeeks[idx]
-                                  ? 'bg-emerald-400/30 text-emerald-200 border border-emerald-300/40'
-                                  : 'text-white/40'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'text-[#a3aab0]'
                               }`}
                               title={procesoGroup.inWeeks[idx] ? `Activo en ${w.label}` : `Sin actividad en ${w.label}`}
                             >
@@ -3052,7 +3013,7 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                           ))}
                         </div>
 
-                        <div className="text-white/90">
+                        <div className="text-[#5A6A74]">
                           <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                         </div>
                       </div>
@@ -3077,29 +3038,29 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                 return (
                   <div
                     key={compGroup.componente}
-                    className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all"
+                    className="bg-white rounded-xl border border-[#D5DEE2] shadow-xs overflow-hidden transition-all"
                   >
                     {/* Component Header Accordion Bar styled in #4f39f6 */}
                     <div
                       onClick={() => toggleComponent(compGroup.componente)}
-                      className="bg-[#4f39f6] text-white px-4 py-3 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#432fe0] transition-colors select-none shadow-xs"
+                      className="bg-[#ddd9f8] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#d2cdf6] transition-colors select-none"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-1.5 bg-white/20 text-white rounded-lg border border-white/30 shrink-0">
-                          <Building2 className="w-4 h-4 text-white" />
+                        <div className="p-1 bg-white text-[#442dd7] rounded-lg border border-[#c7c0f3] shrink-0">
+                          <Building2 className="w-4 h-4 text-[#442dd7]" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-extrabold text-xs sm:text-sm tracking-wide text-white uppercase">
+                            <h4 className="font-['Barlow_Condensed'] font-semibold text-[13px] tracking-wider text-[#14212A] uppercase">
                               Componente: {compGroup.componente}
                             </h4>
-                            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                               {compGroup.procesos.length} {compGroup.procesos.length === 1 ? 'Proceso' : 'Procesos'}
                             </span>
-                            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-black/20 text-white border border-white/20">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                               {compGroup.totalPackagesCount} {compGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
                             </span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/20 text-indigo-100 border border-white/20">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                               {compGroup.totalActivitiesCount} actividades
                             </span>
                           </div>
@@ -3107,14 +3068,14 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <div className="hidden sm:flex items-center gap-1 bg-black/25 p-1 rounded-lg border border-white/15 text-[10px] font-mono">
+                        <div className="hidden sm:flex items-center gap-1 bg-white p-1 rounded-lg border border-[#c7c0f3] text-[10px] font-mono">
                           {fourWeeks.map((w, idx) => (
                             <span
                               key={w.weekNum}
                               className={`px-1.5 py-0.5 rounded font-bold ${
                                 compGroup.inWeeks[idx]
-                                  ? 'bg-emerald-400/30 text-emerald-200 border border-emerald-300/40'
-                                  : 'text-white/40'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'text-[#a3aab0]'
                               }`}
                               title={compGroup.inWeeks[idx] ? `Activo en ${w.label}` : `Sin actividad en ${w.label}`}
                             >
@@ -3123,7 +3084,7 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                           ))}
                         </div>
 
-                        <div className="text-white/90">
+                        <div className="text-[#5A6A74]">
                           <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                         </div>
                       </div>
@@ -3141,33 +3102,33 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                               {/* Sub-header for Proceso within Component */}
                               <div
                                 onClick={() => toggleProceso(procKey)}
-                                className="bg-slate-500 hover:bg-slate-600 text-white px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 cursor-pointer transition-colors select-none border-b border-slate-400/40"
+                                className="bg-[#eeecfb] hover:bg-[#e4e1f9] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2 cursor-pointer transition-colors select-none border-b border-[#ddd9f8]"
                               >
                                 <div className="flex items-center gap-2.5">
-                                  <div className="p-1 bg-white/20 text-white rounded-md border border-white/30 shrink-0">
+                                  <div className="p-1 bg-white text-[#442dd7] rounded-md border border-[#c7c0f3] shrink-0">
                                     <FolderKanban className="w-3.5 h-3.5" />
                                   </div>
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-mono text-[10px] text-slate-100 font-bold uppercase tracking-wider">
+                                    <span className="font-mono text-[10px] text-[#5A6A74] font-bold uppercase tracking-wider">
                                       Proceso (Col. AF):
                                     </span>
-                                    <h5 className="font-extrabold text-xs tracking-tight text-white">
+                                    <h5 className="font-semibold text-xs tracking-tight text-[#14212A]">
                                       {pGroup.proceso}
                                     </h5>
-                                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                                       {pGroup.caps.length} {pGroup.caps.length === 1 ? 'Capítulo CAP' : 'Capítulos CAP'}
                                     </span>
-                                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-black/20 text-white border border-white/20">
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                                       {pGroup.totalPackagesCount} {pGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
                                     </span>
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/20 text-slate-100 border border-white/20">
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
                                       {pGroup.totalActivitiesCount} act.
                                     </span>
                                   </div>
                                 </div>
 
                                 <div className="flex items-center gap-3">
-                                  <div className="text-white/90">
+                                  <div className="text-[#5A6A74]">
                                     <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isProcExpanded ? 'rotate-90' : ''}`} />
                                   </div>
                                 </div>

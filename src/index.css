@@ -137,8 +137,8 @@ kbd {
 }
 .ht-theme .ht-note { font-size: 12px; color: var(--ht-muted); margin: 0 0 8px; }
 
-/* caja con scroll y encabezado fijo */
-.ht-theme div:has(> table) {
+/* caja con scroll y encabezado fijo (solo en las tarjetas) */
+.mac-body div:has(> table) {
   max-height: 40rem;
   overflow: auto;
   background: var(--ht-bg);
@@ -148,10 +148,8 @@ kbd {
 }
 .ht-theme table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .ht-theme thead tr { background: var(--ht-panel); color: var(--ht-fg); border: 0; }
+.mac-body table th { position: sticky; top: 0; z-index: 1; }
 .ht-theme table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   padding: 3px 5px;
   background: var(--ht-panel);
   color: var(--ht-fg);
@@ -165,10 +163,10 @@ kbd {
 }
 .ht-theme table th:hover { background: var(--ht-grid); }
 .ht-theme table th svg { color: var(--ht-muted); }
+.ht-theme table :is(td, th) { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
 .ht-theme table td {
   padding: 3px 5px;
   font-size: 12px;
-  font-family: inherit;
   font-variant-numeric: tabular-nums;
   border-bottom: 1px solid var(--ht-grid);
 }
@@ -198,22 +196,22 @@ kbd {
 .ht-theme tbody tr:not(.ht-g) td[class*="text-red"] { color: var(--ht-bad); }
 
 /* filtros: botones y desplegables compactos */
-.ht-theme div:has(> #contenedor-desplegable-semanal) {
+.ht-theme div:has(> [id^="contenedor-desplegable-"]) {
   padding: 0 0 6px;
   gap: 6px;
   background: transparent;
   border: 0;
   border-radius: 0;
 }
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac, #contenedor-toggle-modo-porcentaje, #caratula-limpiar-filtros) > label {
+.ht-theme :is([id^="contenedor-desplegable-"], #contenedor-toggle-modo-porcentaje, #caratula-limpiar-filtros) > label {
   margin-bottom: 1px;
   font-size: 12px;
   font-weight: 400;
   color: var(--ht-muted);
 }
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac, #contenedor-toggle-modo-porcentaje) > label svg { display: none; }
+.ht-theme :is([id^="contenedor-desplegable-"], #contenedor-toggle-modo-porcentaje) > label svg { display: none; }
 .ht-theme #contenedor-toggle-modo-porcentaje { gap: 1px; }
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > button,
+.ht-theme [id^="contenedor-desplegable-"] > button,
 .ht-theme #contenedor-toggle-modo-porcentaje > div > button,
 .ht-theme #caratula-limpiar-filtros > button {
   height: auto;
@@ -227,7 +225,7 @@ kbd {
   border-radius: 8px;
   box-shadow: none;
 }
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > button:hover { border-color: var(--ht-muted); }
+.ht-theme [id^="contenedor-desplegable-"] > button:hover { border-color: var(--ht-muted); }
 .ht-theme #contenedor-toggle-modo-porcentaje > div {
   height: auto;
   gap: 4px;
@@ -244,8 +242,8 @@ kbd {
 .ht-theme #caratula-limpiar-filtros > label { display: none; }
 .ht-theme #caratula-limpiar-filtros > button svg { color: var(--ht-muted); }
 
-/* paneles de los desplegables (Período / Semana y P.Ac) con el formato del kit */
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute {
+/* paneles de desplegables (marcados con .ht-dd) con el formato del kit */
+.ht-theme .ht-dd {
   padding: 8px;
   font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   font-size: 12px;
@@ -256,31 +254,31 @@ kbd {
   box-shadow: 0 8px 24px rgba(20, 33, 42, .14);
   --tw-ring-shadow: 0 0 #0000;
 }
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute :is([class*="uppercase"]) {
+.ht-theme .ht-dd :is([class*="uppercase"]) {
   text-transform: none;
   letter-spacing: normal;
   font-size: 12px;
   font-weight: 500;
   color: var(--ht-muted);
 }
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute :is([class*="text-[9px]"], [class*="text-[10px]"], [class*="text-[10.5px]"]) {
+.ht-theme .ht-dd :is([class*="text-[9px]"], [class*="text-[10px]"], [class*="text-[10.5px]"]) {
   font-size: 11px;
 }
 /* cajas internas: gris claro en vez de lila */
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute div:is([class*="bg-indigo-50"], [class*="bg-white/80"]) {
+.ht-theme .ht-dd div:is([class*="bg-indigo-50"], [class*="bg-white/80"]) {
   background: var(--ht-panel);
   border-color: var(--ht-line);
   border-radius: 8px;
   box-shadow: none;
 }
 /* pestañas Entre Semanas / Semana-Hasta */
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute div[class*="bg-slate-100"][class*="p-1"] {
+.ht-theme .ht-dd div[class*="bg-slate-100"][class*="p-1"] {
   padding: 0;
   gap: 4px;
   background: transparent;
 }
 /* botones del panel */
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button {
+.ht-theme .ht-dd button {
   padding: 2px 8px;
   font-size: 12px;
   font-weight: 400;
@@ -290,24 +288,24 @@ kbd {
   border-radius: 8px;
   box-shadow: none;
 }
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button:hover:not(:disabled) { background: var(--ht-grid); }
+.ht-theme .ht-dd button:hover:not(:disabled) { background: var(--ht-grid); }
 /* activo / acción principal: oscuro, como Total / Pond. */
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button:is([class*="bg-white"][class*="text-indigo-700"], [class*="bg-indigo-600"]),
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button:is([class*="bg-white"][class*="text-indigo-700"], [class*="bg-indigo-600"]):hover {
+.ht-theme .ht-dd button:is([class*="bg-white"][class*="text-indigo-700"], [class*="bg-indigo-600"]),
+.ht-theme .ht-dd button:is([class*="bg-white"][class*="text-indigo-700"], [class*="bg-indigo-600"]):hover {
   color: var(--ht-bg);
   background: var(--ht-fg);
   border-color: var(--ht-fg);
 }
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button:is([class*="bg-white"][class*="text-indigo-700"], [class*="bg-indigo-600"]) * { color: inherit; }
+.ht-theme .ht-dd button:is([class*="bg-white"][class*="text-indigo-700"], [class*="bg-indigo-600"]) * { color: inherit; }
 /* filas de lista con casilla (P.Ac, semanas): sin borde, resaltado al pasar */
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button.w-full.text-left {
+.ht-theme .ht-dd button.w-full.text-left {
   padding: 3px 6px;
   background: transparent;
   border-color: transparent;
   border-radius: 6px;
 }
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute button.w-full.text-left:hover { background: var(--ht-grid); }
-.ht-theme :is(#contenedor-desplegable-semanal, #contenedor-desplegable-pac) > div.absolute select {
+.ht-theme .ht-dd button.w-full.text-left:hover { background: var(--ht-grid); }
+.ht-theme .ht-dd select {
   padding: 2px 4px;
   font-size: 12px;
   font-weight: 400;
@@ -316,3 +314,77 @@ kbd {
   border: 1px solid var(--ht-line);
   border-radius: 8px;
 }
+
+/* selectores nativos con el formato del kit */
+.ht-theme select {
+  padding: 2px 6px;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ht-fg);
+  background-color: var(--ht-bg);
+  border: 1px solid var(--ht-line);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+/* Tarjetas con barra de título (estilo "Estado de Actividades")
+   .ht-card = tarjeta · .ht-card-title = título que se vuelve barra
+   .ht-head = barra existente · .ht-title / .ht-sub = título y nota */
+.ht-theme .ht-card {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #D5DEE2;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(20, 33, 42, .05);
+}
+.ht-theme .ht-card:not(:has(> .ht-head)) { padding: 0 12px 12px; }
+.ht-theme .ht-card > .ht-card-title,
+.ht-theme .ht-card > .ht-head {
+  background: #F5F8F9;
+  border-bottom: 1px solid #D5DEE2;
+  border-radius: 0;
+}
+.ht-theme .ht-card > .ht-head { padding: 8px 16px; }
+.ht-theme .ht-card > .ht-head:hover { background: #EEF2F3; }
+.ht-theme .ht-card > .ht-head:last-child { border-bottom: 0; }
+.ht-theme .ht-card > .ht-card-title { margin: 0 -12px 10px; padding: 8px 16px; }
+.ht-theme :is(.ht-card-title, .ht-title) {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #14212A;
+}
+.ht-theme .ht-sub {
+  font-family: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #5A6A74;
+}
+/* botones redondos +/− y casillas dentro de la barra: compactos */
+.ht-theme .ht-card > .ht-head button[class*="rounded-full"] { width: 22px; height: 22px; font-size: 14px; }
+.ht-theme .ht-card > .ht-head label { font-size: 12px; font-weight: 400; color: #14212A; background: #fff; border-color: #D5DEE2; border-radius: 8px; padding: 2px 8px; }
+/* dentro de las tarjetas del Resumen no se repite el marco */
+.mac-body .ht-card { padding: 0; border: 0; border-radius: 0; box-shadow: none; }
+.mac-body .ht-card > .ht-card-title { display: none; }
+/* disparadores de desplegables propios (Meses, Semanas, Días…) */
+.ht-theme .ht-trigger {
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ht-fg);
+  border-color: var(--ht-line);
+  border-radius: 8px;
+  box-shadow: none;
+  --tw-ring-shadow: 0 0 #0000;
+}
+.ht-theme .ht-trigger[aria-expanded="true"] { border-color: var(--ht-muted); background: var(--ht-bg); }
+/* en las barras de título, los textos interiores no rompen el formato */
+.ht-theme .ht-card > .ht-card-title { text-transform: none; letter-spacing: normal; font-family: inherit; font-weight: 400; }
+.ht-theme .ht-card > .ht-card-title .ht-title,
+.ht-theme .ht-card > .ht-card-title.ht-title { font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #14212A; }

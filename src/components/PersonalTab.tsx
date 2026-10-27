@@ -1316,14 +1316,14 @@ export function PersonalTab() {
       />
 
       {/* Top Banner Card (Ultra-compact) */}
-      <div className="bg-white rounded-xl px-4 py-3 sm:px-5 sm:py-3.5 text-[#14212A] shadow-xs border border-[#D5DEE2] relative overflow-hidden">
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+      <div className="ht-card bg-white rounded-xl px-4 py-3 sm:px-5 sm:py-3.5 text-[#14212A] shadow-xs border border-[#D5DEE2] relative overflow-hidden">
+        <div className="ht-card-title relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="p-1.5 rounded-lg bg-[#EEECFB] text-[#442dd7] flex items-center justify-center shrink-0">
+            <div className="hidden p-1.5 rounded-lg bg-[#EEECFB] text-[#442dd7] items-center justify-center shrink-0">
               <HardHat className="w-4 h-4" />
             </div>
-            <h1 className="text-base sm:text-lg font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wide flex items-center gap-2 flex-wrap">
-              <span>Análisis de Personal de Obra</span>
+            <h1 className="flex items-center gap-2 flex-wrap">
+              <span className="ht-title">Análisis de Personal de Obra</span>
               {isLoadingCloud ? (
                 <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#EEECFB] border border-[#442dd7]/30 text-[#442dd7] flex items-center gap-1 font-sans normal-case">
                   <RefreshCw className="w-3 h-3 animate-spin" />
@@ -1432,7 +1432,7 @@ export function PersonalTab() {
         </div>
 
         {/* Location Selector Pills */}
-        <div className="mt-3.5 pt-3 border-t border-[#D5DEE2] flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-[#5A6A74] flex items-center gap-1.5 uppercase tracking-wide font-['Barlow_Condensed']">
               <MapPin className="w-3.5 h-3.5 text-[#442dd7]" />
@@ -1542,11 +1542,10 @@ export function PersonalTab() {
       ) : (
         <>
           {/* Filter Control Bar - Placed BEFORE KPI Cards */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs" id="filtros-analisis-container">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-2.5">
+          <div className="ht-card bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs" id="filtros-analisis-container">
+        <div className="ht-card-title flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-2.5">
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-indigo-600" />
-            <span className="text-xs font-bold text-slate-800">Filtros de Análisis</span>
+            <span className="ht-title">Filtros de Análisis</span>
             {hasActiveFilters && (
               <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
                 Filtros Activos
@@ -2195,14 +2194,14 @@ export function PersonalTab() {
       </div>
 
       {/* Sub-view Navigation Bar / Selector */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-[#D5DEE2] shadow-xs" id="personal-subview-bar">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#F5F8F9] px-4 py-1.5 rounded-xl border border-[#D5DEE2] shadow-xs" id="personal-subview-bar">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-lg bg-[#EEECFB] text-[#442dd7] shrink-0">
+          <div className="hidden p-2 rounded-lg bg-[#EEECFB] text-[#442dd7] shrink-0">
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] block">Modo de Visualización de Personal</span>
-            <span className="text-[11px] text-[#5A6A74] font-medium">Selecciona el tipo de informe o análisis operativo</span>
+            <span className="ht-title">Modo de Visualización de Personal</span>
+            <span className="ht-sub"> · Selecciona el tipo de informe o análisis operativo</span>
           </div>
         </div>
 
@@ -2389,18 +2388,18 @@ export function PersonalTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4" id="donut-cards-summary-grid">
             {/* Donut 1: Directo vs Indirecto */}
             <div
-              className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-emerald-300 transition-all cursor-pointer group"
+              className="ht-card bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-emerald-300 transition-all cursor-pointer group"
               onClick={() => {
                 setTipoFilter(prev => prev === 'all' ? 'Directo' : prev === 'Directo' ? 'Indirecto' : 'all');
                 setPage(1);
               }}
               title="Haz clic para alternar filtro entre Directo, Indirecto o Todos"
             >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">
+              <div className="ht-card-title flex items-center justify-between mb-2">
+                <h4 className="ht-title text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">
                   Clasificación Operativa
                 </h4>
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">
+                <span className="ht-sub">
                   {stats.mesCorrienteLabel}
                 </span>
               </div>
@@ -2465,18 +2464,18 @@ export function PersonalTab() {
 
             {/* Donut 2: Género Hombres vs Mujeres */}
             <div
-              className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-indigo-300 transition-all cursor-pointer group"
+              className="ht-card bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-indigo-300 transition-all cursor-pointer group"
               onClick={() => {
                 setGeneroFilter(prev => prev === 'all' ? 'hombres' : prev === 'hombres' ? 'mujeres' : 'all');
                 setPage(1);
               }}
               title="Haz clic para alternar filtro entre Hombres, Mujeres o Todos"
             >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-indigo-700 transition-colors">
+              <div className="ht-card-title flex items-center justify-between mb-2">
+                <h4 className="ht-title text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-indigo-700 transition-colors">
                   Distribución por Género
                 </h4>
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">
+                <span className="ht-sub">
                   {stats.mesCorrienteLabel}
                 </span>
               </div>
@@ -2541,18 +2540,18 @@ export function PersonalTab() {
 
             {/* Donut 3: Turnos Diurno vs Noche */}
             <div
-              className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-amber-300 transition-all cursor-pointer group"
+              className="ht-card bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-amber-300 transition-all cursor-pointer group"
               onClick={() => {
                 setTurnoFilter(prev => prev === 'all' ? 'diurno' : prev === 'diurno' ? 'noche' : 'all');
                 setPage(1);
               }}
               title="Haz clic para alternar filtro entre Diurno, Noche o Todos"
             >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-amber-700 transition-colors">
+              <div className="ht-card-title flex items-center justify-between mb-2">
+                <h4 className="ht-title text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-amber-700 transition-colors">
                   Turnos Operativos
                 </h4>
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">
+                <span className="ht-sub">
                   {stats.mesCorrienteLabel}
                 </span>
               </div>
@@ -2617,10 +2616,10 @@ export function PersonalTab() {
           </div>
 
           {/* Top Frentes de Trabajo */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm transition-all overflow-hidden" id="top-frentes-personal-card">
+          <div className="ht-card bg-white border border-slate-200 rounded-2xl shadow-sm transition-all overflow-hidden" id="top-frentes-personal-card">
             <div
               onClick={() => setIsTopFrentesCollapsed(prev => !prev)}
-              className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-slate-50/70 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
+              className="ht-head p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-slate-50/70 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
               data-open={!isTopFrentesCollapsed}
               role="button"
               tabIndex={0}
@@ -2628,13 +2627,12 @@ export function PersonalTab() {
             >
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                  <HardHat className="w-4 h-4 text-indigo-600" />
-                  <span>Top 10 Frentes con Mayor Concentración de Personal</span>
+                  <span className="ht-title">Top 10 Frentes con Mayor Concentración de Personal</span>
                   <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full ml-1 font-mono">
                     {frentesDistribucion.length}
                   </span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="ht-sub mt-0.5">
                   Promedio diario por frente de trabajo en <strong className="text-indigo-900">{stats.mesCorrienteLabel}</strong> ({stats.numDiasMes} {stats.numDiasMes === 1 ? 'día activo' : 'días activos'}).
                 </p>
               </div>
@@ -2717,10 +2715,10 @@ export function PersonalTab() {
           </div>
 
           {/* Top Actividades de Trabajo */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm transition-all overflow-hidden" id="top-actividades-personal-card">
+          <div className="ht-card bg-white border border-slate-200 rounded-2xl shadow-sm transition-all overflow-hidden" id="top-actividades-personal-card">
             <div
               onClick={() => setIsTopActividadesCollapsed(prev => !prev)}
-              className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-slate-50/70 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
+              className="ht-head p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-slate-50/70 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
               data-open={!isTopActividadesCollapsed}
               role="button"
               tabIndex={0}
@@ -2728,13 +2726,12 @@ export function PersonalTab() {
             >
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-indigo-600" />
-                  <span>Top 20 Actividades con Mayor Concentración de Personal</span>
+                  <span className="ht-title">Top 20 Actividades con Mayor Concentración de Personal</span>
                   <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full ml-1 font-mono">
                     {actividadesDistribucion.length}
                   </span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="ht-sub mt-0.5">
                   Promedio diario por actividad en <strong className="text-indigo-900">{stats.mesCorrienteLabel}</strong> ({stats.numDiasMes} {stats.numDiasMes === 1 ? 'día activo' : 'días activos'}).
                 </p>
               </div>
@@ -2863,14 +2860,13 @@ export function PersonalTab() {
           />
 
           {/* Top 12 Empresas: Stacked Bar Chart */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div className="ht-card bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <div className="ht-card-title flex flex-wrap items-center justify-between gap-2 mb-4">
               <div>
-                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-indigo-600" />
-                  <span>Top 12 Contratistas por Cantidad de Personal (Directo vs Indirecto)</span>
+                <h3 className="flex items-center gap-2">
+                  <span className="ht-title">Top 12 Contratistas por Cantidad de Personal (Directo vs Indirecto)</span>
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="ht-sub">
                   Promedio diario y dotación por empresa en <strong className="text-indigo-900">{stats.mesCorrienteLabel}</strong> clasificada por tipo.
                 </p>
               </div>

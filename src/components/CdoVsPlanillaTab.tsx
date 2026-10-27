@@ -1154,15 +1154,15 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
   );
 
   return (
-    <div id="cdo-vs-planilla-container" className="bg-white rounded-xl shadow-sm border border-indigo-600">
+    <div id="cdo-vs-planilla-container" className="ht-card bg-white rounded-xl shadow-sm border border-indigo-600">
       <div 
         id="cdo-vs-planilla-header"
-        className="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-gray-50 rounded-xl" 
+        className="ht-head flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-gray-50 rounded-xl" 
         onClick={() => setOpen(o => !o)}
       >
         <h2 className="text-base font-bold text-gray-800 flex items-center gap-3 flex-wrap">
-          <span>Comparación CDO vs Planilla</span>
-          <span className="text-xs font-normal text-gray-500 hidden lg:inline">AV ejecutado CDO vs Acumulado planillado Sabana</span>
+          <span className="ht-title">Comparación CDO vs Planilla</span>
+          <span className="ht-sub hidden lg:inline">AV ejecutado CDO vs Acumulado planillado Sabana</span>
           
           <div className="flex gap-2 text-xs">
             <span className="bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded font-bold flex items-center gap-1" title="Diferencia Positiva Total">

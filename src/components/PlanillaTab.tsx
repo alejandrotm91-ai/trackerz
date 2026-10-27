@@ -309,8 +309,8 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
 
       {/* Resumen Contrato + Enmiendas */}
       {planillaEnmiendas.length > 0 && (
-        <div className="bg-white rounded-xl shadow-xs p-5 border border-[#D5DEE2]">
-          <h2 className="text-base font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wide mb-3">Resumen Contrato + Enmiendas</h2>
+        <div className="ht-card bg-white rounded-xl shadow-xs p-5 border border-[#D5DEE2]">
+          <h2 className="ht-card-title ht-title">Resumen Contrato + Enmiendas · <span className="ht-sub">{planillaEnmiendas.filter(e => !e.isGranTotal && e.subtotal).length} enmiendas</span></h2>
           <div className="overflow-x-auto text-xs">
             <table className="min-w-full text-xs">
               <thead>
@@ -386,7 +386,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                       })}
                       
                       {/* Total Row */}
-                      <tr className="bg-slate-100/90 border-t-2 border-slate-350 font-bold text-slate-900">
+                      <tr className="ht-g lv0 bg-slate-100/90 border-t-2 border-slate-350 font-bold text-slate-900">
                         <td className="px-3 py-2.5"></td>
                         <td className="px-3 py-2.5 font-bold text-slate-850">Total</td>
                         <td className="px-3 py-2.5 text-right text-slate-600 font-bold">${ctFmt(totalContratoAcum)}</td>
@@ -410,8 +410,8 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
       {planillaTipRes.length > 0 && (() => {
         const totalTipoloMonto = planillaTipRes.find(t => t.tipo === 'Total')?.monto || 0;
         return (
-          <div className="bg-white rounded-xl shadow-sm p-5 border border-indigo-600">
-            <h2 className="text-base font-bold text-indigo-950 mb-3">Resumen por Tipología de Contrato</h2>
+          <div className="ht-card bg-white rounded-xl shadow-sm p-5 border border-indigo-600">
+            <h2 className="ht-card-title ht-title">Resumen por Tipología de Contrato</h2>
             <div className="overflow-x-auto text-xs">
               <table className="min-w-full text-xs">
                 <thead className="bg-gray-100 border-b">
@@ -429,7 +429,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                   {planillaTipRes.map((t, i) => {
                     const isTot = t.tipo === 'Total';
                     return (
-                      <tr key={i} className={`border-t ${isTot ? 'bg-blue-50 font-bold' : 'hover:bg-gray-50'}`}>
+                      <tr key={i} className={`border-t ${isTot ? 'ht-g lv0 bg-blue-50 font-bold' : 'hover:bg-gray-50'}`}>
                         <td className="px-4 py-2.5 font-medium">{t.label || t.tipo}</td>
                         <td className="px-4 py-2.5 text-right font-semibold">${ctFmt(t.monto)}</td>
                         <td className="px-4 py-2.5 text-right text-gray-500">
@@ -545,11 +545,11 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
           : "Volumen acumulado certificado a la fecha por tipo de contrato (V. Acumulada)";
 
         return (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-indigo-600">
-            <div className="flex flex-wrap items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-150 select-none">
+          <div className="ht-card bg-white rounded-xl shadow-sm overflow-hidden border border-indigo-600">
+            <div className="ht-head flex flex-wrap items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-150 select-none">
               <div className="flex items-center gap-2 cursor-pointer" onClick={() => setGraficosOpen(!graficosOpen)}>
-                <span className="text-base font-bold text-indigo-950">Gráficos de Certificación por Tipo</span>
-                <span className="text-xs text-gray-400">({graficosOpen ? 'Cerrar' : 'Abrir'})</span>
+                <span className="ht-title">Gráficos de Certificación por Tipo</span>
+                <span className="ht-sub">{graficosOpen ? '▲' : '▼'}</span>
               </div>
               <div className="flex items-center gap-4">
                 <label className="text-xs text-indigo-950 flex items-center gap-1.5 cursor-pointer font-bold bg-indigo-50/80 hover:bg-indigo-100/80 px-2.5 py-1 rounded-md border border-indigo-200 transition-colors">
@@ -703,11 +703,11 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
   })()}
 
       {/* Accordeon certificación details */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-indigo-600">
-        <div className="flex flex-wrap items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-150 select-none">
+      <div className="ht-card bg-white rounded-xl shadow-sm overflow-hidden border border-indigo-600">
+        <div className="ht-head flex flex-wrap items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-150 select-none">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCertOpen(!certOpen)}>
-            <span className="text-base font-bold text-gray-800">Detalle de Certificación</span>
-            <span className="text-xs text-gray-400">({certOpen ? 'Cerrar' : 'Abrir'})</span>
+            <span className="ht-title">Detalle de Certificación</span>
+            <span className="ht-sub">{certOpen ? '▲' : '▼'}</span>
           </div>
           <div className="flex items-center gap-4">
             <label className="text-xs text-indigo-950 flex items-center gap-1.5 cursor-pointer font-bold bg-indigo-50/80 hover:bg-indigo-100/80 px-2.5 py-1 rounded-md border border-indigo-200 transition-colors">

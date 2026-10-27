@@ -518,15 +518,12 @@ export const ProcesoTab: React.FC = () => {
   return (
     <div className="w-full bg-[#EEF2F3] text-[#14212A] min-h-[calc(100vh-140px)] rounded-2xl pb-16 font-['IBM_Plex_Sans',system-ui,sans-serif]">
       {/* 1. Header Bar */}
-      <header className="sticky top-0 z-30 bg-white border-b border-[#D5DEE2] rounded-t-2xl shadow-xs">
-        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap gap-3 items-center justify-between">
+      <header className="sticky top-0 z-30 bg-[#F5F8F9] border border-[#D5DEE2] rounded-t-2xl">
+        <div className="max-w-[1360px] mx-auto px-4 py-2 flex flex-wrap gap-3 items-center justify-between">
           <div>
-            <h1 className="font-['Barlow_Condensed'] font-bold text-2xl sm:text-[26px] tracking-tight leading-none text-[#14212A]">
-              Estado de Equipos PTAR Merinos
+            <h1 className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">
+              Estado de Equipos PTAR Merinos · <span className="text-[#5A6A74] font-mono normal-case font-normal">Compra y fabricación · Flete · Instalación — por proceso y estructura (CAP)</span>
             </h1>
-            <small className="block text-xs text-[#5A6A74] mt-0.5">
-              Compra y fabricación · Flete · Instalación — por proceso y estructura (CAP)
-            </small>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -534,7 +531,7 @@ export const ProcesoTab: React.FC = () => {
             <button
               type="button"
               onClick={handleToggleExpandAll}
-              className="px-3 py-1.5 text-xs font-semibold rounded-md border border-[#442dd7] text-[#442dd7] hover:bg-[#EEECFB]/50 transition-colors cursor-pointer"
+              className="px-2 py-0.5 text-xs font-normal rounded-lg border border-[#D5DEE2] bg-white text-[#14212A] hover:bg-[#EEF2F3] transition-colors cursor-pointer"
             >
               {isAnyExpanded ? 'Colapsar tarjetas' : 'Expandir tarjetas'}
             </button>
@@ -545,7 +542,7 @@ export const ProcesoTab: React.FC = () => {
               id="bClr"
               onClick={handleClearFilters}
               disabled={!anyFilter}
-              className="px-3 py-1.5 text-xs font-semibold rounded-md border border-[#442dd7] text-[#442dd7] hover:bg-[#EEECFB]/50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-2 py-0.5 text-xs font-normal rounded-lg border border-[#D5DEE2] bg-white text-[#14212A] hover:bg-[#EEF2F3] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               title="Quita proceso, tipo de equipo, subtipo, subcontratista, filtro de tarjetas, Agua, búsqueda, proveedor, pendientes y modo terminadas"
             >
               Limpiar filtros
@@ -1389,20 +1386,20 @@ export const ProcesoTab: React.FC = () => {
                       <div
                         key={`band-${sk}`}
                         onClick={() => handleToggleBand(sk)}
-                        className="bg-[#EEECFB] border border-[#442dd7] rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-[#EEECFB]/90 transition-colors shadow-2xs mt-4 first:mt-0 select-none"
+                        className="bg-[#ddd9f8] border border-[#c7c0f3] rounded-xl px-4 py-2 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-[#d2cdf6] transition-colors mt-3 first:mt-0 select-none"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <button
                             type="button"
-                            className="w-7 h-7 rounded border border-[#442dd7] bg-white flex items-center justify-center text-[#442dd7] text-xs font-bold shrink-0"
+                            className="w-5 h-5 rounded border border-[#c7c0f3] bg-white flex items-center justify-center text-[#5A6A74] text-xs shrink-0"
                           >
                             {isBandOpen ? '▾' : '▸'}
                           </button>
                           <div className="min-w-0">
-                            <h2 className="font-['Barlow_Condensed'] font-bold text-xl sm:text-[22px] text-[#14212A] leading-tight truncate">
+                            <h2 className="font-['Barlow_Condensed'] font-semibold text-[15px] uppercase tracking-wider text-[#14212A] leading-tight truncate">
                               {sk}
                             </h2>
-                            <div className="text-xs text-[#5A6A74]">
+                            <div className="text-[11px] font-mono text-[#5A6A74]">
                               {bInfo?.capsCount || 1} estructuras · {bAgg.n} partidas · {fq(gl.reduce((t, it) => t + eqU(it), 0))} equipos
                             </div>
                           </div>

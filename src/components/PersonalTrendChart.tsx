@@ -809,22 +809,22 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => Math.round(maxY * f));
 
   return (
-    <div className="bg-white border border-[#D5DEE2] rounded-xl p-5 sm:p-6 shadow-xs space-y-5" id="personal-trend-chart-card">
+    <div className="ht-card bg-white border border-[#D5DEE2] rounded-xl p-5 sm:p-6 shadow-xs space-y-5" id="personal-trend-chart-card">
       {/* Header Bar: Title, Context Badges & Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#D5DEE2] pb-4">
+      <div className="ht-card-title flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#D5DEE2] pb-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#EEECFB] border border-[#C5BDF7] flex items-center justify-center text-[#442dd7] shadow-xs">
+            <div className="hidden w-9 h-9 rounded-xl bg-[#EEECFB] border border-[#C5BDF7] items-center justify-center text-[#442dd7] shadow-xs">
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-bold text-[#14212A] tracking-tight flex items-center gap-2">
-                <span className="font-['Barlow_Condensed'] text-lg">Curva de Tendencia de Personal</span>
+                <span className="ht-title">Curva de Tendencia de Personal</span>
                 <span className="text-[10px] bg-[#EEECFB] text-[#442dd7] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">
                   Directo vs Indirecto
                 </span>
               </h3>
-              <p className="text-xs text-[#5A6A74] font-medium">
+              <p className="ht-sub">
                 Comportamiento y evolución mensual o semanal de la dotación en obra.
               </p>
             </div>

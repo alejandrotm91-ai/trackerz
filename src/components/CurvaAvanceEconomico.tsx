@@ -171,14 +171,14 @@ export const CurvaAvanceEconomico: React.FC<CurvaAvanceEconomicoProps> = ({
   const idxCorte = meses.reduce((acc: number, m: any, i: number) => m.ejecutado > 0 ? i : acc, -1);
 
   return (
-    <div id="curva-avance-economico-card" className="bg-white rounded-xl shadow-sm border border-indigo-600 mb-6 transition-all duration-200">
+    <div id="curva-avance-economico-card" className="ht-card bg-white rounded-xl shadow-sm border border-indigo-600 mb-6 transition-all duration-200">
       <div 
-        className="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-gray-50 rounded-xl select-none" 
+        className="ht-head flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-gray-50 rounded-xl select-none" 
         onClick={() => setOpen(o => !o)}
       >
         <h2 className="text-base font-bold text-gray-800 flex items-center gap-3 flex-wrap">
-          <span className="text-indigo-950">Curva de Avance Económico</span>
-          <span className="text-xs font-normal text-gray-500 hidden lg:inline">
+          <span className="ht-title">Curva de Avance Económico</span>
+          <span className="ht-sub hidden lg:inline">
             Mensualización por certificación semanal
           </span>
           <div className="flex gap-2 text-xs">

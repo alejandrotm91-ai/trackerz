@@ -1390,7 +1390,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
           return (
             <div 
-              className="absolute top-full left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 text-slate-700 font-sans text-xs p-3 flex flex-col gap-2.5 max-h-[380px] overflow-hidden select-none"
+              className="ht-dd absolute top-full left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 text-slate-700 font-sans text-xs p-3 flex flex-col gap-2.5 max-h-[380px] overflow-hidden select-none"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">
@@ -1622,7 +1622,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
           return (
             <div 
-              className="absolute top-full left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 text-slate-700 font-sans text-xs p-3 flex flex-col gap-2.5 max-h-[380px] overflow-hidden select-none"
+              className="ht-dd absolute top-full left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 text-slate-700 font-sans text-xs p-3 flex flex-col gap-2.5 max-h-[380px] overflow-hidden select-none"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">
@@ -3451,7 +3451,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                       onClick={(e) => { e.stopPropagation(); setIsGanttPAcDropdownOpen(false); }} 
                     />
                     <div 
-                      className="absolute left-0 mt-1 w-64 max-h-72 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                      className="ht-dd absolute left-0 mt-1 w-64 max-h-72 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3620,7 +3620,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                     />
                     <div
                       id="gantt-export-menu"
-                      className="absolute left-0 mt-1.5 w-36 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-1.5 select-none animate-fade-in space-y-1"
+                      className="ht-dd absolute left-0 mt-1.5 w-36 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-1.5 select-none animate-fade-in space-y-1"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
@@ -3843,7 +3843,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                 </button>
 
                 {isSmartFilterOpen && (
-                  <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 p-3.5 flex flex-col gap-3">
+                  <div className="ht-dd absolute right-0 mt-1.5 w-64 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 p-3.5 flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                       <div className="flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-indigo-500" />

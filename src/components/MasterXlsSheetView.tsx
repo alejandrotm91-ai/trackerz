@@ -193,7 +193,7 @@ const ColumnFilterPopover: React.FC<ColumnFilterPopoverProps> = ({
   return (
     <div
       ref={popoverRef}
-      className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-slate-300 p-3 z-50 text-slate-800 font-sans normal-case tracking-normal text-left select-text"
+      className="ht-dd absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-slate-300 p-3 z-50 text-slate-800 font-sans normal-case tracking-normal text-left select-text"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100">
@@ -1040,17 +1040,17 @@ export function MasterXlsSheetView({
     >
       <div className="flex flex-col h-full w-full bg-[#f8fafc] text-slate-800 shadow-2xl">
         {/* 1. EXCEL TOP HEADER (Dark Green Ribbon) */}
-        <div className="bg-[#107c41] text-white px-4 py-2 flex flex-wrap items-center justify-between gap-3 border-b border-emerald-900 shrink-0">
+        <div className="bg-[#F5F8F9] text-[#14212A] px-4 py-2 flex flex-wrap items-center justify-between gap-3 border-b border-[#D5DEE2] shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-900/60 border border-emerald-500/40 flex items-center justify-center text-white shadow-inner">
+            <div className="hidden">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-black tracking-wide uppercase text-white">
+                <h2 className="text-[11px] font-['Barlow_Condensed'] font-semibold tracking-wider uppercase text-[#14212A]">
                   Master CDO — Hoja Excel
                 </h2>
-                <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-emerald-900/80 text-emerald-200 border border-emerald-600/50">
+                <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-white text-[#5A6A74] border border-[#D5DEE2]">
                   Pantalla Completa
                 </span>
                 {hasUnsavedCloudChanges && (
@@ -1060,7 +1060,7 @@ export function MasterXlsSheetView({
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-emerald-100/90 font-medium">
+              <p className="text-[11px] text-[#5A6A74] font-mono">
                 Vista de alta productividad para avanzar cantidades físicas, calibrar precios y editar atributos de Activity ID.
               </p>
             </div>
@@ -1068,17 +1068,17 @@ export function MasterXlsSheetView({
 
           {/* Quick Metrics in Header */}
           <div className="hidden lg:flex items-center gap-4 text-xs font-mono">
-            <div className="bg-emerald-900/50 border border-emerald-700/50 rounded-lg px-2.5 py-1">
-              <span className="text-[10px] text-emerald-200 uppercase block font-sans">Presupuesto</span>
-              <span className="font-bold text-white">${totals.totalVentaPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</span>
+            <div className="bg-white border border-[#D5DEE2] rounded-lg px-2.5 py-1">
+              <span className="text-[10px] text-[#5A6A74] uppercase block font-sans">Presupuesto</span>
+              <span className="font-bold text-[#14212A]">${totals.totalVentaPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</span>
             </div>
-            <div className="bg-emerald-900/50 border border-emerald-700/50 rounded-lg px-2.5 py-1">
-              <span className="text-[10px] text-emerald-200 uppercase block font-sans">Avance Econ.</span>
-              <span className="font-bold text-emerald-300">${totals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</span>
+            <div className="bg-white border border-[#D5DEE2] rounded-lg px-2.5 py-1">
+              <span className="text-[10px] text-[#5A6A74] uppercase block font-sans">Avance Econ.</span>
+              <span className="font-bold text-green-700">${totals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</span>
             </div>
-            <div className="bg-emerald-900/50 border border-emerald-700/50 rounded-lg px-2.5 py-1">
-              <span className="text-[10px] text-emerald-200 uppercase block font-sans">% Avance</span>
-              <span className="font-black text-amber-300">{totals.pctAvanceEconomico.toFixed(1)}%</span>
+            <div className="bg-white border border-[#D5DEE2] rounded-lg px-2.5 py-1">
+              <span className="text-[10px] text-[#5A6A74] uppercase block font-sans">% Avance</span>
+              <span className="font-bold text-[#442dd7]">{totals.pctAvanceEconomico.toFixed(1)}%</span>
             </div>
           </div>
 
@@ -1145,7 +1145,7 @@ export function MasterXlsSheetView({
               <Download className="w-4 h-4" />
             </button>
 
-            <div className="w-px h-6 bg-emerald-800 mx-1"></div>
+            <div className="w-px h-6 bg-[#D5DEE2] mx-1"></div>
 
             <button
               type="button"
@@ -2592,17 +2592,17 @@ export function MasterXlsSheetView({
         </div>
 
         {/* 5. EXCEL STATUS BAR */}
-        <div className="bg-[#107c41] text-white px-4 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 select-none border-t border-emerald-900 font-sans">
+        <div className="bg-[#F5F8F9] text-[#14212A] px-4 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 select-none border-t border-[#D5DEE2] font-sans">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-[10px] font-black uppercase px-1.5 py-0.5 bg-emerald-900/80 rounded border border-emerald-700">
+            <span className="font-mono text-[10px] font-bold uppercase px-1.5 py-0.5 bg-white text-[#5A6A74] rounded border border-[#D5DEE2]">
               LISTO
             </span>
-            <span className="text-[11px] text-emerald-100 hidden sm:inline">
+            <span className="text-[11px] text-[#5A6A74] hidden sm:inline">
               ⚡ Teclas rápidas: <strong>[Enter]</strong> siguiente fila • <strong>[Tab]</strong> siguiente semana • <strong>[Esc]</strong> salir del modo XLS
             </span>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-mono">
+          <div className="flex items-center gap-4 text-xs font-mono text-[#5A6A74]">
             <span>FILAS VISIBLES: <strong>{filteredNodes.length}</strong></span>
             <span>SUMA AVANCE: <strong>${totals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</strong></span>
             <span>% AVANCE PROMEDIO: <strong>{totals.pctAvanceEconomico.toFixed(1)}%</strong></span>

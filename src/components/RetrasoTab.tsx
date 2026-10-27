@@ -712,7 +712,7 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
                   className="fixed inset-0 z-40" 
                   onClick={(e) => { e.stopPropagation(); setIsExpandMenuOpen(false); }} 
                 />
-                <div className="absolute right-0 mt-1 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-[11px] animate-fade-in select-none">
+                <div className="ht-dd absolute right-0 mt-1 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-[11px] animate-fade-in select-none">
                   <div className="px-3 py-1 font-semibold text-slate-400 text-[9px] uppercase tracking-wider border-b border-slate-100">
                     Expandir hasta Nivel
                   </div>
