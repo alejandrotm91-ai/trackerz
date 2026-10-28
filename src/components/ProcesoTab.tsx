@@ -1400,7 +1400,7 @@ export const ProcesoTab: React.FC = () => {
                               {sk}
                             </h2>
                             <div className="text-[11px] font-mono text-[#5A6A74]">
-                              {bInfo?.capsCount || 1} estructuras · {bAgg.n} partidas · {fq(gl.reduce((t, it) => t + eqU(it), 0))} equipos
+                              {bInfo?.capsCount || 1} estructuras · {bAgg.n} partidas · {fq((bInfo?.items ?? gl).reduce((t, it) => t + eqU(it), 0))} equipos
                             </div>
                           </div>
                         </div>
