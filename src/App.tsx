@@ -1121,7 +1121,7 @@ export default function App() {
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <label htmlFor="login-proyecto" className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
-                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <Building2 className="w-3.5 h-3.5 text-[#CD0000]" />
                     Proyecto
                   </label>
                   <div className="relative">
@@ -1139,7 +1139,7 @@ export default function App() {
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
-                    <User className="w-3.5 h-3.5 text-indigo-600" />
+                    <User className="w-3.5 h-3.5 text-[#CD0000]" />
                     Usuario
                   </label>
                   <div className="relative">
@@ -1157,7 +1157,7 @@ export default function App() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
-                      <Lock className="w-3.5 h-3.5 text-indigo-600" />
+                      <Lock className="w-3.5 h-3.5 text-[#CD0000]" />
                       Contraseña
                     </label>
                     {isCapsLockOn && (
