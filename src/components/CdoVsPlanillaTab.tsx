@@ -239,6 +239,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
     const g = new Map<string, Grupo>();
     const sumas = new Map<string, Suma>();
     const raices: string[] = [];
+    const hojasRaiz: CvsLeaf[] = [];
     const asegurar = (cod: string) => {
       if (g.has(cod)) return;
       g.set(cod, { cod, hijos: [], hojas: [] });
@@ -251,10 +252,11 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
       }
     };
     for (const l of filas) {
-      asegurar(l.cod);
-      g.get(l.cod)!.hojas.push(l);
       const d = calcularDeltas(l, modo);
-      const segs = l.cod.split('.');
+      if (!l.grupo) { hojasRaiz.push(l); continue; }
+      asegurar(l.grupo);
+      g.get(l.grupo)!.hojas.push(l);
+      const segs = l.grupo.split('.');
       for (let i = 1; i <= segs.length; i++) {
         const k = segs.slice(0, i).join('.');
         if (!sumas.has(k)) sumas.set(k, sumaVacia());
@@ -264,8 +266,19 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
     }
     g.forEach(x => x.hijos.sort(compararCodigo));
     raices.sort(compararCodigo);
-    return { g, sumas, raices };
+    return { g, sumas, raices, hojasRaiz };
   }, [filas, modo]);
+
+  /** Subgrupos y partidas de un nivel. Por código: todo intercalado; por otra columna: grupos y luego partidas. */
+  const contenido = (hijos: string[], hojas: CvsLeaf[]): { k: string; code: string; cod?: string; l?: CvsLeaf }[] => {
+    type Item = { k: string; code: string; cod?: string; l?: CvsLeaf };
+    const gs: Item[] = hijos.map(h => ({ k: `g:${h}`, code: h, cod: h }));
+    if (orden.col !== 'cod') return [...gs, ...ordenar(hojas).map((l): Item => ({ k: l.key, code: l.cod, l }))];
+    const hs: Item[] = hojas.map(l => ({ k: l.key, code: `${l.cod}`, l }));
+    // Con el mismo código, la partida va antes que la carpeta
+    return [...gs, ...hs].sort((a, b) =>
+      (compararCodigo(a.code, b.code) || (a.l ? 0 : 1) - (b.l ? 0 : 1) || compararCodigo(a.l?.partida || '', b.l?.partida || '')) * orden.dir);
+  };
 
   const totalFiltrado = React.useMemo(() => {
     const s = sumaVacia();
@@ -411,8 +424,13 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
           <td style={{ paddingLeft: 4 + depth * 14 }} className="text-gray-400">
             {abierta ? <ChevronDown className="w-3 h-3 inline" /> : <ChevronRight className="w-3 h-3 inline opacity-40" />}
           </td>
-          <td className="whitespace-nowrap text-[11px]" title={`Cód. planeamiento ${l.cod}`}>{codigo}</td>
-          <td className="max-w-[230px] truncate" title={l.desc}>
+          <td className="whitespace-nowrap text-[11px]" title={`Cód. planeamiento ${l.cod}`}>
+            {codigo}
+            {vista === 'jerarquica' && l.planilla.length > 0 && /^[\d.]+$/.test(l.partida) && l.partida !== l.cod && (
+              <span className="ml-1 text-[9px] text-gray-400">(plan {l.cod})</span>
+            )}
+          </td>
+          <td className="max-w-[205px] truncate" title={l.desc}>
             {l.desc}
             {l.unidadDistinta && <span className="ml-1 text-[9px] px-1 rounded bg-rose-50 text-rose-700 border border-rose-200" title="La unidad del contrato y la del Master no coinciden: no se puede separar cantidad y precio">Und ≠</span>}
             {l.porCodigoPlan && <span className="ml-1 text-[9px] px-1 rounded bg-sky-50 text-sky-700 border border-sky-200" title="El id.orig del Master coincide con el código de planeamiento de la Sabana, no con su partida">Cód. plan</span>}
@@ -440,7 +458,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
     const s = arbol.sumas.get(cod);
     if (!g || !s || s.n === 0) return null;
     // Un código con una sola partida y sin subgrupos se muestra como la partida
-    if (g.hijos.length === 0 && g.hojas.length === 1) return <FilaHoja l={g.hojas[0]} depth={depth} />;
+    if (g.hijos.length === 0 && g.hojas.length === 1 && g.hojas[0].cod === cod) return <FilaHoja l={g.hojas[0]} depth={depth} />;
     const abierto = estaExpandido(cod);
     const desc = resultado?.groupDesc[cod] || g.hojas[0]?.desc || '';
     const nv = NIVELES[Math.min(depth, NIVELES.length - 1)];
@@ -453,7 +471,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
           <td className="whitespace-nowrap">
             {cod} <span className={`ml-1 text-[9px] font-normal px-1.5 rounded-full ${nv.badge}`} title={`${s.n} partidas`}>{s.n}</span>
           </td>
-          <td className="max-w-[230px] truncate" title={desc}>{desc || '—'}</td>
+          <td className="max-w-[205px] truncate" title={desc}>{desc || '—'}</td>
           <td></td><td></td><td></td><td></td><td></td>
           <td className="text-right">{fmt0(s.vA)}</td>
           <td className="text-right">{fmt0(s.vB)}</td>
@@ -464,8 +482,9 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
         </tr>
         {abierto && (
           <>
-            {g.hijos.map(h => <FilaGrupo key={h} cod={h} depth={depth + 1} />)}
-            {ordenar(g.hojas).map(l => <FilaHoja key={l.key} l={l} depth={depth + 1} />)}
+            {contenido(g.hijos, g.hojas).map(it => it.l
+              ? <FilaHoja key={it.k} l={it.l} depth={depth + 1} />
+              : <FilaGrupo key={it.k} cod={it.cod!} depth={depth + 1} />)}
           </>
         )}
       </>
@@ -750,7 +769,9 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
                   <thead className="sticky top-0 z-10"><Encabezado /></thead>
                   <tbody>
                     {vista === 'jerarquica' ? (
-                      arbol.raices.map(r => <FilaGrupo key={r} cod={r} depth={0} />)
+                      contenido(arbol.raices, arbol.hojasRaiz).map(it => it.l
+                        ? <FilaHoja key={it.k} l={it.l} depth={0} />
+                        : <FilaGrupo key={it.k} cod={it.cod!} depth={0} />)
                     ) : (
                       <>
                         {filasPlanas.slice(0, pagina * POR_PAGINA).map(l => <FilaHoja key={l.key} l={l} depth={0} />)}

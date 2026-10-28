@@ -45,6 +45,8 @@ export interface CvsLeaf {
   key: string;
   /** Código de planeamiento (Sabana) o WBS del Master si la partida no está en la Planilla. */
   cod: string;
+  /** Grupo del árbol donde va la fila ('' = raíz). */
+  grupo: string;
   partida: string;
   desc: string;
   unidad: string;
@@ -182,6 +184,12 @@ export function construirComparacion(
   hojas: PlanillaItem[],
   gruposPlanilla: PlanillaItem[]
 ): CvsResultado {
+  // Códigos que en la Sabana son grupos (filas sin tarifa). Una hoja cuyo código no es grupo
+  // va junto a sus hermanas, en el grupo padre (no crea una carpeta propia).
+  const gruposSabana = new Set(gruposPlanilla.map(g => String(g.cod || '').trim()).filter(Boolean));
+  const padre = (cod: string) => cod.split('.').slice(0, -1).join('.');
+  const grupoDeHoja = (cod: string) => (gruposSabana.has(cod) ? cod : padre(cod));
+
   // ── Planilla: hojas con partida ──
   const leaves: CvsLeaf[] = [];
   const porPartida = new Map<string, CvsLeaf[]>();
@@ -193,6 +201,7 @@ export function construirComparacion(
     const leaf: CvsLeaf = {
       key: `s:${h.id}`,
       cod,
+      grupo: grupoDeHoja(cod),
       partida,
       desc: h.desc || '',
       unidad: h.unidad || '',
@@ -294,7 +303,7 @@ export function construirComparacion(
       let v = virtuales.get(vk);
       if (!v) {
         v = {
-          key: vk, cod, partida, desc: it.descripcion || '', unidad: it.unidad || '', tipo: '',
+          key: vk, cod, grupo: cod, partida, desc: it.descripcion || '', unidad: it.unidad || '', tipo: '',
           cruce, tarifa: 0, precioM: 0,
           qC: 0, vC: 0, qP: 0, vP: 0, qM: 0, vM: 0, qE: 0, vE: 0,
           master: [], planilla: [],
@@ -387,11 +396,7 @@ export function construirComparacion(
     const cod = String(g.cod || '').trim();
     if (cod && g.desc && !groupDesc[cod]) groupDesc[cod] = String(g.desc);
   }
-  for (const h of hojas) {
-    const cod = String(h.cod || '').trim();
-    if (cod && h.desc && !groupDesc[cod]) groupDesc[cod] = String(h.desc);
-  }
-  // Grupos que solo existen en el Master (p. ej. "A1"): nombre de su fila de grupo en el Master
+  // Grupos que no están en la Sabana (p. ej. "A1" o "8.4.3.4"): nombre de su fila de grupo en el Master
   for (const it of items) {
     if (it.esItemHoja !== false || !it.descripcion) continue;
     const cod = wbsSinProyecto(it.wbs || it.wbsRaw || '');
