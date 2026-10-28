@@ -1,3 +1,4 @@
+import type { ReporteIA } from '../types/reporteIA';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -390,6 +391,8 @@ export interface AIReportData {
     totalItemsCriticos10k?: number;
     totalMontoCritico10kUSD?: number;
   };
+  /** Reporte estándar (desde la versión 2). Los reportes anteriores solo traen `markdown`. */
+  reporte?: ReporteIA;
 }
 
 const reportKey = (planId?: string | null) => `ai_report_${(planId || 'latest_report').replace(/[^A-Za-z0-9_-]/g, '_')}`;

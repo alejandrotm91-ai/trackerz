@@ -1,3 +1,4 @@
+import { ReporteEstandar } from './ReporteEstandar';
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Sparkles, X, RefreshCw, Copy, Check, Clock, UserCheck, AlertTriangle, ShieldAlert, Calendar, BarChart2, LayoutGrid, Package, ChevronDown, ChevronUp } from 'lucide-react';
@@ -1210,7 +1211,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
         
         {/* HEADER */}
         <div className="px-6 py-4 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white flex items-center justify-between shrink-0">
@@ -1222,11 +1223,11 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 Reporte de Inteligencia Artificial - Cronograma
                 <span className="text-[10px] bg-indigo-500/30 text-indigo-200 font-semibold px-2 py-0.5 rounded-full border border-indigo-400/20">
-                  IA · gpt-oss-120b
+                  {report?.reporte ? 'Claude Sonnet 5.5' : 'IA'}
                 </span>
               </h2>
               <p className="text-xs text-indigo-200/80">
-                Análisis por áreas, retraso económico por tipología (variación {'>'} 10k USD) y proyección
+                Reporte estándar: resumen, retraso económico, atrasos, próximas 4 semanas, equipos y recomendaciones
               </p>
             </div>
           </div>
@@ -1279,12 +1280,14 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
                 <Sparkles className="w-6 h-6 text-indigo-600 absolute inset-0 m-auto" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-bold text-slate-800">Analizando Cronograma de Obra por Áreas...</h3>
+                <h3 className="text-base font-bold text-slate-800">Generando el reporte estándar…</h3>
                 <p className="text-xs text-slate-500 max-w-md">
-                  IA está procesando las actividades retrasadas, evaluando holguras y consolidando las tareas de las próximas 4 semanas.
+                  La app ya calculó las cifras. Claude está escribiendo el análisis y comparándolo con el reporte anterior; puede tardar uno o dos minutos.
                 </p>
               </div>
             </div>
+          ) : report?.reporte ? (
+            <ReporteEstandar reporte={report.reporte} />
           ) : report ? (() => {
             const processed = preprocessMarkdownText(report.markdown);
             const { mainMarkdown, scapMarkdown, scapTitle } = splitScapSection(processed);

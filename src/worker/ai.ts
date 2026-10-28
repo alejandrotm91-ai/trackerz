@@ -1,5 +1,6 @@
 // Endpoints de IA (análisis del cronograma, equipos y reporte ejecutivo).
 // Los prompts son los originales; el proveedor del modelo vive en llm.ts.
+import Anthropic from "@anthropic-ai/sdk";
 import { generateText, MODEL_REPORTE } from "./llm";
 import type { Env } from "./env";
 
@@ -135,101 +136,99 @@ Por favor, responde con las siguientes directrices:
     }
   }
 
+const texto = { type: "string" };
+const lista = (items: object) => ({ type: "array", items });
+const objeto = (properties: Record<string, object>) => ({
+  type: "object",
+  properties,
+  required: Object.keys(properties),
+  additionalProperties: false,
+});
+
+/** Esquema fijo del análisis: el reporte siempre tiene las mismas secciones. */
+const ESQUEMA_ANALISIS = objeto({
+  estadoGeneral: { type: "string", enum: ["En control", "Requiere atención", "Crítico"] },
+  resumenEjecutivo: texto,
+  puntosClave: lista(texto),
+  comparacionAnterior: texto,
+  economico: objeto({ analisis: texto, hallazgos: lista(texto) }),
+  retrasos: objeto({ analisis: texto, areasCriticas: lista(objeto({ area: texto, comentario: texto })) }),
+  proximas: objeto({ analisis: texto, compromisos: lista(objeto({ area: texto, compromiso: texto })) }),
+  equipamiento: objeto({ analisis: texto }),
+  recomendaciones: lista(objeto({
+    prioridad: { type: "string", enum: ["Alta", "Media", "Baja"] },
+    accion: texto,
+    area: texto,
+    plazo: texto,
+  })),
+});
+
+const SISTEMA_REPORTE = `Eres el Director de Control de Proyectos de una obra industrial y civil (planta de tratamiento de aguas residuales). Escribes el análisis del reporte estándar de Inteligencia del cronograma.
+
+La aplicación ya calcula y muestra todas las cifras y tablas. Tu trabajo es interpretarlas: explicar qué significan, qué cambió, dónde está el riesgo y qué hacer. Devuelves solo el análisis, con la estructura indicada.
+
+Reglas:
+- Usa únicamente los datos recibidos. No inventes cifras, actividades, áreas ni fechas. Si un dato no está, no lo supongas.
+- Cita las cifras tal como vienen. Montos sin el símbolo $, en millones con dos decimales (p. ej. 2.35M) o con separador de miles (p. ej. 845,120).
+- Una variación negativa significa que lo ejecutado va por debajo de lo planificado (atraso económico).
+- Escribe en español, en tono profesional y directo, sin relleno ni frases genéricas. Prosa sin Markdown, sin viñetas dentro de los textos y sin emojis.
+- Longitudes: resumenEjecutivo de 3 a 5 frases; puntosClave de 3 a 5; hallazgos de 2 a 5; areasCriticas de hasta 5 áreas (las de mayor riesgo); compromisos de hasta 6; recomendaciones de 3 a 5, ordenadas de mayor a menor prioridad, cada una concreta y verificable, con área responsable y plazo (p. ej. "2 semanas").
+- En "area" usa exactamente los nombres de área o tipología que aparecen en los datos (o "General" si aplica a toda la obra).
+- estadoGeneral: "En control" si la obra va según lo planificado; "Requiere atención" si hay desvíos que se pueden corregir; "Crítico" si los desvíos comprometen plazos o costo.
+- comparacionAnterior: compara con los indicadores del reporte anterior (qué mejoró y qué empeoró, con cifras). Si no hay reporte anterior, escribe "Primer reporte: no hay un reporte anterior para comparar."`;
+
+/** Reporte estándar del botón "Inteligencia": la app manda las cifras y Claude devuelve el análisis. */
 export async function cronoReport(req: LegacyReq, res: LegacyRes, env: Env) {
-    try {
-      const { projectSummary, areaData, retrasoEconomicoTipologia, equipamientoPorSCAP, dataDate } = req.body;
-
-      const systemInstruction = `Eres un Director Especialista de Control de Proyectos y Planificación de Obras Industriales y Civiles (PMI-SP / Primavera P6 Specialist).
-Tu objetivo es redactar un Reporte Ejecutivo y Operativo de Inteligencia Artificial agrupado ESTRUCTURADAMENTE POR ÁREA (Tipología / Sector / Frente de Trabajo).
-
-El reporte debe incluir las siguientes secciones obligatorias en formato Markdown limpio y profesional:
-1. 📊 **Resumen Ejecutivo**: Breve síntesis del estado general de la obra al ${dataDate || 'día de hoy'}.
-2. 💸 **Análisis de Retraso Económico por Tipología**:
-   - Presenta un análisis económico detallado de cada Tipología (Venta Planificada vs Venta Ejecutada vs Variación Económica).
-   - OBLIGATORIO: Presenta este resumen de tipologías en una TABLA MARKDOWN bonita y limpia.
-   - **ÉNFASIS ESPECIAL EN VARIACIONES NEGATIVAS SUPERIORES A LOS 10.000 USD**: Identifica, resalta en negrita y analiza en detalle todas las Tipologías y partidas específicas cuya variación negativa sea mayor a -$10,000 USD (desviaciones o pérdidas financieras superiores a 10.000 USD).
-   - Explica el impacto de estas desviaciones mayores a $10.000 USD en la rentabilidad y el flujo de caja del proyecto.
-3. 🚨 **Actividades Retrasadas por Área**:
-   - Analiza las actividades que presentan retraso físico a día de hoy (que debían haber iniciado y no iniciaron, o debían terminar y no terminaron).
-   - Detalla por cada Área el número de partidas retrasadas, cuáles son las más críticas y el impacto en días de atraso.
-4. 📅 **Actividades Programadas para las Próximas 4 Semanas por Área**:
-   - REGLA INDISPENSABLE: Presenta OBLIGATORIAMENTE el resumen cuantitativo de actividades programadas para las próximas 4 semanas por cada Área/Sector en una TABLA MARKDOWN O LISTA ESTRUCTURADA con la cantidad por Área:
-     | Área / Sector | Actividades Programadas |
-     | :--- | :---: |
-     | Centro de Control | 18 actividades |
-     | Tuberia Patio | 12 actividades |
-   - Esta información se renderizará automáticamente en la interfaz como un Gráfico de Barras Horizontales Azules estilo Power BI.
-   - A continuación, detalla los compromisos críticos de entrega y recursos necesarios por Área para los próximos 28 días.
-5. 💡 **Recomendaciones Operativas y Plan de Mitigación**:
-   - 3 a 5 acciones prioritarias para recuperar holgura, frenar las pérdidas económicas > 10.000 USD, asegurar la instalación oportuna de equipos (actividades F) y garantizar el cumplimiento del plan en las próximas 4 semanas.
-6. ⚙️ **Análisis de Cantidad de Equipamiento e Instrumentación por SCAP (Pendientes por Instalar)**:
-   - Presenta el análisis de volumetría de equipos e instrumentación PENDIENTES DE INSTALAR agrupado PRIMERO por Tipo ('Equipo' vs 'Instrumentación') y LUEGO por SCAP (excluyendo actividades completadas/Completed, excluyendo rubros de Partida D y excluyendo filas vacías o SCAPs sin pendencia real).
-   - REGLA INDISPENSABLE DE FORMATO DE TABLA BONITA: Esta sección DEBE presentarse como una TABLA MARKDOWN ESTÁNDAR LIMPIA Y ELEGANTE con exactamente las siguientes 5 columnas:
-     | Tipo | SCAP | Pendiente | Partidas | Avance |
-     | :--- | :--- | :---: | :---: | :---: |
-   - CADA FILA DE LA TABLA DEBE IR EN SU PROPIA LÍNEA SEPARADA POR UN SALTO DE LÍNEA. QUEDA ESTRICTAMENTE PROHIBIDO COLOCAR MÚLTIPLES FILAS EN LA MISMA LÍNEA SEPARADAS POR '||'.
-   - Estructura requerida para cada fila:
-     * **Tipo**: Tipo de elemento ('Equipo' o 'Instrumentación')
-     * **SCAP**: Nombre del SCAP o subsistema
-     * **Pendiente**: Cantidad total con unidad pendiente de instalar (ej. 150 pcs, 24 u)
-     * **Partidas**: Número de partidas o actividades F asociadas (ej. 12 partidas)
-     * **Avance**: Porcentaje de avance acumulado o promedio (ej. 45.0%)
-   - Agrega un breve párrafo resumen de 2 líneas al final destacando el total general de equipos e instrumentos pendientes por instalar.
-
-REGLA CRÍTICA PARA TABLAS MARKDOWN:
-Toda tabla Markdown DEBE utilizar saltos de línea individuales (\n) entre cada fila. NUNCA concatenes las filas de una tabla en una sola línea continua ni uses '||'.
-Ejemplo obligatorio de tabla bien formateada:
-| Tipo | SCAP | Pendiente | Partidas | Avance |
-| :--- | :--- | :---: | :---: | :---: |
-| Equipo | **Centro de Control** | 36,970.41 m2, u, m | 23 partidas | 0.0% |
-| Instrumentación | **Instrumentos** | 1,313.00 u | 70 partidas | 0.0% |
-
-Usa títulos claros, viñetas, negritas y tablas Markdown estructuradas. Directo al grano, analítico y profesional.`;
-
-      const userPrompt = `A continuación tienes la información estructurada del cronograma de obra:
-
-DATOS GENERALES DE LA OBRA (Fecha de Análisis: ${dataDate || 'Hoy'}):
-- Total de Actividades Evaluadas: ${projectSummary?.total || 0}
-- Total de Actividades Retrasadas: ${projectSummary?.totalDelayed || 0}
-- Total de Actividades Próximas (Próximas 4 semanas): ${projectSummary?.totalUpcoming || 0}
-- Total de Partidas con Desviación Negativa Crítica (> 10.000 USD): ${projectSummary?.totalItemsCriticos10k || 0}
-- Monto Total de Desviación Crítica (> 10.000 USD): $${(projectSummary?.totalMontoCritico10kUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
-- Total Equipos e Instrumentación Pendientes por Instalar (Activity ID con 'F', excluyendo Completadas): ${projectSummary?.totalEquiposAInstalarF || 0}
-
-DESGLOSE DE CANTIDAD DE EQUIPAMIENTO E INSTRUMENTACIÓN PENDIENTES POR SCAP (Tipo 'Equipo/Instrumentación', Activity ID con 'F', Estado NO Completado y Excluyendo Partida D):
-${JSON.stringify(equipamientoPorSCAP, null, 2)}
-
-DESGLOSE DE RETRASO ECONÓMICO POR TIPOLOGÍA (Con Énfasis en Variaciones Negativas > $10.000 USD):
-${JSON.stringify(retrasoEconomicoTipologia, null, 2)}
-
-ACTIVIDADES DETALLADAS Y AGRUPADAS POR ÁREA:
-${JSON.stringify(areaData, null, 2)}
-
-Por favor, genera el Reporte Analítico de Inteligencia Artificial por Área, Tipología y Equipamiento por SCAP según la estructura requerida.`;
-
-      const text = await generateText(env, { system: systemInstruction, prompt: userPrompt, model: MODEL_REPORTE, effort: "high" });
-
-      res.json({
-        markdown: text,
-        generatedAt: new Date().toISOString()
-      });
-    } catch (error: any) {
-      console.error("Error generating crono report:", error);
-      const errorStr = `${typeof error === "object" ? JSON.stringify(error) : String(error)} ${error?.message ?? ""}`;
-      let errorMessage = error.message || "Error interno al comunicarse con el motor de Inteligencia Artificial.";
-      let errorCode = "AI_ERROR";
-
-      if (errorStr.includes("503") || errorStr.includes("UNAVAILABLE") || errorStr.includes("high demand")) {
-        errorCode = "AI_HIGH_DEMAND";
-        errorMessage = "El servicio de Inteligencia Artificial está experimentando alta demanda (Error 503). Por favor intenta de nuevo en unos segundos.";
-      } else if (errorStr.includes("429") || errorStr.includes("Resource has been exhausted")) {
-        errorCode = "AI_RATE_LIMIT";
-        errorMessage = "Límite de consultas alcanzado (Error 429). Por favor intenta en unos momentos.";
-      }
-
-      res.status(500).json({
-        error: errorCode,
-        message: errorMessage
-      });
+  try {
+    const { datos, contexto, anterior } = req.body || {};
+    if (!datos?.kpis) {
+      res.status(400).json({ error: "BAD_REQUEST", message: "Faltan los datos del reporte. Recarga la página e intenta de nuevo." });
+      return;
     }
+
+    const prompt = `Fecha de corte: ${datos.fechaCorte}
+
+CIFRAS DEL REPORTE (calculadas por la aplicación, se muestran tal cual):
+${JSON.stringify(datos)}
+
+REPORTE ANTERIOR:
+${anterior ? JSON.stringify(anterior) : "No hay reporte anterior."}
+
+DETALLE DE APOYO (actividades más atrasadas, próximas 4 semanas y equipos por SCAP):
+${JSON.stringify(contexto || {})}
+
+Escribe el análisis del reporte estándar con estos datos.`;
+
+    const text = await generateText(env, {
+      system: SISTEMA_REPORTE,
+      prompt,
+      model: MODEL_REPORTE,
+      effort: "high",
+      esquema: ESQUEMA_ANALISIS,
+    });
+
+    res.json({
+      analisis: JSON.parse(text),
+      modelo: MODEL_REPORTE,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error("Error generando el reporte de Inteligencia:", error);
+    let errorCode = "AI_ERROR";
+    let errorMessage = error?.message || "Error interno al comunicarse con la Inteligencia Artificial.";
+    if (error instanceof Anthropic.AuthenticationError) {
+      errorCode = "AI_AUTH";
+      errorMessage = "La clave de la API de Anthropic no es válida. Revisa el secreto ANTHROPIC_API_KEY en Cloudflare.";
+    } else if (error instanceof Anthropic.RateLimitError) {
+      errorCode = "AI_RATE_LIMIT";
+      errorMessage = "Se alcanzó el límite de consultas de la IA. Intenta de nuevo en unos minutos.";
+    } else if (error instanceof Anthropic.APIError && /credit|billing|balance/i.test(error.message)) {
+      errorCode = "AI_BILLING";
+      errorMessage = "La cuenta de Anthropic no tiene saldo. Carga crédito en console.anthropic.com → Billing.";
+    } else if (error instanceof Anthropic.APIError && (error.status ?? 0) >= 500) {
+      errorCode = "AI_HIGH_DEMAND";
+      errorMessage = "El servicio de IA está con alta demanda. Intenta de nuevo en unos segundos.";
+    }
+    res.status(500).json({ error: errorCode, message: errorMessage });
   }
+}

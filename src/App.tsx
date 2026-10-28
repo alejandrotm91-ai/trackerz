@@ -15,7 +15,9 @@ import { PersonalTab } from './components/PersonalTab';
 import { ProcesoTab } from './components/ProcesoTab';
 import { MasterTab } from './components/MasterTab';
 import { AIReportModal } from './components/AIReportModal';
-import { buildCronoReportData } from './utils/aiReportHelper';
+import { construirDatosReporte } from './utils/aiReportHelper';
+import { reporteATexto } from './utils/reporteTexto';
+import type { ReporteIA } from './types/reporteIA';
 import { saveAIReportToCloud, loadAIReportFromCloud, AIReportData } from './utils/cloudSync';
 import { apiFetch } from './utils/api';
 
@@ -153,12 +155,17 @@ export default function App() {
     setIsGeneratingAIReport(true);
 
     try {
-      const reportPayload = buildCronoReportData(pc.actividades, pc.fechaCorteState);
+      const { datos, contexto } = construirDatosReporte(pc.actividades, pc.fechaCorteState);
+      // El reporte anterior sirve para medir la evolución
+      const previo = aiReportData?.reporte;
+      const anterior = previo
+        ? { fechaCorte: previo.datos.fechaCorte, generadoEn: aiReportData!.updatedAt, estadoGeneral: previo.analisis.estadoGeneral, kpis: previo.datos.kpis }
+        : undefined;
 
       const res = await fetch('/api/ai/crono-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reportPayload)
+        body: JSON.stringify({ datos, contexto, anterior })
       });
 
       if (!res.ok) {
@@ -167,11 +174,19 @@ export default function App() {
       }
 
       const data = await res.json();
+      const reporte: ReporteIA = { version: 2, datos, analisis: data.analisis, anterior, modelo: data.modelo };
       const newReport: AIReportData = {
-        markdown: data.markdown,
+        markdown: reporteATexto(reporte),
         updatedAt: data.generatedAt || new Date().toISOString(),
         updatedBy: username || 'Admin',
-        summary: reportPayload.projectSummary
+        summary: {
+          total: datos.kpis.totalActividades,
+          totalDelayed: datos.kpis.retrasadas,
+          totalUpcoming: datos.kpis.proximas4Semanas,
+          totalItemsCriticos10k: datos.kpis.partidasCriticas,
+          totalMontoCritico10kUSD: datos.kpis.montoCritico,
+        },
+        reporte,
       };
 
       await saveAIReportToCloud(currentPlanId, newReport);
@@ -1924,7 +1939,7 @@ export default function App() {
                                 1. Reporte
                               </div>
                               <div className="text-[11px] text-[#5A6A74] leading-tight">
-                                Consultar análisis por área de retrasos y próximas 4 semanas.
+                                Consultar el reporte estándar más reciente.
                               </div>
                             </div>
                           </button>

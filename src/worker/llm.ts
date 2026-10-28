@@ -19,9 +19,11 @@ export interface GenerateParams {
   model?: string;
   /** Profundidad del análisis. Por defecto "medium". */
   effort?: Effort;
+  /** Esquema JSON que debe cumplir la respuesta (salida estructurada). */
+  esquema?: { [key: string]: unknown };
 }
 
-export async function generateText(env: Env, { system, prompt, model = MODEL, effort = "medium" }: GenerateParams): Promise<string> {
+export async function generateText(env: Env, { system, prompt, model = MODEL, effort = "medium", esquema }: GenerateParams): Promise<string> {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error("Falta el secreto ANTHROPIC_API_KEY en Cloudflare.");
   }
@@ -32,7 +34,7 @@ export async function generateText(env: Env, { system, prompt, model = MODEL, ef
   const stream = client.beta.messages.stream({
     model,
     max_tokens: 32000,
-    output_config: { effort },
+    output_config: esquema ? { effort, format: { type: "json_schema", schema: esquema } } : { effort },
     // Si los filtros de seguridad rechazan la solicitud, Anthropic la reintenta con otro modelo.
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
@@ -43,6 +45,9 @@ export async function generateText(env: Env, { system, prompt, model = MODEL, ef
 
   if (message.stop_reason === "refusal") {
     throw new Error("El modelo rechazó la solicitud.");
+  }
+  if (message.stop_reason === "max_tokens") {
+    throw new Error("La respuesta del modelo quedó incompleta (límite de longitud).");
   }
   const text = message.content
     .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")

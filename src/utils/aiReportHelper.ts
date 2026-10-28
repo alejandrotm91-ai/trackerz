@@ -1,8 +1,10 @@
 import { Actividad } from '../types';
+import type { DatosReporte } from '../types/reporteIA';
 
 export interface AreaReportData {
   areaName: string;
   totalRetrasadas: number;
+  maxDiasAtraso: number;
   actividadesRetrasadas: {
     wbs: string;
     descripcion: string;
@@ -100,7 +102,9 @@ export function buildCronoReportData(actividades: Actividad[], fechaCorteState?:
     return {
       areaName,
       totalRetrasadas: group.delayed.length,
-      actividadesRetrasadas: group.delayed.slice(0, 20).map(a => ({
+      maxDiasAtraso: group.delayed.reduce((m, a) => Math.max(m, a.diasAtrasoMaximo || 0), 0),
+      // Las más atrasadas primero
+      actividadesRetrasadas: [...group.delayed].sort((x, y) => (y.diasAtrasoMaximo || 0) - (x.diasAtrasoMaximo || 0)).slice(0, 20).map(a => ({
         wbs: a.wbs || 'N/A',
         descripcion: a.descripcion || 'Sin descripción',
         diasAtraso: a.diasAtrasoMaximo || 0,
@@ -291,9 +295,14 @@ export function buildCronoReportData(actividades: Actividad[], fechaCorteState?:
       totalEquiposFSum += totalCantidadEquiposF;
       totalActividadesFSum += e.itemsF.length;
 
+      const avancePromedio = e.itemsF.length
+        ? e.itemsF.reduce((s, it) => s + (Number(it.avanceAT) || 0), 0) / e.itemsF.length
+        : 0;
+
       return {
         tipo: e.tipo,
         scap: e.scap,
+        avancePromedio: Math.round(avancePromedio * 10) / 10,
         totalCantidadEquiposF,
         totalActividadesF: e.itemsF.length,
         totalActividadesSCAP: e.allItems.length,
@@ -332,4 +341,96 @@ export function buildCronoReportData(actividades: Actividad[], fechaCorteState?:
     retrasoEconomicoTipologia,
     equipamientoPorSCAP
   };
+}
+
+/**
+ * Datos del reporte estándar: las cifras y tablas que la app calcula (siempre con el mismo formato)
+ * y el detalle que se le pasa a Claude como contexto para escribir el análisis.
+ */
+export function construirDatosReporte(actividades: Actividad[], fechaCorteState?: Date) {
+  const base = buildCronoReportData(actividades, fechaCorteState);
+  const leafItems = (actividades || []).filter(a => a.esItemHoja);
+  const ventaPlan = leafItems.reduce((s, a) => s + (a.ventaPlan || 0), 0);
+  const ventaEjecutada = leafItems.reduce((s, a) => s + (a.ventaEjecutada || 0), 0);
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+
+  const partidasCriticas = base.retrasoEconomicoTipologia
+    .flatMap(t => t.partidasCriticasMayor10k.map(p => ({ ...p, tipologia: t.nombre })))
+    .sort((a, b) => b.variacionNegativaUSD - a.variacionNegativaUSD)
+    .slice(0, 10)
+    .map(p => ({
+      activityId: p.activityId || p.wbs,
+      descripcion: p.descripcion,
+      tipologia: p.tipologia,
+      ventaPlan: r2(p.ventaPlan),
+      ventaEjecutada: r2(p.ventaEjecutada),
+      variacion: r2(-p.variacionNegativaUSD),
+      estado: p.status,
+    }));
+
+  const datos: DatosReporte = {
+    fechaCorte: base.dataDate,
+    kpis: {
+      totalActividades: base.projectSummary.total,
+      retrasadas: base.projectSummary.totalDelayed,
+      proximas4Semanas: base.projectSummary.totalUpcoming,
+      ventaPlan: r2(ventaPlan),
+      ventaEjecutada: r2(ventaEjecutada),
+      variacion: r2(ventaEjecutada - ventaPlan),
+      partidasCriticas: base.projectSummary.totalItemsCriticos10k,
+      montoCritico: base.projectSummary.totalMontoCritico10kUSD,
+      equiposPendientes: r2(base.projectSummary.totalEquiposAInstalarF),
+      partidasEquipos: base.projectSummary.totalActividadesEquiposF,
+    },
+    tipologias: base.retrasoEconomicoTipologia.map(t => ({
+      nombre: t.nombre,
+      ventaPlan: t.ventaPlanUSD,
+      ventaEjecutada: t.ventaEjecutadaUSD,
+      variacion: t.variacionEconomicaUSD,
+      pctAvance: Number(String(t.pctAvance).replace('%', '')) || 0,
+      partidas: t.itemsTotales,
+      criticas: t.itemsCriticosMayor10kCount,
+    })),
+    partidasCriticas,
+    retrasos: base.areaData
+      .filter(a => a.totalRetrasadas > 0)
+      .map(a => ({
+        area: a.areaName,
+        retrasadas: a.totalRetrasadas,
+        maxDiasAtraso: a.maxDiasAtraso,
+      }))
+      .sort((a, b) => b.retrasadas - a.retrasadas),
+    proximas: base.areaData
+      .filter(a => a.totalProximas4Semanas > 0)
+      .map(a => ({ area: a.areaName, actividades: a.totalProximas4Semanas }))
+      .sort((a, b) => b.actividades - a.actividades),
+    equipamiento: base.equipamientoPorSCAP.map(e => ({
+      tipo: e.tipo,
+      scap: e.scap,
+      pendiente: r2(e.totalCantidadEquiposF),
+      unidades: e.unidades,
+      partidas: e.totalActividadesF,
+      avance: e.avancePromedio,
+    })),
+  };
+
+  // Detalle para que Claude explique las cifras (no se muestra tal cual)
+  const contexto = {
+    retrasadasPorArea: base.areaData
+      .filter(a => a.totalRetrasadas > 0)
+      .map(a => ({
+        area: a.areaName,
+        masAtrasadas: a.actividadesRetrasadas.slice(0, 8),
+      })),
+    proximasPorArea: base.areaData
+      .filter(a => a.totalProximas4Semanas > 0)
+      .map(a => ({ area: a.areaName, actividades: a.actividadesProximas4Semanas.slice(0, 8) })),
+    equiposPorSCAP: base.equipamientoPorSCAP.slice(0, 25).map(e => ({
+      tipo: e.tipo,
+      scap: e.scap,
+      ejemplos: e.actividadesF.slice(0, 4).map(x => `${x.activityId} ${x.descripcion} (${x.cantidad} ${x.unidad}, ${x.estado})`),
+    })),
+  };
+
+  return { datos, contexto };
 }
