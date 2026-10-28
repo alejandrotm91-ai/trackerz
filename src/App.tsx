@@ -1055,33 +1055,33 @@ export default function App() {
         <div className="max-w-4xl w-full flex flex-col gap-5">
           {/* Beautiful Explicit Landing Progress Bar justo arriba de la tarjeta */}
           {isVisualLoading && (
-            <div id="loader-bar-landing-card" className="w-full bg-white border border-indigo-150 rounded-2xl p-5 shadow-lg shadow-indigo-100/40 animate-fade-in flex flex-col gap-3">
+            <div id="loader-bar-landing-card" className="w-full bg-white border border-[#F3D6D6] rounded-2xl p-5 shadow-lg shadow-[#CD0000]/5 animate-fade-in flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#CD0000]/50 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#CD0000]"></span>
                   </span>
-                  <span className="text-xs font-black uppercase tracking-wider text-indigo-700">
+                  <span className="text-xs font-black uppercase tracking-wider text-[#CD0000]">
                     ☁️ {smoothPhase || 'Sincronizando con la nube...'}
                   </span>
                 </div>
-                <span className="text-sm font-black text-indigo-650 bg-indigo-50/80 px-2 py-0.5 rounded-lg border border-indigo-100">
+                <span className="text-sm font-black text-[#CD0000] bg-[#FDF0F0] px-2 py-0.5 rounded-lg border border-[#F3D6D6]">
                   {Math.round(smoothProgress)}%
                 </span>
               </div>
               
               <div className="w-full h-3 bg-neutral-50/80 rounded-full overflow-hidden border border-slate-200/50 p-0.5 animate-pulse">
                 <div 
-                  className="h-full bg-gradient-to-r from-indigo-500 to-indigo-650 rounded-full transition-all duration-300 ease-out shadow-mini" 
+                  className="h-full bg-gradient-to-r from-[#E53935] to-[#CD0000] rounded-full transition-all duration-300 ease-out shadow-mini" 
                   style={{ width: `${smoothProgress}%` }} 
                 />
               </div>
 
               <div className="flex justify-between items-center text-[10px] text-slate-400 font-extrabold px-1">
-                <span className={smoothProgress >= 5 ? "text-indigo-650 transition-colors duration-200 font-black" : ""}>🔌 Conectando</span>
-                <span className={smoothProgress >= 40 ? "text-indigo-650 transition-colors duration-200 font-black" : ""}>📥 Descargando</span>
-                <span className={smoothProgress >= 75 ? "text-indigo-650 transition-colors duration-200 font-black" : ""}>⚡ Procesando</span>
+                <span className={smoothProgress >= 5 ? "text-[#CD0000] transition-colors duration-200 font-black" : ""}>🔌 Conectando</span>
+                <span className={smoothProgress >= 40 ? "text-[#CD0000] transition-colors duration-200 font-black" : ""}>📥 Descargando</span>
+                <span className={smoothProgress >= 75 ? "text-[#CD0000] transition-colors duration-200 font-black" : ""}>⚡ Procesando</span>
                 <span className={smoothProgress >= 98 || smoothProgress === 100 ? "text-emerald-600 transition-colors duration-200 font-black" : ""}>🎉 Finalizado</span>
               </div>
             </div>
@@ -1592,15 +1592,15 @@ export default function App() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#442dd7]/60 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#442dd7]"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#CD0000]/50 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#CD0000]"></span>
                 </span>
-                <span className="text-xs font-bold uppercase tracking-wider text-[#442dd7]">{smoothPhase || pc.loadingPhase || 'Cargando datos...'}</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#CD0000]">{smoothPhase || pc.loadingPhase || 'Cargando datos...'}</span>
               </div>
-              <span className="text-sm font-bold text-[#442dd7] bg-[#EEECFB] px-2 py-0.5 rounded-lg border border-[#442dd7]/20">{Math.round(smoothProgress)}%</span>
+              <span className="text-sm font-bold text-[#CD0000] bg-[#FDF0F0] px-2 py-0.5 rounded-lg border border-[#F3D6D6]">{Math.round(smoothProgress)}%</span>
             </div>
             <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-[#D5DEE2] p-0.5 animate-pulse">
-              <div className="h-full bg-gradient-to-r from-[#442dd7] to-[#2C67A6] rounded-full transition-all duration-300 ease-out" style={{ width: `${smoothProgress}%` }} />
+              <div className="h-full bg-gradient-to-r from-[#E53935] to-[#CD0000] rounded-full transition-all duration-300 ease-out" style={{ width: `${smoothProgress}%` }} />
             </div>
           </div>
         </div>
@@ -1819,10 +1819,10 @@ export default function App() {
 
         {/* Visual Loading Screen during initial cloud data download */}
         {!pc.fileData && (isVisualLoading || pc.loadingProgress > 0) ? (
-          <div className="bg-white rounded-3xl border border-indigo-100 p-8 md:p-14 shadow-[0_15px_40px_rgba(15,23,42,0.04)] text-center max-w-xl mx-auto space-y-6 animate-fade-in my-8">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 md:p-14 shadow-[0_15px_40px_rgba(15,23,42,0.04)] text-center max-w-xl mx-auto space-y-6 animate-fade-in my-8">
             <div className="relative flex items-center justify-center mx-auto mb-2">
-              <div className="w-20 h-20 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin shadow-md"></div>
-              <Server className="w-8 h-8 text-indigo-600 absolute animate-pulse" />
+              <div className="w-20 h-20 rounded-full border-4 border-[#F6D5D5] border-t-[#CD0000] animate-spin shadow-md"></div>
+              <Server className="w-8 h-8 text-[#CD0000] absolute animate-pulse" />
             </div>
 
             <div className="space-y-2">
@@ -1837,16 +1837,16 @@ export default function App() {
             <div className="w-full max-w-md mx-auto space-y-2.5 pt-2">
               <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200 p-0.5 shadow-inner">
                 <div 
-                  className="h-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-indigo-700 rounded-full transition-all duration-300 ease-out shadow-sm"
+                  className="h-full bg-gradient-to-r from-[#E53935] via-[#CD0000] to-[#A80000] rounded-full transition-all duration-300 ease-out shadow-sm"
                   style={{ width: `${Math.max(8, Math.round(smoothProgress || pc.loadingProgress))}%` }}
                 />
               </div>
               <div className="flex justify-between items-center text-[11px] font-bold text-slate-400 px-1">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                  <span className="w-2 h-2 rounded-full bg-[#CD0000] animate-pulse"></span>
                   Conexión a la nube
                 </span>
-                <span className="text-indigo-600 font-extrabold text-xs">{Math.round(smoothProgress || pc.loadingProgress)}%</span>
+                <span className="text-[#CD0000] font-extrabold text-xs">{Math.round(smoothProgress || pc.loadingProgress)}%</span>
               </div>
             </div>
           </div>
@@ -1903,19 +1903,19 @@ export default function App() {
           <>
             {/* Background syncing notification banner if data is already populated and syncing updates */}
             {isVisualLoading && (
-              <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between gap-4 animate-fade-in shadow-xs mb-4">
-                <div className="flex items-center gap-2.5 text-xs text-indigo-900 font-bold min-w-0">
-                  <div className="w-4 h-4 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin shrink-0"></div>
+              <div className="p-3 bg-[#FDF0F0] border border-[#F3D6D6] rounded-2xl flex items-center justify-between gap-4 animate-fade-in shadow-xs mb-4">
+                <div className="flex items-center gap-2.5 text-xs text-[#7A0000] font-bold min-w-0">
+                  <div className="w-4 h-4 rounded-full border-2 border-[#F6D5D5] border-t-[#CD0000] animate-spin shrink-0"></div>
                   <span className="truncate">{smoothPhase || pc.loadingPhase || 'Sincronizando con la nube...'}</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <div className="w-32 h-2 bg-indigo-200/60 rounded-full overflow-hidden">
+                  <div className="w-32 h-2 bg-[#F6D5D5] rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-indigo-600 rounded-full transition-all duration-200"
+                      className="h-full bg-[#CD0000] rounded-full transition-all duration-200"
                       style={{ width: `${Math.max(5, smoothProgress || pc.loadingProgress)}%` }}
                     />
                   </div>
-                  <span className="text-[11px] font-extrabold text-indigo-700">{Math.round(smoothProgress || pc.loadingProgress)}%</span>
+                  <span className="text-[11px] font-extrabold text-[#CD0000]">{Math.round(smoothProgress || pc.loadingProgress)}%</span>
                 </div>
               </div>
             )}
