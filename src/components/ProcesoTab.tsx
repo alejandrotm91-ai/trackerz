@@ -560,7 +560,7 @@ export const ProcesoTab: React.FC = () => {
               Cargar y procesar 2. Master.xlsx
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <label className="flex flex-col gap-1.5 text-xs text-[#5A6A74] border border-dashed border-[#D5DEE2] rounded-lg p-3 bg-[#F5F8F9] cursor-pointer hover:border-[#442dd7]">
+              <label className="flex flex-col gap-1.5 text-xs text-[#5A6A74] border border-dashed border-[#D5DEE2] rounded-lg p-3 bg-[#F5F8F9] cursor-pointer hover:border-[#CD0000]">
                 <span className="font-bold text-[#14212A] text-sm">2. Master.xlsx</span>
                 <span>
                   Pestaña cdo: Proceso, CAP, SubC, Cantidad, % Ex, Cantidad Ex, p6, Start, Finish, blFinish, Float, Componente
@@ -598,7 +598,7 @@ export const ProcesoTab: React.FC = () => {
                     type="button"
                     disabled={isProcessing}
                     onClick={handleProcessMaster}
-                    className="px-4 py-2 bg-[#442dd7] hover:bg-[#3722b5] text-white font-semibold text-xs rounded-md shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2 bg-[#CD0000] hover:bg-[#A80000] text-white font-semibold text-xs rounded-md shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                   >
                     {isProcessing ? 'Procesando…' : 'Procesar'}
                   </button>
@@ -630,7 +630,7 @@ export const ProcesoTab: React.FC = () => {
                 }}
                 className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-[#EEECFB] border-[#442dd7] shadow-xs ring-1 ring-[#442dd7]'
+                    ? 'bg-[#FBE9E9] border-[#CD0000] shadow-xs ring-1 ring-[#CD0000]'
                     : 'bg-white border-[#D5DEE2] hover:border-slate-400'
                 }`}
               >
@@ -670,7 +670,7 @@ export const ProcesoTab: React.FC = () => {
                 }}
                 className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-[#EEECFB] border-[#442dd7] shadow-xs ring-1 ring-[#442dd7]'
+                    ? 'bg-[#FBE9E9] border-[#CD0000] shadow-xs ring-1 ring-[#CD0000]'
                     : 'bg-white border-[#D5DEE2] hover:border-slate-400'
                 }`}
               >
@@ -734,8 +734,8 @@ export const ProcesoTab: React.FC = () => {
                 onClick={() => handleCompClick('*', false)}
                 className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer ${
                   comp.length === 0
-                    ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                    ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                 }`}
               >
                 <span>Todos</span>
@@ -751,8 +751,8 @@ export const ProcesoTab: React.FC = () => {
                     onClick={e => handleCompClick(c, e.ctrlKey || e.metaKey)}
                     className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer ${
                       isPressed
-                        ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                        ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                     }`}
                     title={`${o.p} partidas · ${fq(o.e)} equipos. Ctrl + clic (⌘ en Mac) para combinar tipos.`}
                   >
@@ -809,8 +809,8 @@ export const ProcesoTab: React.FC = () => {
                 onClick={() => handleScapClick('*', false)}
                 className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer shrink-0 ${
                   scap.length === 0
-                    ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                    ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                 }`}
               >
                 <span>Todos</span>
@@ -826,8 +826,8 @@ export const ProcesoTab: React.FC = () => {
                     onClick={e => handleScapClick(c, e.ctrlKey || e.metaKey)}
                     className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer shrink-0 ${
                       isPressed
-                        ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                        ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                     }`}
                     title={`${o.p} partidas · ${fq(o.e)} equipos. Ctrl + clic (⌘ en Mac) para combinar subtipos.`}
                   >
@@ -840,7 +840,7 @@ export const ProcesoTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setScapAll(true)}
-                  className="px-2.5 py-1 rounded-md border border-dashed border-[#442dd7] text-[#442dd7] font-semibold text-xs hover:bg-[#EEECFB]/60 transition-colors cursor-pointer shrink-0"
+                  className="px-2.5 py-1 rounded-md border border-dashed border-[#CD0000] text-[#CD0000] font-semibold text-xs hover:bg-[#FBE9E9]/60 transition-colors cursor-pointer shrink-0"
                 >
                   +{ks.length - SLIM} más
                 </button>
@@ -849,7 +849,7 @@ export const ProcesoTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setScapAll(false)}
-                  className="px-2.5 py-1 rounded-md border border-dashed border-[#442dd7] text-[#442dd7] font-semibold text-xs hover:bg-[#EEECFB]/60 transition-colors cursor-pointer shrink-0"
+                  className="px-2.5 py-1 rounded-md border border-dashed border-[#CD0000] text-[#CD0000] font-semibold text-xs hover:bg-[#FBE9E9]/60 transition-colors cursor-pointer shrink-0"
                 >
                   Ver menos
                 </button>
@@ -901,8 +901,8 @@ export const ProcesoTab: React.FC = () => {
                 onClick={() => handleSubcClick('*', false)}
                 className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer shrink-0 ${
                   subc.length === 0
-                    ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                    ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                 }`}
               >
                 <span>Todos</span>
@@ -918,8 +918,8 @@ export const ProcesoTab: React.FC = () => {
                     onClick={e => handleSubcClick(c, e.ctrlKey || e.metaKey)}
                     className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer shrink-0 ${
                       isPressed
-                        ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                        ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                     }`}
                     title={`${o.p} partidas · ${fq(o.e)} equipos. Ctrl + clic (⌘ en Mac) para combinar subcontratistas.`}
                   >
@@ -932,7 +932,7 @@ export const ProcesoTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSubcAll(true)}
-                  className="px-2.5 py-1 rounded-md border border-dashed border-[#442dd7] text-[#442dd7] font-semibold text-xs hover:bg-[#EEECFB]/60 transition-colors cursor-pointer shrink-0"
+                  className="px-2.5 py-1 rounded-md border border-dashed border-[#CD0000] text-[#CD0000] font-semibold text-xs hover:bg-[#FBE9E9]/60 transition-colors cursor-pointer shrink-0"
                 >
                   +{ks.length - SLIM} más
                 </button>
@@ -941,7 +941,7 @@ export const ProcesoTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSubcAll(false)}
-                  className="px-2.5 py-1 rounded-md border border-dashed border-[#442dd7] text-[#442dd7] font-semibold text-xs hover:bg-[#EEECFB]/60 transition-colors cursor-pointer shrink-0"
+                  className="px-2.5 py-1 rounded-md border border-dashed border-[#CD0000] text-[#CD0000] font-semibold text-xs hover:bg-[#FBE9E9]/60 transition-colors cursor-pointer shrink-0"
                 >
                   Ver menos
                 </button>
@@ -959,7 +959,7 @@ export const ProcesoTab: React.FC = () => {
               <div
                 key={k}
                 className={`bg-white border rounded-xl p-3.5 flex flex-col justify-between shadow-xs transition-all ${
-                  isStageOn ? 'border-[#442dd7] ring-1 ring-[#442dd7]' : 'border-[#D5DEE2]'
+                  isStageOn ? 'border-[#CD0000] ring-1 ring-[#CD0000]' : 'border-[#D5DEE2]'
                 }`}
               >
                 <div>
@@ -1009,8 +1009,8 @@ export const ProcesoTab: React.FC = () => {
                           onClick={e => handleToggleKf(k, sv, e.ctrlKey || e.metaKey)}
                           className={`inline-flex items-baseline gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
                             isPressed
-                              ? 'bg-[#442dd7] border-[#442dd7] text-white font-semibold'
-                              : 'bg-[#F5F8F9] border-[#D5DEE2] text-[#5A6A74] hover:border-[#442dd7] hover:text-[#14212A]'
+                              ? 'bg-[#CD0000] border-[#CD0000] text-white font-semibold'
+                              : 'bg-[#F5F8F9] border-[#D5DEE2] text-[#5A6A74] hover:border-[#CD0000] hover:text-[#14212A]'
                           }`}
                           title={`${STN[k]} ${lab.toLowerCase()}: filtra las tarjetas de abajo y las otras tarjetas. Ctrl + clic (⌘ en Mac) para combinar con otros botones.`}
                         >
@@ -1030,14 +1030,14 @@ export const ProcesoTab: React.FC = () => {
           {/* Card 4: Equipos en la Selección */}
           <div
             className={`bg-white border rounded-xl p-3.5 flex flex-col justify-between shadow-xs transition-all ${
-              fourthCardData.isCritActive ? 'border-[#442dd7] ring-1 ring-[#442dd7]' : 'border-[#D5DEE2]'
+              fourthCardData.isCritActive ? 'border-[#CD0000] ring-1 ring-[#CD0000]' : 'border-[#D5DEE2]'
             }`}
           >
             <div>
               <div className="text-[11px] font-bold text-[#5A6A74] tracking-wider uppercase">
                 Equipos en la Selección
               </div>
-              <div className="font-['Barlow_Condensed'] font-semibold text-3xl sm:text-[32px] text-[#442dd7] leading-tight mt-1">
+              <div className="font-['Barlow_Condensed'] font-semibold text-3xl sm:text-[32px] text-[#CD0000] leading-tight mt-1">
                 {fq(fourthCardData.NF)} <small className="text-lg text-[#5A6A74] font-medium">equipos</small>
               </div>
             </div>
@@ -1117,7 +1117,7 @@ export const ProcesoTab: React.FC = () => {
                   setOpenRows(new Set());
                 }}
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
-                  group === 'cap' ? 'bg-[#442dd7] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                  group === 'cap' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
               >
                 Estructura
@@ -1129,7 +1129,7 @@ export const ProcesoTab: React.FC = () => {
                   setOpenRows(new Set());
                 }}
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
-                  group === 'prov' ? 'bg-[#442dd7] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                  group === 'prov' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
               >
                 Proveedor
@@ -1145,7 +1145,7 @@ export const ProcesoTab: React.FC = () => {
                 type="button"
                 onClick={() => setMode('ex')}
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
-                  mode === 'ex' ? 'bg-[#442dd7] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                  mode === 'ex' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
               >
                 Cantidad Ex
@@ -1154,7 +1154,7 @@ export const ProcesoTab: React.FC = () => {
                 type="button"
                 onClick={() => setMode('done')}
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
-                  mode === 'done' ? 'bg-[#442dd7] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                  mode === 'done' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
               >
                 Partidas terminadas
@@ -1163,7 +1163,7 @@ export const ProcesoTab: React.FC = () => {
                 type="button"
                 onClick={() => setMode('open')}
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
-                  mode === 'open' ? 'bg-[#442dd7] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                  mode === 'open' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
                 title="Partidas con alguna etapa en curso o sin iniciar; las cantidades se muestran con Cantidad Ex"
               >
@@ -1199,7 +1199,7 @@ export const ProcesoTab: React.FC = () => {
                 }
               }}
               placeholder="Buscar actividad, equipo, proveedor o ID (Enter ↵)"
-              className="w-full text-xs pl-8 pr-18 py-1.5 rounded-md border border-[#D5DEE2] bg-[#F5F8F9] focus:outline-none focus:ring-1 focus:ring-[#442dd7] focus:bg-white text-[#14212A] transition-colors"
+              className="w-full text-xs pl-8 pr-18 py-1.5 rounded-md border border-[#D5DEE2] bg-[#F5F8F9] focus:outline-none focus:ring-1 focus:ring-[#CD0000] focus:bg-white text-[#14212A] transition-colors"
             />
             <div className="absolute right-1.5 flex items-center gap-1">
               {searchInput && (
@@ -1222,7 +1222,7 @@ export const ProcesoTab: React.FC = () => {
                 onClick={() => setQ(searchInput.trim())}
                 className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-colors cursor-pointer ${
                   searchInput.trim() !== q && searchInput.trim().length > 0
-                    ? 'bg-[#442dd7] text-white hover:bg-[#3722b5] shadow-xs'
+                    ? 'bg-[#CD0000] text-white hover:bg-[#A80000] shadow-xs'
                     : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
                 }`}
                 title="Presione Enter o haga clic para buscar"
@@ -1236,7 +1236,7 @@ export const ProcesoTab: React.FC = () => {
           <select
             value={prov}
             onChange={e => setProv(e.target.value)}
-            className="text-xs px-2.5 py-1.5 rounded-md border border-[#D5DEE2] bg-[#F5F8F9] text-[#14212A] focus:outline-none focus:ring-1 focus:ring-[#442dd7] cursor-pointer max-w-[200px]"
+            className="text-xs px-2.5 py-1.5 rounded-md border border-[#D5DEE2] bg-[#F5F8F9] text-[#14212A] focus:outline-none focus:ring-1 focus:ring-[#CD0000] cursor-pointer max-w-[200px]"
           >
             <option value="">Todos los proveedores</option>
             {availableProviders.map(p => (
@@ -1252,7 +1252,7 @@ export const ProcesoTab: React.FC = () => {
               type="checkbox"
               checked={pend}
               onChange={e => setPend(e.target.checked)}
-              className="rounded text-[#442dd7] focus:ring-[#442dd7] cursor-pointer"
+              className="rounded text-[#CD0000] focus:ring-[#CD0000] cursor-pointer"
             />
             <span>Incluir pendientes de regularizar (WBS D)</span>
           </label>
@@ -1319,7 +1319,7 @@ export const ProcesoTab: React.FC = () => {
                   type="checkbox"
                   checked={aCCM}
                   onChange={e => setACCM(e.target.checked)}
-                  className="rounded text-[#442dd7] focus:ring-[#442dd7]"
+                  className="rounded text-[#CD0000] focus:ring-[#CD0000]"
                 />
                 <span>
                   Excluir los CCM y tableros de las áreas de lodos (CCM 8, 12, 13; PD-GAS, PD-FoG, PD-UTB)
@@ -1342,7 +1342,7 @@ export const ProcesoTab: React.FC = () => {
 
         {/* 6b. Active Card Filter Banner (kfb) */}
         {kfbLabel && (
-          <div className="bg-[#EEECFB] border border-[#442dd7] rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-[#14212A] shadow-xs animate-fadeIn">
+          <div className="bg-[#FBE9E9] border border-[#CD0000] rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-[#14212A] shadow-xs animate-fadeIn">
             <div className="flex items-center gap-2 flex-wrap">
               <span>
                 Filtro de tarjetas: <strong>{kfbLabel}</strong> · {finalFiltered.length} de {baseFiltered.length} partidas
@@ -1352,7 +1352,7 @@ export const ProcesoTab: React.FC = () => {
             <button
               type="button"
               onClick={() => setKf({})}
-              className="px-2.5 py-1 text-xs font-semibold rounded border border-[#442dd7] text-[#442dd7] hover:bg-[#442dd7] hover:text-white transition-colors cursor-pointer"
+              className="px-2.5 py-1 text-xs font-semibold rounded border border-[#CD0000] text-[#CD0000] hover:bg-[#CD0000] hover:text-white transition-colors cursor-pointer"
             >
               Quitar filtro
             </button>
@@ -1386,12 +1386,12 @@ export const ProcesoTab: React.FC = () => {
                       <div
                         key={`band-${sk}`}
                         onClick={() => handleToggleBand(sk)}
-                        className="bg-[#ddd9f8] border border-[#c7c0f3] rounded-xl px-4 py-2 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-[#d2cdf6] transition-colors mt-3 first:mt-0 select-none"
+                        className="bg-[#F8DCDC] border border-[#F2BFBF] rounded-xl px-4 py-2 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-[#F4CFCF] transition-colors mt-3 first:mt-0 select-none"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <button
                             type="button"
-                            className="w-5 h-5 rounded border border-[#c7c0f3] bg-white flex items-center justify-center text-[#5A6A74] text-xs shrink-0"
+                            className="w-5 h-5 rounded border border-[#F2BFBF] bg-white flex items-center justify-center text-[#5A6A74] text-xs shrink-0"
                           >
                             {isBandOpen ? '▾' : '▸'}
                           </button>
@@ -1468,7 +1468,7 @@ export const ProcesoTab: React.FC = () => {
                   <div
                     key={`card-${gk}`}
                     className={`bg-white border border-[#D5DEE2] rounded-xl overflow-hidden shadow-xs transition-all ${
-                      supOn ? 'ml-3 sm:ml-4 border-l-2 border-l-[#442dd7]' : ''
+                      supOn ? 'ml-3 sm:ml-4 border-l-2 border-l-[#CD0000]' : ''
                     }`}
                   >
                     {/* Card Header (clickable) */}
@@ -1539,7 +1539,7 @@ export const ProcesoTab: React.FC = () => {
                             e.stopPropagation();
                             handleCopySummary(cardTitle, innerRows);
                           }}
-                          className="px-2 py-0.5 text-[11px] border border-[#D5DEE2] rounded hover:border-[#442dd7] hover:text-[#442dd7] text-[#5A6A74] transition-colors cursor-pointer shrink-0"
+                          className="px-2 py-0.5 text-[11px] border border-[#D5DEE2] rounded hover:border-[#CD0000] hover:text-[#CD0000] text-[#5A6A74] transition-colors cursor-pointer shrink-0"
                         >
                           Copiar resumen
                         </button>
@@ -1696,7 +1696,7 @@ export const ProcesoTab: React.FC = () => {
 
                                                 return (
                                                   <tr key={it.base} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="py-2 px-3 font-['IBM_Plex_Mono'] text-[11.5px] text-[#442dd7] font-semibold">
+                                                    <td className="py-2 px-3 font-['IBM_Plex_Mono'] text-[11.5px] text-[#CD0000] font-semibold">
                                                       {it.base}
                                                     </td>
                                                     <td className="py-2 px-3 max-w-[260px]">

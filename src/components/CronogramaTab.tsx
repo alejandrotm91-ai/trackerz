@@ -3227,7 +3227,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
                     ganttHierarchyMode === 'wbs'
-                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      ? 'bg-[#CD0000] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#F5F8F9]'
                   }`}
                   title="Vista 1: WBS (Partidas / Capítulos)"
@@ -3249,7 +3249,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
                     ganttHierarchyMode === 'tipo_subc_scap_unit'
-                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      ? 'bg-[#CD0000] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#F5F8F9]'
                   }`}
                   title="Vista 2: Fases (Componente - Tipo - SubC - Scap - Unit)"
@@ -3317,7 +3317,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                           }
                         }
                       }}
-                      className={`px-2.5 py-1 rounded-md transition-all ${active ? 'bg-[#442dd7] text-white shadow-xs' : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white'}`}
+                      className={`px-2.5 py-1 rounded-md transition-all ${active ? 'bg-[#CD0000] text-white shadow-xs' : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white'}`}
                     >
                       {l}
                     </button>
@@ -3366,7 +3366,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                             }
                           }
                         }}
-                        className={`px-2 py-1 rounded-md transition-all ${isTfActive ? 'bg-[#442dd7] text-white shadow-xs font-bold' : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white'}`}
+                        className={`px-2 py-1 rounded-md transition-all ${isTfActive ? 'bg-[#CD0000] text-white shadow-xs font-bold' : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white'}`}
                       >
                         {l}
                       </button>
@@ -3391,12 +3391,12 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   }}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                     ganttExp.size > 0 && ganttHierarchyLevel !== '1'
-                      ? 'bg-white text-[#442dd7] shadow-xs border border-[#D5DEE2] font-bold'
+                      ? 'bg-white text-[#CD0000] shadow-xs border border-[#D5DEE2] font-bold'
                       : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white/60'
                   }`}
                   title="Expandir todas las partidas de la jerarquía"
                 >
-                  <ChevronsUpDown className="w-3.5 h-3.5 text-[#442dd7]" />
+                  <ChevronsUpDown className="w-3.5 h-3.5 text-[#CD0000]" />
                   <span>Exp.</span>
                 </button>
                 <button
@@ -3408,12 +3408,12 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   }}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                     ganttExp.size === 0 || ganttHierarchyLevel === '1'
-                      ? 'bg-white text-[#442dd7] shadow-xs border border-[#D5DEE2] font-bold'
+                      ? 'bg-white text-[#CD0000] shadow-xs border border-[#D5DEE2] font-bold'
                       : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white/60'
                   }`}
                   title="Colapsar toda la jerarquía"
                 >
-                  <ChevronsDownUp className="w-3.5 h-3.5 text-[#442dd7]" />
+                  <ChevronsDownUp className="w-3.5 h-3.5 text-[#CD0000]" />
                   <span>Colap.</span>
                 </button>
               </div>
@@ -3426,7 +3426,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   onClick={() => setIsGanttPAcDropdownOpen(!isGanttPAcDropdownOpen)}
                   className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-all text-[10px] font-bold shadow-xs cursor-pointer ${
                     ganttPAc !== 'all'
-                      ? 'bg-[#442dd7] text-white border-[#442dd7] hover:bg-[#3722b5]'
+                      ? 'bg-[#CD0000] text-white border-[#CD0000] hover:bg-[#A80000]'
                       : 'bg-white text-[#5A6A74] border-[#D5DEE2] hover:bg-[#F5F8F9] hover:text-[#14212A]'
                   }`}
                   title="Filtrar actividades por P.Ac (Columna AO CDO)"
@@ -5907,7 +5907,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                                       <div 
                                         onClick={toggleSubcCollapse}
                                         className="px-4 py-2.5 border-b border-indigo-200/50 flex items-center justify-between hover:opacity-90 transition-opacity cursor-pointer select-none"
-                                        style={{ backgroundColor: '#e0e7ff' }}
+                                        style={{ backgroundColor: '#FBE5E5' }}
                                       >
                                         <div className="flex flex-col gap-0.5 text-left min-w-0">
                                           <div className="flex items-center gap-2">

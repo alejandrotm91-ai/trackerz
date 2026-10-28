@@ -314,7 +314,7 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
         tT.plan,
         tT.ejec,
         tT.desv,
-        '#e0e7ff',
+        '#FBE5E5',
         '#1e1b4b',
         'bold',
         '11px',
@@ -537,7 +537,7 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
       globalTot.plan,
       globalTot.ejec,
       globalTot.desv,
-      '#c7d2fe',
+      '#F6C9C9',
       '#0f172a',
       'bold',
       '11.5px',
@@ -550,7 +550,7 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
     const htmlContent = `
       <table style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; width: 100%;">
         <thead>
-          <tr style="background-color: #312e81; color: #ffffff; font-weight: bold; text-align: left;">
+          <tr style="background-color: #7A0000; color: #ffffff; font-weight: bold; text-align: left;">
             <th style="padding: 8px 10px; border: 1px solid #94a3b8; font-weight: bold;">WBS / Nivel</th>
             <th style="padding: 8px 10px; border: 1px solid #94a3b8; font-weight: bold;">Activity ID</th>
             <th style="padding: 8px 10px; border: 1px solid #94a3b8; font-weight: bold;">Descripción</th>

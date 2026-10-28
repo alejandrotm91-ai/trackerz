@@ -159,7 +159,7 @@ const DialGauge: React.FC<{
           <path
             d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
             fill="none"
-            stroke="#442dd7"
+            stroke="#CD0000"
             strokeWidth={strokeWidth}
             strokeDasharray={arcLength}
             strokeDashoffset={strokeDashoffset}
@@ -600,7 +600,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
           type="button"
           onClick={handleExportPdf}
           disabled={isExportingPdf}
-          className="group relative inline-flex items-center justify-center p-2 rounded-xl bg-white hover:bg-[#F5F8F9] border border-[#D5DEE2] hover:border-[#442dd7] text-[#5A6A74] hover:text-[#442dd7] shadow-xs transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          className="group relative inline-flex items-center justify-center p-2 rounded-xl bg-white hover:bg-[#F5F8F9] border border-[#D5DEE2] hover:border-[#CD0000] text-[#5A6A74] hover:text-[#CD0000] shadow-xs transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           title="Exportar Resumen a PDF (Formato A3)"
           aria-label="Exportar Resumen a PDF en formato A3"
         >
@@ -608,7 +608,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
             🚀
           </span>
           {isExportingPdf && (
-            <span className="ml-1.5 text-[11px] font-bold text-[#442dd7] font-mono tracking-tight animate-pulse">
+            <span className="ml-1.5 text-[11px] font-bold text-[#CD0000] font-mono tracking-tight animate-pulse">
               Generando A3...
             </span>
           )}
@@ -677,12 +677,12 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
               <table className="w-full text-xs text-left border-collapse">
                 <thead>
                   <tr className="bg-[#F5F8F9] border-b border-[#D5DEE2] text-[#5A6A74] font-semibold">
-                    <th className="py-2.5 px-3 w-12 text-center text-[#442dd7]">Id</th>
+                    <th className="py-2.5 px-3 w-12 text-center text-[#CD0000]">Id</th>
                     <th className="py-2.5 px-3">Milestone</th>
-                    <th className="py-2.5 px-3 text-center text-[#442dd7]">
+                    <th className="py-2.5 px-3 text-center text-[#CD0000]">
                       Baseline
                     </th>
-                    <th className="py-2.5 px-3 text-center text-[#442dd7]">
+                    <th className="py-2.5 px-3 text-center text-[#CD0000]">
                       Actual/Forecast
                     </th>
                     <th className="py-2.5 px-3 text-right">Float</th>
@@ -699,7 +699,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                         key={`milestone-row-${m.id}-${m.name}-${idx}`}
                         className="hover:bg-[#F5F8F9] transition-colors"
                       >
-                        <td className="py-2.5 px-3 text-center font-bold text-[#442dd7] font-mono">
+                        <td className="py-2.5 px-3 text-center font-bold text-[#CD0000] font-mono">
                           {m.id}
                         </td>
                         <td className="py-2.5 px-3 font-semibold text-[#14212A]">
@@ -750,7 +750,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
           <div id="card-ubicacion-tree" className="bg-white rounded-xl px-4 py-3 border border-[#D5DEE2] shadow-xs overflow-hidden">
             <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-[#D5DEE2]">
               <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-[#442dd7] shrink-0" />
+                <MapPin className="w-4 h-4 text-[#CD0000] shrink-0" />
                 <span>Ubicación</span>
               </div>
               <span className="text-[11px] font-bold text-[#5A6A74] font-mono">
@@ -763,7 +763,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
               
               {/* Root Node: Avance Ejecutado Total */}
               <div className="flex flex-col items-end text-right flex-1 min-w-0">
-                <div className="w-full h-2 bg-[#442dd7] rounded-xs mb-1 shadow-xs" />
+                <div className="w-full h-2 bg-[#CD0000] rounded-xs mb-1 shadow-xs" />
                 <div className="text-xs font-bold text-[#14212A] tracking-tight truncate w-full">
                   Avance_Ejecutado
                 </div>
@@ -802,13 +802,13 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                       {/* Bar Gauge */}
                       <div className="w-full h-2 bg-[#EEF2F3] rounded-xs mb-0.5 overflow-hidden border border-[#D5DEE2] relative">
                         <div
-                          className="h-full bg-[#442dd7] transition-all duration-500"
+                          className="h-full bg-[#CD0000] transition-all duration-500"
                           style={{ width: `${Math.min(100, Math.max(8, u.porcentaje))}%` }}
                         />
                       </div>
                       <div className="text-xs leading-tight font-bold text-[#14212A] flex items-center justify-between w-full gap-1">
                         <span className="truncate">{u.nombre}</span>
-                        <span className={`text-[11px] font-normal text-[#442dd7] shrink-0 ${NUM_TABLA}`}>
+                        <span className={`text-[11px] font-normal text-[#CD0000] shrink-0 ${NUM_TABLA}`}>
                           {u.porcentaje.toFixed(1)}%
                         </span>
                       </div>

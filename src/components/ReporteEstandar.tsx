@@ -84,7 +84,7 @@ const Barra: React.FC<{ pct: number; color: string; alto?: string }> = ({ pct, c
 
 /** Tarjeta del bloque ejecutivo: título, cifra grande, barra opcional y detalle. */
 const Tarjeta: React.FC<{ titulo: string; valor: string; color?: string; pct?: number; barColor?: string; detalle?: React.ReactNode; extra?: React.ReactNode }> = ({
-  titulo, valor, color = 'text-[#14212A]', pct, barColor = '#442dd7', detalle, extra,
+  titulo, valor, color = 'text-[#14212A]', pct, barColor = '#CD0000', detalle, extra,
 }) => (
   <div className="border border-[#D5DEE2] rounded-xl bg-white p-3 flex flex-col gap-1">
     <div className="text-[10px] font-semibold text-[#5A6A74] uppercase tracking-wider">{titulo}</div>
@@ -116,7 +116,7 @@ const BloqueEjecutivo: React.FC<{ reporte: ReporteIA; paraPdf?: boolean }> = ({ 
         <Tarjeta titulo="Avance de obra" valor={`${obra.avance.toFixed(2)}%`} color="text-[#2B7F52]" pct={obra.avance} barColor="#2B7F52"
           detalle={<>{fmtM(obra.ejecutado)} ejecutado de {fmtM(obra.contrato)}</>} extra={deltaPts(obra.avance, ant?.obraAvance)} />
         {c && (
-          <Tarjeta titulo="Avance de certificación" valor={`${c.avance.toFixed(2)}%`} color="text-[#442dd7]" pct={c.avance}
+          <Tarjeta titulo="Avance de certificación" valor={`${c.avance.toFixed(2)}%`} color="text-[#CD0000]" pct={c.avance}
             detalle={<>{fmtM(c.certificado)} planillado de {fmtM(c.contrato)}</>} extra={deltaPts(c.avance, ant?.certificacionAvance)} />
         )}
         <Tarjeta titulo="Por ejecutar" valor={fmtM(obra.porEjecutar)} color="text-[#A86B12]"
@@ -127,7 +127,7 @@ const BloqueEjecutivo: React.FC<{ reporte: ReporteIA; paraPdf?: boolean }> = ({ 
               {c.saldoPlanilla !== undefined && <><br />Saldo por planillar (Sabana, con excedentes): {fmtM(c.saldoPlanilla)}</>}</>} />
         )}
         <Tarjeta titulo="Excedentes" valor={`${signo(obra.excedentes)}${fmtM(obra.excedentes)}`}
-          color={obra.excedentes < 0 ? 'text-[#442dd7]' : 'text-red-600'}
+          color={obra.excedentes < 0 ? 'text-[#CD0000]' : 'text-red-600'}
           detalle={<>Obra: {obra.excedentes < 0 ? 'ahorro frente al contrato' : 'sobreejecución'}{c ? <><br />Certificación: {signo(c.excedentes)}{fmtM(c.excedentes)}</> : null}</>} />
         {c && (
           <Tarjeta titulo="Última certificación" valor={fmtM(c.ultimaCertificacion)} detalle="monto de esta planilla" />
@@ -175,7 +175,7 @@ const BloqueEjecutivo: React.FC<{ reporte: ReporteIA; paraPdf?: boolean }> = ({ 
               {componentes.map(cp => (
                 <div key={cp.nombre} data-pdf-fila className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_52px_minmax(0,1fr)] items-center gap-2 text-[11px]">
                   <span className="truncate font-semibold text-[#14212A]" title={cp.nombre}>{cp.nombre}</span>
-                  <Barra pct={cp.avance} color="#442dd7" alto="h-2" />
+                  <Barra pct={cp.avance} color="#CD0000" alto="h-2" />
                   <b className="text-right text-[#14212A]">{cp.avance.toFixed(1)}%</b>
                   <span className="text-right text-[#5A6A74] whitespace-nowrap">{fmtM(cp.ejecutado)} / {fmtM(cp.contrato)}</span>
                 </div>
@@ -323,7 +323,7 @@ export const ReporteEstandar: React.FC<{ reporte: ReporteIA; paraPdf?: boolean }
             <div key={x.area} data-pdf-fila className="grid grid-cols-[minmax(120px,220px)_1fr_48px] items-center gap-2 text-[12px]">
               <span className="truncate text-[#14212A]" title={x.area}>{x.area}</span>
               <div className="h-3.5 bg-[#EEF2F3] rounded">
-                <div className="h-3.5 rounded bg-[#442dd7]" style={{ width: `${(x.actividades / maxProx) * 100}%` }} />
+                <div className="h-3.5 rounded bg-[#CD0000]" style={{ width: `${(x.actividades / maxProx) * 100}%` }} />
               </div>
               <span className="text-right font-semibold text-[#14212A]">{fmtNum(x.actividades)}</span>
             </div>

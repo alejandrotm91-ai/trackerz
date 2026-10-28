@@ -1,5 +1,25 @@
 @import "tailwindcss";
 
+/* Color de marca: rojo del logo (#CD0000). La paleta "indigo" de Tailwind se redefine
+   como escala de rojos, así todas las clases indigo-* de la app usan el rojo. */
+@theme {
+  --color-indigo-50: #FDF3F3;
+  --color-indigo-100: #FBE5E5;
+  --color-indigo-150: #F9D9D9;
+  --color-indigo-200: #F6C9C9;
+  --color-indigo-300: #EFA3A3;
+  --color-indigo-400: #E36B6B;
+  --color-indigo-500: #D93030;
+  --color-indigo-600: #CD0000;
+  --color-indigo-650: #BD0000;
+  --color-indigo-700: #A80000;
+  --color-indigo-800: #8A0000;
+  --color-indigo-850: #7A0000;
+  --color-indigo-900: #6B0505;
+  --color-indigo-950: #420303;
+}
+
+
 /* Sistema de Diseño Unificado: Estado de Equipos / Proceso */
 :root {
   --bg: #EEF2F3;
@@ -8,8 +28,8 @@
   --ink: #14212A;
   --muted: #5A6A74;
   --line: #D5DEE2;
-  --accent: #442dd7;
-  --accent-soft: #EEECFB;
+  --accent: #CD0000;
+  --accent-soft: #FBE9E9;
   --fab: #A86B12;
   --fab-soft: #F6E9D3;
   --flete: #2C67A6;
@@ -85,11 +105,11 @@ kbd {
 }
 
 .bg-app-accent {
-  background-color: #442dd7;
+  background-color: #CD0000;
 }
 
 .text-app-accent {
-  color: #442dd7;
+  color: #CD0000;
 }
 
 /* =====================================================================
@@ -118,13 +138,13 @@ kbd {
   --ht-line: #e2e2e0;
   --ht-grid: #efefed;
   --ht-bad: #b42318;
-  /* niveles: morado de la app (#442dd7) mezclado con blanco */
-  --ht-lv0: #442dd7;
-  --ht-lv1: #604cdd;
-  --ht-lv2: #aaa0ed;
-  --ht-lv3: #c7c0f3;
-  --ht-lv4: #ddd9f8;
-  --ht-lv5: #eeecfb;
+  /* niveles: rojo de la marca (#CD0000) mezclado con blanco */
+  --ht-lv0: #CD0000;
+  --ht-lv1: #D73333;
+  --ht-lv2: #EB9999;
+  --ht-lv3: #F2BFBF;
+  --ht-lv4: #F8DCDC;
+  --ht-lv5: #FBE9E9;
   font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   color: var(--ht-fg);
 }
@@ -184,7 +204,7 @@ kbd {
 .ht-theme tr.ht-g > td { font-weight: 600; }
 .ht-theme tr.ht-g:hover > td { filter: brightness(1.08); }
 .ht-theme tr.ht-g.lv0 > td { background: var(--ht-lv0); color: #fff; border-color: var(--ht-lv0); }
-.ht-theme tr.ht-g.lv1 > td { background: var(--ht-lv1); color: #fff; border-color: #7262e1; }
+.ht-theme tr.ht-g.lv1 > td { background: var(--ht-lv1); color: #fff; border-color: #DB4D4D; }
 .ht-theme tr.ht-g.lv2 > td { background: var(--ht-lv2); }
 .ht-theme tr.ht-g.lv3 > td { background: var(--ht-lv3); }
 .ht-theme tr.ht-g.lv4 > td { background: var(--ht-lv4); }

@@ -417,7 +417,7 @@ export default function App() {
       if (!item.esItemHoja) {
         const level = item.nivel;
         fontWeight = 'bold';
-        if (level <= 1) { bg = '#e0e7ff'; fg = '#312e81'; fontSize = '11.5px'; } // Indigo
+        if (level <= 1) { bg = '#FBE5E5'; fg = '#7A0000'; fontSize = '11.5px'; } // Indigo
         else if (level === 2) { bg = '#e0f2fe'; fg = '#0369a1'; fontSize = '11px'; } // Sky
         else if (level === 3) { bg = '#d1fae5'; fg = '#065f46'; fontSize = '10.5px'; } // Emerald
         else if (level === 4) { bg = '#fef3c7'; fg = '#92400e'; fontSize = '10.5px'; } // Amber
@@ -1620,7 +1620,7 @@ export default function App() {
               </h1>
               <div className="flex flex-col gap-1.5 mt-1">
                 {pc.fileData && pc.fileData.isCloud ? (
-                  <span className="px-2.5 py-0.5 bg-[#EEECFB] text-[#442dd7] rounded text-[11px] font-semibold border border-[#442dd7]/30 inline-flex items-center gap-1.5 self-start animate-fade-in">
+                  <span className="px-2.5 py-0.5 bg-[#FBE9E9] text-[#CD0000] rounded text-[11px] font-semibold border border-[#CD0000]/30 inline-flex items-center gap-1.5 self-start animate-fade-in">
                     ☁️ Datos en la Nube Activos
                   </span>
                 ) : pc.fileData && isAdmin ? (
@@ -1644,7 +1644,7 @@ export default function App() {
                   onClick={() => pc.switchSource('cloud')}
                   className={`px-3 py-1 font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
                     pc.sourceActive === 'cloud'
-                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      ? 'bg-[#CD0000] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A]'
                   }`}
                 >
@@ -1656,7 +1656,7 @@ export default function App() {
                   onClick={() => pc.switchSource('local')}
                   className={`px-3 py-1 font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
                     pc.sourceActive === 'local'
-                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      ? 'bg-[#CD0000] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A]'
                   }`}
                 >
@@ -1669,7 +1669,7 @@ export default function App() {
                 <button
                   id="btn-admin-sync"
                   onClick={() => setIsSyncMenuOpen(!isSyncMenuOpen)}
-                  className="px-3.5 py-1.5 text-xs bg-[#442dd7] hover:bg-[#3722b5] text-white font-semibold rounded-lg transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  className="px-3.5 py-1.5 text-xs bg-[#CD0000] hover:bg-[#A80000] text-white font-semibold rounded-lg transition-all shadow-xs flex items-center gap-2 cursor-pointer"
                   title="Panel de Sincronización"
                 >
                   <span>Cloud {isAdminUnlocked ? '🔓' : '🔒'}</span>
@@ -1777,7 +1777,7 @@ export default function App() {
                               await pc.publishPlanToCloud();
                               setIsSyncMenuOpen(false);
                             }}
-                            className={`w-full py-2 bg-[#5200ff] hover:bg-[#4300d6] active:bg-[#3400a3] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 ${pc.loadingProgress > 0 ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
+                            className={`w-full py-2 bg-[#CD0000] hover:bg-[#B30000] active:bg-[#990000] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 ${pc.loadingProgress > 0 ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
                             title="Sincronizar y publicar este plan en la nube para todos los usuarios"
                           >
                             <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
@@ -1941,10 +1941,10 @@ export default function App() {
                     <button
                       id="btn-crono-avance-partidas"
                       onClick={() => setShowAvancePartidasModal(true)}
-                      className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#442dd7] hover:bg-[#3722b5] text-white border-[#442dd7] shadow-xs transition-all active:scale-95 cursor-pointer"
+                      className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#CD0000] hover:bg-[#A80000] text-white border-[#CD0000] shadow-xs transition-all active:scale-95 cursor-pointer"
                       title="Abrir panel de Avance de Partidas Estructurales y Resumen Económico"
                     >
-                      <Layers className="w-3.5 h-3.5 text-[#EEECFB]" />
+                      <Layers className="w-3.5 h-3.5 text-[#FBE9E9]" />
                       <span>Avance Partidas</span>
                     </button>
 
@@ -1952,12 +1952,12 @@ export default function App() {
                       <button
                         id="btn-gemini-crono-intel"
                         onClick={() => setShowAIReportMenu(!showAIReportMenu)}
-                        className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#442dd7] hover:bg-[#3722b5] text-white border-[#442dd7] shadow-xs transition-all active:scale-95 cursor-pointer"
+                        className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#CD0000] hover:bg-[#A80000] text-white border-[#CD0000] shadow-xs transition-all active:scale-95 cursor-pointer"
                         title="Generar y consultar reporte de inteligencia artificial por área"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
                         <span>Inteligencia</span>
-                        <ChevronDown className={`w-3.5 h-3.5 text-[#EEECFB] transition-transform ${showAIReportMenu ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`w-3.5 h-3.5 text-[#FBE9E9] transition-transform ${showAIReportMenu ? 'rotate-180' : ''}`} />
                       </button>
 
                       {/* DROPDOWN MENU WITH 2 OPTIONS */}
@@ -1965,7 +1965,7 @@ export default function App() {
                         <div className="absolute left-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-[#D5DEE2] p-2 z-50 animate-fade-in space-y-1">
                           <div className="px-3 py-2 border-b border-[#D5DEE2] flex items-center justify-between text-[#14212A] font-bold text-xs">
                             <span className="flex items-center gap-2">
-                              <Sparkles className="w-4 h-4 text-[#442dd7]" />
+                              <Sparkles className="w-4 h-4 text-[#CD0000]" />
                               Reporte AI - Cronograma
                             </span>
                             {aiReportData && (
@@ -1983,11 +1983,11 @@ export default function App() {
                             }}
                             className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#F5F8F9] transition-colors flex items-start gap-2.5 group cursor-pointer"
                           >
-                            <div className="p-1.5 bg-[#EEECFB] rounded-lg text-[#442dd7] group-hover:bg-[#442dd7] group-hover:text-white transition-colors mt-0.5">
+                            <div className="p-1.5 bg-[#FBE9E9] rounded-lg text-[#CD0000] group-hover:bg-[#CD0000] group-hover:text-white transition-colors mt-0.5">
                               <FileText className="w-4 h-4" />
                             </div>
                             <div>
-                              <div className="text-xs font-bold text-[#14212A] group-hover:text-[#442dd7] transition-colors">
+                              <div className="text-xs font-bold text-[#14212A] group-hover:text-[#CD0000] transition-colors">
                                 1. Reporte
                               </div>
                               <div className="text-[11px] text-[#5A6A74] leading-tight">
@@ -2000,17 +2000,17 @@ export default function App() {
                           <button
                             onClick={handleGenerateAIReport}
                             className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer ${
-                              isAdmin ? 'hover:bg-[#EEECFB]/50' : 'hover:bg-[#F5F8F9] opacity-80'
+                              isAdmin ? 'hover:bg-[#FBE9E9]/50' : 'hover:bg-[#F5F8F9] opacity-80'
                             }`}
                           >
                             <div className={`p-1.5 rounded-lg transition-colors mt-0.5 ${
-                              isAdmin ? 'bg-[#EEECFB] text-[#442dd7] group-hover:bg-[#442dd7] group-hover:text-white' : 'bg-slate-100 text-slate-400'
+                              isAdmin ? 'bg-[#FBE9E9] text-[#CD0000] group-hover:bg-[#CD0000] group-hover:text-white' : 'bg-slate-100 text-slate-400'
                             }`}>
                               <RefreshCw className="w-4 h-4" />
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center justify-between">
-                                <span className={`text-xs font-bold transition-colors ${isAdmin ? 'text-[#14212A] group-hover:text-[#442dd7]' : 'text-[#5A6A74]'}`}>
+                                <span className={`text-xs font-bold transition-colors ${isAdmin ? 'text-[#14212A] group-hover:text-[#CD0000]' : 'text-[#5A6A74]'}`}>
                                   2. Actualizar
                                 </span>
                                 <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
@@ -2048,7 +2048,7 @@ export default function App() {
                     onClick={() => pc.setActiveTab(tab.id)}
                     className={`px-4 sm:px-5 py-2 text-xs rounded-lg transition-all font-semibold ${
                       pc.activeTab === tab.id
-                        ? 'bg-[#442dd7] text-white shadow-xs font-bold'
+                        ? 'bg-[#CD0000] text-white shadow-xs font-bold'
                         : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#EEF2F3]'
                     }`}
                   >
@@ -2065,7 +2065,7 @@ export default function App() {
                   onClick={() => pc.setActiveTab('master')}
                   className={`px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border transition-all cursor-pointer shadow-xs active:scale-95 ${
                     pc.activeTab === 'master'
-                      ? 'bg-[#442dd7] text-white border-[#442dd7] shadow-xs ring-2 ring-[#C5BDF7]'
+                      ? 'bg-[#CD0000] text-white border-[#CD0000] shadow-xs ring-2 ring-[#C5BDF7]'
                       : 'bg-white text-[#5A6A74] border-[#D5DEE2] hover:bg-[#F5F8F9] hover:text-[#14212A]'
                   }`}
                   title="Abrir panel CDO Master Plan"

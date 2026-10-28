@@ -284,12 +284,12 @@ export const CurvaAvanceEconomico: React.FC<CurvaAvanceEconomicoProps> = ({
             const yAPPrev = i > 0 ? 380 - ((meses[i-1].acumPlanificado / maxAcum) * 360) : yAP;
             return (
               <g key={i}>
-                <rect x={x - ancho} y={380 - aP} width={ancho} height={aP} fill="#6366f1" opacity="0.9" rx="2" />
+                <rect x={x - ancho} y={380 - aP} width={ancho} height={aP} fill="#D93030" opacity="0.9" rx="2" />
                 <rect x={x} y={380 - aE} width={ancho} height={aE} fill="#f43f5e" opacity="0.9" rx="2" />
                 {i > 0 && <line x1={xPrev} y1={yAEPrev} x2={x} y2={yAE} stroke="#10b981" strokeWidth="3" />}
                 <circle cx={x} cy={yAE} r="4.5" fill="#10b981" stroke="white" strokeWidth="1.5" />
-                {i > 0 && <line x1={xPrev} y1={yAPPrev} x2={x} y2={yAP} stroke="#4f46e5" strokeWidth="3" />}
-                <circle cx={x} cy={yAP} r="4.5" fill="#4f46e5" stroke="white" strokeWidth="1.5" />
+                {i > 0 && <line x1={xPrev} y1={yAPPrev} x2={x} y2={yAP} stroke="#CD0000" strokeWidth="3" />}
+                <circle cx={x} cy={yAP} r="4.5" fill="#CD0000" stroke="white" strokeWidth="1.5" />
                 <text x={x} y="405" fontSize="10" fill="#475569" fontWeight="600" textAnchor="middle" transform={`rotate(-45 ${x} 405)`}>{d.mes}</text>
               </g>
             );

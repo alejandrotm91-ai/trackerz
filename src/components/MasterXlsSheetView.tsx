@@ -1078,7 +1078,7 @@ export function MasterXlsSheetView({
             </div>
             <div className="bg-white border border-[#D5DEE2] rounded-lg px-2.5 py-1">
               <span className="text-[10px] text-[#5A6A74] uppercase block font-sans">% Avance</span>
-              <span className="font-bold text-[#442dd7]">{totals.pctAvanceEconomico.toFixed(1)}%</span>
+              <span className="font-bold text-[#CD0000]">{totals.pctAvanceEconomico.toFixed(1)}%</span>
             </div>
           </div>
 
@@ -1178,7 +1178,7 @@ export function MasterXlsSheetView({
                 onClick={() => setViewMode('qty')}
                 className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer select-none ${
                   viewMode === 'qty'
-                    ? 'bg-[#442dd7] text-white shadow-xs font-bold'
+                    ? 'bg-[#CD0000] text-white shadow-xs font-bold'
                     : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#EEF2F3]'
                 }`}
                 title="Mostrar cantidades físicas de obra"
@@ -1190,7 +1190,7 @@ export function MasterXlsSheetView({
                 onClick={() => setViewMode('econ')}
                 className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer select-none ${
                   viewMode === 'econ'
-                    ? 'bg-[#442dd7] text-white shadow-xs font-bold'
+                    ? 'bg-[#CD0000] text-white shadow-xs font-bold'
                     : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#EEF2F3]'
                 }`}
                 title="Mostrar avance económico / Venta (V = Valor)"
@@ -1202,7 +1202,7 @@ export function MasterXlsSheetView({
                 onClick={() => setViewMode('dual')}
                 className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer select-none ${
                   viewMode === 'dual'
-                    ? 'bg-[#442dd7] text-white shadow-xs font-bold'
+                    ? 'bg-[#CD0000] text-white shadow-xs font-bold'
                     : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#EEF2F3]'
                 }`}
                 title="Dual: Cantidad física (Q) y valor económico (V)"

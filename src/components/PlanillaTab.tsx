@@ -227,7 +227,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
               <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none">
                 Monto Contratado
               </span>
-              <div className="p-1.5 bg-[#EEECFB] text-[#442dd7] rounded-lg flex-shrink-0">
+              <div className="p-1.5 bg-[#FBE9E9] text-[#CD0000] rounded-lg flex-shrink-0">
                 <CircleDollarSign className="w-3.5 h-3.5" />
               </div>
             </div>
@@ -261,12 +261,12 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
               <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none flex items-center gap-1.5">
                 Avance Período
               </span>
-              <div className="p-1.5 bg-[#EEECFB] text-[#442dd7] rounded-lg flex-shrink-0">
+              <div className="p-1.5 bg-[#FBE9E9] text-[#CD0000] rounded-lg flex-shrink-0">
                 <Calendar className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-1.5">
-              <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#442dd7] tracking-tight leading-tight">
+              <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#CD0000] tracking-tight leading-tight">
                 {ctFmt(T.cert)}
               </div>
             </div>
@@ -494,7 +494,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
         const fallbackColores = [
           '#1e40af', '#3b82f6', '#06b6d4', '#0ea5e9', 
           '#10b981', '#84cc16', '#eab308', '#f97316', 
-          '#ef4444', '#ec4899', '#a855f7', '#6366f1'
+          '#ef4444', '#ec4899', '#a855f7', '#D93030'
         ];
 
         const rows = Object.values(sumasPorTipo)

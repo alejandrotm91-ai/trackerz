@@ -2898,24 +2898,24 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                     {/* Component Header Accordion Bar styled in #4f39f6 */}
                     <div
                       onClick={() => toggleComponent(compGroup.componente)}
-                      className="bg-[#ddd9f8] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#d2cdf6] transition-colors select-none"
+                      className="bg-[#F8DCDC] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#F4CFCF] transition-colors select-none"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-1 bg-white text-[#442dd7] rounded-lg border border-[#c7c0f3] shrink-0">
-                          <Building2 className="w-4 h-4 text-[#442dd7]" />
+                        <div className="p-1 bg-white text-[#CD0000] rounded-lg border border-[#F2BFBF] shrink-0">
+                          <Building2 className="w-4 h-4 text-[#CD0000]" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-['Barlow_Condensed'] font-semibold text-[13px] tracking-wider text-[#14212A] uppercase">
                               Componente: {compGroup.componente}
                             </h4>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                               {compGroup.caps.length} {compGroup.caps.length === 1 ? 'Capítulo CAP' : 'Capítulos CAP'}
                             </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                               {compGroup.totalPackagesCount} {compGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
                             </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                               {compGroup.totalActivitiesCount} actividades
                             </span>
                           </div>
@@ -2924,7 +2924,7 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
 
                       <div className="flex items-center gap-3">
                         {/* 4-week active presence mini pills */}
-                        <div className="hidden sm:flex items-center gap-1 bg-white p-1 rounded-lg border border-[#c7c0f3] text-[10px] font-mono">
+                        <div className="hidden sm:flex items-center gap-1 bg-white p-1 rounded-lg border border-[#F2BFBF] text-[10px] font-mono">
                           {fourWeeks.map((w, idx) => (
                             <span
                               key={w.weekNum}
@@ -2970,25 +2970,25 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                     {/* Proceso Header Accordion Bar */}
                     <div
                       onClick={() => toggleProceso(procesoGroup.proceso)}
-                      className="bg-[#eeecfb] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#e4e1f9] transition-colors select-none"
+                      className="bg-[#FBE9E9] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#e4e1f9] transition-colors select-none"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-1 bg-white text-[#442dd7] rounded-lg border border-[#c7c0f3] shrink-0">
-                          <FolderKanban className="w-4 h-4 text-[#442dd7]" />
+                        <div className="p-1 bg-white text-[#CD0000] rounded-lg border border-[#F2BFBF] shrink-0">
+                          <FolderKanban className="w-4 h-4 text-[#CD0000]" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-['Barlow_Condensed'] font-semibold text-[13px] tracking-wider text-[#14212A] uppercase flex items-center gap-1.5">
                               <span>Proceso (Col. AF):</span>
-                              <span className="text-[#442dd7]">{procesoGroup.proceso}</span>
+                              <span className="text-[#CD0000]">{procesoGroup.proceso}</span>
                             </h4>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                               {procesoGroup.caps.length} {procesoGroup.caps.length === 1 ? 'Capítulo CAP' : 'Capítulos CAP'}
                             </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                               {procesoGroup.totalPackagesCount} {procesoGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
                             </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                               {procesoGroup.totalActivitiesCount} actividades
                             </span>
                           </div>
@@ -3043,24 +3043,24 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                     {/* Component Header Accordion Bar styled in #4f39f6 */}
                     <div
                       onClick={() => toggleComponent(compGroup.componente)}
-                      className="bg-[#ddd9f8] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#d2cdf6] transition-colors select-none"
+                      className="bg-[#F8DCDC] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#F4CFCF] transition-colors select-none"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-1 bg-white text-[#442dd7] rounded-lg border border-[#c7c0f3] shrink-0">
-                          <Building2 className="w-4 h-4 text-[#442dd7]" />
+                        <div className="p-1 bg-white text-[#CD0000] rounded-lg border border-[#F2BFBF] shrink-0">
+                          <Building2 className="w-4 h-4 text-[#CD0000]" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-['Barlow_Condensed'] font-semibold text-[13px] tracking-wider text-[#14212A] uppercase">
                               Componente: {compGroup.componente}
                             </h4>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                               {compGroup.procesos.length} {compGroup.procesos.length === 1 ? 'Proceso' : 'Procesos'}
                             </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                               {compGroup.totalPackagesCount} {compGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
                             </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                               {compGroup.totalActivitiesCount} actividades
                             </span>
                           </div>
@@ -3068,7 +3068,7 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <div className="hidden sm:flex items-center gap-1 bg-white p-1 rounded-lg border border-[#c7c0f3] text-[10px] font-mono">
+                        <div className="hidden sm:flex items-center gap-1 bg-white p-1 rounded-lg border border-[#F2BFBF] text-[10px] font-mono">
                           {fourWeeks.map((w, idx) => (
                             <span
                               key={w.weekNum}
@@ -3102,10 +3102,10 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                               {/* Sub-header for Proceso within Component */}
                               <div
                                 onClick={() => toggleProceso(procKey)}
-                                className="bg-[#eeecfb] hover:bg-[#e4e1f9] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2 cursor-pointer transition-colors select-none border-b border-[#ddd9f8]"
+                                className="bg-[#FBE9E9] hover:bg-[#e4e1f9] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2 cursor-pointer transition-colors select-none border-b border-[#F8DCDC]"
                               >
                                 <div className="flex items-center gap-2.5">
-                                  <div className="p-1 bg-white text-[#442dd7] rounded-md border border-[#c7c0f3] shrink-0">
+                                  <div className="p-1 bg-white text-[#CD0000] rounded-md border border-[#F2BFBF] shrink-0">
                                     <FolderKanban className="w-3.5 h-3.5" />
                                   </div>
                                   <div className="flex items-center gap-2 flex-wrap">
@@ -3115,13 +3115,13 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                                     <h5 className="font-semibold text-xs tracking-tight text-[#14212A]">
                                       {pGroup.proceso}
                                     </h5>
-                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                                       {pGroup.caps.length} {pGroup.caps.length === 1 ? 'Capítulo CAP' : 'Capítulos CAP'}
                                     </span>
-                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                                       {pGroup.totalPackagesCount} {pGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
                                     </span>
-                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#c7c0f3]">
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
                                       {pGroup.totalActivitiesCount} act.
                                     </span>
                                   </div>

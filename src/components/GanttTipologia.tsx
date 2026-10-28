@@ -210,7 +210,7 @@ export const GanttTipologia: React.FC<GanttTipologiaProps> = ({
           <div 
             id="gantt-tip-all"
             onClick={(e) => handleTipo('all', e)}
-            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg border cursor-pointer text-[9px] select-none ${ganttTipo === 'all' ? 'bg-[#EEECFB] border-[#442dd7]/40 text-[#442dd7] ring-2 ring-offset-1 ring-[#442dd7]' : 'bg-[#F5F8F9] border-[#D5DEE2] hover:bg-[#EEF2F3]'}`}
+            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg border cursor-pointer text-[9px] select-none ${ganttTipo === 'all' ? 'bg-[#FBE9E9] border-[#CD0000]/40 text-[#CD0000] ring-2 ring-offset-1 ring-[#CD0000]' : 'bg-[#F5F8F9] border-[#D5DEE2] hover:bg-[#EEF2F3]'}`}
           >
             <span className="font-semibold text-[#14212A]">Todos</span>
             <span className="font-bold font-mono text-[#14212A]">{total.toLocaleString()}</span>
@@ -223,7 +223,7 @@ export const GanttTipologia: React.FC<GanttTipologiaProps> = ({
                 key={tipo} 
                 id={`gantt-tip-${tipo.replace(/[^a-zA-Z0-9]/g, '-')}`}
                 onClick={(e) => handleTipo(tipo, e)}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg border cursor-pointer text-[9px] select-none ${active ? `${cfg.bg} ${cfg.border} ring-2 ring-offset-1 ring-[#442dd7] shadow-xs` : 'bg-white border-[#D5DEE2] hover:bg-[#F5F8F9]'}`}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg border cursor-pointer text-[9px] select-none ${active ? `${cfg.bg} ${cfg.border} ring-2 ring-offset-1 ring-[#CD0000] shadow-xs` : 'bg-white border-[#D5DEE2] hover:bg-[#F5F8F9]'}`}
               >
                 <span className={`w-2 h-2 rounded-sm flex-shrink-0 ${cfg.bar}`} />
                 <span className={`font-semibold ${active ? cfg.text : 'text-[#5A6A74]'} truncate max-w-24`}>{lbl}</span>

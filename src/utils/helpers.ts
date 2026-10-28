@@ -9,7 +9,7 @@ export const CT_TIPO_COLORS = [
   {bg:'bg-yellow-50', border:'border-yellow-300', text:'text-yellow-800', bar:'bg-yellow-500' },
   {bg:'bg-green-50',  border:'border-green-300',  text:'text-green-800',  bar:'bg-green-500'  },
   {bg:'bg-red-50',    border:'border-red-300',    text:'text-red-800',    bar:'bg-red-500'    },
-  {bg:'bg-indigo-50', border:'border-indigo-300', text:'text-indigo-800', bar:'bg-indigo-500' },
+  {bg:'bg-sky-50',    border:'border-sky-300',    text:'text-sky-800',    bar:'bg-sky-500'    },
   {bg:'bg-pink-50',   border:'border-pink-300',   text:'text-pink-800',   bar:'bg-pink-500'   },
   {bg:'bg-orange-50', border:'border-orange-300', text:'text-orange-800', bar:'bg-orange-500' },
   {bg:'bg-teal-50',   border:'border-teal-300',   text:'text-teal-800',   bar:'bg-teal-500'   },

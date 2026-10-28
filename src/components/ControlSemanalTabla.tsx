@@ -50,7 +50,7 @@ export const HIERARCHY_DIMENSIONS: Record<HierarchyDimensionId, HierarchyDimensi
     shortLabel: 'Tipología',
     icon: '🏷️',
     description: 'Tipología de edificación o lote',
-    headerColorClass: '#312e81'
+    headerColorClass: '#7A0000'
   },
   grupo: {
     id: 'grupo',
@@ -2311,7 +2311,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       const pctStr = `${pctAvance.toFixed(2)}%`;
       const isDarkRow = fg.toLowerCase() === '#ffffff';
       const desvColor = cellStyles?.desvColor || (isDarkRow ? (desv < 0 ? '#fca5a5' : '#86efac') : (desv < 0 ? '#dc2626' : '#15803d'));
-      const planColor = cellStyles?.vPlanColor || (isDarkRow ? '#c7d2fe' : '#4338ca');
+      const planColor = cellStyles?.vPlanColor || (isDarkRow ? '#F6C9C9' : '#A80000');
       const ejecColor = cellStyles?.vEjecColor || (isDarkRow ? '#cbd5e1' : '#475569');
       const contratoColor = cellStyles?.vContratoColor || (isDarkRow ? '#ffffff' : fg);
       const sobreColor = cellStyles?.sobreEjecColor || (isDarkRow ? '#fde68a' : '#b45309');
@@ -2417,7 +2417,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
               capVal,
               sobreEjecucion,
               {
-                vPlanColor: '#4338ca',
+                vPlanColor: '#A80000',
                 vEjecColor: '#64748b',
                 vContratoColor: '#475569',
                 sobreEjecColor: '#b45309',
@@ -2467,7 +2467,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       dynamicHierarchyTree.forEach(exportDynamicNode);
     }
 
-    // TOTAL PROYECTO ROW (Bottom) - Matches table tfoot (bg-[#442dd7] #1e1b4b, text-white)
+    // TOTAL PROYECTO ROW (Bottom) - Matches table tfoot (bg-[#CD0000] #1e1b4b, text-white)
     addRowHtml(
       'TOTAL FILTRADO',
       '',
@@ -2486,11 +2486,11 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       '',
       globalTot.sobreEjec,
       {
-        vPlanColor: '#c7d2fe',
+        vPlanColor: '#F6C9C9',
         vEjecColor: '#cbd5e1',
         vContratoColor: '#ffffff',
         sobreEjecColor: '#fde68a',
-        borderColor: '#312e81',
+        borderColor: '#7A0000',
         labelColor: '#ffffff'
       }
     );
@@ -2502,18 +2502,18 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       <table style="border-collapse: collapse; font-family: Calibri, Arial, sans-serif; font-size: 11px; color: #1e293b; width: 100%;">
         <thead>
           <tr style="background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: left;">
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">WBS / Nivel Jerárquico</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">Activity ID</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">CAP</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">Descripción</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: center;">BL Finish</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">V. Contrato</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #c7d2fe; font-weight: bold; text-align: right;">V.Plan</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #fecdd3; font-weight: bold; text-align: right;">V.Ejec</th>
-            ${isEVExportActive ? '<th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #fde68a; font-weight: bold; text-align: right;">Sobre Ejecución</th>' : ''}
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">Variación</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">% Avance</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: center;">Check Set</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">WBS / Nivel Jerárquico</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">Activity ID</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">CAP</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">Descripción</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: center;">BL Finish</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">V. Contrato</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #F6C9C9; font-weight: bold; text-align: right;">V.Plan</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #fecdd3; font-weight: bold; text-align: right;">V.Ejec</th>
+            ${isEVExportActive ? '<th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #fde68a; font-weight: bold; text-align: right;">Sobre Ejecución</th>' : ''}
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">Variación</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">% Avance</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: center;">Check Set</th>
           </tr>
         </thead>
         <tbody>
@@ -4738,9 +4738,9 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-sm">
             <table className="min-w-full text-xs border-collapse">
               <thead>
-                <tr className="bg-[#442dd7] text-white font-extrabold text-[11px] text-left whitespace-nowrap">
+                <tr className="bg-[#CD0000] text-white font-extrabold text-[11px] text-left whitespace-nowrap">
                   <th 
-                    className={`border-b border-[#3722b5] cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap ${
+                    className={`border-b border-[#A80000] cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap ${
                       soloTablaYSemana 
                         ? 'w-1 whitespace-nowrap px-2 py-2.5 text-left' 
                         : 'w-[125px] max-w-[125px] px-1 py-2.5 text-left'
@@ -4764,7 +4764,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   {!soloTablaYSemana && (
                     <>
                       <th 
-                        className="px-2 py-2.5 border-b border-[#3722b5] cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                        className="px-2 py-2.5 border-b border-[#A80000] cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                         onClick={() => handleToggleSort('activityId')}
                         title="Clic para cambiar el orden por Activity ID"
                       >
@@ -4782,7 +4782,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         </div>
                       </th>
                       <th 
-                        className="px-2 py-2.5 border-b border-[#3722b5] min-w-[130px] max-w-[280px] cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                        className="px-2 py-2.5 border-b border-[#A80000] min-w-[130px] max-w-[280px] cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                         onClick={() => handleToggleSort('descripcion')}
                         title="Clic para cambiar el orden por Descripción"
                       >
@@ -4800,7 +4800,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         </div>
                       </th>
                       <th 
-                        className="px-2 py-2.5 border-b border-[#3722b5] text-center cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                        className="px-2 py-2.5 border-b border-[#A80000] text-center cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                         onClick={() => handleToggleSort('blFinish')}
                         title="Clic para cambiar el orden por BL Finish"
                       >
@@ -4820,7 +4820,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </>
                   )}
                   <th 
-                    className="px-2 py-2.5 border-b border-[#3722b5] text-right cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                    className="px-2 py-2.5 border-b border-[#A80000] text-right cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('contrato')}
                     title={modoEV ? "Clic para ordenar por V. Contrato (valores abreviados en Millones M)" : "Clic para cambiar el orden por V. Contrato"}
                   >
@@ -4838,7 +4838,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </div>
                   </th>
                   <th 
-                    className="px-2 py-2.5 border-b border-[#3722b5] text-right text-indigo-200 cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                    className="px-2 py-2.5 border-b border-[#A80000] text-right text-indigo-200 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('plan')}
                     title="Clic para cambiar el orden por V.Plan"
                   >
@@ -4856,7 +4856,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </div>
                   </th>
                   <th 
-                    className="px-2 py-2.5 border-b border-[#3722b5] text-right text-rose-200 cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                    className="px-2 py-2.5 border-b border-[#A80000] text-right text-rose-200 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('ejec')}
                     title="Clic para cambiar el orden por V.Ejec"
                   >
@@ -4875,7 +4875,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   </th>
                   {!soloTablaYSemana && modoEV && (
                     <th 
-                      className="px-2 py-2.5 border-b border-[#3722b5] text-right text-amber-300 cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                      className="px-2 py-2.5 border-b border-[#A80000] text-right text-amber-300 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                       onClick={() => handleToggleSort('sobreEjec')}
                       title="Clic para cambiar el orden por Sobre Ejecución"
                     >
@@ -4895,7 +4895,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   )}
                   {soloTablaYSemana && (
                     <th 
-                      className="px-2 py-2.5 border-b border-[#3722b5] text-right text-indigo-300 cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                      className="px-2 py-2.5 border-b border-[#A80000] text-right text-indigo-300 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                       onClick={() => handleToggleSort('pctPlan')}
                       title="Clic para cambiar el orden por % Plan"
                     >
@@ -4915,7 +4915,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   )}
                   {soloTablaYSemana && (
                     <th 
-                      className="px-2 py-2.5 border-b border-[#3722b5] text-right text-rose-300 cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                      className="px-2 py-2.5 border-b border-[#A80000] text-right text-rose-300 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                       onClick={() => handleToggleSort('pctEjec')}
                       title="Clic para cambiar el orden por % Ejec"
                     >
@@ -4934,7 +4934,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </th>
                   )}
                   <th 
-                    className="px-2 py-2.5 border-b border-[#3722b5] text-right cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                    className="px-2 py-2.5 border-b border-[#A80000] text-right cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('variacion')}
                     title={soloTablaYSemana ? "Clic para cambiar el orden por % Variación" : "Clic para cambiar el orden por Variación"}
                   >
@@ -4954,7 +4954,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   {!soloTablaYSemana && (
                     <>
                       <th 
-                        className="px-2 py-2.5 border-b border-[#3722b5] text-right cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                        className="px-2 py-2.5 border-b border-[#A80000] text-right cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                         onClick={() => handleToggleSort('pctAvance')}
                         title="Clic para cambiar el orden por % Avance"
                       >
@@ -4972,7 +4972,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         </div>
                       </th>
                       <th 
-                        className="px-2 py-2.5 border-b border-[#3722b5] text-center cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                        className="px-2 py-2.5 border-b border-[#A80000] text-center cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                         onClick={() => handleToggleSort('checkSet')}
                         title="Clic para cambiar el orden por Check Set"
                       >
@@ -5074,10 +5074,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   )
                 )}
               </tbody>
-              <tfoot className="bg-[#442dd7] text-white font-extrabold text-xs shadow-md border-t-2 border-indigo-700">
+              <tfoot className="bg-[#CD0000] text-white font-extrabold text-xs shadow-md border-t-2 border-indigo-700">
                 <tr className="ht-g lv0">
                   <td 
-                    className={`border-t border-[#3722b5] overflow-hidden ${
+                    className={`border-t border-[#A80000] overflow-hidden ${
                       soloTablaYSemana 
                         ? 'w-1 whitespace-nowrap px-2 py-2.5' 
                         : 'px-2 py-2.5'
@@ -5089,28 +5089,28 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </div>
                   </td>
                   {!soloTablaYSemana && (
-                    <td className="px-2 py-2.5 border-t border-[#3722b5] text-center font-mono text-[10px] text-indigo-200">
+                    <td className="px-2 py-2.5 border-t border-[#A80000] text-center font-mono text-[10px] text-indigo-200">
                       {fmtDateVal(globalTot.maxBlFinish)}
                     </td>
                   )}
                   {soloTablaYSemana ? (
                     <>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black" title={`Monto Total: ${fmtMoney(globalTot.contrato)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black" title={`Monto Total: ${fmtMoney(globalTot.contrato)}`}>
                         {fmtMillions(globalTot.contrato)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-indigo-200" title={`Monto Plan: ${fmtMoney(globalTot.plan)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-indigo-200" title={`Monto Plan: ${fmtMoney(globalTot.plan)}`}>
                         {fmtMillions(globalTot.plan)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-rose-200" title={`Monto Ejec: ${fmtMoney(globalTot.ejec)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-rose-200" title={`Monto Ejec: ${fmtMoney(globalTot.ejec)}`}>
                         {fmtMillions(globalTot.ejec)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-indigo-300" title={`Total % Plan sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-indigo-300" title={`Total % Plan sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
                         {totalVContratoUnfiltered > 0 ? `${((globalTot.plan / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-rose-300" title={`Total % Ejec sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-rose-300" title={`Total % Ejec sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
                         {totalVContratoUnfiltered > 0 ? `${((globalTot.ejec / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
                       </td>
-                      <td className={`px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`} title={`Monto Variación: ${fmtDNum(globalTot.desv)} | Total % Variación: ${totalVContratoUnfiltered > 0 ? (((globalTot.ejec - globalTot.plan) / totalVContratoUnfiltered) * 100).toFixed(4) : '0.0000'}%`}>
+                      <td className={`px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`} title={`Monto Variación: ${fmtDNum(globalTot.desv)} | Total % Variación: ${totalVContratoUnfiltered > 0 ? (((globalTot.ejec - globalTot.plan) / totalVContratoUnfiltered) * 100).toFixed(4) : '0.0000'}%`}>
                         {(() => {
                           const totalPctPlan = totalVContratoUnfiltered > 0 ? (globalTot.plan / totalVContratoUnfiltered) * 100 : 0;
                           const totalPctEjec = totalVContratoUnfiltered > 0 ? (globalTot.ejec / totalVContratoUnfiltered) * 100 : 0;
@@ -5122,29 +5122,29 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   ) : (
                     <>
                       <td 
-                        className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono whitespace-nowrap"
+                        className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono whitespace-nowrap"
                         title={`Monto Total Contrato: ${fmtMoney(globalTot.contrato)}`}
                       >
                         {modoEV ? fmtMillions(globalTot.contrato) : `${fmtMoney(globalTot.contrato)}`}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono text-indigo-200">
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono text-indigo-200">
                         {fmtMoney(globalTot.plan)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono text-slate-300">
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono text-slate-300">
                         {fmtMoney(globalTot.ejec)}
                       </td>
                       {modoEV && (
-                        <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono text-amber-300 font-bold whitespace-nowrap" title={`Monto Sobre Ejecución: ${fmtMoney(globalTot.sobreEjec)}`}>
+                        <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono text-amber-300 font-bold whitespace-nowrap" title={`Monto Sobre Ejecución: ${fmtMoney(globalTot.sobreEjec)}`}>
                           {fmtMoney(globalTot.sobreEjec)}
                         </td>
                       )}
-                      <td className={`px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                      <td className={`px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                         {fmtDNum(globalTot.desv)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono">
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono">
                         {globalTot.plan > 0 ? `${((globalTot.ejec / globalTot.plan) * 100).toFixed(2)}%` : '—'}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-center font-mono">
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-center font-mono">
                         {(() => {
                           const csTot = getAccumulatedCheckSet(leafItems);
                           return (

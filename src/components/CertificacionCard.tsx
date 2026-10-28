@@ -86,8 +86,8 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
     >
       {showHeader && (
         <div className="flex items-center gap-3 border-b border-[#D5DEE2] pb-3">
-          <div className="w-9 h-9 bg-[#EEECFB] rounded-lg flex items-center justify-center text-[#442dd7]">
-            <FileSpreadsheet className="w-4.5 h-4.5 text-[#442dd7]" />
+          <div className="w-9 h-9 bg-[#FBE9E9] rounded-lg flex items-center justify-center text-[#CD0000]">
+            <FileSpreadsheet className="w-4.5 h-4.5 text-[#CD0000]" />
           </div>
           <div>
             <h2 className="text-base font-['Barlow_Condensed'] font-semibold text-[#14212A] tracking-wide uppercase">Certificación</h2>
@@ -110,7 +110,7 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
                     <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none">
                       Monto Contratado
                     </span>
-                    <div className="p-1.5 bg-[#EEECFB] text-[#442dd7] rounded-lg flex-shrink-0">
+                    <div className="p-1.5 bg-[#FBE9E9] text-[#CD0000] rounded-lg flex-shrink-0">
                       <CircleDollarSign className="w-3.5 h-3.5" />
                     </div>
                   </div>
@@ -144,12 +144,12 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
                     <span className="text-[11px] font-bold text-[#5A6A74] uppercase tracking-wider leading-none flex items-center gap-1.5">
                       Avance Período
                     </span>
-                    <div className="p-1.5 bg-[#EEECFB] text-[#442dd7] rounded-lg flex-shrink-0">
+                    <div className="p-1.5 bg-[#FBE9E9] text-[#CD0000] rounded-lg flex-shrink-0">
                       <Calendar className="w-3.5 h-3.5" />
                     </div>
                   </div>
                   <div className="mt-1.5">
-                    <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#442dd7] tracking-tight leading-tight">
+                    <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#CD0000] tracking-tight leading-tight">
                       {ctFmt(T.cert)}
                     </div>
                   </div>

@@ -22,7 +22,7 @@ export const ClaveAdminDialog: React.FC<ClaveAdminDialogProps> = ({ abierto, err
         className="w-full max-w-sm bg-white rounded-2xl border border-[#D5DEE2] shadow-2xl p-5 space-y-3"
       >
         <div className="flex items-center gap-2">
-          <div className="p-2 rounded-xl bg-[#EEECFB] text-[#442dd7]"><Lock className="w-4 h-4" /></div>
+          <div className="p-2 rounded-xl bg-[#FBE9E9] text-[#CD0000]"><Lock className="w-4 h-4" /></div>
           <div>
             <h3 className="text-sm font-semibold text-[#14212A]">Confirmar contraseña</h3>
             <p className="text-[12px] text-[#5A6A74]">Para generar o actualizar el reporte de Inteligencia.</p>
@@ -35,12 +35,12 @@ export const ClaveAdminDialog: React.FC<ClaveAdminDialogProps> = ({ abierto, err
           onChange={e => setClave(e.target.value)}
           placeholder="Contraseña del administrador"
           autoComplete="current-password"
-          className="w-full px-3 py-2 text-sm border border-[#D5DEE2] rounded-xl outline-none focus:border-[#442dd7]"
+          className="w-full px-3 py-2 text-sm border border-[#D5DEE2] rounded-xl outline-none focus:border-[#CD0000]"
         />
         {error && <p className="text-[12px] text-red-600">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onCancelar} className="px-3 py-1.5 text-xs rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">Cancelar</button>
-          <button type="submit" disabled={!clave || verificando} className="px-3 py-1.5 text-xs rounded-xl bg-[#442dd7] hover:bg-[#3722b5] text-white disabled:opacity-50 cursor-pointer">
+          <button type="submit" disabled={!clave || verificando} className="px-3 py-1.5 text-xs rounded-xl bg-[#CD0000] hover:bg-[#A80000] text-white disabled:opacity-50 cursor-pointer">
             {verificando ? 'Verificando…' : 'Generar reporte'}
           </button>
         </div>

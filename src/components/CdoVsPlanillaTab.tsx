@@ -94,7 +94,7 @@ const NIVELES = [
   { fila: 'bg-[#EAF6EE] hover:bg-[#DDF0E4] font-semibold', borde: 'shadow-[inset_3px_0_0_#2B7F52]', chevron: 'text-[#2B7F52]', badge: 'bg-white text-[#2B7F52] border border-[#CFE8D7]' },
   { fila: 'bg-[#EAF2FB] hover:bg-[#DCE9F7] font-semibold', borde: 'shadow-[inset_3px_0_0_#2C67A6]', chevron: 'text-[#2C67A6]', badge: 'bg-white text-[#2C67A6] border border-[#CCDDF1]' },
   { fila: 'bg-[#FBF4E6] hover:bg-[#F6EBD3] font-semibold', borde: 'shadow-[inset_3px_0_0_#A86B12]', chevron: 'text-[#A86B12]', badge: 'bg-white text-[#A86B12] border border-[#EEDDBA]' },
-  { fila: 'bg-[#F1EFFC] hover:bg-[#E6E2FA] font-semibold', borde: 'shadow-[inset_3px_0_0_#442dd7]', chevron: 'text-[#442dd7]', badge: 'bg-white text-[#442dd7] border border-[#D9D3F6]' },
+  { fila: 'bg-[#FDF1F1] hover:bg-[#F9E3E3] font-semibold', borde: 'shadow-[inset_3px_0_0_#CD0000]', chevron: 'text-[#CD0000]', badge: 'bg-white text-[#CD0000] border border-[#F3D2D2]' },
   { fila: 'bg-[#E8F6F5] hover:bg-[#D9EFEE] font-semibold', borde: 'shadow-[inset_3px_0_0_#0F766E]', chevron: 'text-[#0F766E]', badge: 'bg-white text-[#0F766E] border border-[#C6E4E2]' },
   { fila: 'bg-[#FBEFF2] hover:bg-[#F6E1E7] font-semibold', borde: 'shadow-[inset_3px_0_0_#B4235A]', chevron: 'text-[#B4235A]', badge: 'bg-white text-[#B4235A] border border-[#EDCDD7]' },
 ];
@@ -567,7 +567,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
                 <div className="flex rounded-lg border border-gray-200 overflow-hidden text-[12px]">
                   {(['presupuesto', 'avance'] as const).map(m => (
                     <button key={m} type="button" onClick={() => setModo(m)}
-                      className={`px-3 py-1.5 cursor-pointer ${modo === m ? 'bg-[#442dd7] text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
+                      className={`px-3 py-1.5 cursor-pointer ${modo === m ? 'bg-[#CD0000] text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
                       {MODO_TXT[m].titulo}
                     </button>
                   ))}
@@ -738,7 +738,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
                     )}
                   </div>
                   <button type="button" onClick={() => setBusqueda(busquedaTmp)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#442dd7] text-white text-[12px] cursor-pointer">
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#CD0000] text-white text-[12px] cursor-pointer">
                     <Search className="w-3.5 h-3.5" /> Buscar
                   </button>
                 </div>
@@ -779,7 +779,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
                           <tr>
                             <td colSpan={NCOLS} className="text-center !py-3">
                               <span className="text-gray-500 mr-3">Mostrando {pagina * POR_PAGINA} de {filasPlanas.length} partidas</span>
-                              <button type="button" onClick={() => setPagina(p => p + 1)} className="px-3 py-1 rounded bg-[#442dd7] text-white text-[11px] cursor-pointer mr-2">Cargar más</button>
+                              <button type="button" onClick={() => setPagina(p => p + 1)} className="px-3 py-1 rounded bg-[#CD0000] text-white text-[11px] cursor-pointer mr-2">Cargar más</button>
                               <button type="button" onClick={() => setPagina(Math.ceil(filasPlanas.length / POR_PAGINA))} className="px-3 py-1 rounded border border-gray-300 text-[11px] cursor-pointer">Ver todas</button>
                             </td>
                           </tr>
