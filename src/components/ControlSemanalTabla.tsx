@@ -216,34 +216,6 @@ const LEVEL_STYLES = [
     vEjec: 'text-green-700',
     vSobre: 'text-amber-700'
   },
-  // lavanda
-  {
-    bg: 'bg-[#F1EFFC] hover:bg-[#E6E2FA] text-[#14212A] font-semibold border-b border-[#D9D3F6]',
-    accent: 'shadow-[inset_3px_0_0_#442dd7]',
-    text: 'text-[#14212A]',
-    badge: 'bg-white text-[#442dd7] border border-[#D9D3F6]',
-    subText: 'text-[#5A6A74]',
-    chevron: 'text-[#442dd7]',
-    dateText: 'text-[#5A6A74]',
-    vContrato: 'text-[#14212A] font-semibold',
-    vPlan: 'text-slate-700',
-    vEjec: 'text-green-700',
-    vSobre: 'text-amber-700'
-  },
-  // turquesa
-  {
-    bg: 'bg-[#E8F6F5] hover:bg-[#D9EFEE] text-[#14212A] font-semibold border-b border-[#C6E4E2]',
-    accent: 'shadow-[inset_3px_0_0_#0F766E]',
-    text: 'text-[#14212A]',
-    badge: 'bg-white text-[#0F766E] border border-[#C6E4E2]',
-    subText: 'text-[#5A6A74]',
-    chevron: 'text-[#0F766E]',
-    dateText: 'text-[#5A6A74]',
-    vContrato: 'text-[#14212A] font-semibold',
-    vPlan: 'text-slate-700',
-    vEjec: 'text-green-700',
-    vSobre: 'text-amber-700'
-  },
   // rosa claro
   {
     bg: 'bg-[#FBEFF2] hover:bg-[#F6E1E7] text-[#14212A] font-semibold border-b border-[#EDCDD7]',
@@ -257,6 +229,34 @@ const LEVEL_STYLES = [
     vPlan: 'text-slate-700',
     vEjec: 'text-green-700',
     vSobre: 'text-amber-700'
+  },
+  // amarillo claro
+  {
+    bg: 'bg-[#FEF8D8] hover:bg-[#FCF1BC] text-[#14212A] font-semibold border-b border-[#F2E39A]',
+    accent: 'shadow-[inset_3px_0_0_#9A7B00]',
+    text: 'text-[#14212A]',
+    badge: 'bg-white text-[#9A7B00] border border-[#F2E39A]',
+    subText: 'text-[#5A6A74]',
+    chevron: 'text-[#9A7B00]',
+    dateText: 'text-[#5A6A74]',
+    vContrato: 'text-[#14212A] font-semibold',
+    vPlan: 'text-slate-700',
+    vEjec: 'text-green-700',
+    vSobre: 'text-amber-700'
+  },
+  // coral claro
+  {
+    bg: 'bg-[#FDEEE8] hover:bg-[#FBE0D5] text-[#14212A] font-semibold border-b border-[#F4CBBB]',
+    accent: 'shadow-[inset_3px_0_0_#C2410C]',
+    text: 'text-[#14212A]',
+    badge: 'bg-white text-[#C2410C] border border-[#F4CBBB]',
+    subText: 'text-[#5A6A74]',
+    chevron: 'text-[#C2410C]',
+    dateText: 'text-[#5A6A74]',
+    vContrato: 'text-[#14212A] font-semibold',
+    vPlan: 'text-slate-700',
+    vEjec: 'text-green-700',
+    vSobre: 'text-amber-700'
   }
 ];
 
@@ -265,9 +265,9 @@ export const EXCEL_LEVEL_COLORS = [
   { bg: '#EAF6EE', fg: '#14212A', labelColor: '#2B7F52', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#CFE8D7' },
   { bg: '#EAF2FB', fg: '#14212A', labelColor: '#2C67A6', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#CCDDF1' },
   { bg: '#FBF4E6', fg: '#14212A', labelColor: '#A86B12', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#EEDDBA' },
-  { bg: '#F1EFFC', fg: '#14212A', labelColor: '#442dd7', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#D9D3F6' },
-  { bg: '#E8F6F5', fg: '#14212A', labelColor: '#0F766E', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#C6E4E2' },
-  { bg: '#FBEFF2', fg: '#14212A', labelColor: '#B4235A', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#EDCDD7' }
+  { bg: '#FBEFF2', fg: '#14212A', labelColor: '#B4235A', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#EDCDD7' },
+  { bg: '#FEF8D8', fg: '#14212A', labelColor: '#9A7B00', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#F2E39A' },
+  { bg: '#FDEEE8', fg: '#14212A', labelColor: '#C2410C', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#F4CBBB' }
 ];
 
 export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
