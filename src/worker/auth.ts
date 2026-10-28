@@ -22,7 +22,7 @@ function secretKey(env: Env) {
 }
 
 // Compara sin filtrar por tiempo cuántos caracteres coinciden.
-async function safeEqual(a: string, b: string): Promise<boolean> {
+export async function safeEqual(a: string, b: string): Promise<boolean> {
   const enc = new TextEncoder();
   const [ha, hb] = await Promise.all([
     crypto.subtle.digest("SHA-256", enc.encode(a)),
@@ -111,6 +111,7 @@ authRoutes.post("/logout", (c) => {
 authRoutes.post("/verify-admin", requireAdmin, async (c) => {
   const { password } = await c.req.json().catch(() => ({} as any));
   const ok = await safeEqual(String(password ?? ""), c.env.ADMIN_PASSWORD);
-  if (!ok) return c.json({ error: "Contraseña incorrecta" }, 401);
+  // 403 (no 401): la sesión sigue válida, solo la contraseña es incorrecta
+  if (!ok) return c.json({ error: "Contraseña incorrecta" }, 403);
   return c.json({ ok: true });
 });

@@ -3,6 +3,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { generateText, MODEL_REPORTE } from "./llm";
 import type { Env } from "./env";
+import { safeEqual } from "./auth";
 
 export interface LegacyReq { body: any }
 export interface LegacyRes {
@@ -182,7 +183,12 @@ Reglas:
 /** Reporte estándar del botón "Inteligencia": la app manda las cifras y Claude devuelve el análisis. */
 export async function cronoReport(req: LegacyReq, res: LegacyRes, env: Env) {
   try {
-    const { datos, contexto, anterior } = req.body || {};
+    const { datos, contexto, anterior, password } = req.body || {};
+    // Generar el reporte cuesta: se confirma con la contraseña del administrador
+    if (!env.ADMIN_PASSWORD || !(await safeEqual(String(password ?? ""), env.ADMIN_PASSWORD))) {
+      res.status(403).json({ error: "BAD_PASSWORD", message: "Contraseña incorrecta." });
+      return;
+    }
     if (!datos?.kpis) {
       res.status(400).json({ error: "BAD_REQUEST", message: "Faltan los datos del reporte. Recarga la página e intenta de nuevo." });
       return;

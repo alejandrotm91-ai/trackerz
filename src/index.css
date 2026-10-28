@@ -394,3 +394,7 @@ kbd {
 .ht-theme table.cvs-tabla td table :is(td, th) { font-size: 11px; }
 .ht-theme table.cvs-tabla tr.cvs-grupo > td { background: transparent; border-bottom-color: rgba(20,33,42,.08); }
 .ht-theme table.cvs-tabla tbody > tr.cvs-grupo:hover > td { background: transparent; }
+
+/* PDF del reporte de Inteligencia: la fuente web de los títulos no se incrusta en la imagen,
+   así que se usa una condensada del sistema y el título no se parte */
+.reporte-pdf [class*="Barlow"] { font-family: "Arial Narrow", "Helvetica Neue", Arial, sans-serif !important; white-space: nowrap; }

@@ -1,7 +1,8 @@
 import { ReporteEstandar } from './ReporteEstandar';
+import { exportarReportePdf } from '../utils/exportReportePdf';
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Sparkles, X, RefreshCw, Copy, Check, Clock, UserCheck, AlertTriangle, ShieldAlert, Calendar, BarChart2, LayoutGrid, Package, ChevronDown, ChevronUp } from 'lucide-react';
+import { Download, Sparkles, X, RefreshCw, Copy, Check, Clock, UserCheck, AlertTriangle, ShieldAlert, Calendar, BarChart2, LayoutGrid, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import { AIReportData } from '../utils/cloudSync';
 
 interface AIReportModalProps {
@@ -1182,6 +1183,34 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
   isGenerating
 }) => {
   const [copied, setCopied] = React.useState(false);
+  const [exportando, setExportando] = React.useState(false);
+  const pdfRef = React.useRef<HTMLDivElement>(null);
+
+  // El PDF se arma desde una copia oculta del reporte con ancho fijo (A4)
+  React.useEffect(() => {
+    if (!exportando || !report?.reporte) return;
+    const r = report.reporte;
+    let cancelado = false;
+    (async () => {
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      if (cancelado || !pdfRef.current) return;
+      try {
+        const fecha = new Date(report.updatedAt);
+        const sello = isNaN(fecha.getTime()) ? '' : fecha.toISOString().slice(0, 10);
+        await exportarReportePdf(pdfRef.current, {
+          archivo: `Reporte_Inteligencia_${sello || 'trackerz'}.pdf`,
+          titulo: 'Reporte de Inteligencia · Cronograma',
+          subtitulo: `Fecha de corte: ${r.datos.fechaCorte} · Generado: ${isNaN(fecha.getTime()) ? '' : fecha.toLocaleDateString('es-ES')}`,
+        });
+      } catch (e: any) {
+        console.error('Error al exportar el PDF:', e);
+        alert(`No se pudo exportar el PDF: ${e?.message || e}`);
+      } finally {
+        if (!cancelado) setExportando(false);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [exportando, report]);
 
   if (!isOpen) return null;
 
@@ -1329,6 +1358,14 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
           )}
         </div>
 
+        {exportando && report?.reporte && (
+          <div aria-hidden style={{ position: 'fixed', left: -12000, top: 0, width: 900, background: '#ffffff', pointerEvents: 'none' }}>
+            <div ref={pdfRef} className="reporte-pdf" style={{ width: 900, padding: 0, background: '#ffffff' }}>
+              <ReporteEstandar reporte={report.reporte} paraPdf />
+            </div>
+          </div>
+        )}
+
         {/* FOOTER */}
         <div className="px-6 py-3.5 bg-slate-100 border-t border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
@@ -1340,6 +1377,16 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
                 <span>{copied ? '¡Copiado!' : 'Copiar Texto'}</span>
+              </button>
+            )}
+            {report?.reporte && (
+              <button
+                onClick={() => setExportando(true)}
+                disabled={isGenerating || exportando}
+                className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Download className={`w-3.5 h-3.5 text-slate-500 ${exportando ? 'animate-pulse' : ''}`} />
+                <span>{exportando ? 'Generando PDF…' : 'Exportar PDF (A4)'}</span>
               </button>
             )}
           </div>

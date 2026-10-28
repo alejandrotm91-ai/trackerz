@@ -23,7 +23,7 @@ const colorVar = (v: number) => (Math.abs(v) < 1 ? 'text-gray-500' : v > 0 ? 'te
 
 /** Sección con barra de título clara (mismo estilo que las tarjetas de la app). */
 const Seccion: React.FC<{ n: number; titulo: string; nota?: string; children: React.ReactNode }> = ({ n, titulo, nota, children }) => (
-  <section className="border border-[#D5DEE2] rounded-xl bg-white">
+  <section data-pdf-bloque className="border border-[#D5DEE2] rounded-xl bg-white">
     <div className="px-4 py-2 bg-[#F5F8F9] border-b border-[#D5DEE2] rounded-t-xl flex items-baseline gap-2">
       <span className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">{n}. {titulo}</span>
       {nota && <span className="text-[11px] text-[#5A6A74]">{nota}</span>}
@@ -103,15 +103,16 @@ const deltaPts = (actual?: number, previo?: number) => {
 };
 
 /** "El proyecto de un vistazo": avance de obra y certificación, saldos, excedentes, componentes y equipos. */
-const BloqueEjecutivo: React.FC<{ reporte: ReporteIA }> = ({ reporte }) => {
+const BloqueEjecutivo: React.FC<{ reporte: ReporteIA; paraPdf?: boolean }> = ({ reporte, paraPdf }) => {
   const e = reporte.datos.ejecutivo;
   if (!e) return null;
   const { obra, certificacion: c, equipos, componentes } = e;
   const ant = reporte.anterior;
   return (
     <section className="space-y-3">
+      <div data-pdf-bloque className="space-y-3">
       <div className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">El proyecto de un vistazo</div>
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+      <div className={`grid gap-2 ${paraPdf ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-6'}`}>
         <Tarjeta titulo="Avance de obra" valor={`${obra.avance.toFixed(2)}%`} color="text-[#2B7F52]" pct={obra.avance} barColor="#2B7F52"
           detalle={<>{fmtM(obra.ejecutado)} ejecutado de {fmtM(obra.contrato)}</>} extra={deltaPts(obra.avance, ant?.obraAvance)} />
         {c && (
@@ -132,10 +133,11 @@ const BloqueEjecutivo: React.FC<{ reporte: ReporteIA }> = ({ reporte }) => {
           <Tarjeta titulo="Última certificación" valor={fmtM(c.ultimaCertificacion)} detalle="monto de esta planilla" />
         )}
       </div>
+      </div>
 
-      <div className="grid lg:grid-cols-2 gap-2">
+      <div className={`grid gap-2 ${paraPdf ? 'grid-cols-1' : 'lg:grid-cols-2'}`}>
         {equipos && (
-          <div className="border border-[#D5DEE2] rounded-xl bg-white p-3">
+          <div data-pdf-bloque className="border border-[#D5DEE2] rounded-xl bg-white p-3">
             <div className="flex items-baseline justify-between gap-2 mb-2">
               <span className="text-[10px] font-semibold text-[#5A6A74] uppercase tracking-wider">Avance de equipos</span>
               <span className="text-[11px] text-[#5A6A74]">{fmtNum(equipos.total.equipos)} equipos · {fmtNum(equipos.total.partidas)} partidas</span>
@@ -150,7 +152,7 @@ const BloqueEjecutivo: React.FC<{ reporte: ReporteIA }> = ({ reporte }) => {
             </div>
             <div className="space-y-1.5">
               {equipos.areas.map(a => (
-                <div key={a.area} className="grid grid-cols-[minmax(0,1.3fr)_repeat(3,minmax(0,1fr))] items-center gap-2 text-[11px]">
+                <div key={a.area} data-pdf-fila className="grid grid-cols-[minmax(0,1.3fr)_repeat(3,minmax(0,1fr))] items-center gap-2 text-[11px]">
                   <span className="truncate font-semibold text-[#14212A]" title={`${a.area} · ${a.estructuras} estructuras · ${a.partidas} partidas · ${fmtNum(a.equipos)} equipos`}>{a.area}</span>
                   {ETAPAS.map(et => (
                     <div key={et.k} title={`${et.label} ${a[et.k].toFixed(1)}%`}>
@@ -164,14 +166,14 @@ const BloqueEjecutivo: React.FC<{ reporte: ReporteIA }> = ({ reporte }) => {
           </div>
         )}
         {componentes.length > 0 && (
-          <div className="border border-[#D5DEE2] rounded-xl bg-white p-3">
+          <div data-pdf-bloque className="border border-[#D5DEE2] rounded-xl bg-white p-3">
             <div className="flex items-baseline justify-between gap-2 mb-2">
               <span className="text-[10px] font-semibold text-[#5A6A74] uppercase tracking-wider">Avance por componente</span>
               <span className="text-[11px] text-[#5A6A74]">ejecutado sobre contrato</span>
             </div>
             <div className="space-y-1.5">
               {componentes.map(cp => (
-                <div key={cp.nombre} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_52px_minmax(0,1fr)] items-center gap-2 text-[11px]">
+                <div key={cp.nombre} data-pdf-fila className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_52px_minmax(0,1fr)] items-center gap-2 text-[11px]">
                   <span className="truncate font-semibold text-[#14212A]" title={cp.nombre}>{cp.nombre}</span>
                   <Barra pct={cp.avance} color="#442dd7" alto="h-2" />
                   <b className="text-right text-[#14212A]">{cp.avance.toFixed(1)}%</b>
@@ -186,20 +188,20 @@ const BloqueEjecutivo: React.FC<{ reporte: ReporteIA }> = ({ reporte }) => {
   );
 };
 
-export const ReporteEstandar: React.FC<{ reporte: ReporteIA }> = ({ reporte }) => {
+export const ReporteEstandar: React.FC<{ reporte: ReporteIA; paraPdf?: boolean }> = ({ reporte, paraPdf = false }) => {
   const { datos: d, analisis: a, anterior } = reporte;
   const k = d.kpis;
   const p: Partial<KpisReporte> = anterior?.kpis || {};
   const maxProx = Math.max(1, ...d.proximas.map(x => x.actividades));
   const pctEjec = k.ventaPlan > 0 ? (k.ventaEjecutada / k.ventaPlan) * 100 : 0;
   const [verTodosEquipos, setVerTodosEquipos] = React.useState(false);
-  const equipos = verTodosEquipos ? d.equipamiento : d.equipamiento.slice(0, 15);
+  const equipos = verTodosEquipos || paraPdf ? d.equipamiento : d.equipamiento.slice(0, 15);
   const comentarioArea = new Map(a.retrasos.areasCriticas.map(x => [x.area.toLowerCase(), x.comentario]));
 
   return (
     <div className="ht-theme space-y-4">
       {/* Encabezado */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div data-pdf-bloque className="flex flex-wrap items-center gap-3">
         <span className={`px-3 py-1 rounded-full border text-[12px] font-semibold ${ESTADO_CLS[a.estadoGeneral] || ESTADO_CLS['Requiere atención']}`}>
           Estado general: {a.estadoGeneral}
         </span>
@@ -209,11 +211,12 @@ export const ReporteEstandar: React.FC<{ reporte: ReporteIA }> = ({ reporte }) =
         )}
       </div>
 
-      <BloqueEjecutivo reporte={reporte} />
+      <BloqueEjecutivo reporte={reporte} paraPdf={paraPdf} />
 
       {/* Indicadores del cronograma */}
+      <div data-pdf-bloque className="space-y-3">
       <div className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider pt-1">Indicadores del cronograma</div>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+      <div className={`grid gap-2 ${paraPdf ? 'grid-cols-5' : 'grid-cols-2 lg:grid-cols-5'}`}>
         <Kpi titulo="Actividades retrasadas" valor={fmtNum(k.retrasadas)} detalle={`de ${fmtNum(k.totalActividades)} actividades`}
           actual={k.retrasadas} previo={p.retrasadas} mejorSiSube={false} />
         <Kpi titulo="Próximas 4 semanas" valor={fmtNum(k.proximas4Semanas)} detalle="actividades programadas"
@@ -225,6 +228,7 @@ export const ReporteEstandar: React.FC<{ reporte: ReporteIA }> = ({ reporte }) =
           actual={k.partidasCriticas} previo={p.partidasCriticas} mejorSiSube={false} />
         <Kpi titulo="Equipos por instalar" valor={fmtNum(k.equiposPendientes)} detalle={`en ${fmtNum(k.partidasEquipos)} partidas`}
           actual={k.equiposPendientes} previo={p.equiposPendientes} mejorSiSube={false} />
+      </div>
       </div>
 
       <Seccion n={1} titulo="Resumen ejecutivo">
@@ -316,7 +320,7 @@ export const ReporteEstandar: React.FC<{ reporte: ReporteIA }> = ({ reporte }) =
       <Seccion n={4} titulo="Próximas 4 semanas por área" nota="actividades programadas">
         <div className="space-y-1.5">
           {d.proximas.map(x => (
-            <div key={x.area} className="grid grid-cols-[minmax(120px,220px)_1fr_48px] items-center gap-2 text-[12px]">
+            <div key={x.area} data-pdf-fila className="grid grid-cols-[minmax(120px,220px)_1fr_48px] items-center gap-2 text-[12px]">
               <span className="truncate text-[#14212A]" title={x.area}>{x.area}</span>
               <div className="h-3.5 bg-[#EEF2F3] rounded">
                 <div className="h-3.5 rounded bg-[#442dd7]" style={{ width: `${(x.actividades / maxProx) * 100}%` }} />
@@ -348,7 +352,7 @@ export const ReporteEstandar: React.FC<{ reporte: ReporteIA }> = ({ reporte }) =
             {d.equipamiento.length === 0 && <tr><td colSpan={5} className="text-center text-gray-500">Sin equipos pendientes.</td></tr>}
           </tbody>
         </Tabla>
-        {d.equipamiento.length > 15 && (
+        {d.equipamiento.length > 15 && !paraPdf && (
           <button type="button" onClick={() => setVerTodosEquipos(v => !v)}
             className="text-[12px] px-3 py-1 rounded-lg border border-[#D5DEE2] bg-white hover:bg-[#F5F8F9] cursor-pointer">
             {verTodosEquipos ? 'Ver solo los 15 primeros' : `Ver todos (${d.equipamiento.length})`}
@@ -375,7 +379,7 @@ export const ReporteEstandar: React.FC<{ reporte: ReporteIA }> = ({ reporte }) =
         </Tabla>
       </Seccion>
 
-      <p className="text-[11px] text-[#5A6A74]">
+      <p data-pdf-bloque className="text-[11px] text-[#5A6A74]">
         Cifras calculadas por la aplicación a partir del cronograma cargado. Análisis redactado por Claude ({reporte.modelo}).
       </p>
     </div>

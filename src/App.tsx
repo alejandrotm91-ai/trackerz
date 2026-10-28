@@ -15,6 +15,7 @@ import { PersonalTab } from './components/PersonalTab';
 import { ProcesoTab } from './components/ProcesoTab';
 import { MasterTab } from './components/MasterTab';
 import { AIReportModal } from './components/AIReportModal';
+import { ClaveAdminDialog } from './components/ClaveAdminDialog';
 import { construirDatosReporte, construirEjecutivo } from './utils/aiReportHelper';
 import { reporteATexto } from './utils/reporteTexto';
 import type { ReporteIA } from './types/reporteIA';
@@ -139,7 +140,10 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleGenerateAIReport = async () => {
+  // Generar o actualizar el reporte pide la contraseña del administrador
+  const [claveReporte, setClaveReporte] = React.useState<{ abierto: boolean; error: string; verificando: boolean }>({ abierto: false, error: '', verificando: false });
+
+  const handleGenerateAIReport = () => {
     if (!isAdmin) {
       alert('Solo el administrador de la obra está autorizado para generar o actualizar el reporte de Inteligencia Artificial.');
       return;
@@ -151,6 +155,26 @@ export default function App() {
     }
 
     setShowAIReportMenu(false);
+    setClaveReporte({ abierto: true, error: '', verificando: false });
+  };
+
+  const confirmarClaveReporte = async (password: string) => {
+    setClaveReporte(c => ({ ...c, verificando: true, error: '' }));
+    try {
+      await apiFetch('/api/auth/verify-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+    } catch (err: any) {
+      setClaveReporte({ abierto: true, verificando: false, error: err?.message || 'Contraseña incorrecta' });
+      return;
+    }
+    setClaveReporte({ abierto: false, error: '', verificando: false });
+    await generarReporteIA(password);
+  };
+
+  const generarReporteIA = async (password: string) => {
     setShowAIReportModal(true);
     setIsGeneratingAIReport(true);
 
@@ -173,7 +197,7 @@ export default function App() {
       const res = await fetch('/api/ai/crono-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ datos, contexto, anterior })
+        body: JSON.stringify({ datos, contexto, anterior, password })
       });
 
       if (!res.ok) {
@@ -2228,6 +2252,13 @@ export default function App() {
         )}
       </div>
 
+      <ClaveAdminDialog
+        abierto={claveReporte.abierto}
+        error={claveReporte.error}
+        verificando={claveReporte.verificando}
+        onConfirmar={confirmarClaveReporte}
+        onCancelar={() => setClaveReporte({ abierto: false, error: '', verificando: false })}
+      />
       <AIReportModal
         isOpen={showAIReportModal}
         onClose={() => setShowAIReportModal(false)}
