@@ -115,12 +115,16 @@ interface Suma {
 
 const sumaVacia = (): Suma => ({ n: 0, vA: 0, vB: 0, porQ: 0, porP: 0, dV: 0 });
 
+const SIN_TIPO = '__sin_tipo__';
+
 export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupos, actividades, mapaColumnasMes, codigosPlanilla, filtroEtiqueta }) => {
   const [open, setOpen] = React.useState(false);
   const [modo, setModo] = React.useState<ModoComparacion>('presupuesto');
   const [vista, setVista] = React.useState<Vista>('jerarquica');
   const [filtroEstado, setFiltroEstado] = React.useState<FiltroEstado>('todas');
   const [filtroTipo, setFiltroTipo] = React.useState('');
+  // Las partidas sin tipo se filtran con esta clave (el tipo vacío significa "sin filtro")
+  const claveTipo = (t: string) => t || SIN_TIPO;
   const [busquedaTmp, setBusquedaTmp] = React.useState('');
   const [busqueda, setBusqueda] = React.useState('');
   const [orden, setOrden] = React.useState<{ col: ColOrden; dir: 1 | -1 }>({ col: 'cod', dir: 1 });
@@ -190,7 +194,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
     [filasBase, coincideBusqueda, pasaEstado]
   );
   const filas = React.useMemo(
-    () => (filtroTipo ? filasSinTipo.filter(l => (l.tipo || '') === filtroTipo) : filasSinTipo),
+    () => (filtroTipo ? filasSinTipo.filter(l => claveTipo(l.tipo || '') === filtroTipo) : filasSinTipo),
     [filasSinTipo, filtroTipo]
   );
 
@@ -317,7 +321,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
   // ── Exportar a Excel (una fila por partida, como la hoja e.14) ──
   const exportar = () => {
     if (!resultado) return;
-    const filasX = unirPorPartida(resultado.leaves).filter(l => coincideBusqueda(l) && pasaEstado(l) && (!filtroTipo || l.tipo === filtroTipo));
+    const filasX = unirPorPartida(resultado.leaves).filter(l => coincideBusqueda(l) && pasaEstado(l) && (!filtroTipo || claveTipo(l.tipo || '') === filtroTipo));
     const datos = ordenar(filasX).map(l => {
       const p = calcularDeltas(l, 'presupuesto');
       const a = calcularDeltas(l, 'avance');
@@ -703,28 +707,33 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
               </div>
 
               {/* Tarjetas por tipo */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 mb-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5 mb-3">
                 {tarjetasTipo.map(g => {
                   const cfg = ctTipoCfg(g.tipo);
-                  const activo = filtroTipo === g.tipo;
+                  const activo = filtroTipo === claveTipo(g.tipo);
                   const pct = g.vA > 0 ? (g.vB / g.vA) * 100 : 0;
+                  const nombre = g.tipo.replace(/^\d+\./, '').trim() || 'Sin tipo';
+                  const detalle = [
+                    `${nombre} · ${g.n} partidas`,
+                    `${txt.a}: ${fmtM(g.vA)}`,
+                    `${txt.b}: ${fmtM(g.vB)} (${pct.toFixed(1)}%)`,
+                    g.pos > 0 ? `Partidas por encima: +${fmtM(g.pos)}` : '',
+                    g.neg < 0 ? `Partidas por debajo: ${fmtM(g.neg)}` : '',
+                  ].filter(Boolean).join('\n');
                   return (
-                    <button key={g.tipo || 'sin-tipo'} type="button" onClick={() => setFiltroTipo(activo ? '' : g.tipo)}
-                      className={`text-left border-2 rounded-lg p-2 cursor-pointer transition-all ${cfg.bg} ${cfg.border} ${activo ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}>
-                      <div className="flex justify-between gap-1">
-                        <span className={`text-[10px] font-bold ${cfg.text} truncate`}>{g.tipo.replace(/^\d+\./, '').trim() || 'Sin tipo'}</span>
-                        <span className={`text-[10px] ${cfg.text} opacity-60`}>{g.n}</span>
-                      </div>
-                      <div className={`text-[10px] ${cfg.text} mt-0.5`}>{txt.a} {fmtM(g.vA)}</div>
-                      <div className={`text-xs font-bold ${cfg.text}`}>{txt.b} {fmtM(g.vB)}</div>
-                      <div className="flex gap-1 flex-wrap">
-                        {g.pos > 0 && <span className="text-[9px] font-semibold text-emerald-700">+{fmtM(g.pos)}</span>}
-                        {g.neg < 0 && <span className="text-[9px] font-semibold text-red-600">{fmtM(g.neg)}</span>}
-                      </div>
-                      <div className="w-full h-1 bg-white/60 rounded-full mt-1 overflow-hidden">
-                        <div className={cfg.bar} style={{ width: `${Math.min(pct, 100)}%`, height: '100%' }} />
-                      </div>
-                      <div className={`text-[9px] ${cfg.text} opacity-70`}>{pct.toFixed(1)}%</div>
+                    <button key={g.tipo || 'sin-tipo'} type="button" onClick={() => setFiltroTipo(activo ? '' : claveTipo(g.tipo))} title={detalle}
+                      className={`relative overflow-hidden flex items-center gap-2 text-left border rounded-full pl-3 pr-3 py-[3px] cursor-pointer transition-all ${cfg.bg} ${cfg.border} ${activo ? 'ring-2 ring-[#312E81]/50 ring-offset-1' : 'hover:brightness-[0.97]'}`}>
+                      <span className={`text-[11px] font-bold ${cfg.text} truncate min-w-0`}>{nombre}</span>
+                      <span className={`text-[9.5px] ${cfg.text} opacity-60 shrink-0`}>{g.n}</span>
+                      <span className="ml-auto flex items-baseline gap-1 shrink-0 font-mono">
+                        <span className={`text-[10px] ${cfg.text} opacity-70`}>{fmtM(g.vA)}</span>
+                        <span className={`text-[10px] ${cfg.text} opacity-50`}>→</span>
+                        <span className={`text-[11.5px] font-bold ${cfg.text}`}>{fmtM(g.vB)}</span>
+                        <span className={`text-[10px] font-semibold w-[46px] text-right ${pct > 100.05 ? 'text-emerald-700' : pct < 99.95 ? 'text-red-600' : cfg.text}`}>{pct.toFixed(1)}%</span>
+                      </span>
+                      <span className="absolute left-3 right-3 bottom-0 h-[2px] bg-white/70 rounded-full overflow-hidden">
+                        <span className={`block h-full ${cfg.bar}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                      </span>
                     </button>
                   );
                 })}
@@ -802,7 +811,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
                     )}
                   </tbody>
                   <tfoot className="sticky bottom-0 z-10">
-                    <FilaTotal s={totalFiltrado} etiqueta={filtroTipo ? (filtroTipo.replace(/^\d+\./, '').trim() || 'Sin tipo') : 'TOTAL'} />
+                    <FilaTotal s={totalFiltrado} etiqueta={filtroTipo ? (filtroTipo === SIN_TIPO ? 'Sin tipo' : filtroTipo.replace(/^\d+\./, '').trim()) : 'TOTAL'} />
                   </tfoot>
                 </table>
               </div>
