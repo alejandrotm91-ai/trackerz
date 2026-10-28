@@ -10,6 +10,7 @@ import { normalizeText, ctPf, isIgnoredFinishDate } from '../utils/helpers';
 import { loadLatestPlanFromCloud, savePlanToCloud } from '../utils/cloudSync';
 import { savePlanToLocalStorage, loadPlanFromLocalStorage } from '../utils/localStorageBackup';
 import { parseWbsAndDescription, hasDirectoOrDSegment } from '../utils/masterCdoHierarchy';
+import { leerEnmiendasSabana } from '../utils/enmiendasSabana';
 
 export function getLatestPeriodFromMap(mapa: any) {
   if (!mapa || Object.keys(mapa).length === 0) return null;
@@ -3054,51 +3055,8 @@ export function useMasterPlan(isLoggedIn = false) {
               else _partidas.push(item);
             }
 
-            // Enmiendas
-            for (let j = 0; j < rawSabana.length; j++) {
-              const r = rawSabana[j];
-              if (!r) continue;
-              const sVal = String(r[52] || '').trim(); // column BA (52)
-              
-              // Se ubica la enmienda (la cabecera tiene 'Incremento' en BC/54)
-              if (r[54] === 'Incremento') {
-                const label = sVal || 'Contrato Original';
-                const filas: any[] = [];
-                let subtotal: any = null;
-                for (let k = j + 1; k < rawSabana.length; k++) {
-                  const rr = rawSabana[k];
-                  if (!rr) continue;
-                  const t2 = String(rr[52] || '').trim(); // BA (52)
-                  if (t2 === 'Total') {
-                    const ocRow = filas[0] || {};
-                    subtotal = {
-                      contratoAcum: ocRow.contratoAcum || 0, incremento: ocRow.incremento || 0,
-                      monto: ctPf(rr[55]), planillado: ctPf(rr[56]), excedentes: ctPf(rr[57]), // BD, BE, BF
-                      saldo: ocRow.saldo || 0, adicional: ocRow.adicional || 0
-                    };
-                    break;
-                  }
-                  if (!t2) continue;
-                  filas.push({
-                    tipo: t2, contratoAcum: ctPf(rr[53]), incremento: ctPf(rr[54]), // BB, BC
-                    monto: ctPf(rr[55]), planillado: ctPf(rr[56]), excedentes: ctPf(rr[57]), // BD, BE, BF
-                    saldo: ctPf(rr[58]), adicional: ctPf(rr[59]) // BG, BH
-                  });
-                }
-                if (filas.length) _enmiendas.push({ label, filas, subtotal });
-              }
-              
-              // Gran Total está en fila 52 (j = 51)
-              if (sVal === 'Total' && j === 51) {
-                _enmiendas.push({
-                  label: 'GRAN TOTAL', isGranTotal: true, filas: [],
-                  subtotal: {
-                    incremento: ctPf(r[54]), monto: ctPf(r[55]), planillado: ctPf(r[56]), // BC, BD, BE
-                    excedentes: ctPf(r[57]), saldo: ctPf(r[58]), adicional: ctPf(r[59]) // BF, BG, BH
-                  }
-                });
-              }
-            }
+            // Enmiendas (bloque BA:BI): columnas ubicadas por su encabezado
+            _enmiendas.push(...leerEnmiendasSabana(rawSabana));
 
             const _tipMap: Record<string, any> = {
               OC: { label: 'Obra Civil', monto: 0, planillado: 0, excedentes: 0, saldo: 0 },
