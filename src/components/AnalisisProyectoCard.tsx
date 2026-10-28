@@ -2219,7 +2219,7 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
       {/* 1. Barra de título (estilo "Estado de Actividades") */}
       <div 
         onClick={() => setIsCardCollapsed(!isCardCollapsed)}
-        className={`flex items-center justify-between flex-wrap gap-x-4 gap-y-1 px-4 py-2 bg-[#F5F8F9] hover:bg-[#EEF2F3] cursor-pointer select-none ${isCardCollapsed ? '' : 'border-b border-[#D5DEE2]'}`}
+        className={`flex items-center justify-between flex-wrap gap-x-4 gap-y-1 px-4 py-2 bg-[#F5F8F9] hover:bg-[#EEF2F3] cursor-pointer select-none border-b border-[#D5DEE2]`}
         title="Hacer clic para expandir o colapsar el Análisis de Proyecto"
       >
         <span className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">
@@ -2232,6 +2232,39 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
           <span className="text-[#5A6A74] text-xs">{isCardCollapsed ? '▼' : '▲'}</span>
         </div>
       </div>
+
+      {/* Vista previa con la tarjeta colapsada (clic para abrir) */}
+      {isCardCollapsed && (() => {
+        const fmtD = (d: Date) => d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).replace('.', '');
+        const venta = groupedComponents.reduce((s, c) => s + (c.totalVenta || 0), 0);
+        let enEjecucion = 0, conAtraso = 0;
+        groupedComponents.forEach(c => c.caps.forEach(cap => {
+          enEjecucion += cap.statusSummary?.enEjecucion || 0;
+          conAtraso += cap.statusSummary?.conAtraso || 0;
+        }));
+        const fichas = [
+          { k: '4 semanas', v: fourWeeks.length ? `${fmtD(windowStartDate)} – ${fmtD(windowEndDate)}` : '—', cls: 'text-[#14212A]' },
+          { k: 'Paquetes SCAP', v: totalScapPackages.toLocaleString('en-US'), cls: 'text-[#312E81]' },
+          { k: 'Actividades', v: totalScheduledActivities.toLocaleString('en-US'), cls: 'text-[#14212A]' },
+          { k: 'Venta en ventana', v: `${(venta / 1e6).toFixed(2)}M`, cls: 'text-[#2B7F52]' },
+          { k: 'Con atraso', v: conAtraso.toLocaleString('en-US'), cls: conAtraso > 0 ? 'text-[#B83227]' : 'text-[#2B7F52]' },
+        ];
+        return (
+          <div
+            id="analisis-preview-colapsada"
+            className="px-3 py-1.5 grid grid-cols-2 lg:grid-cols-5 gap-1.5 cursor-pointer"
+            onClick={() => setIsCardCollapsed(false)}
+            title={`Abrir Análisis de Proyecto · ${enEjecucion.toLocaleString('en-US')} actividades en ejecución`}
+          >
+            {fichas.map(x => (
+              <div key={x.k} className="flex items-baseline justify-between gap-2 rounded-lg border border-[#E3E9EC] bg-[#F9FBFB] px-2.5 py-1">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5A6A74] truncate">{x.k}</span>
+                <span className={`text-[12.5px] font-bold font-mono whitespace-nowrap ${x.cls}`}>{x.v}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* 2. Body of the Card */}
       {!isCardCollapsed && (
