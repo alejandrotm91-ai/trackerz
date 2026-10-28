@@ -226,6 +226,23 @@ kbd {
   box-shadow: none;
 }
 .ht-theme [id^="contenedor-desplegable-"] > button:hover { border-color: var(--ht-muted); }
+/* el buscador, con el mismo tamaño que los desplegables */
+.ht-theme [id^="contenedor-desplegable-"] > input,
+.ht-theme [id^="contenedor-desplegable-"] > select {
+  height: auto;
+  min-height: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: var(--ht-fg);
+  background: var(--ht-bg);
+  border: 1px solid var(--ht-line);
+  border-radius: 8px;
+  box-shadow: none;
+}
+.ht-theme [id^="contenedor-desplegable-"] > :is(input, select):hover { border-color: var(--ht-muted); }
+.ht-theme [id^="contenedor-desplegable-"] > select { height: 22px; padding-top: 0; padding-bottom: 0; }
 .ht-theme #contenedor-toggle-modo-porcentaje > div {
   height: auto;
   gap: 4px;

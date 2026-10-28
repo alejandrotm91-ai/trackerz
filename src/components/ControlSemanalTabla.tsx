@@ -3695,7 +3695,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             </div>
 
             {/* Filter by Partida D WBS */}
-            <div className={`relative flex-1 min-w-[175px] ${isPartidaDDropdownOpen ? 'z-30' : 'z-auto'}`} id="contenedor-filtro-partida-d">
+            <div className={`relative flex-1 min-w-[175px] ${isPartidaDDropdownOpen ? 'z-30' : 'z-auto'}`} id="contenedor-desplegable-partida-d">
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5 truncate">
                 <Filter className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                 <span className="truncate">Partida D (WBS):</span>
@@ -3719,10 +3719,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                 }
               >
                 <span className="truncate flex items-center gap-1.5">
-                  <span className="text-sm">
+                  <span className="text-xs leading-none">
                     {filterPartidaD === 'only_d' ? '🎯' : filterPartidaD === 'exclude_d' ? '🚫' : '📁'}
                   </span>
-                  <span className="truncate font-bold">
+                  <span className="truncate">
                     {filterPartidaD === 'only_d'
                       ? 'Solo Partida D'
                       : filterPartidaD === 'exclude_d'
@@ -4138,7 +4138,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             </div>
 
             {/* Search Input */}
-            <div className="flex-1 min-w-[180px]">
+            <div className="flex-1 min-w-[180px]" id="contenedor-desplegable-buscar">
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
                 <Search className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Buscar WBS / Actividad:</span>
@@ -4153,7 +4153,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             </div>
 
             {/* Check Set Filter */}
-            <div className="flex-1 min-w-[150px]">
+            <div className="flex-1 min-w-[150px]" id="contenedor-desplegable-checkset">
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Check Set:</span>
