@@ -28,7 +28,7 @@ Se guardan con `npx wrangler secret put NOMBRE`. Nunca poner claves ni contrase�
 - `SESSION_SECRET` — texto largo y aleatorio para firmar la sesión
 
 ## IA
-Claude (`claude-opus-5-5`) vía `@anthropic-ai/sdk`. Todo está en `src/worker/llm.ts`. Las rutas `/api/ai/*` exigen sesión (el reporte de cronograma, rol admin), porque cada consulta cuesta.
+Claude vía `@anthropic-ai/sdk`. Todo está en `src/worker/llm.ts`: `claude-opus-5-5` por defecto y `claude-sonnet-5-5` para el reporte del botón Inteligencia (`/api/ai/crono-report`). Las rutas `/api/ai/*` exigen sesión (el reporte de cronograma, rol admin), porque cada consulta cuesta.
 
 ## Notas
 - D1 limita 100 parámetros por consulta y 2 MB por fila: por eso cada partida del Master CDO se guarda como JSON en `master_items.data`, y el cronograma y el personal se suben en trozos de ~700.000 caracteres.

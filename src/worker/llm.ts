@@ -7,13 +7,21 @@ import type { Env } from "./env";
  *   npx wrangler secret put ANTHROPIC_API_KEY
  */
 const MODEL = "claude-opus-5-5";
+/** Modelo del reporte estándar de Inteligencia (botón "Inteligencia" del Cronograma). */
+export const MODEL_REPORTE = "claude-sonnet-5-5";
+
+type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
 export interface GenerateParams {
   system: string;
   prompt: string;
+  /** Por defecto Claude Opus 5.5. */
+  model?: string;
+  /** Profundidad del análisis. Por defecto "medium". */
+  effort?: Effort;
 }
 
-export async function generateText(env: Env, { system, prompt }: GenerateParams): Promise<string> {
+export async function generateText(env: Env, { system, prompt, model = MODEL, effort = "medium" }: GenerateParams): Promise<string> {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error("Falta el secreto ANTHROPIC_API_KEY en Cloudflare.");
   }
@@ -22,9 +30,9 @@ export async function generateText(env: Env, { system, prompt }: GenerateParams)
 
   // Streaming para evitar cortes en respuestas largas; finalMessage() junta todo.
   const stream = client.beta.messages.stream({
-    model: MODEL,
+    model,
     max_tokens: 32000,
-    output_config: { effort: "medium" },
+    output_config: { effort },
     // Si los filtros de seguridad rechazan la solicitud, Anthropic la reintenta con otro modelo.
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",

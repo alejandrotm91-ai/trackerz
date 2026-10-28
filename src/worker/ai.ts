@@ -1,6 +1,6 @@
 // Endpoints de IA (análisis del cronograma, equipos y reporte ejecutivo).
 // Los prompts son los originales; el proveedor del modelo vive en llm.ts.
-import { generateText } from "./llm";
+import { generateText, MODEL_REPORTE } from "./llm";
 import type { Env } from "./env";
 
 export interface LegacyReq { body: any }
@@ -207,7 +207,7 @@ ${JSON.stringify(areaData, null, 2)}
 
 Por favor, genera el Reporte Analítico de Inteligencia Artificial por Área, Tipología y Equipamiento por SCAP según la estructura requerida.`;
 
-      const text = await generateText(env, { system: systemInstruction, prompt: userPrompt });
+      const text = await generateText(env, { system: systemInstruction, prompt: userPrompt, model: MODEL_REPORTE, effort: "high" });
 
       res.json({
         markdown: text,
