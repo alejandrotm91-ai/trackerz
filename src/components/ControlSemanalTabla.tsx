@@ -2728,7 +2728,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       {!soloTablaYSemana && (
         <div 
           onClick={() => setIsCardCollapsed(!isCardCollapsed)}
-          className={`bg-[#F5F8F9] hover:bg-[#EEF2F3] px-4 py-2 flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 cursor-pointer select-none transition-colors relative ${isExpandMenuOpen ? 'z-50' : 'z-30'} ${isCardCollapsed ? 'rounded-xl' : 'rounded-t-xl border-b border-[#D5DEE2]'}`}
+          className={`bg-[#F5F8F9] hover:bg-[#EEF2F3] px-4 py-2 flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 cursor-pointer select-none transition-colors relative ${isExpandMenuOpen ? 'z-50' : 'z-30'} ${isCardCollapsed && soloTablaYSemana ? 'rounded-xl' : 'rounded-t-xl border-b border-[#D5DEE2]'}`}
         >
           <span className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">
             Control de Ejecución · <span className="text-[#5A6A74] font-mono normal-case">{currentWeekLabel}</span>
@@ -2892,6 +2892,35 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
           </div>
           )}
           <span className="text-[#5A6A74] text-xs shrink-0">{isCardCollapsed ? '▼' : '▲'}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Vista previa con la tarjeta colapsada: los 4 indicadores (clic para abrir) */}
+      {isCardCollapsed && !soloTablaYSemana && (
+        <div
+          className="px-4 py-3 grid grid-cols-2 sm:grid-cols-4 gap-2 cursor-pointer"
+          onClick={() => setIsCardCollapsed(false)}
+          title="Abrir Control de Ejecución"
+          id="kpi-preview-colapsada"
+        >
+          <div className="border rounded-xl px-3 py-2 text-center bg-indigo-50/60 border-indigo-200/80">
+            <span className="text-[10px] font-extrabold uppercase text-indigo-700 tracking-wider block">{modoEV ? 'V.Plan (E.V)' : 'Planificado (PG-004)'}</span>
+            <span className="text-sm font-extrabold text-indigo-950 font-mono block">{fmtMoney(kpiTot.plan)}</span>
+          </div>
+          <div className="border rounded-xl px-3 py-2 text-center bg-rose-50/60 border-rose-200/80">
+            <span className="text-[10px] font-extrabold uppercase text-rose-700 tracking-wider block">{modoEV ? 'V.Ejec (E.V)' : 'Ejecutado (CDO V-)'}</span>
+            <span className="text-sm font-extrabold text-rose-950 font-mono block">{fmtMoney(kpiTot.ejec)}</span>
+          </div>
+          <div className={`border rounded-xl px-3 py-2 text-center ${kpiTot.desv < 0 ? 'bg-amber-50/60 border-amber-200/80' : 'bg-emerald-50/60 border-emerald-200/80'}`}>
+            <span className="text-[10px] font-extrabold uppercase text-slate-600 tracking-wider block">Variación Económica</span>
+            <span className={`text-sm font-extrabold font-mono block ${kpiTot.desv < 0 ? 'text-amber-800' : 'text-emerald-800'}`}>{fmtDNum(kpiTot.desv)}</span>
+          </div>
+          <div className="border rounded-xl px-3 py-2 text-center bg-slate-100 border-slate-200">
+            <span className="text-[10px] font-extrabold uppercase text-slate-600 tracking-wider block">% Avance Económico</span>
+            <span className="text-sm font-extrabold text-slate-800 font-mono block">
+              {kpiTot.plan > 0 ? `${((kpiTot.ejec / kpiTot.plan) * 100).toFixed(2)}%` : '—'}
+            </span>
           </div>
         </div>
       )}
