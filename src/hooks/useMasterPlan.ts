@@ -11,6 +11,7 @@ import { loadLatestPlanFromCloud, savePlanToCloud } from '../utils/cloudSync';
 import { savePlanToLocalStorage, loadPlanFromLocalStorage } from '../utils/localStorageBackup';
 import { parseWbsAndDescription, hasDirectoOrDSegment } from '../utils/masterCdoHierarchy';
 import { leerEnmiendasSabana } from '../utils/enmiendasSabana';
+import { columnasSabana } from '../utils/columnasSabana';
 
 export function getLatestPeriodFromMap(mapa: any) {
   if (!mapa || Object.keys(mapa).length === 0) return null;
@@ -3012,13 +3013,14 @@ export function useMasterPlan(isLoggedIn = false) {
               if (r[2]) cdoLookupF.set(String(r[2]).trim().toLowerCase(), info);
             }
 
-            const CT_COL = { COD_PLAN: 5, CODIGO: 6, PARTIDA: 7, DESC: 8, UNIDAD: 9, Q_CONTRATO: 11, Q_ACUM: 17, TARIFA: 12, N_MONTO: 13, Q_MONTO: 16, S_MONTO: 18, U_MONTO: 20, W_MONTO: 22, Z_MONTO: 25, AC_MONTO: 28 };
+            // Columnas ubicadas por sus encabezados (filas 10-11 de la Sabana)
+            const CT_COL = columnasSabana(rawSabana);
             const _hojas: PlanillaItem[] = [];
             const _partidas: PlanillaItem[] = [];
             const _enmiendas: any[] = [];
             let _totales: any = null;
 
-            for (let i = 11; i < rawSabana.length; i++) {
+            for (let i = CT_COL.INICIO; i < rawSabana.length; i++) {
               const r = rawSabana[i];
               if (!r) continue;
               if (String(r[CT_COL.CODIGO] || '').trim().toUpperCase() === 'MONTO TOTAL') {
@@ -3063,8 +3065,13 @@ export function useMasterPlan(isLoggedIn = false) {
               EQ: { label: 'Equipamiento Mecánico', monto: 0, planillado: 0, excedentes: 0, saldo: 0 },
               EE: { label: 'Equipamiento Eléctrico', monto: 0, planillado: 0, excedentes: 0, saldo: 0 }
             };
+            // Otros códigos de la columna G (ADM, CRC…) van en su propia fila para que el total cuadre con el contrato
+            const _otrosTipos: Record<string, string> = { ADM: 'Administración (ADM)', CRC: 'Decisiones CRC' };
             _hojas.forEach(h => {
-              const g = h.tipoG;
+              const g = h.tipoG || 'Sin código';
+              if (!_tipMap[g] && (h.contrato || h.acum || h.exc)) {
+                _tipMap[g] = { label: _otrosTipos[g] || g, monto: 0, planillado: 0, excedentes: 0, saldo: 0 };
+              }
               if (_tipMap[g]) {
                 _tipMap[g].monto += h.contrato;
                 _tipMap[g].planillado += h.acum;
@@ -3130,7 +3137,7 @@ export function useMasterPlan(isLoggedIn = false) {
               }
 
               const _pDesc: Record<string, string> = {};
-              for (let i = 11; i < rawSabana.length; i++) {
+              for (let i = CT_COL.INICIO; i < rawSabana.length; i++) {
                 const r = rawSabana[i];
                 if (!r) continue;
                 if (String(r[CT_COL.CODIGO] || '').trim().toUpperCase() === 'MONTO TOTAL') continue;
@@ -3161,7 +3168,7 @@ export function useMasterPlan(isLoggedIn = false) {
               }
 
               const sabanaInfoMap = new Map<string, { tarifa: number; unidad: string }>();
-              for (let i = 11; i < rawSabana.length; i++) {
+              for (let i = CT_COL.INICIO; i < rawSabana.length; i++) {
                 const r = rawSabana[i];
                 if (!r) continue;
                 const h = String(r[CT_COL.PARTIDA] || '').trim().toLowerCase();
@@ -3175,7 +3182,7 @@ export function useMasterPlan(isLoggedIn = false) {
               }
 
               const sabanaLeavesByPartida = new Map<string, SabanaLeaf[]>();
-              for (let i = 11; i < rawSabana.length; i++) {
+              for (let i = CT_COL.INICIO; i < rawSabana.length; i++) {
                 const r = rawSabana[i];
                 if (!r) continue;
                 if (String(r[CT_COL.CODIGO] || '').trim().toUpperCase() === 'MONTO TOTAL') continue;
@@ -3428,7 +3435,7 @@ export function useMasterPlan(isLoggedIn = false) {
               };
 
               // 1. Process all real Sabana leaves
-              for (let i = 11; i < rawSabana.length; i++) {
+              for (let i = CT_COL.INICIO; i < rawSabana.length; i++) {
                 const r = rawSabana[i];
                 if (!r) continue;
                 if (String(r[CT_COL.CODIGO] || '').trim().toUpperCase() === 'MONTO TOTAL') continue;
@@ -3477,7 +3484,7 @@ export function useMasterPlan(isLoggedIn = false) {
               };
 
               // 1. Process all real Sabana leaves
-              for (let i = 11; i < rawSabana.length; i++) {
+              for (let i = CT_COL.INICIO; i < rawSabana.length; i++) {
                 const r = rawSabana[i];
                 if (!r) continue;
                 if (String(r[CT_COL.CODIGO] || '').trim().toUpperCase() === 'MONTO TOTAL') continue;
