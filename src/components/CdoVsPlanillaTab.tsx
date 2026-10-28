@@ -801,9 +801,9 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
         <td className="px-2 py-2 text-blue-900" colSpan={2}>
           {filterTipoJer && vista === 'jerarquica' ? filterTipoJer.replace(/^\d+\./, '').trim() : filterTipoPlana && vista === 'plana' ? filterTipoPlana.replace(/^\d+\./, '').trim() : filterTipo && vista === 'tipo' ? filterTipo.replace(/^\d+\./, '').trim() : 'TOTAL'}
         </td>
-        <td className="px-3 py-2 text-right">${ctFmt(totC)}</td>
-        <td className="px-3 py-2 text-right text-green-700">${ctFmt(totP)}</td>
-        <td className="px-3 py-2 text-right text-blue-700">${ctFmt(totE)}</td>
+        <td className="px-3 py-2 text-right">{ctFmt(totC)}</td>
+        <td className="px-3 py-2 text-right text-green-700">{ctFmt(totP)}</td>
+        <td className="px-3 py-2 text-right text-blue-700">{ctFmt(totE)}</td>
         <td className={`px-3 py-2 text-right ${dc(diff)}`}>{diff >= 0 ? '+' : ''}{ctFmt(diff)}</td>
       </tr>
     );
@@ -987,7 +987,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
             onMouseLeave={rTarifa > 0 ? handleCellLeave : undefined}
             onClick={rTarifa > 0 ? (e) => handleCellClick(e, cod, 'contrato', dVals.contrato, rTarifa, rUnidad || 'u', d.desc, dVals) : undefined}
           >
-            ${ctFmt(dVals.contrato)}
+            {ctFmt(dVals.contrato)}
           </td>
           <td 
             className={`px-3 py-1.5 text-right text-green-700 transition-all duration-150 font-mono text-[12.5px] ${
@@ -1003,7 +1003,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
             onMouseLeave={rTarifa > 0 ? handleCellLeave : undefined}
             onClick={rTarifa > 0 ? (e) => handleCellClick(e, cod, 'plan', dVals.plan, rTarifa, rUnidad || 'u', d.desc, dVals) : undefined}
           >
-            ${ctFmt(dVals.plan)}
+            {ctFmt(dVals.plan)}
           </td>
           <td 
             className={`px-3 py-1.5 text-right text-blue-700 transition-all duration-150 font-mono text-[12.5px] ${
@@ -1019,7 +1019,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
             onMouseLeave={rTarifa > 0 ? handleCellLeave : undefined}
             onClick={rTarifa > 0 ? (e) => handleCellClick(e, cod, 'ejec', dVals.ejec, rTarifa, rUnidad || 'u', d.desc, dVals) : undefined}
           >
-            ${ctFmt(dVals.ejec)}
+            {ctFmt(dVals.ejec)}
           </td>
           <td 
             className={`px-3 py-1.5 text-right font-semibold ${dc(diff)} transition-all duration-150 font-mono text-[12.5px] ${
@@ -1064,7 +1064,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
                 onMouseLeave={rTarifaG > 0 ? handleCellLeave : undefined}
                 onClick={rTarifaG > 0 ? (e) => handleCellClick(e, g.h, 'contrato', g.contrato, rTarifaG, rUnidadG || 'u', g.desc, g) : undefined}
               >
-                ${ctFmt(g.contrato)}
+                {ctFmt(g.contrato)}
               </td>
               <td 
                 className={`px-3 py-1.5 text-right text-green-700 transition-all duration-150 font-mono text-[12.5px] ${
@@ -1080,7 +1080,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
                 onMouseLeave={rTarifaG > 0 ? handleCellLeave : undefined}
                 onClick={rTarifaG > 0 ? (e) => handleCellClick(e, g.h, 'plan', g.plan, rTarifaG, rUnidadG || 'u', g.desc, g) : undefined}
               >
-                ${ctFmt(g.plan)}
+                {ctFmt(g.plan)}
               </td>
               <td 
                 className={`px-3 py-1.5 text-right text-blue-700 transition-all duration-150 font-mono text-[12.5px] ${
@@ -1096,7 +1096,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
                 onMouseLeave={rTarifaG > 0 ? handleCellLeave : undefined}
                 onClick={rTarifaG > 0 ? (e) => handleCellClick(e, g.h, 'ejec', g.ejec, rTarifaG, rUnidadG || 'u', g.desc, g) : undefined}
               >
-                ${ctFmt(g.ejec)}
+                {ctFmt(g.ejec)}
               </td>
               <td 
                 className={`px-3 py-1.5 text-right font-semibold ${dc(diff2)} transition-all duration-150 font-mono text-[12.5px] ${
@@ -1138,7 +1138,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
               <span className={`text-[9px] font-bold ${cfg.text} leading-tight truncate`}>{lbl}</span>
               <span className={`text-[9px] ${cfg.text} opacity-60 flex-shrink-0`}>{g.items}</span>
             </div>
-            <div className={`text-xs font-bold ${cfg.text} mt-0.5`}>${(g.plan / 1e6).toFixed(2)}M</div>
+            <div className={`text-xs font-bold ${cfg.text} mt-0.5`}>{(g.plan / 1e6).toFixed(2)}M</div>
             <div className="flex gap-1 mt-0.5 flex-wrap">
               {g.diffPos > 0 && <span className="text-[8px] font-semibold text-green-600">+{(g.diffPos / 1e6).toFixed(2)}M</span>}
               {g.diffNeg < 0 && <span className="text-[8px] font-semibold text-red-500">{(g.diffNeg / 1e6).toFixed(2)}M</span>}
@@ -1166,10 +1166,10 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
           
           <div className="flex gap-2 text-xs">
             <span className="bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded font-bold flex items-center gap-1" title="Diferencia Positiva Total">
-              Diff (+): <span className="text-green-850">${ctFmt(totals.positiveDiffTotal)}</span>
+              Diff (+): <span className="text-green-850">{ctFmt(totals.positiveDiffTotal)}</span>
             </span>
             <span className="bg-red-50 border border-red-200 text-red-600 px-2 py-0.5 rounded font-bold flex items-center gap-1" title="Diferencia Negativa Total">
-              Diff (−): <span className="text-red-750">${ctFmt(totals.negativeDiffTotal)}</span>
+              Diff (−): <span className="text-red-750">{ctFmt(totals.negativeDiffTotal)}</span>
             </span>
             <button
               type="button"
@@ -1307,7 +1307,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
                                       <td className="py-2"></td>
                                       <td className="py-2 text-center text-amber-400 font-mono text-[9px] w-[130px]">-</td>
                                       <td className="py-2 text-right font-bold text-amber-950 pr-3 w-[130px]">
-                                        ${ctFmt(item.valCdo)}
+                                        {ctFmt(item.valCdo)}
                                       </td>
                                       <td className="py-2 text-center w-[120px]">
                                         <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
@@ -1331,7 +1331,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
                                         {item.capCdo}
                                       </td>
                                       <td className="py-2 text-right font-bold text-blue-755 pr-3 w-[130px]">
-                                        ${ctFmt(item.valCdo)}
+                                        {ctFmt(item.valCdo)}
                                       </td>
                                       <td className="py-2 text-center w-[120px]">
                                         <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
@@ -1512,7 +1512,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
                                   <span className={`text-[9px] font-bold ${cfg.text} leading-tight truncate`}>{lbl}</span>
                                   <span className={`text-[9px] ${cfg.text} opacity-60 flex-shrink-0`}>{g.items.length}</span>
                                 </div>
-                                <div className={`text-xs font-bold ${cfg.text} mt-0.5`}>${(g.plan / 1e6).toFixed(2)}M</div>
+                                <div className={`text-xs font-bold ${cfg.text} mt-0.5`}>{(g.plan / 1e6).toFixed(2)}M</div>
                                 <div className="flex gap-1 mt-0.5 flex-wrap">
                                   {g.diffPos > 0 && <span className="text-[8px] font-semibold text-green-600">+{(g.diffPos / 1e6).toFixed(2)}M</span>}
                                   {g.diffNeg < 0 && <span className="text-[8px] font-semibold text-red-500">{(g.diffNeg / 1e6).toFixed(2)}M</span>}
@@ -1614,7 +1614,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
             <div className="flex justify-between gap-10 items-baseline">
               <span className="text-slate-400 font-medium font-sans">Precio unitario:</span>
               <span className="font-mono font-bold text-amber-200 text-sm">
-                ${activeCell.tarifa.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {activeCell.unidad}
+                {activeCell.tarifa.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {activeCell.unidad}
               </span>
             </div>
             
@@ -1624,7 +1624,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
               </div>
               <div className="flex justify-between items-baseline gap-4">
                 <span className="text-slate-300 text-[10.5px]">
-                  Valor: ${activeCell.val.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  Valor: {activeCell.val.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
                 <span className="text-amber-400 font-mono font-extrabold text-sm border-b border-dashed border-amber-500/50 pb-0.5 select-all">
                   {(activeCell.val / activeCell.tarifa).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {activeCell.unidad}
@@ -1638,7 +1638,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
             <div className="grid grid-cols-3 gap-y-2 gap-x-3 text-[11px] font-mono mt-1.5 border-t border-slate-800/60 pt-2 border-dashed">
               <span className="text-slate-400 font-sans">Contrato:</span>
               <span className="text-right text-slate-200">
-                ${activeCell.contrato.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                {activeCell.contrato.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
               </span>
               <span className="text-right text-slate-100 font-bold select-all">
                 {(activeCell.contrato / activeCell.tarifa).toLocaleString('es-CO', { maximumFractionDigits: 2 })} {activeCell.unidad}
@@ -1646,7 +1646,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
 
               <span className="text-slate-400 font-sans">Planilla:</span>
               <span className="text-right text-green-400">
-                ${activeCell.plan.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                {activeCell.plan.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
               </span>
               <span className="text-right text-green-300 font-bold select-all">
                 {(activeCell.plan / activeCell.tarifa).toLocaleString('es-CO', { maximumFractionDigits: 2 })} {activeCell.unidad}
@@ -1654,7 +1654,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
 
               <span className="text-slate-400 font-sans">Ejecutado:</span>
               <span className="text-right text-blue-400">
-                ${activeCell.ejec.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                {activeCell.ejec.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
               </span>
               <span className="text-right text-blue-300 font-bold select-all">
                 {(activeCell.ejec / activeCell.tarifa).toLocaleString('es-CO', { maximumFractionDigits: 2 })} {activeCell.unidad}
@@ -1662,7 +1662,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ cdoVsS }) =>
 
               <span className="text-slate-400 font-sans border-t border-slate-850 pt-1.5">Desviación:</span>
               <span className={`text-right border-t border-slate-850 pt-1.5 font-bold ${activeCell.diff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {activeCell.diff >= 0 ? '+' : ''}${activeCell.diff.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                {activeCell.diff >= 0 ? '+' : ''}{activeCell.diff.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
               </span>
               <span className={`text-right border-t border-slate-850 pt-1.5 font-bold select-all ${activeCell.diff >= 0 ? 'text-green-300' : 'text-red-300'}`}>
                 {activeCell.diff >= 0 ? '+' : ''}{(activeCell.diff / activeCell.tarifa).toLocaleString('es-CO', { maximumFractionDigits: 2 })} {activeCell.unidad}

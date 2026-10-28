@@ -3351,9 +3351,9 @@ export function useMasterPlan(isLoggedIn = false) {
               }
 
               console.log(`[CDO vs Sabana Strict ID Matching Diagnostics]
-                Total CDO AV sum: $${totalCdoAvSum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                Total mapped sum: $${totalMappedSum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                Unmatched CDO rows count with non-zero AV: ${unmatchedCount} (Summing $${unmatchedSum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).
+                Total CDO AV sum: ${totalCdoAvSum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                Total mapped sum: ${totalMappedSum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                Unmatched CDO rows count with non-zero AV: ${unmatchedCount} (Summing ${unmatchedSum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).
               `);
 
               const _F: Record<string, any> = {};

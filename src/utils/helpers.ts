@@ -48,7 +48,7 @@ export const ctFmt = (v: any, d: number = 2): string => {
 };
 
 export const ctFmtM = (v: any): string => {
-  return `$${(Number(v || 0) / 1e6).toFixed(2)}M`;
+  return `${(Number(v || 0) / 1e6).toFixed(2)}M`;
 };
 
 export const ctPf = (v: any): number => {

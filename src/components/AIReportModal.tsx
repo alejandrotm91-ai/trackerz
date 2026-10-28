@@ -21,7 +21,7 @@ function preprocessMarkdownText(markdown?: string): string {
   text = text.replace(/\s*\|\|\s*/g, '\n| ');
 
   // 2. Fix cases where header alignment row is glued to the first data row
-  text = text.replace(/(\|\s*:?-+:?\s*\|)\s*(\|\s*[*_a-zA-Z0-9])/g, '$1\n$2');
+  text = text.replace(/(\|\s*:?-+:?\s*\|)\s*(\|\s*[*_a-zA-Z0-9])/g, '1\n2');
 
   const rawLines = text.split('\n');
   const resultLines: string[] = [];
@@ -205,7 +205,7 @@ function CompactTipologiaCards({ headers, rows }: { headers: string[]; rows: str
                       : 'text-slate-700'
                   }`}
                 >
-                  {varEcon || '$0.00'}
+                  {varEcon || '0.00'}
                 </span>
               </div>
             </div>
@@ -641,14 +641,14 @@ function PowerBIHorizontalBarChart({
                 >
                   {pct > 22 && (
                     <span className="text-white font-sans font-bold text-[10px] tracking-tight whitespace-nowrap pr-1">
-                      {item.formattedValue || (isNeg ? `-$${absVal.toLocaleString()}` : `$${item.value.toLocaleString()}`)}
+                      {item.formattedValue || (isNeg ? `-${absVal.toLocaleString()}` : `${item.value.toLocaleString()}`)}
                     </span>
                   )}
                 </div>
 
                 {pct <= 22 && (
                   <span className="ml-2 font-sans font-bold text-[10px] text-slate-700 whitespace-nowrap">
-                    {item.formattedValue || (isNeg ? `-$${absVal.toLocaleString()}` : `$${item.value.toLocaleString()}`)}
+                    {item.formattedValue || (isNeg ? `-${absVal.toLocaleString()}` : `${item.value.toLocaleString()}`)}
                   </span>
                 )}
 
@@ -1226,7 +1226,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-indigo-200/80">
-                Análisis por áreas, retraso económico por tipología (variación {'>'} $10k USD) y proyección
+                Análisis por áreas, retraso económico por tipología (variación {'>'} 10k USD) y proyección
               </p>
             </div>
           </div>
@@ -1254,7 +1254,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
                 {report.summary.totalItemsCriticos10k !== undefined && report.summary.totalItemsCriticos10k > 0 && (
                   <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3 text-amber-600" />
-                    {report.summary.totalItemsCriticos10k} Partidas Desv. {'>'} $10k USD
+                    {report.summary.totalItemsCriticos10k} Partidas Desv. {'>'} 10k USD
                   </span>
                 )}
                 <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md border border-rose-200 flex items-center gap-1">

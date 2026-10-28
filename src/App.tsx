@@ -315,7 +315,7 @@ export default function App() {
       }
 
       const avanceStr = `${avancePct.toFixed(2)}%`;
-      const saldoStr = saldo < 0 ? `($${formattedMoney(Math.abs(saldo))})` : `$${formattedMoney(saldo)}`;
+      const saldoStr = saldo < 0 ? `(${formattedMoney(Math.abs(saldo))})` : `${formattedMoney(saldo)}`;
       const saldoColor = saldo < 0 ? '#b91c1c' : '#15803d';
       const pctVarStr = pctVar < 0 ? `(${Math.abs(pctVar).toFixed(2)}%)` : (pctVar > 0 ? `+${pctVar.toFixed(2)}%` : '0.00%');
       const pctVarColor = pctVar < 0 ? '#b91c1c' : (pctVar > 0 ? '#15803d' : '#64748b');
@@ -338,9 +338,9 @@ export default function App() {
         <tr style="background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; font-size: ${fontSize};">
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg}; text-align: center; mso-number-format: '\\@';">${code}</td>
           <td style="padding: 6px 10px; padding-left: ${paddingLeft}px; border: 1px solid #cbd5e1; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight};">${indentSpaces}${desc}</td>
-          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${formattedMoney(vContrato)}</td>
-          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg === '#334155' ? '#1d4ed8' : fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${formattedMoney(vPlan)}</td>
-          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg === '#334155' ? '#15803d' : fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${formattedMoney(vEjec)}</td>
+          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${formattedMoney(vContrato)}</td>
+          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg === '#334155' ? '#1d4ed8' : fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${formattedMoney(vPlan)}</td>
+          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg === '#334155' ? '#15803d' : fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${formattedMoney(vEjec)}</td>
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '0.00%';">${avanceStr}</td>
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${saldoColor}; font-weight: bold; mso-number-format: '\\$#,##0.00';">${saldoStr}</td>
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${pctVarColor}; font-weight: bold; mso-number-format: '0.00%';">${pctVarStr}</td>
@@ -851,17 +851,17 @@ export default function App() {
             
             {/* V. Contrato */}
             <div className="text-right font-mono text-[11.5px] text-slate-700 font-medium">
-              ${formattedMoney(values.venta)}
+              {formattedMoney(values.venta)}
             </div>
 
             {/* V. Plan */}
             <div className="text-right font-mono text-[11.5px] text-indigo-700 font-semibold">
-              ${formattedMoney(values.ventaPlan)}
+              {formattedMoney(values.ventaPlan)}
             </div>
 
             {/* V. Ejecutada */}
             <div className="text-right font-mono text-[11.5px] text-emerald-700 font-bold">
-              ${formattedMoney(values.ventaEjecutada)}
+              {formattedMoney(values.ventaEjecutada)}
             </div>
             
             {/* % Avance */}
@@ -887,11 +887,11 @@ export default function App() {
             <div className="text-right font-mono text-[11.5px]">
               {values.saldo < 0 ? (
                 <span className="text-rose-600 font-bold">
-                  (${formattedMoney(Math.abs(values.saldo))})
+                  ({formattedMoney(Math.abs(values.saldo))})
                 </span>
               ) : (
                 <span className="text-indigo-950 font-semibold">
-                  ${formattedMoney(values.saldo)}
+                  {formattedMoney(values.saldo)}
                 </span>
               )}
             </div>
@@ -1470,13 +1470,13 @@ export default function App() {
                       </div>
                       
                       <div className="text-right font-mono font-bold text-slate-200 text-[11.5px]">
-                        ${totalVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {totalVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                       <div className="text-right font-mono font-bold text-indigo-300 text-[11.5px]">
-                        ${totalVentaPlan.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {totalVentaPlan.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                       <div className="text-right font-mono font-black text-emerald-400 text-[11.5px]">
-                        ${totalVentaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {totalVentaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                       
                       <div className="text-right">
@@ -1491,11 +1491,11 @@ export default function App() {
                       <div className="text-right font-mono font-bold text-[11.5px]">
                         {totalSaldo < 0 ? (
                           <span className="text-rose-400">
-                            (${Math.abs(totalSaldo).toLocaleString('en-US', { minimumFractionDigits: 2 })})
+                            ({Math.abs(totalSaldo).toLocaleString('en-US', { minimumFractionDigits: 2 })})
                           </span>
                         ) : (
                           <span className="text-emerald-300">
-                            ${totalSaldo.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {totalSaldo.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                           </span>
                         )}
                       </div>

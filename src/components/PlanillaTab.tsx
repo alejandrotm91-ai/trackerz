@@ -193,19 +193,19 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
               <span className="text-[10px] text-gray-400 font-mono flex-shrink-0">{item.cod}</span>
               <span className={`truncate ${descClass}`}>{item.desc}</span>
             </div>
-            {item.esHoja && item.unidad && <div className="text-[10px] text-gray-400">{item.tarifa > 0 && `$${ctFmt(item.tarifa, 4)}/${item.unidad}`}</div>}
+            {item.esHoja && item.unidad && <div className="text-[10px] text-gray-400">{item.tarifa > 0 && `${ctFmt(item.tarifa, 4)}/${item.unidad}`}</div>}
           </div>
           <div className="flex-shrink-0 grid text-right text-xs" style={{ gridTemplateColumns: '8.5rem 8.5rem 7rem 5.5rem 7rem', gap: '8px', width: '39rem' }}>
-            <div><div className="font-semibold">${ctFmt(v.contrato)}</div><div className="text-gray-400 text-[10px]">Contrato</div></div>
-            <div><div className="text-green-700 font-semibold">${ctFmt(v.acum)}</div><div className="text-gray-400 text-[10px]">Acumulado</div></div>
-            <div><div className={`font-semibold ${v.cert > 0 ? 'text-purple-700 font-extrabold' : 'text-gray-300'}`}>{v.cert > 0 ? `$${ctFmt(v.cert)}` : '—'}</div><div className="text-gray-400 text-[10px]">Esta Cert.</div></div>
+            <div><div className="font-semibold">{ctFmt(v.contrato)}</div><div className="text-gray-400 text-[10px]">Contrato</div></div>
+            <div><div className="text-green-700 font-semibold">{ctFmt(v.acum)}</div><div className="text-gray-400 text-[10px]">Acumulado</div></div>
+            <div><div className={`font-semibold ${v.cert > 0 ? 'text-purple-700 font-extrabold' : 'text-gray-300'}`}>{v.cert > 0 ? `${ctFmt(v.cert)}` : '—'}</div><div className="text-gray-400 text-[10px]">Esta Cert.</div></div>
             <div>
               <div className="font-semibold text-gray-700">{av.toFixed(1)}%</div>
               <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden mt-0.5">
                 <div className={`h-full ${av >= 100 ? 'bg-green-500' : av >= 75 ? 'bg-blue-500' : 'bg-red-400'}`} style={{ width: `${Math.min(av, 100)}%` }} />
               </div>
             </div>
-            <div><div className={`font-semibold ${v.saldo < 0 ? 'text-red-600' : 'text-orange-600'}`}>{v.saldo < 0 ? `($${ctFmt(Math.abs(v.saldo))})` : `$${ctFmt(v.saldo)}`}</div><div className="text-gray-400 text-[10px]">Saldo</div></div>
+            <div><div className={`font-semibold ${v.saldo < 0 ? 'text-red-600' : 'text-orange-600'}`}>{v.saldo < 0 ? `(${ctFmt(Math.abs(v.saldo))})` : `${ctFmt(v.saldo)}`}</div><div className="text-gray-400 text-[10px]">Saldo</div></div>
           </div>
         </div>
         {isExp && hijos.map(h => renderCtItem(h))}
@@ -231,7 +231,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
             </div>
             <div className="mt-1.5">
               <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#14212A] tracking-tight leading-tight">
-                ${ctFmt(T.contrato)}
+                {ctFmt(T.contrato)}
               </div>
             </div>
           </div>
@@ -248,7 +248,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
             </div>
             <div className="mt-1.5">
               <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#2B7F52] tracking-tight leading-tight">
-                ${ctFmt(T.acum)}
+                {ctFmt(T.acum)}
               </div>
             </div>
           </div>
@@ -265,7 +265,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
             </div>
             <div className="mt-1.5">
               <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#442dd7] tracking-tight leading-tight">
-                ${ctFmt(T.cert)}
+                {ctFmt(T.cert)}
               </div>
             </div>
           </div>
@@ -282,7 +282,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
             </div>
             <div className="mt-1.5">
               <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#A86B12] tracking-tight leading-tight">
-                ${ctFmt(T.saldo)}
+                {ctFmt(T.saldo)}
               </div>
             </div>
           </div>
@@ -299,7 +299,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
             </div>
             <div className="mt-1.5">
               <div className="text-2xl font-['Barlow_Condensed'] font-semibold text-[#B83227] tracking-tight leading-tight">
-                ${ctFmt(T.exc)}
+                {ctFmt(T.exc)}
               </div>
             </div>
           </div>
@@ -357,13 +357,13 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                             <tr className={`border-t cursor-pointer hover:bg-blue-50 ${isExp ? 'bg-blue-50 font-medium' : ''}`} onClick={toggle}>
                               <td className="px-3 py-2 text-gray-400">{isExp ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}</td>
                               <td className="px-3 py-2 font-bold text-blue-800">{lbl}</td>
-                              <td className="px-3 py-2 text-right text-gray-400">{s.contratoAcum > 0 ? '$' + ctFmt(s.contratoAcum) : '—'}</td>
-                              <td className="px-3 py-2 text-right text-indigo-600">{s.incremento > 0 ? '$' + ctFmt(s.incremento) : '—'}</td>
-                              <td className="px-3 py-2 text-right font-medium">${ctFmt(s.monto)}</td>
-                              <td className="px-3 py-2 text-right text-green-700 font-medium">${ctFmt(s.planillado)}</td>
+                              <td className="px-3 py-2 text-right text-gray-400">{s.contratoAcum > 0 ? '' + ctFmt(s.contratoAcum) : '—'}</td>
+                              <td className="px-3 py-2 text-right text-indigo-600">{s.incremento > 0 ? '' + ctFmt(s.incremento) : '—'}</td>
+                              <td className="px-3 py-2 text-right font-medium">{ctFmt(s.monto)}</td>
+                              <td className="px-3 py-2 text-right text-green-700 font-medium">{ctFmt(s.planillado)}</td>
                               <td className="px-3 py-2 text-right font-semibold">{ej}%</td>
-                              <td className={`px-3 py-2 text-right ${s.saldo >= 0 ? 'text-orange-600 font-semibold' : 'text-red-600 font-semibold'}`}>{s.saldo !== 0 ? (s.saldo < 0 ? '($' + ctFmt(Math.abs(s.saldo)) + ')' : '$' + ctFmt(s.saldo)) : '—'}</td>
-                              <td className="px-3 py-2 text-right text-red-500">{s.excedentes > 0 ? '$' + ctFmt(s.excedentes) : '—'}</td>
+                              <td className={`px-3 py-2 text-right ${s.saldo >= 0 ? 'text-orange-600 font-semibold' : 'text-red-600 font-semibold'}`}>{s.saldo !== 0 ? (s.saldo < 0 ? '(' + ctFmt(Math.abs(s.saldo)) + ')' : '' + ctFmt(s.saldo)) : '—'}</td>
+                              <td className="px-3 py-2 text-right text-red-500">{s.excedentes > 0 ? '' + ctFmt(s.excedentes) : '—'}</td>
                             </tr>
                             {isExp && enm.filas.map((f: any, fi: number) => {
                               const fej = f.monto > 0 ? (f.planillado / f.monto * 100).toFixed(1) : '—';
@@ -371,13 +371,13 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                                 <tr key={`f-${ei}-${fi}`} className="bg-slate-50/70 text-slate-550 border-t border-slate-150 hover:bg-slate-100/60 transition-colors">
                                   <td className="px-3 py-1.5 text-gray-300"></td>
                                   <td className="px-3 py-1.5 pl-6 font-semibold text-slate-600">{f.tipo}</td>
-                                  <td className="px-3 py-1.5 text-right text-slate-400">{f.contratoAcum > 0 ? '$' + ctFmt(f.contratoAcum) : '—'}</td>
-                                  <td className="px-3 py-1.5 text-right text-indigo-500">{f.incremento > 0 ? '$' + ctFmt(f.incremento) : '—'}</td>
-                                  <td className="px-3 py-1.5 text-right text-slate-700 font-medium">${ctFmt(f.monto)}</td>
-                                  <td className="px-3 py-1.5 text-right text-green-600 font-medium">${ctFmt(f.planillado)}</td>
+                                  <td className="px-3 py-1.5 text-right text-slate-400">{f.contratoAcum > 0 ? '' + ctFmt(f.contratoAcum) : '—'}</td>
+                                  <td className="px-3 py-1.5 text-right text-indigo-500">{f.incremento > 0 ? '' + ctFmt(f.incremento) : '—'}</td>
+                                  <td className="px-3 py-1.5 text-right text-slate-700 font-medium">{ctFmt(f.monto)}</td>
+                                  <td className="px-3 py-1.5 text-right text-green-600 font-medium">{ctFmt(f.planillado)}</td>
                                   <td className="px-3 py-1.5 text-right font-semibold">{fej}%</td>
-                                  <td className={`px-3 py-1.5 text-right ${f.saldo >= 0 ? 'text-orange-500' : 'text-red-500'}`}>{f.saldo !== 0 ? (f.saldo < 0 ? '($' + ctFmt(Math.abs(f.saldo)) + ')' : '$' + ctFmt(f.saldo)) : '—'}</td>
-                                  <td className="px-3 py-1.5 text-right text-red-400">{f.excedentes > 0 ? '$' + ctFmt(f.excedentes) : '—'}</td>
+                                  <td className={`px-3 py-1.5 text-right ${f.saldo >= 0 ? 'text-orange-500' : 'text-red-500'}`}>{f.saldo !== 0 ? (f.saldo < 0 ? '(' + ctFmt(Math.abs(f.saldo)) + ')' : '' + ctFmt(f.saldo)) : '—'}</td>
+                                  <td className="px-3 py-1.5 text-right text-red-400">{f.excedentes > 0 ? '' + ctFmt(f.excedentes) : '—'}</td>
                                 </tr>
                               );
                             })}
@@ -389,13 +389,13 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                       <tr className="ht-g lv0 bg-slate-100/90 border-t-2 border-slate-350 font-bold text-slate-900">
                         <td className="px-3 py-2.5"></td>
                         <td className="px-3 py-2.5 font-bold text-slate-850">Total</td>
-                        <td className="px-3 py-2.5 text-right text-slate-600 font-bold">${ctFmt(totalContratoAcum)}</td>
-                        <td className="px-3 py-2.5 text-right text-indigo-700 font-bold">{totalEnmIncremento > 0 ? '$' + ctFmt(totalEnmIncremento) : '—'}</td>
-                        <td className="px-3 py-2.5 text-right font-black text-slate-900">${ctFmt(totalEnmMonto)}</td>
-                        <td className="px-3 py-2.5 text-right text-green-700 font-black">${ctFmt(totalEnmPlanillado)}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600 font-bold">{ctFmt(totalContratoAcum)}</td>
+                        <td className="px-3 py-2.5 text-right text-indigo-700 font-bold">{totalEnmIncremento > 0 ? '' + ctFmt(totalEnmIncremento) : '—'}</td>
+                        <td className="px-3 py-2.5 text-right font-black text-slate-900">{ctFmt(totalEnmMonto)}</td>
+                        <td className="px-3 py-2.5 text-right text-green-700 font-black">{ctFmt(totalEnmPlanillado)}</td>
                         <td className="px-3 py-2.5 text-right font-black text-slate-900">{totalEnmPctEjec}%</td>
-                        <td className={`px-3 py-2.5 text-right font-black ${totalEnmSaldo >= 0 ? 'text-orange-700' : 'text-red-700'}`}>{totalEnmSaldo !== 0 ? (totalEnmSaldo < 0 ? '($' + ctFmt(Math.abs(totalEnmSaldo)) + ')' : '$' + ctFmt(totalEnmSaldo)) : '—'}</td>
-                        <td className="px-3 py-2.5 text-right text-red-650 font-black">{totalEnmExcedentes > 0 ? '$' + ctFmt(totalEnmExcedentes) : '—'}</td>
+                        <td className={`px-3 py-2.5 text-right font-black ${totalEnmSaldo >= 0 ? 'text-orange-700' : 'text-red-700'}`}>{totalEnmSaldo !== 0 ? (totalEnmSaldo < 0 ? '(' + ctFmt(Math.abs(totalEnmSaldo)) + ')' : '' + ctFmt(totalEnmSaldo)) : '—'}</td>
+                        <td className="px-3 py-2.5 text-right text-red-650 font-black">{totalEnmExcedentes > 0 ? '' + ctFmt(totalEnmExcedentes) : '—'}</td>
                       </tr>
                     </React.Fragment>
                   );
@@ -431,16 +431,16 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                     return (
                       <tr key={i} className={`border-t ${isTot ? 'ht-g lv0 bg-blue-50 font-bold' : 'hover:bg-gray-50'}`}>
                         <td className="px-4 py-2.5 font-medium">{t.label || t.tipo}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold">${ctFmt(t.monto)}</td>
+                        <td className="px-4 py-2.5 text-right font-semibold">{ctFmt(t.monto)}</td>
                         <td className="px-4 py-2.5 text-right text-gray-500">
                           {isTot ? '100.0%' : (totalTipoloMonto > 0 ? (t.monto / totalTipoloMonto * 100).toFixed(1) + '%' : '0.0%')}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-green-700">${ctFmt(t.planillado)}</td>
+                        <td className="px-4 py-2.5 text-right text-green-700">{ctFmt(t.planillado)}</td>
                         <td className="px-4 py-2.5 text-right font-semibold">{isTot ? avance : (t.monto > 0 ? (t.planillado / t.monto * 100).toFixed(1) : '0')}%</td>
                         <td className={`px-4 py-2.5 text-right font-semibold ${t.saldo >= 0 ? 'text-orange-600' : 'text-red-650'}`}>
-                          {t.saldo !== 0 ? (t.saldo < 0 ? '($' + ctFmt(Math.abs(t.saldo)) + ')' : '$' + ctFmt(t.saldo)) : '—'}
+                          {t.saldo !== 0 ? (t.saldo < 0 ? '(' + ctFmt(Math.abs(t.saldo)) + ')' : '' + ctFmt(t.saldo)) : '—'}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-red-600">${ctFmt(t.excedentes)}</td>
+                        <td className="px-4 py-2.5 text-right text-red-600">{ctFmt(t.excedentes)}</td>
                       </tr>
                     );
                   })}
@@ -602,12 +602,12 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                           }
                         }}
                       >
-                        <title>{`${s.nombre}: $${ctFmt(s.total)} (${(s.frac * 100).toFixed(1)}%)`}</title>
+                        <title>{`${s.nombre}: ${ctFmt(s.total)} (${(s.frac * 100).toFixed(1)}%)`}</title>
                       </path>
                     );
                   })}
                   <text x="150" y="140" fontSize="11" fill="#475569" textAnchor="middle" fontWeight="600" className="font-sans">{labelCentro}</text>
-                  <text x="150" y="160" fontSize="15" fill="#1e1b4b" textAnchor="middle" fontWeight="800" className="font-sans">${ctFmt(totalAcum)}</text>
+                  <text x="150" y="160" fontSize="15" fill="#1e1b4b" textAnchor="middle" fontWeight="800" className="font-sans">{ctFmt(totalAcum)}</text>
                   <text x="150" y="175" fontSize="9" fill="#94a3b8" textAnchor="middle" className="font-sans">total certificado</text>
                 </svg>
               </div>
@@ -650,9 +650,9 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                           </span>
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">
-                          <span className="w-[105px] text-right font-mono text-slate-600 font-semibold">${ctFmt(s.contrato)}</span>
+                          <span className="w-[105px] text-right font-mono text-slate-600 font-semibold">{ctFmt(s.contrato)}</span>
                           <div className="w-[125px] text-right flex items-center justify-end gap-1">
-                            <span className={`font-mono font-bold ${isSelected ? 'text-indigo-805 scale-105 font-black' : 'text-indigo-700'}`}>${ctFmt(s.total)}</span>
+                            <span className={`font-mono font-bold ${isSelected ? 'text-indigo-805 scale-105 font-black' : 'text-indigo-700'}`}>{ctFmt(s.total)}</span>
                             <span className="text-[10px] text-slate-400 font-semibold">({(s.frac * 100).toFixed(1)}%)</span>
                           </div>
                         </div>
@@ -769,11 +769,11 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
             <div className="flex items-center bg-blue-150 border-t-2 border-blue-300 font-bold text-sm" style={{ paddingLeft: 12+5+10+4, paddingRight: 12, paddingTop: 10, paddingBottom: 10 }}>
               <div className="flex-1">TOTAL GENERAL (PLANILLA)</div>
               <div className="flex-shrink-0 grid text-right text-xs" style={{ gridTemplateColumns: '8.5rem 8.5rem 7rem 5.5rem 7rem', gap: '8px', width: '39rem' }}>
-                <div>${ctFmt(T.contrato)}</div>
-                <div className="text-green-800">${ctFmt(T.acum)}</div>
-                <div className="text-purple-700">${ctFmt(T.cert)}</div>
+                <div>{ctFmt(T.contrato)}</div>
+                <div className="text-green-800">{ctFmt(T.acum)}</div>
+                <div className="text-purple-700">{ctFmt(T.cert)}</div>
                 <div>{avance}%</div>
-                <div className="text-orange-700">${ctFmt(T.saldo)}</div>
+                <div className="text-orange-700">{ctFmt(T.saldo)}</div>
               </div>
             </div>
           </div>

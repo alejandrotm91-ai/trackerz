@@ -183,10 +183,10 @@ export const CurvaAvanceEconomico: React.FC<CurvaAvanceEconomicoProps> = ({
           </span>
           <div className="flex gap-2 text-xs">
             <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded font-bold flex items-center gap-1" title="Plan Total">
-              Plan Total: <span className="text-indigo-900">${(meses[meses.length - 1]?.acumPlanificado / 1e6).toFixed(1)}M</span>
+              Plan Total: <span className="text-indigo-900">{(meses[meses.length - 1]?.acumPlanificado / 1e6).toFixed(1)}M</span>
             </span>
             <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded font-bold flex items-center gap-1" title="Total Ejecutado">
-              Ejecutado: <span className="text-emerald-900">${(meses[meses.length - 1]?.acumEjecutado / 1e6).toFixed(1)}M</span>
+              Ejecutado: <span className="text-emerald-900">{(meses[meses.length - 1]?.acumEjecutado / 1e6).toFixed(1)}M</span>
             </span>
             {(() => {
               const ultPlan = meses[meses.length - 1]?.acumPlanificado || 0;
@@ -328,10 +328,10 @@ export const CurvaAvanceEconomico: React.FC<CurvaAvanceEconomicoProps> = ({
                     >
                       <td className="px-3 py-3">{isExp ? <ChevronDown className="w-4 h-4 text-indigo-600"/> : <ChevronRight className="w-4 h-4 text-indigo-600"/>}</td>
                       <td className="px-3 py-3 font-bold text-slate-800">📅 {grupo.anio}</td>
-                      <td className="px-3 py-3 text-right text-indigo-700 font-bold">${fmt0(grupo.planificado)}</td>
-                      <td className="px-3 py-3 text-right text-rose-700 font-bold">${fmt0(grupo.ejecutado)}</td>
-                      <td className="px-3 py-3 text-right text-indigo-800 font-bold">${fmt0(ultimoMes.acumPlanificado)}</td>
-                      <td className="px-3 py-3 text-right text-emerald-700 font-bold">${fmt0(ultimoMes.acumEjecutado)}</td>
+                      <td className="px-3 py-3 text-right text-indigo-700 font-bold">{fmt0(grupo.planificado)}</td>
+                      <td className="px-3 py-3 text-right text-rose-700 font-bold">{fmt0(grupo.ejecutado)}</td>
+                      <td className="px-3 py-3 text-right text-indigo-800 font-bold">{fmt0(ultimoMes.acumPlanificado)}</td>
+                      <td className="px-3 py-3 text-right text-emerald-700 font-bold">{fmt0(ultimoMes.acumEjecutado)}</td>
                       <td className="px-3 py-3 text-right text-slate-900 font-bold"><span className="px-2 py-0.5 rounded bg-white border border-slate-200">{pctAnio}%</span></td>
                     </tr>
                     {isExp && grupo.meses.map((m: any, idx: number) => {
@@ -340,10 +340,10 @@ export const CurvaAvanceEconomico: React.FC<CurvaAvanceEconomicoProps> = ({
                         <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                           <td></td>
                           <td className="px-3 py-2 pl-6 text-slate-600 font-medium">{m.mes}</td>
-                          <td className="px-3 py-2 text-right text-indigo-600 font-medium">${fmt0(m.planificado)}</td>
-                          <td className="px-3 py-2 text-right text-rose-600 font-medium">${fmt0(m.ejecutado)}</td>
-                          <td className="px-3 py-2 text-right text-indigo-750 font-medium">${fmt0(m.acumPlanificado)}</td>
-                          <td className="px-3 py-2 text-right text-emerald-600 font-medium">${fmt0(m.acumEjecutado)}</td>
+                          <td className="px-3 py-2 text-right text-indigo-600 font-medium">{fmt0(m.planificado)}</td>
+                          <td className="px-3 py-2 text-right text-rose-600 font-medium">{fmt0(m.ejecutado)}</td>
+                          <td className="px-3 py-2 text-right text-indigo-750 font-medium">{fmt0(m.acumPlanificado)}</td>
+                          <td className="px-3 py-2 text-right text-emerald-600 font-medium">{fmt0(m.acumEjecutado)}</td>
                           <td className="px-3 py-2 text-right text-slate-700 font-semibold">{pctMes}%</td>
                         </tr>
                       );
@@ -366,10 +366,10 @@ export const CurvaAvanceEconomico: React.FC<CurvaAvanceEconomicoProps> = ({
                   <tr id="total-general-distribucion-row">
                     <td className="px-3 py-3"></td>
                     <td className="px-3 py-3 text-slate-800 font-extrabold uppercase tracking-wide">Total General</td>
-                    <td className="px-3 py-3 text-right text-indigo-700 font-extrabold">${fmt0(totalPlanificado)}</td>
-                    <td className="px-3 py-3 text-right text-rose-700 font-extrabold">${fmt0(totalEjecutado)}</td>
-                    <td className="px-3 py-3 text-right text-indigo-800 font-extrabold">${fmt0(totalAcumPlan)}</td>
-                    <td className="px-3 py-3 text-right text-emerald-700 font-extrabold">${fmt0(totalAcumEjec)}</td>
+                    <td className="px-3 py-3 text-right text-indigo-700 font-extrabold">{fmt0(totalPlanificado)}</td>
+                    <td className="px-3 py-3 text-right text-rose-700 font-extrabold">{fmt0(totalEjecutado)}</td>
+                    <td className="px-3 py-3 text-right text-indigo-800 font-extrabold">{fmt0(totalAcumPlan)}</td>
+                    <td className="px-3 py-3 text-right text-emerald-700 font-extrabold">{fmt0(totalAcumEjec)}</td>
                     <td className="px-3 py-3 text-right text-slate-900 font-extrabold">
                       <span className="px-2.5 py-0.5 rounded bg-indigo-100 border border-indigo-200 text-indigo-800">
                         {totalPct}%

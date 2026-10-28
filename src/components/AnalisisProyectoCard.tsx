@@ -2074,9 +2074,9 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                                     );
 
                                     const tooltipCantProg = cantObraProg !== null
-                                      ? `Previsión económica PG-004 (${semanasActivasLabels.join(', ')}): $${valorEconomico.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / Precio Col. G CDO: $${precio?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${step !== null ? ` / Step Col. H CDO: ${step.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}` : ''} = ${cantObraProg.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${act.unidad || ''}`
+                                      ? `Previsión económica PG-004 (${semanasActivasLabels.join(', ')}): ${valorEconomico.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / Precio Col. G CDO: ${precio?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${step !== null ? ` / Step Col. H CDO: ${step.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}` : ''} = ${cantObraProg.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${act.unidad || ''}`
                                       : (valorEconomico > 0 && (!precio || precio <= 0))
-                                      ? `Previsión económica PG-004: $${valorEconomico.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Sin precio unitario en Columna G de CDO para calcular la cantidad.`
+                                      ? `Previsión económica PG-004: ${valorEconomico.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Sin precio unitario en Columna G de CDO para calcular la cantidad.`
                                       : `Sin previsión económica en PG-004 para las semanas activas (${semanasActivasLabels.join(', ') || 'sin semanas'})`;
 
                                     return (

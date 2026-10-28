@@ -71,8 +71,8 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
   const fmt = (v: any) => (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
   const fmtD = (d: number) => d < 0 
-    ? `($${Math.abs(d).toLocaleString('en-US', { minimumFractionDigits: 2 })})` 
-    : `$${(d || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    ? `(${Math.abs(d).toLocaleString('en-US', { minimumFractionDigits: 2 })})` 
+    : `${(d || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
   const fmtDateVal = (d: Date | string | null | undefined): string => {
     if (!d) return '—';
@@ -247,7 +247,7 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
     const htmlRowsArray: string[] = [];
 
     const fmtNum = (v: number) => (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const fmtDNum = (d: number) => d < 0 ? `($${Math.abs(d).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : `$${(d || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const fmtDNum = (d: number) => d < 0 ? `(${Math.abs(d).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : `${(d || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const addRowHtml = (
       wbsText: string,
@@ -288,9 +288,9 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
           <td style="padding: 5px 8px; border: 1px solid #cbd5e1; font-family: monospace;">${actId}</td>
           <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${desc}</td>
           <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace;">${blFinishStr}</td>
-          <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace;">$${fmtNum(vContrato)}</td>
-          <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; color: #1d4ed8;">$${fmtNum(vPlan)}</td>
-          <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; color: #15803d;">$${fmtNum(vEjec)}</td>
+          <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace;">${fmtNum(vContrato)}</td>
+          <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; color: #1d4ed8;">${fmtNum(vPlan)}</td>
+          <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; color: #15803d;">${fmtNum(vEjec)}</td>
           <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; color: ${desvColor};">${fmtDNum(desv)}</td>
           <td style="padding: 5px 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; color: ${desvColor};">${pctStr}</td>
         </tr>
@@ -975,8 +975,8 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
               const isSelected = filterTipologiaRetraso === tip.nombre;
               const desvAbs = Math.abs(tip.desviacion);
               const desvFmt = desvAbs >= 1000000
-                ? `$${(desvAbs / 1000000).toFixed(2)}M`
-                : `$${(desvAbs / 1000).toFixed(1)}K`;
+                ? `${(desvAbs / 1000000).toFixed(2)}M`
+                : `${(desvAbs / 1000).toFixed(1)}K`;
               return (
                 <div
                   key={index}
@@ -992,7 +992,7 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
                   </div>
                   <div>
                     <div className="flex justify-between items-baseline leading-none mb-1">
-                      <span className="text-[9px] font-medium text-slate-500 uppercase tracking-tight">Variación $</span>
+                      <span className="text-[9px] font-medium text-slate-500 uppercase tracking-tight">Variación </span>
                       <p className={`text-xs font-black ${tip.desviacion >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                         {tip.desviacion >= 0 ? desvFmt : `(${desvFmt})`}
                       </p>
@@ -1067,9 +1067,9 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
                 <div className="text-center font-bold text-indigo-950 text-[10px] font-mono self-center truncate" title={`BL Finish Máx: ${fmtDateVal(tT.maxBlFinish)}`}>
                   {fmtDateVal(tT.maxBlFinish)}
                 </div>
-                <div className="text-right font-bold text-slate-800 text-xs">${fmt(tT.venta)}</div>
-                <div className="text-right font-bold text-blue-700 text-xs">${fmt(tT.plan)}</div>
-                <div className="text-right font-bold text-green-700 text-xs">${fmt(tT.ejec)}</div>
+                <div className="text-right font-bold text-slate-800 text-xs">{fmt(tT.venta)}</div>
+                <div className="text-right font-bold text-blue-700 text-xs">{fmt(tT.plan)}</div>
+                <div className="text-right font-bold text-green-700 text-xs">{fmt(tT.ejec)}</div>
                 <div className={`text-right font-bold text-xs ${tT.desv < 0 ? 'text-red-700' : 'text-green-700'}`}>{fmtD(tT.desv)}</div>
                 <div className="text-right">{renderPctVar(tT.desv)}</div>
               </div>
@@ -1127,9 +1127,9 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
                       <div className="text-center font-semibold text-purple-900 text-[9px] font-mono self-center truncate" title={`BL Finish Máx: ${fmtDateVal(gT.maxBlFinish)}`}>
                         {fmtDateVal(gT.maxBlFinish)}
                       </div>
-                      <div className="text-right text-[11px] text-slate-800">${fmt(gT.venta)}</div>
-                      <div className="text-right text-[11px] text-blue-700">${fmt(gT.plan)}</div>
-                      <div className="text-right text-[11px] text-green-700">${fmt(gT.ejec)}</div>
+                      <div className="text-right text-[11px] text-slate-800">{fmt(gT.venta)}</div>
+                      <div className="text-right text-[11px] text-blue-700">{fmt(gT.plan)}</div>
+                      <div className="text-right text-[11px] text-green-700">{fmt(gT.ejec)}</div>
                       <div className={`text-right text-[11px] font-semibold ${gT.desv < 0 ? 'text-red-700' : 'text-green-700'}`}>{fmtD(gT.desv)}</div>
                       <div className="text-right">{renderPctVar(gT.desv)}</div>
                     </div>
@@ -1184,9 +1184,9 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
                             <div className="text-center font-semibold text-blue-800 text-[9px] font-mono self-center truncate" title={`BL Finish Máx: ${fmtDateVal(sT.maxBlFinish)}`}>
                               {fmtDateVal(sT.maxBlFinish)}
                             </div>
-                            <div className="text-right text-[11px] text-slate-700">${fmt(sT.venta)}</div>
-                            <div className="text-right text-[11px] text-blue-600">${fmt(sT.plan)}</div>
-                            <div className="text-right text-[11px] text-green-600">${fmt(sT.ejec)}</div>
+                            <div className="text-right text-[11px] text-slate-700">{fmt(sT.venta)}</div>
+                            <div className="text-right text-[11px] text-blue-600">{fmt(sT.plan)}</div>
+                            <div className="text-right text-[11px] text-green-600">{fmt(sT.ejec)}</div>
                             <div className={`text-right text-[11px] font-semibold ${sT.desv < 0 ? 'text-red-600' : 'text-green-600'}`}>{fmtD(sT.desv)}</div>
                             <div className="text-right">{renderPctVar(sT.desv)}</div>
                           </div>
@@ -1238,9 +1238,9 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
                                   <div className="text-center font-semibold text-amber-900 text-[9px] font-mono self-center truncate" title={`BL Finish Máx: ${fmtDateVal(subCTot.maxBlFinish)}`}>
                                     {fmtDateVal(subCTot.maxBlFinish)}
                                   </div>
-                                  <div className="text-right text-[11px] text-slate-700">${fmt(subCTot.venta)}</div>
-                                  <div className="text-right text-[11px] text-blue-600">${fmt(subCTot.plan)}</div>
-                                  <div className="text-right text-[11px] text-green-600">${fmt(subCTot.ejec)}</div>
+                                  <div className="text-right text-[11px] text-slate-700">{fmt(subCTot.venta)}</div>
+                                  <div className="text-right text-[11px] text-blue-600">{fmt(subCTot.plan)}</div>
+                                  <div className="text-right text-[11px] text-green-600">{fmt(subCTot.ejec)}</div>
                                   <div className={`text-right text-[11px] font-semibold ${subCTot.desv < 0 ? 'text-red-600' : 'text-green-600'}`}>{fmtD(subCTot.desv)}</div>
                                   <div className="text-right">{renderPctVar(subCTot.desv)}</div>
                                 </div>
@@ -1279,9 +1279,9 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
                                         <div className="text-center text-slate-700 text-[9px] font-mono self-center truncate" title={`BL Finish Máx: ${fmtDateVal(cT.maxBlFinish)}`}>
                                           {fmtDateVal(cT.maxBlFinish)}
                                         </div>
-                                        <div className="text-right text-[10px] text-slate-600">${fmt(cT.venta)}</div>
-                                        <div className="text-right text-[10px] text-blue-500">${fmt(cT.plan)}</div>
-                                        <div className="text-right text-[10px] text-green-500">${fmt(cT.ejec)}</div>
+                                        <div className="text-right text-[10px] text-slate-600">{fmt(cT.venta)}</div>
+                                        <div className="text-right text-[10px] text-blue-500">{fmt(cT.plan)}</div>
+                                        <div className="text-right text-[10px] text-green-500">{fmt(cT.ejec)}</div>
                                         <div className={`text-right text-[10px] ${cT.desv < 0 ? 'text-red-500' : 'text-green-500'}`}>{fmtD(cT.desv)}</div>
                                         <div className="text-right">{renderPctVar(cT.desv)}</div>
                                       </div>
@@ -1302,9 +1302,9 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
                                             <div className="text-slate-500 truncate font-mono text-[9px]" title={item.activityId}>{item.activityId}</div>
                                             <div className="text-slate-700 truncate font-sans text-[10px]" title={item.descripcion}>{item.descripcion}</div>
                                             <div className="text-center text-slate-600 font-mono text-[9px] self-center truncate" title={`BL Finish (Col Y): ${fmtDateVal(item.blFinish)}`}>{fmtDateVal(item.blFinish)}</div>
-                                            <div className="text-right text-slate-500 font-mono">${fmt(iV)}</div>
-                                            <div className="text-right text-blue-500 font-mono">${fmt(iP)}</div>
-                                            <div className="text-right text-green-500 font-mono">${fmt(iE)}</div>
+                                            <div className="text-right text-slate-500 font-mono">{fmt(iV)}</div>
+                                            <div className="text-right text-blue-500 font-mono">{fmt(iP)}</div>
+                                            <div className="text-right text-green-500 font-mono">{fmt(iE)}</div>
                                             <div className={`text-right font-mono font-semibold ${iD < 0 ? 'text-red-500' : 'text-green-500'}`}>{fmtD(iD)}</div>
                                             <div className="text-right font-mono">{renderPctVar(iD)}</div>
                                           </div>
@@ -1336,9 +1336,9 @@ export const RetrasoTab: React.FC<RetrasoTabProps> = ({
         <div className="text-center font-bold text-slate-900 text-[9px] font-mono self-center truncate" title={`BL Finish Máx: ${fmtDateVal(globalTot.maxBlFinish)}`}>
           {fmtDateVal(globalTot.maxBlFinish)}
         </div>
-        <div className="text-right font-bold text-slate-900">${fmt(globalTot.venta)}</div>
-        <div className="text-right font-bold text-blue-800">${fmt(globalTot.plan)}</div>
-        <div className="text-right font-bold text-green-800">${fmt(globalTot.ejec)}</div>
+        <div className="text-right font-bold text-slate-900">{fmt(globalTot.venta)}</div>
+        <div className="text-right font-bold text-blue-800">{fmt(globalTot.plan)}</div>
+        <div className="text-right font-bold text-green-800">{fmt(globalTot.ejec)}</div>
         <div className={`text-right font-bold ${globalTot.desv < 0 ? 'text-red-700' : 'text-green-700'}`}>{fmtD(globalTot.desv)}</div>
         <div className="text-right">{renderPctVar(globalTot.desv)}</div>
       </div>

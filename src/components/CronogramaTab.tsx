@@ -1059,9 +1059,9 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
               </div>
             </div>
             
-            <div className="text-center font-semibold">${valoresReales.venta.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-            <div className="text-center text-blue-700 font-semibold">${valoresReales.ventaPlan.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-            <div className="text-center text-green-700 font-semibold">${valoresReales.ventaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+            <div className="text-center font-semibold">{valoresReales.venta.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+            <div className="text-center text-blue-700 font-semibold">{valoresReales.ventaPlan.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+            <div className="text-center text-green-700 font-semibold">{valoresReales.ventaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
             
             <div className="text-center">
               <div className="flex items-center justify-center gap-1">
@@ -1074,7 +1074,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
             
             <div className="text-center">
               <div className={`text-sm font-semibold ${valoresReales.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
-                {valoresReales.saldo < 0 ? `($${Math.abs(valoresReales.saldo).toLocaleString('en-US', { minimumFractionDigits: 2 })})` : `$${valoresReales.saldo.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                {valoresReales.saldo < 0 ? `(${Math.abs(valoresReales.saldo).toLocaleString('en-US', { minimumFractionDigits: 2 })})` : `${valoresReales.saldo.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
               </div>
             </div>
             <div className="text-center font-semibold text-gray-500">-</div>

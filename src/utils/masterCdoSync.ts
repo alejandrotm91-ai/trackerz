@@ -559,7 +559,7 @@ export function exportMasterCdoToExcel(
   // Add weekly columns: for each week we create 2 columns: Cantidad and Avance Económico
   semanas.forEach(sem => {
     headerRow1.push(`Q - ${sem.label}`);
-    headerRow1.push(`V - ${sem.label} ($)`);
+    headerRow1.push(`V - ${sem.label}`);
   });
 
   const aoaData: any[][] = [headerRow1];

@@ -818,11 +818,11 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   const fmtMoney = (v: number) => (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtMillions = (v: number) => `${((v || 0) / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
   const fmtDNum = (d: number) => d < 0 
-    ? `($${Math.abs(d).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` 
-    : `$${(d || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    ? `(${Math.abs(d).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` 
+    : `${(d || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtDNumMillions = (d: number) => d < 0 
-    ? `($${fmtMillions(Math.abs(d))})` 
-    : `$${fmtMillions(d)}`;
+    ? `(${fmtMillions(Math.abs(d))})` 
+    : `${fmtMillions(d)}`;
 
   const fmtDateVal = (d: Date | string | null | undefined): string => {
     if (!d) return '—';
@@ -987,15 +987,15 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     let extraInfo = '';
     if (label.includes('Contrato')) {
       const acumContrato = Number(item.venta) || 0;
-      extraInfo = `💰 Presupuesto Contrato (Col I): $${acumContrato.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      extraInfo = `💰 Presupuesto Contrato (Col I): ${acumContrato.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     } else if (label.includes('Plan')) {
       const acumPlan = item.ventaPlan || 0;
-      extraInfo = `💰 Acum. Planificado (AS): $${acumPlan.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      extraInfo = `💰 Acum. Planificado (AS): ${acumPlan.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     } else if (label.includes('Ejec.')) {
       const acumEjec = item.ventaEjecutada || 0;
-      extraInfo = `💰 Acum. Ejecutado (AV): $${acumEjec.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      extraInfo = `💰 Acum. Ejecutado (AV): ${acumEjec.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     } else if (label.includes('Sobre')) {
-      extraInfo = `💰 Saldo Sobre Ejecución (excedente sobre V.Contrato): $${valorEcon.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      extraInfo = `💰 Saldo Sobre Ejecución (excedente sobre V.Contrato): ${valorEcon.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     }
 
     const p = getItemPrecio(item);
@@ -2338,7 +2338,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       const paddingLeft = 4 + (indentCount * 4);
 
       const sobreEjecTd = isEVExportActive ? `
-          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${sobreColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(sobreEjec)}</td>
+          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${sobreColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${fmtMoney(sobreEjec)}</td>
       ` : '';
 
       // Explicit inline styles on every td for full Excel background fill & typography hierarchy
@@ -2349,9 +2349,9 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
           <td style="padding: 6px 10px; border: 1px solid ${bColor}; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '\\@';">${capText}</td>
           <td style="padding: 6px 10px; border: 1px solid ${bColor}; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight};">${desc}</td>
           <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: center; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg};">${blFinishStr}</td>
-          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${contratoColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(vContrato)}</td>
-          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${planColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(vPlan)}</td>
-          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${ejecColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(vEjec)}</td>
+          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${contratoColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${fmtMoney(vContrato)}</td>
+          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${planColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${fmtMoney(vPlan)}</td>
+          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${ejecColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${fmtMoney(vEjec)}</td>
           ${sobreEjecTd}
           <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${desvColor}; font-weight: bold; mso-number-format: '\\$#,##0.00';">${fmtDNum(desv)}</td>
           <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '0.00%';">${pctStr}</td>
@@ -2596,29 +2596,29 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
           <td
             className={`px-2 py-2 text-right font-mono cursor-help whitespace-nowrap ${levelStyle.vContrato}`}
             title={modoEV 
-              ? `Monto Exacto Contrato: $${fmtMoney(nodeTot.contrato)}${getCantidadTooltipForGroup(node.items, 'contrato', 'V. Contrato') ? '\n' + getCantidadTooltipForGroup(node.items, 'contrato', 'V. Contrato') : ''}` 
+              ? `Monto Exacto Contrato: ${fmtMoney(nodeTot.contrato)}${getCantidadTooltipForGroup(node.items, 'contrato', 'V. Contrato') ? '\n' + getCantidadTooltipForGroup(node.items, 'contrato', 'V. Contrato') : ''}` 
               : getCantidadTooltipForGroup(node.items, 'contrato', 'V. Contrato')}
           >
-            {modoEV ? fmtMillions(nodeTot.contrato) : `$${fmtMoney(nodeTot.contrato)}`}
+            {modoEV ? fmtMillions(nodeTot.contrato) : `${fmtMoney(nodeTot.contrato)}`}
           </td>
           <td
             className={`px-2 py-2 text-right font-mono cursor-help whitespace-nowrap ${levelStyle.vPlan}`}
             title={getCantidadTooltipForGroup(node.items, 'plan', 'V.Plan')}
           >
-            ${fmtMoney(nodeTot.plan)}
+            {fmtMoney(nodeTot.plan)}
           </td>
           <td
             className={`px-2 py-2 text-right font-mono cursor-help whitespace-nowrap ${levelStyle.vEjec}`}
             title={getCantidadTooltipForGroup(node.items, 'ejec', 'V.Ejec')}
           >
-            ${fmtMoney(nodeTot.ejec)}
+            {fmtMoney(nodeTot.ejec)}
           </td>
           {modoEV && (
             <td
               className={`px-2 py-2 text-right font-mono cursor-help font-bold whitespace-nowrap ${levelStyle.vSobre}`}
               title={getCantidadTooltipForGroup(node.items, 'sobreEjec', 'Sobre Ejecución')}
             >
-              ${fmtMoney(nodeTot.sobreEjec)}
+              {fmtMoney(nodeTot.sobreEjec)}
             </td>
           )}
           <td
@@ -2676,26 +2676,26 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     className="px-2 py-1.5 text-right font-mono text-slate-600 cursor-help hover:bg-slate-100 transition-colors whitespace-nowrap"
                     title={getCantidadTooltipForItem(item, vContrato, 'V. Contrato')}
                   >
-                    {modoEV ? fmtMillions(vContrato) : `$${fmtMoney(vContrato)}`}
+                    {modoEV ? fmtMillions(vContrato) : `${fmtMoney(vContrato)}`}
                   </td>
                   <td
                     className="px-2 py-1.5 text-right font-mono font-bold text-indigo-700 cursor-help hover:bg-indigo-50 transition-colors"
                     title={getCantidadTooltipForItem(item, vPlan, 'V.Plan')}
                   >
-                    ${fmtMoney(vPlan)}
+                    {fmtMoney(vPlan)}
                   </td>
                   <td
                     className="px-2 py-1.5 text-right font-mono font-bold text-slate-400 cursor-help hover:bg-slate-100 transition-colors"
                     title={getCantidadTooltipForItem(item, vEjec, 'V.Ejec')}
                   >
-                    ${fmtMoney(vEjec)}
+                    {fmtMoney(vEjec)}
                   </td>
                   {modoEV && (
                     <td
                       className="px-2 py-1.5 text-right font-mono font-bold text-amber-600 cursor-help hover:bg-amber-50 transition-colors whitespace-nowrap"
                       title={getCantidadTooltipForItem(item, sobreEjecucion, 'Sobre Ejecución')}
                     >
-                      ${fmtMoney(sobreEjecucion)}
+                      {fmtMoney(sobreEjecucion)}
                     </td>
                   )}
                   <td
@@ -3903,7 +3903,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                             ? 'bg-rose-50 text-rose-900 border border-rose-200/80 font-bold'
                             : 'hover:bg-rose-50/50 text-slate-700 border border-transparent'
                         }`}
-                        title="Solo ítems con retraso real (variación < -$1)"
+                        title="Solo ítems con retraso real (variación < -1)"
                       >
                         <div className="flex items-center gap-2 truncate">
                           <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
@@ -3914,7 +3914,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                           <span className="truncate text-rose-700 font-bold">Retrasos (-)</span>
                         </div>
                         <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-rose-100 text-rose-800 shrink-0">
-                          Desvío &lt; -$1
+                          Desvío &lt; -1
                         </span>
                       </button>
 
@@ -3940,7 +3940,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                           <span className="truncate text-emerald-700 font-bold">Adelantos (+)</span>
                         </div>
                         <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-emerald-100 text-emerald-800 shrink-0">
-                          Desvío &gt; $0
+                          Desvío &gt; 0
                         </span>
                       </button>
                     </div>
@@ -4195,7 +4195,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </span>
                   )}
                 </div>
-                <span className="text-base font-extrabold text-indigo-950 font-mono block">${fmtMoney(kpiTot.plan)}</span>
+                <span className="text-base font-extrabold text-indigo-950 font-mono block">{fmtMoney(kpiTot.plan)}</span>
                 <div className="text-[10px] text-indigo-600 font-semibold mt-0.5">
                   {filterPlanEjec === 'plan' ? (
                     <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -4236,11 +4236,11 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </span>
                   )}
                 </div>
-                <span className="text-base font-extrabold text-rose-950 font-mono block">${fmtMoney(kpiTot.ejec)}</span>
+                <span className="text-base font-extrabold text-rose-950 font-mono block">{fmtMoney(kpiTot.ejec)}</span>
                 {modoEV && kpiTot.sobreEjec > 0 && (
                   <div className="mt-0.5">
                     <span className="text-[9.5px] text-amber-800 font-extrabold bg-amber-100 border border-amber-300/80 px-1.5 py-0.2 rounded shadow-2xs">
-                      Sobre Ejec.: ${fmtMoney(kpiTot.sobreEjec)}
+                      Sobre Ejec.: {fmtMoney(kpiTot.sobreEjec)}
                     </span>
                   </div>
                 )}
@@ -4358,10 +4358,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     const isSelected = activeTipologiaSet.has(tip.nombre) && activeTipologiaSet.size < tipologíasDisponibles.length;
                     const desvAbs = Math.abs(tip.desviacion);
                     const desvFmt = desvAbs >= 1000000
-                      ? `$${(desvAbs / 1000000).toFixed(2)}M`
+                      ? `${(desvAbs / 1000000).toFixed(2)}M`
                       : desvAbs >= 1000
-                      ? `$${(desvAbs / 1000).toFixed(1)}K`
-                      : `$${desvAbs.toFixed(0)}`;
+                      ? `${(desvAbs / 1000).toFixed(1)}K`
+                      : `${desvAbs.toFixed(0)}`;
 
                     return (
                       <div
@@ -4392,7 +4392,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         </div>
                         <div>
                           <div className="flex justify-between items-baseline leading-none mb-1">
-                            <span className="text-[9px] font-medium text-slate-500 uppercase tracking-tight">Variación $</span>
+                            <span className="text-[9px] font-medium text-slate-500 uppercase tracking-tight">Variación </span>
                             <p className={`text-xs font-black font-mono ${tip.desviacion >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                               {tip.desviacion >= 0 ? desvFmt : `(${desvFmt})`}
                             </p>
@@ -4997,31 +4997,31 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                           </td>
                           <td 
                             className="px-2.5 py-2.5 text-right font-mono text-slate-900 cursor-help font-semibold whitespace-nowrap" 
-                            title={`Monto Exacto Contrato: $${fmtMoney(compTot.contrato)}`}
+                            title={`Monto Exacto Contrato: ${fmtMoney(compTot.contrato)}`}
                           >
                             {fmtMillions(compTot.contrato)}
                           </td>
                           <td 
                             className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" 
-                            title={`Monto Exacto Plan: $${fmtMoney(compTot.plan)}`}
+                            title={`Monto Exacto Plan: ${fmtMoney(compTot.plan)}`}
                           >
                             {fmtMillions(compTot.plan)}
                           </td>
                           <td 
                             className="px-2.5 py-2.5 text-right font-mono text-green-700 cursor-help whitespace-nowrap" 
-                            title={`Monto Exacto Ejec: $${fmtMoney(compTot.ejec)}`}
+                            title={`Monto Exacto Ejec: ${fmtMoney(compTot.ejec)}`}
                           >
                             {fmtMillions(compTot.ejec)}
                           </td>
                           <td 
                             className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" 
-                            title={`% Plan (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: $${fmtMoney(compBasePct)}): ${compPctPlanVal.toFixed(4)}%`}
+                            title={`% Plan (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: ${fmtMoney(compBasePct)}): ${compPctPlanVal.toFixed(4)}%`}
                           >
                             {compPctPlanVal.toFixed(2)}%
                           </td>
                           <td 
                             className="px-2.5 py-2.5 text-right font-mono text-slate-800 cursor-help font-semibold whitespace-nowrap" 
-                            title={`% Ejec (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: $${fmtMoney(compBasePct)}): ${compPctEjecVal.toFixed(4)}%`}
+                            title={`% Ejec (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: ${fmtMoney(compBasePct)}): ${compPctEjecVal.toFixed(4)}%`}
                           >
                             {compPctEjecVal.toFixed(2)}%
                           </td>
@@ -5068,19 +5068,19 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   )}
                   {soloTablaYSemana ? (
                     <>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black" title={`Monto Total: $${fmtMoney(globalTot.contrato)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black" title={`Monto Total: ${fmtMoney(globalTot.contrato)}`}>
                         {fmtMillions(globalTot.contrato)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-indigo-200" title={`Monto Plan: $${fmtMoney(globalTot.plan)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-indigo-200" title={`Monto Plan: ${fmtMoney(globalTot.plan)}`}>
                         {fmtMillions(globalTot.plan)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-rose-200" title={`Monto Ejec: $${fmtMoney(globalTot.ejec)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-rose-200" title={`Monto Ejec: ${fmtMoney(globalTot.ejec)}`}>
                         {fmtMillions(globalTot.ejec)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-indigo-300" title={`Total % Plan sobre V. Contrato Global sin filtrar: $${fmtMoney(totalVContratoUnfiltered)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-indigo-300" title={`Total % Plan sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
                         {totalVContratoUnfiltered > 0 ? `${((globalTot.plan / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-rose-300" title={`Total % Ejec sobre V. Contrato Global sin filtrar: $${fmtMoney(totalVContratoUnfiltered)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-rose-300" title={`Total % Ejec sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
                         {totalVContratoUnfiltered > 0 ? `${((globalTot.ejec / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
                       </td>
                       <td className={`px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`} title={`Monto Variación: ${fmtDNum(globalTot.desv)} | Total % Variación: ${totalVContratoUnfiltered > 0 ? (((globalTot.ejec - globalTot.plan) / totalVContratoUnfiltered) * 100).toFixed(4) : '0.0000'}%`}>
@@ -5096,19 +5096,19 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     <>
                       <td 
                         className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono whitespace-nowrap"
-                        title={`Monto Total Contrato: $${fmtMoney(globalTot.contrato)}`}
+                        title={`Monto Total Contrato: ${fmtMoney(globalTot.contrato)}`}
                       >
-                        {modoEV ? fmtMillions(globalTot.contrato) : `$${fmtMoney(globalTot.contrato)}`}
+                        {modoEV ? fmtMillions(globalTot.contrato) : `${fmtMoney(globalTot.contrato)}`}
                       </td>
                       <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono text-indigo-200">
-                        ${fmtMoney(globalTot.plan)}
+                        {fmtMoney(globalTot.plan)}
                       </td>
                       <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono text-slate-300">
-                        ${fmtMoney(globalTot.ejec)}
+                        {fmtMoney(globalTot.ejec)}
                       </td>
                       {modoEV && (
-                        <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono text-amber-300 font-bold whitespace-nowrap" title={`Monto Sobre Ejecución: $${fmtMoney(globalTot.sobreEjec)}`}>
-                          ${fmtMoney(globalTot.sobreEjec)}
+                        <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono text-amber-300 font-bold whitespace-nowrap" title={`Monto Sobre Ejecución: ${fmtMoney(globalTot.sobreEjec)}`}>
+                          {fmtMoney(globalTot.sobreEjec)}
                         </td>
                       )}
                       <td className={`px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
@@ -5182,14 +5182,14 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                                Total {csKey}
                              </td>
                              <td className="px-4 py-3 border-b border-slate-200 text-right text-indigo-700 font-mono">
-                               ${fmtMoney(csData.totalPlan)}
+                               {fmtMoney(csData.totalPlan)}
                              </td>
                              <td className="px-4 py-3 border-b border-slate-200 text-right text-slate-500 font-mono">
-                               ${fmtMoney(csData.totalEjec)}
+                               {fmtMoney(csData.totalEjec)}
                              </td>
                              {modoEV && (
                                <td className="px-4 py-3 border-b border-slate-200 text-right text-amber-600 font-mono font-bold">
-                                 ${fmtMoney(csData.totalSobreEjec || 0)}
+                                 {fmtMoney(csData.totalSobreEjec || 0)}
                                </td>
                              )}
                              <td className={`px-4 py-3 border-b border-slate-200 text-right font-mono font-black ${csData.totalDesv < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -5209,14 +5209,14 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                                  <span className="text-[11px]">{tipo}</span>
                                </td>
                                <td className="px-4 py-2 text-right font-mono text-slate-600">
-                                 ${fmtMoney(tData.plan)}
+                                 {fmtMoney(tData.plan)}
                                </td>
                                <td className="px-4 py-2 text-right font-mono text-slate-500">
-                                 ${fmtMoney(tData.ejec)}
+                                 {fmtMoney(tData.ejec)}
                                </td>
                                {modoEV && (
                                  <td className="px-4 py-2 text-right font-mono text-amber-600 font-bold">
-                                   ${fmtMoney(tData.sobreEjec || 0)}
+                                   {fmtMoney(tData.sobreEjec || 0)}
                                  </td>
                                )}
                                <td className={`px-4 py-2 text-right font-mono font-bold ${tData.desv < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -5237,14 +5237,14 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         TOTAL GENERAL
                       </td>
                       <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-indigo-300">
-                        ${fmtMoney(globalTot.plan)}
+                        {fmtMoney(globalTot.plan)}
                       </td>
                       <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-slate-300">
-                        ${fmtMoney(globalTot.ejec)}
+                        {fmtMoney(globalTot.ejec)}
                       </td>
                       {modoEV && (
                         <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-amber-300 font-bold">
-                          ${fmtMoney(globalTot.sobreEjec)}
+                          {fmtMoney(globalTot.sobreEjec)}
                         </td>
                       )}
                       <td className={`px-4 py-3 border-t border-slate-700 text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
