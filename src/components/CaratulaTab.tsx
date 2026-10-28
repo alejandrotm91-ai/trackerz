@@ -69,16 +69,19 @@ interface UbicacionData {
   itemsCount: number;
 }
 
-// Format numbers to Million notation (e.g. 102,43M)
+// Format numbers to Million notation (e.g. 102.43M), mismo formato que Certificación
 function fmtMillions(val: number): string {
   const m = val / 1_000_000;
-  return `${m.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
+  return `${m.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
 }
 
-// Format full currency (e.g. 102.430.009,96)
+// Format full amount (e.g. 102,430,009.96), mismo formato que Certificación
 function fmtCurrency(val: number): string {
-  return val.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+// Letra de las tablas (la misma de Certificación), con cifras alineadas
+const NUM_TABLA = "font-['Segoe_UI','Helvetica_Neue',Arial,sans-serif] tabular-nums";
 
 // Format date as DD-mmm-YY (e.g. 25-nov-23)
 function formatMilestoneDate(d: Date | null | undefined): string {
@@ -764,7 +767,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                 <div className="text-xs font-bold text-[#14212A] tracking-tight truncate w-full">
                   Avance_Ejecutado
                 </div>
-                <div className="text-xs leading-tight font-bold text-[#5A6A74] font-mono truncate w-full">
+                <div className={`text-xs leading-tight text-[#5A6A74] truncate w-full ${NUM_TABLA}`}>
                   {fmtCurrency(totalEjec)}
                 </div>
               </div>
@@ -805,11 +808,11 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                       </div>
                       <div className="text-xs leading-tight font-bold text-[#14212A] flex items-center justify-between w-full gap-1">
                         <span className="truncate">{u.nombre}</span>
-                        <span className="text-[10px] font-bold text-[#442dd7] font-mono shrink-0">
+                        <span className={`text-[11px] font-normal text-[#442dd7] shrink-0 ${NUM_TABLA}`}>
                           {u.porcentaje.toFixed(1)}%
                         </span>
                       </div>
-                      <div className="text-xs leading-tight font-bold text-[#5A6A74] font-mono truncate w-full">
+                      <div className={`text-xs leading-tight text-[#5A6A74] truncate w-full ${NUM_TABLA}`}>
                         {fmtCurrency(u.ventaEjec)}
                       </div>
                     </div>
