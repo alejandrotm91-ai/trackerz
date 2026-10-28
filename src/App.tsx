@@ -8,6 +8,7 @@ import { Upload, ChevronRight, ChevronDown, Building2, Download, Search, Filter,
 import { useMasterPlan } from './hooks/useMasterPlan';
 import { CronogramaTab } from './components/CronogramaTab';
 import { PlanillaTab } from './components/PlanillaTab';
+import { LEVEL_STYLES } from './utils/nivelesJerarquia';
 import { ComponenteResumen } from './components/ComponenteResumen';
 import { ResumenFinanciero } from './components/ResumenFinanciero';
 import { CaratulaTab } from './components/CaratulaTab';
@@ -754,78 +755,20 @@ export default function App() {
     const isLeaf = item.esItemHoja;
     const level = item.nivel || 1;
     
-    // Corporate Fun hierarchical color palettes and styling
-    let rowBg = '';
-    let textStyle = '';
-    let badgeStyle = '';
-    let chevronStyle = '';
-    let progressBarColor = '';
-    let leftAccent = '';
-    
-    if (!isLeaf) {
-      if (level <= 1) {
-        // Nivel 1: Deep Royal Indigo
-        rowBg = 'bg-gradient-to-r from-indigo-100/85 via-indigo-50/50 to-white hover:from-indigo-100 hover:to-indigo-50/80 border-b border-indigo-200/90';
-        leftAccent = 'border-l-[5px] border-indigo-600';
-        textStyle = 'font-black text-indigo-950 text-[12.5px] tracking-tight';
-        badgeStyle = 'bg-indigo-600 text-white shadow-xs font-black text-[10px]';
-        chevronStyle = 'bg-indigo-200/70 text-indigo-800 hover:bg-indigo-300';
-        progressBarColor = 'bg-indigo-600';
-      } else if (level === 2) {
-        // Nivel 2: Ocean Sky Blue
-        rowBg = 'bg-gradient-to-r from-sky-100/75 via-sky-50/40 to-white hover:from-sky-100 hover:to-sky-50/70 border-b border-sky-200/80';
-        leftAccent = 'border-l-[4px] border-sky-500';
-        textStyle = 'font-bold text-sky-950 text-[12px]';
-        badgeStyle = 'bg-sky-500 text-white shadow-xs font-bold text-[9.5px]';
-        chevronStyle = 'bg-sky-200/70 text-sky-800 hover:bg-sky-300';
-        progressBarColor = 'bg-sky-500';
-      } else if (level === 3) {
-        // Nivel 3: Fresh Mint / Emerald
-        rowBg = 'bg-gradient-to-r from-emerald-100/70 via-emerald-50/40 to-white hover:from-emerald-100 hover:to-emerald-50/60 border-b border-emerald-200/70';
-        leftAccent = 'border-l-[4px] border-emerald-500';
-        textStyle = 'font-bold text-emerald-950 text-[11.5px]';
-        badgeStyle = 'bg-emerald-600 text-white shadow-xs font-bold text-[9px]';
-        chevronStyle = 'bg-emerald-200/70 text-emerald-800 hover:bg-emerald-300';
-        progressBarColor = 'bg-emerald-500';
-      } else if (level === 4) {
-        // Nivel 4: Warm Tangerine / Amber
-        rowBg = 'bg-gradient-to-r from-amber-100/70 via-amber-50/40 to-white hover:from-amber-100 hover:to-amber-50/60 border-b border-amber-200/70';
-        leftAccent = 'border-l-[4px] border-amber-500';
-        textStyle = 'font-semibold text-amber-950 text-[11.5px]';
-        badgeStyle = 'bg-amber-500 text-white shadow-xs font-bold text-[9px]';
-        chevronStyle = 'bg-amber-200/70 text-amber-900 hover:bg-amber-300';
-        progressBarColor = 'bg-amber-500';
-      } else if (level === 5) {
-        // Nivel 5: Playful Violet / Purple
-        rowBg = 'bg-gradient-to-r from-purple-100/65 via-purple-50/35 to-white hover:from-purple-100 hover:to-purple-50/50 border-b border-purple-200/60';
-        leftAccent = 'border-l-[4px] border-purple-500';
-        textStyle = 'font-semibold text-purple-950 text-[11px]';
-        badgeStyle = 'bg-purple-600 text-white shadow-xs font-bold text-[9px]';
-        chevronStyle = 'bg-purple-200/70 text-purple-900 hover:bg-purple-300';
-        progressBarColor = 'bg-purple-500';
-      } else {
-        // Nivel 6+: Berry Rose / Coral
-        rowBg = 'bg-gradient-to-r from-rose-100/60 via-rose-50/30 to-white hover:from-rose-100 hover:to-rose-50/40 border-b border-rose-200/60';
-        leftAccent = 'border-l-[4px] border-rose-500';
-        textStyle = 'font-semibold text-rose-950 text-[11px]';
-        badgeStyle = 'bg-rose-500 text-white shadow-xs font-bold text-[9px]';
-        chevronStyle = 'bg-rose-200/70 text-rose-900 hover:bg-rose-300';
-        progressBarColor = 'bg-rose-500';
-      }
-    } else {
-      rowBg = 'bg-white hover:bg-slate-50/90 border-b border-slate-100/80';
-      leftAccent = 'border-l-[3px] border-slate-200/70';
-      textStyle = 'text-slate-700 text-[11.5px] font-medium';
-      badgeStyle = '';
-      chevronStyle = '';
-      progressBarColor = 'bg-emerald-500';
-    }
+    // Mismos colores de jerarquía que la tabla de Control de Ejecución
+    const nivelStyle = LEVEL_STYLES[Math.min(Math.max(level - 1, 0), LEVEL_STYLES.length - 1)];
+    const rowBg = isLeaf ? 'bg-white hover:bg-[#F9FBFB] border-b border-[#EEF2F3]' : nivelStyle.bg;
+    const leftAccent = isLeaf ? '' : nivelStyle.accent;
+    const textStyle = isLeaf ? 'text-[#14212A] text-[11.5px] font-normal' : `${nivelStyle.text} text-[11.5px] font-bold`;
+    const badgeStyle = isLeaf ? '' : `${nivelStyle.badge} font-bold text-[9.5px]`;
+    const chevronStyle = isLeaf ? '' : nivelStyle.chevron;
+    const barColor = isLeaf ? '#2B7F52' : nivelStyle.bar;
 
-    const indentPadding = 8 + (level - 1) * 16;
+    const indentPadding = 6 + (level - 1) * 10;
     const isDirectMatch = wbsSearchResults.isActive && wbsSearchResults.matchingItemIds.has(item.id);
 
     return (
-      <div key={item.id} className={`transition-colors group ${isDirectMatch && isLeaf ? 'ring-1 ring-inset ring-indigo-400/50 bg-indigo-50/20' : ''}`}>
+      <div key={item.id} className={`transition-colors group ${isDirectMatch && isLeaf ? 'ring-1 ring-inset ring-[#312E81]/30 bg-[#EEF0FB]/40' : ''}`}>
         <div
           className={`flex items-center py-2 px-3 cursor-pointer transition-colors ${rowBg} ${leftAccent}`}
           style={{ paddingLeft: `${indentPadding}px` }}
@@ -842,7 +785,7 @@ export default function App() {
                   e.stopPropagation();
                   pc.toggleExpand(item.id);
                 }}
-                className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors cursor-pointer ${chevronStyle}`}
+                className={`w-5 h-5 flex items-center justify-center cursor-pointer ${chevronStyle}`}
                 title={isExpanded ? 'Colapsar partida' : 'Expandir partida'}
               >
                 <ChevronRight
@@ -853,7 +796,7 @@ export default function App() {
               </button>
             ) : isLeaf ? (
               <div className="w-5 h-5 flex items-center justify-center">
-                <span className={`w-1.5 h-1.5 rounded-full transition-colors ${isDirectMatch ? 'bg-indigo-600 scale-125' : 'bg-slate-300 group-hover:bg-indigo-500'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full transition-colors ${isDirectMatch ? 'bg-[#312E81] scale-125' : 'bg-[#C5CFD4] group-hover:bg-[#5A6A74]'}`} />
               </div>
             ) : (
               <div className="w-5 h-5" />
@@ -864,11 +807,11 @@ export default function App() {
             {/* Código / ID */}
             <div className="text-center font-mono text-[10.5px]">
               {isLeaf ? (
-                <span className="bg-slate-100 text-slate-700 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-200/80 text-[10px]">
+                <span className="bg-[#F5F8F9] text-[#5A6A74] font-mono font-semibold px-1.5 py-0.5 rounded border border-[#D5DEE2] text-[10px]">
                   {item.activityId || '-'}
                 </span>
               ) : (
-                <span className="text-slate-500 font-medium font-mono text-[10px]">{item.wbs || '-'}</span>
+                <span className="text-[#5A6A74] font-medium font-mono text-[10px]">{item.wbs || '-'}</span>
               )}
             </div>
 
@@ -876,7 +819,7 @@ export default function App() {
             <div className="min-w-0 pr-2">
               <div className="flex items-center gap-1.5 overflow-hidden">
                 {!isLeaf && (
-                  <span className={`font-mono px-1.5 py-0.5 rounded-md shrink-0 ${badgeStyle}`}>
+                  <span className={`font-mono px-1.5 py-0.5 rounded shrink-0 ${badgeStyle}`}>
                     {item.wbs}
                   </span>
                 )}
@@ -887,7 +830,7 @@ export default function App() {
                   {item.descripcion}
                 </span>
                 {!isLeaf && wbsSearchResults.isActive && descendantMatchCountMap.has(item.id) && (
-                  <span className="text-[9px] font-bold text-indigo-700 bg-indigo-100/90 border border-indigo-200 px-1.5 py-0.2 rounded-full shrink-0 shadow-2xs">
+                  <span className="text-[9px] font-bold text-[#312E81] bg-[#EEF0FB] border border-[#C7CBEF] px-1.5 py-0.2 rounded-full shrink-0">
                     {descendantMatchCountMap.get(item.id)} {descendantMatchCountMap.get(item.id) === 1 ? 'partida' : 'partidas'}
                   </span>
                 )}
@@ -900,17 +843,17 @@ export default function App() {
             </div>
             
             {/* V. Contrato */}
-            <div className="text-right font-mono text-[11.5px] text-slate-700 font-medium">
+            <div className="text-right font-mono text-[11.5px] text-[#14212A] font-semibold">
               {formattedMoney(values.venta)}
             </div>
 
             {/* V. Plan */}
-            <div className="text-right font-mono text-[11.5px] text-indigo-700 font-semibold">
+            <div className="text-right font-mono text-[11.5px] text-slate-700">
               {formattedMoney(values.ventaPlan)}
             </div>
 
             {/* V. Ejecutada */}
-            <div className="text-right font-mono text-[11.5px] text-emerald-700 font-bold">
+            <div className="text-right font-mono text-[11.5px] text-green-700 font-semibold">
               {formattedMoney(values.ventaEjecutada)}
             </div>
             
@@ -918,16 +861,14 @@ export default function App() {
             <div className="text-right">
               <div className="flex items-center justify-end gap-1.5">
                 <span className={`font-mono font-bold text-[11px] w-12 text-right ${
-                  avance >= 100 ? 'text-emerald-700' : avance >= 50 ? 'text-indigo-700' : avance > 0 ? 'text-amber-700' : 'text-slate-400'
+                  avance >= 100 ? 'text-green-700' : avance > 0 ? 'text-[#14212A]' : 'text-slate-400'
                 }`}>
                   {avance.toFixed(2)}%
                 </span>
                 <div className="w-12 sm:w-14 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0 border border-slate-200/60">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      avance >= 100 ? 'bg-emerald-500' : isLeaf ? (avance >= 50 ? 'bg-indigo-500' : avance > 0 ? 'bg-amber-500' : 'bg-slate-300') : progressBarColor
-                    }`}
-                    style={{ width: `${Math.min(avance, 100)}%` }}
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(avance, 100)}%`, backgroundColor: avance >= 100 ? '#2B7F52' : barColor }}
                   />
                 </div>
               </div>
@@ -936,11 +877,11 @@ export default function App() {
             {/* Saldo / Excedente */}
             <div className="text-right font-mono text-[11.5px]">
               {values.saldo < 0 ? (
-                <span className="text-rose-600 font-bold">
+                <span className="text-red-600 font-semibold">
                   ({formattedMoney(Math.abs(values.saldo))})
                 </span>
               ) : (
-                <span className="text-indigo-950 font-semibold">
+                <span className="text-[#14212A] font-semibold">
                   {formattedMoney(values.saldo)}
                 </span>
               )}
@@ -949,11 +890,11 @@ export default function App() {
             {/* % Var */}
             <div className="text-right font-mono text-[11px]">
               {pctVar < 0 ? (
-                <span className="text-rose-600 font-bold" title={`Variación negativa: ${pctVar.toFixed(2)}%`}>
+                <span className="text-red-600 font-semibold" title={`Variación negativa: ${pctVar.toFixed(2)}%`}>
                   ({Math.abs(pctVar).toFixed(2)}%)
                 </span>
               ) : pctVar > 0 ? (
-                <span className="text-emerald-700 font-bold" title={`Variación positiva: +${pctVar.toFixed(2)}%`}>
+                <span className="text-green-700 font-semibold" title={`Variación positiva: +${pctVar.toFixed(2)}%`}>
                   +{pctVar.toFixed(2)}%
                 </span>
               ) : (
