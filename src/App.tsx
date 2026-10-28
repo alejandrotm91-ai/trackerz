@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Upload, ChevronRight, ChevronDown, Download, Search, Filter, Lock, Unlock, User, FileSpreadsheet, AlertCircle, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles, Brain, RefreshCw, Globe, Server, FileText, ChevronsUpDown, ChevronsDownUp, Layers, X } from 'lucide-react';
+import { Upload, ChevronRight, ChevronDown, Building2, Download, Search, Filter, Lock, Unlock, User, FileSpreadsheet, AlertCircle, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles, Brain, RefreshCw, Globe, Server, FileText, ChevronsUpDown, ChevronsDownUp, Layers, X } from 'lucide-react';
 import { useMasterPlan } from './hooks/useMasterPlan';
 import { CronogramaTab } from './components/CronogramaTab';
 import { PlanillaTab } from './components/PlanillaTab';
@@ -15,6 +15,7 @@ import { PersonalTab } from './components/PersonalTab';
 import { ProcesoTab } from './components/ProcesoTab';
 import { MasterTab } from './components/MasterTab';
 import { AIReportModal } from './components/AIReportModal';
+import { LogoHoja } from './components/LogoHoja';
 import { ClaveAdminDialog } from './components/ClaveAdminDialog';
 import { construirDatosReporte, construirEjecutivo } from './utils/aiReportHelper';
 import { reporteATexto } from './utils/reporteTexto';
@@ -26,6 +27,8 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const pc = useMasterPlan(isLoggedIn);
   const [username, setUsername] = React.useState('');
+  // Proyecto de la pantalla de inicio (por ahora solo Los Merinos)
+  const [proyecto, setProyecto] = React.useState('los-merinos');
   const [password, setPassword] = React.useState('');
   const [role, setRole] = React.useState<'admin' | 'viewer' | null>(null);
   const [isCheckingSession, setIsCheckingSession] = React.useState(true);
@@ -1087,17 +1090,20 @@ export default function App() {
           <div className="bg-white rounded-3xl border border-indigo-100/80 overflow-hidden shadow-[0_15px_40px_rgba(15,23,42,0.06)] grid md:grid-cols-12 min-h-[520px]">
           
           {/* Brand/Showcase column */}
-          <div className="md:col-span-5 bg-gradient-to-br from-slate-50 to-indigo-50/40 p-8 md:p-12 flex flex-col justify-between items-center text-center border-r border-slate-100">
-            <div className="my-auto space-y-4 flex flex-col items-center">
-              <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/15 animate-fade-in">
-                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                  <div className="w-4 h-4 bg-indigo-600 rounded-full"></div>
-                </div>
+          <div className="md:col-span-5 relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-rose-50/70 p-8 md:p-12 flex flex-col justify-between items-center text-center border-r border-slate-100">
+            {/* Hoja grande de fondo, muy suave */}
+            <LogoHoja className="absolute -right-16 -bottom-20 h-[22rem] opacity-[0.05] pointer-events-none select-none" title="" />
+            <div className="my-auto space-y-5 flex flex-col items-center relative">
+              <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-[0_14px_34px_rgba(205,0,0,0.14)] ring-1 ring-rose-100 animate-fade-in">
+                <LogoHoja className="h-16" />
               </div>
-              <span className="text-2xl font-extrabold tracking-tight text-slate-900 font-sans">Tracker v2.0</span>
+              <div className="space-y-1">
+                <span className="block text-[32px] leading-none font-extrabold tracking-tight text-slate-900 font-sans">Trakciona</span>
+                <span className="block text-xs text-slate-500 font-medium tracking-wide">Control de avance de obra</span>
+              </div>
             </div>
 
-            <div className="pt-6 border-t border-slate-100 w-full">
+            <div className="pt-6 border-t border-slate-200/70 w-full relative">
               <p className="text-slate-400 text-[10px] font-mono uppercase tracking-wider">
                 May.2026
               </p>
@@ -1120,6 +1126,24 @@ export default function App() {
               )}
 
               <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="login-proyecto" className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                    Proyecto
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="login-proyecto"
+                      value={proyecto}
+                      onChange={(e) => setProyecto(e.target.value)}
+                      className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-11 py-3.5 text-sm font-semibold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all cursor-pointer"
+                    >
+                      <option value="los-merinos">Los Merinos</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
                     <User className="w-3.5 h-3.5 text-indigo-600" />
@@ -1593,11 +1617,14 @@ export default function App() {
          {/* Navigation / Header */}
         <div className="flex justify-between items-center bg-white rounded-xl shadow-2xs border border-[#D5DEE2] p-4 sm:p-5 flex-wrap gap-4">
           <div className="flex items-center space-x-3.5">
-            <div className="w-10 h-10 bg-[#442dd7] rounded-xl flex items-center justify-center shadow-xs text-white font-bold text-base">
-              ⚙️
+            <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-xs ring-1 ring-[#F3D6D6]">
+              <LogoHoja className="h-8" />
             </div>
             <div>
-              <h1 className="font-['Barlow_Condensed'] text-2xl sm:text-[26px] font-bold text-[#14212A] tracking-tight leading-none">Tracker v2.0</h1>
+              <h1 className="font-['Barlow_Condensed'] text-2xl sm:text-[26px] font-bold text-[#14212A] tracking-tight leading-none">
+                Trakciona
+                <span className="ml-2 font-sans text-[13px] font-medium text-[#5A6A74] tracking-normal align-middle">Los Merinos</span>
+              </h1>
               <div className="flex flex-col gap-1.5 mt-1">
                 {pc.fileData && pc.fileData.isCloud ? (
                   <span className="px-2.5 py-0.5 bg-[#EEECFB] text-[#442dd7] rounded text-[11px] font-semibold border border-[#442dd7]/30 inline-flex items-center gap-1.5 self-start animate-fade-in">
@@ -1914,7 +1941,7 @@ export default function App() {
 
             {/* Tab Selection */}
             <div className="flex flex-col md:flex-row justify-center relative min-h-[46px] items-center gap-3">
-              {/* Botones a la izquierda: en línea con el toggle y debajo del título Tracker v2.0 */}
+              {/* Botones a la izquierda: en línea con el toggle y debajo del título Trakciona */}
               <div className="md:absolute left-0 mt-3 md:mt-0 flex items-center gap-2 justify-start">
                 {pc.activeTab === 'cronograma' && (
                   <div className="flex items-center gap-2 relative" ref={aiMenuRef}>
