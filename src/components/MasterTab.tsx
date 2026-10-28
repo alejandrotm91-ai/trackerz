@@ -50,6 +50,7 @@ import {
   MasterHierarchyMode,
   MasterHierarchyNode,
   buildMasterHierarchyTree,
+  calcularVenta,
   getVisibleHierarchyNodes,
   getMatchingLeafNodes,
   getHierarchyRowStyles,
@@ -569,15 +570,16 @@ export function MasterTab({
   };
 
   const handleUpdateItemPropertyFromXls = (itemId: string, field: 'precio' | 'step' | 'cantPres', val: number) => {
-    const existingVal = items.find(i => i.id === itemId)?.[field] || 0;
+    const existingVal = (items.find(i => i.id === itemId) as any)?.[field === 'cantPres' ? 'cantidadPresupuesto' : field] || 0;
     if (existingVal === val) return;
 
     const newItems = items.map(item => {
       if (item.id !== itemId) return item;
-      return {
-        ...item,
-        [field]: val
-      };
+      const key = field === 'cantPres' ? 'cantidadPresupuesto' : field;
+      const updated = { ...item, [key]: val };
+      // Igual que la Col I del CDO: ROUND(Cantidad × Precio, 2) × Step
+      updated.venta = calcularVenta(updated.cantidadPresupuesto, updated.precio, updated.step);
+      return updated;
     });
     setItems(newItems);
     triggerDataChange(newItems, semanas);

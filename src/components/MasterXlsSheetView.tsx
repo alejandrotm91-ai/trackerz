@@ -2094,7 +2094,7 @@ export function MasterXlsSheetView({
                             : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950' : 'bg-inherit border-slate-300'
                         } border-r font-mono text-[10.5px] cursor-pointer`}
                       >
-                        {isLeaf ? (
+                        {isLeaf || item ? (
                           <span
                             className="font-semibold text-slate-700 truncate block select-text"
                             title={node.idOrig || item?.idOrig || ''}
@@ -2115,7 +2115,7 @@ export function MasterXlsSheetView({
                             : isP6 ? 'bg-[#ffedd5] border-orange-200' : 'bg-inherit border-slate-300'
                         } border-r font-mono text-[10.5px] cursor-pointer`}
                       >
-                        {isLeaf && item ? (
+                        {item ? (
                           <div className="flex items-center justify-between gap-1 group">
                             <span
                               className={`font-bold ${isP6 ? 'text-orange-950 font-black' : 'text-indigo-700'} hover:underline cursor-pointer truncate select-text`}
@@ -2155,8 +2155,8 @@ export function MasterXlsSheetView({
                       >
                         <div className="flex items-center gap-1.5">
                           {!isLeaf && (
-                            <span className={`text-[8.5px] px-1 py-0.2 rounded border uppercase font-black shrink-0 ${styles.levelBadgeBg}`}>
-                              {styles.levelName}
+                            <span className={`text-[8.5px] px-1 py-0.2 rounded border uppercase font-black shrink-0 ${item ? 'bg-orange-200/90 text-orange-950 border-orange-300' : styles.levelBadgeBg}`}>
+                              {item ? 'Actividad P6' : styles.levelName}
                             </span>
                           )}
                           <span className={`truncate text-xs ${isP6 ? 'font-semibold text-orange-950' : styles.textCls}`} title={node.descripcion}>

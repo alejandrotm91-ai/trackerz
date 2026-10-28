@@ -6,7 +6,7 @@
 import * as XLSX from 'xlsx';
 import { MasterCdoItem, MasterCdoWeek, MasterCdoPlanDoc, MasterCdoTotals } from '../types/masterCdo';
 import { Actividad } from '../types';
-import { parseWbsAndDescription } from './masterCdoHierarchy';
+import { parseWbsAndDescription, stepDeFila, ventaDeFila } from './masterCdoHierarchy';
 import { parseFlexibleDate } from '../hooks/useMasterPlan';
 import { apiFetch } from './api';
 
@@ -19,11 +19,17 @@ export function calculateMasterTotals(items: MasterCdoItem[], semanas: MasterCdo
   let totalCantidadPresupuesto = 0;
   let totalCantidadEjecutada = 0;
 
+  // Una actividad P6 vale la suma de sus partidas: no se cuenta su propia fila.
+  const actividadesP6 = new Set(
+    items.map(i => i.parentActivityId?.trim().toLowerCase()).filter(Boolean) as string[]
+  );
+
   for (const item of items) {
+    if (!item.parentActivityId && item.activityId && actividadesP6.has(item.activityId.trim().toLowerCase())) continue;
     const cantPres = Number(item.cantidadPresupuesto) || 0;
     const precio = Number(item.precio) || 0;
-    const step = Number(item.step) || 1;
-    const venta = Number(item.venta) || (cantPres * precio * step);
+    const step = stepDeFila(item.step);
+    const venta = ventaDeFila(item);
 
     totalVentaPresupuesto += venta;
     totalCantidadPresupuesto += cantPres;
@@ -78,7 +84,9 @@ export function initializeMasterCdoFromActividades(
   // Collect all unique date keys found across actividades (certificaciones, planificado, etc.)
   const detectedDatesSet = new Set<string>();
 
-  actividades.forEach(a => {
+  const conHijos: any[] = [];
+  actividades.forEach(a => { conHijos.push(a); (a.hijosP6 || []).forEach(h => conHijos.push(h)); });
+  conHijos.forEach(a => {
     if (a.certificacionesPorFecha) {
       Object.keys(a.certificacionesPorFecha).forEach(d => {
         if (d && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
@@ -159,12 +167,12 @@ export function initializeMasterCdoFromActividades(
     }
   }
 
-  // Filter leaf items or all items
-  const items: MasterCdoItem[] = actividades.map((act, idx) => {
+  // Convierte una actividad (o una partida de actividad P6) en una fila del Master.
+  const toItem = (act: Actividad, idx: number): MasterCdoItem => {
     const cantPres = Number(act.cantidadCdo) || 0;
     const precio = Number(act.precio) || 0;
-    const step = Number(act.step) || 1;
-    const venta = Number(act.venta) || (cantPres * precio * step);
+    const step = stepDeFila(act.step);
+    const venta = Number(act.venta) || 0; // Col I tal cual
 
     // Initial weekly quantities & monetary progress:
     // 1. If cantidadesPorFecha exists (from Q- columns), it holds the true physical quantity.
@@ -239,6 +247,21 @@ export function initializeMasterCdoFromActividades(
       cantidadesSemanales,
       ventasSemanales
     };
+  };
+
+  // Mismo orden que el CDO: cada actividad P6 seguida de sus partidas (que cuelgan de ella).
+  const items: MasterCdoItem[] = [];
+  actividades.forEach((act, idx) => {
+    items.push(toItem(act, idx));
+    (act.hijosP6 || []).forEach(h => {
+      const comoActividad = {
+        ...h,
+        wbs: act.wbs,
+        wbsRaw: (act as any).wbsRaw,
+        esItemHoja: true,
+      } as unknown as Actividad;
+      items.push({ ...toItem(comoActividad, idx), parentActivityId: act.activityId || '' });
+    });
   });
 
   return { items, semanas };
@@ -438,7 +461,9 @@ export async function parseMasterCdoFromExcel(
     const row = jsonData[i];
     if (!row) continue;
 
-    const rawObs = row[obsCol] ? String(row[obsCol]).trim() : '';
+    // Obs solo cuenta si trae texto de WBS (hay filas con basura tipo "¿").
+    const obsTxt = row[obsCol] ? String(row[obsCol]).trim() : '';
+    const rawObs = /[a-z0-9]/i.test(obsTxt) ? obsTxt : '';
     const rawColA = row[0] ? String(row[0]).trim() : '';
     const hierarchyText = rawObs || rawColA;
     if (!hierarchyText) continue;
@@ -460,8 +485,8 @@ export async function parseMasterCdoFromExcel(
     const unidad = row[4] ? String(row[4]).trim() : 'UND';
     const cantidadPresupuesto = parseNum(row[cantCol]);
     const precio = parseNum(row[precioCol]);
-    const step = parseNum(row[stepCol]) || 1;
-    const venta = parseNum(row[8]) || (cantidadPresupuesto * precio * step);
+    const step = stepDeFila(row[stepCol]);
+    const venta = parseNum(row[8]); // Col I tal cual (vacía = 0)
     const subcontratista = row[subcCol] ? String(row[subcCol]).trim() : 'Propio';
     const esItemHoja = !!activityId || cantidadPresupuesto > 0;
 
@@ -501,7 +526,11 @@ export async function parseMasterCdoFromExcel(
       }
     });
 
+    // Partida de una actividad P6: su Col A es el Activity ID ".p6" de la actividad.
+    const parentActivityId = activityId && /p6/i.test(rawColA) ? rawColA : undefined;
+
     items.push({
+      ...(parentActivityId ? { parentActivityId } : {}),
       id: `row_${i}`,
       wbs,
       wbsRaw: rawColA,
@@ -567,8 +596,8 @@ export function exportMasterCdoToExcel(
   items.forEach(item => {
     const cantPres = Number(item.cantidadPresupuesto) || 0;
     const precio = Number(item.precio) || 0;
-    const step = Number(item.step) || 1;
-    const venta = Number(item.venta) || (cantPres * precio * step);
+    const step = stepDeFila(item.step);
+    const venta = ventaDeFila(item);
 
     let sumCantEjecutada = 0;
     const weeklyValues: number[] = [];

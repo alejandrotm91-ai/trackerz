@@ -6,6 +6,22 @@
 import { MasterCdoItem, MasterCdoWeek } from '../types/masterCdo';
 import { Actividad } from '../types';
 
+/** Step de una fila: vacío = 1; un 0 explícito se respeta (p. ej. filas de Ingeniería). */
+export function stepDeFila(step: any): number {
+  return step === null || step === undefined || step === '' ? 1 : (Number(step) || 0);
+}
+
+/** Venta de una fila = Col I del CDO tal cual. Solo se calcula si la fila no trae venta. */
+export function ventaDeFila(item: { venta?: any; cantidadPresupuesto?: any; precio?: any; step?: any }): number {
+  if (item.venta !== null && item.venta !== undefined && item.venta !== '') return Number(item.venta) || 0;
+  return calcularVenta(item.cantidadPresupuesto, item.precio, item.step);
+}
+
+/** Fórmula de la Col I: ROUND(Cantidad × Precio, 2) × Step. */
+export function calcularVenta(cantidad: any, precio: any, step: any): number {
+  return (Math.round((Number(cantidad) || 0) * (Number(precio) || 0) * 100) / 100) * stepDeFila(step);
+}
+
 export type MasterHierarchyMode = 'wbs' | 'tipo_subc_scap_unit' | 'flat';
 
 /**
@@ -528,8 +544,8 @@ export function buildMasterHierarchyTree(
       const cleanWbs = parsedItem.wbs || item.wbs || '';
       const cantPres = Number(item.cantidadPresupuesto) || 0;
       const precio = Number(item.precio) || 0;
-      const step = Number(item.step) || 1;
-      const venta = Number(item.venta) || (cantPres * precio * step);
+      const step = stepDeFila(item.step);
+      const venta = ventaDeFila(item);
 
       const refAct = actividadById.get((item.activityId || '').toLowerCase()) ||
                      actividadById.get((item.id || '').toLowerCase()) ||
@@ -592,11 +608,17 @@ export function buildMasterHierarchyTree(
 
   // ── Register all hierarchy descriptions from Column A and activities ──
   const wbsDescriptions = new Map<string, string>();
-  const registerDesc = (code: string, desc: string) => {
+  // weak = nombre deducido (CAP/SCAP o nombre de una actividad): solo se usa si la fila de
+  // encabezado del CDO no da uno; nunca reemplaza al nombre real.
+  const registerDesc = (code: string, desc: string, weak = false) => {
     if (!code || !desc) return;
     const cleanCode = code.trim().toLowerCase();
     const cleanDesc = desc.trim();
     if (!cleanDesc) return;
+    if (weak) {
+      const normWeak = cleanCode.replace(/^p\d{4}\./, 'p.');
+      if (wbsDescriptions.has(cleanCode) || wbsDescriptions.has(normWeak)) return;
+    }
     const isGeneric = /^partida\s+/i.test(cleanDesc) || /^cap[ií]tulo\s+/i.test(cleanDesc) || /^subcap[ií]tulo\s+/i.test(cleanDesc);
     if (wbsDescriptions.has(cleanCode) && isGeneric) return;
 
@@ -636,8 +658,10 @@ export function buildMasterHierarchyTree(
         registerDesc(p.wbs, p.description);
         registerDesc(p.normalizedWbs, p.description);
       }
-      if (a.descripcion && (!a.esItemHoja || !wbsDescriptions.has(p.wbs.toLowerCase()))) {
+      if (a.descripcion && !a.esItemHoja) {
         registerDesc(p.wbs || a.wbs, a.descripcion);
+      } else if (a.descripcion) {
+        registerDesc(p.wbs || a.wbs, a.descripcion, true);
       }
     }
     if (a.cap && a.wbs) {
@@ -646,7 +670,7 @@ export function buildMasterHierarchyTree(
       if (capDesc) {
         const parts = (a.wbs || '').split('.');
         if (parts.length >= 2) {
-          registerDesc(parts.slice(0, 2).join('.'), capDesc);
+          registerDesc(parts.slice(0, 2).join('.'), capDesc, true);
         }
       }
     }
@@ -656,7 +680,7 @@ export function buildMasterHierarchyTree(
       if (scapDesc) {
         const parts = (a.wbs || '').split('.');
         if (parts.length >= 3) {
-          registerDesc(parts.slice(0, 3).join('.'), scapDesc);
+          registerDesc(parts.slice(0, 3).join('.'), scapDesc, true);
         }
       }
     }
@@ -690,7 +714,7 @@ export function buildMasterHierarchyTree(
       if (capDesc) {
         const parts = (item.wbs || '').split('.');
         if (parts.length >= 2) {
-          registerDesc(parts.slice(0, 2).join('.'), capDesc);
+          registerDesc(parts.slice(0, 2).join('.'), capDesc, true);
         }
       }
     }
@@ -700,7 +724,7 @@ export function buildMasterHierarchyTree(
       if (scapDesc) {
         const parts = (item.wbs || '').split('.');
         if (parts.length >= 3) {
-          registerDesc(parts.slice(0, 3).join('.'), scapDesc);
+          registerDesc(parts.slice(0, 3).join('.'), scapDesc, true);
         }
       }
     }
@@ -756,11 +780,13 @@ export function buildMasterHierarchyTree(
   };
 
   // Helper to normalize WBS
+  // Igual que el Gantt: "p0926.1.4" y "p.1.4" son el mismo nodo (se muestra como "p.1.4").
   const normalizeWbs = (w: string) => {
     if (!w) return '';
     const parsed = parseWbsAndDescription(w);
-    return (parsed.wbs || w).trim().replace(/\s+/g, '');
+    return (parsed.wbs || w).trim().replace(/\s+/g, '').replace(/^p\d{4}\./i, 'p.');
   };
+  const isProjectRoot = (w: string) => /^p\d{4}$/i.test(w) || /^p\.?$/i.test(w);
 
   if (mode === 'wbs') {
     // ── VISTA WBS: Jerarquía por Capítulos, Subcapítulos y Paquetes ──
@@ -770,9 +796,9 @@ export function buildMasterHierarchyTree(
     actividades.forEach(a => {
       if (!a.esItemHoja && a.wbs) {
         const rawWbs = a.wbs || '';
-        if (/^p\d{4}$/.test(rawWbs)) return; // Exclude root project code like p0326
         const parsed = parseWbsAndDescription(rawWbs);
-        const wbs = parsed.wbs || normalizeWbs(rawWbs);
+        const wbs = normalizeWbs(rawWbs);
+        if (!wbs || isProjectRoot(wbs)) return; // Excluir la raíz del proyecto (p0926)
         if (!parentsAdded.has(wbs)) {
           parentsAdded.add(wbs);
           const parts = wbs.split('.');
@@ -820,6 +846,7 @@ export function buildMasterHierarchyTree(
       const parsedItem = parseWbsAndDescription(rawWbs);
       const cleanWbs = parsedItem.wbs || rawWbs;
       const wbs = cleanWbs ? normalizeWbs(cleanWbs) : `sin_wbs_${idx}`;
+      if (isProjectRoot(wbs)) return; // fila raíz del proyecto (p0926)
       const parts = wbs.split('.');
 
       // Clean up item itself if it had merged Column A text
@@ -892,8 +919,8 @@ export function buildMasterHierarchyTree(
       // Create Leaf Node
       const cantPres = Number(item.cantidadPresupuesto) || 0;
       const precio = Number(item.precio) || 0;
-      const step = Number(item.step) || 1;
-      const venta = Number(item.venta) || (cantPres * precio * step);
+      const step = stepDeFila(item.step);
+      const venta = ventaDeFila(item);
 
       const matchedAct = actividadById.get((item.activityId || '').toLowerCase()) ||
                          actividadById.get((item.id || '').toLowerCase()) ||
@@ -969,6 +996,38 @@ export function buildMasterHierarchyTree(
 
       nodeMap.set(leafKey, leafNode);
       allKeys.push(leafKey);
+    });
+
+    // Partidas de actividades P6: cuelgan de su actividad (no de la WBS). La actividad P6 pasa
+    // a ser un grupo y su total es la suma de sus partidas, igual que en el Gantt.
+    const leafByActivityId = new Map<string, string>();
+    nodeMap.forEach(n => {
+      if (n.esHoja && n.activityId && !n.itemRef?.parentActivityId) {
+        leafByActivityId.set(n.activityId.trim().toLowerCase(), n.key);
+      }
+    });
+    nodeMap.forEach(n => {
+      const pid = n.itemRef?.parentActivityId;
+      if (!n.esHoja || !pid) return;
+      let parentKey = leafByActivityId.get(String(pid).trim().toLowerCase());
+      if (!parentKey) {
+        // Actividad P6 inexistente en el CDO (p. ej. "11.5.1.p6"): va al capítulo WBS más cercano.
+        const parts = normalizeWbs(String(pid).replace(/\.p6$/i, '')).replace(/^(?!p\.)/i, 'p.').split('.');
+        while (parts.length > 1 && !(nodeMap.has(parts.join('.')) && !nodeMap.get(parts.join('.'))!.esHoja)) parts.pop();
+        const k = parts.join('.');
+        if (parts.length > 1 && nodeMap.has(k)) {
+          n.parentKey = k;
+          n.depth = nodeMap.get(k)!.depth + 1;
+          n.nivel = n.depth + 2;
+        }
+        return;
+      }
+      const parent = nodeMap.get(parentKey);
+      if (!parent) return;
+      parent.esHoja = false;
+      n.parentKey = parentKey;
+      n.depth = parent.depth + 1;
+      n.nivel = n.depth + 2;
     });
 
   } else if (mode === 'tipo_subc_scap_unit') {
@@ -1171,8 +1230,8 @@ export function buildMasterHierarchyTree(
       // Leaf Node
       const cantPres = Number(item.cantidadPresupuesto) || 0;
       const precio = Number(item.precio) || 0;
-      const step = Number(item.step) || 1;
-      const venta = Number(item.venta) || (cantPres * precio * step);
+      const step = stepDeFila(item.step);
+      const venta = ventaDeFila(item);
 
       let cantAcum = Object.values(item.cantidadesSemanales || {}).reduce((s: number, val: any) => s + (Number(val) || 0), 0) as number;
       let avanceEconSum = Object.values(item.ventasSemanales || {}).reduce((s: number, val: any) => s + (Number(val) || 0), 0) as number;
@@ -1701,8 +1760,8 @@ export function calculateMasterTableSummary(
     fallbackItems.forEach(item => {
       const cantPres = Number(item.cantidadPresupuesto) || 0;
       const precio = Number(item.precio) || 0;
-      const step = Number(item.step) || 1;
-      const venta = Number(item.venta) || (cantPres * precio * step);
+      const step = stepDeFila(item.step);
+      const venta = ventaDeFila(item);
 
       totalCantPresupuesto += cantPres;
       totalVentaPresupuesto += venta;

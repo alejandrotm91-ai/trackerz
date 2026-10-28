@@ -60,6 +60,9 @@ export interface Actividad {
   scapAgregado?: any;
   capAgregado?: any;
   procesoAgregado?: any;
+  // Solo en actividades P6: sus partidas (filas cuya Col A es el Activity ID de esta actividad).
+  // Las usa la pestaña Master; el resto de la app trabaja con la actividad ya consolidada.
+  hijosP6?: HijoP6[];
 }
 
 export interface PlanillaItem {
@@ -80,4 +83,32 @@ export interface PlanillaItem {
   cert: number;
   exc: number;
   excE6: number;
+}
+
+/** Partida dentro de una actividad P6 (fila del CDO cuya Col A es el Activity ID ".p6"). */
+export interface HijoP6 {
+  id: string;
+  activityId: string;
+  idOrig: string;
+  descripcion: string;
+  unidad: string;
+  cantidadCdo: number;
+  precio: number;
+  step: number;
+  venta: number;
+  subcontratista?: string;
+  cap?: string;
+  scap?: string;
+  tipo?: string;
+  macro?: string;
+  grupo?: string;
+  partidas?: string;
+  unit?: string;
+  componente?: string;
+  ubicacion?: string;
+  proceso?: string;
+  resp?: string;
+  pAc?: string;
+  status?: string;
+  certificacionesPorFecha?: Record<string, number>;
 }

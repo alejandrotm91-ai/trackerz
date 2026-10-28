@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Actividad, PlanillaItem } from '../types';
+import { Actividad, PlanillaItem, HijoP6 } from '../types';
 import { normalizeText, ctPf, isIgnoredFinishDate } from '../utils/helpers';
 import { loadLatestPlanFromCloud, savePlanToCloud } from '../utils/cloudSync';
 import { savePlanToLocalStorage, loadPlanFromLocalStorage } from '../utils/localStorageBackup';
@@ -2314,6 +2314,56 @@ export function useMasterPlan(isLoggedIn = false) {
           }
         }
 
+        // Partidas de las actividades P6 (filas cuya Col A es el Activity ID ".p6").
+        // Se ocultan en el resto de la app (su valor va sumado en la actividad), pero la
+        // pestaña Master las necesita para editarlas: se guardan dentro de su actividad.
+        const hijosP6PorActividad = new Map<string, HijoP6[]>();
+        {
+          const txt = (v: any) => (v === null || v === undefined ? '' : String(v).trim());
+          const col = (r: any[], idx: number) => (idx >= 0 ? txt(r[idx]) : '');
+          for (let j = 2; j < jsonData.length; j++) {
+            const r = jsonData[j];
+            if (!r) continue;
+            const colA = txt(r[0]);
+            if (!colA || !colA.toLowerCase().includes('p6')) continue;
+            const semanal: Record<string, number> = {};
+            Object.entries(fechasPorColumnaCDO).forEach(([colStr, fechaKey]) => {
+              const v = helperParseNum(r[parseInt(colStr)]);
+              if (v > 0) semanal[fechaKey] = (semanal[fechaKey] || 0) + v;
+            });
+            const rawStepH = stepColIndex >= 0 ? r[stepColIndex] : r[7];
+            const hijo: HijoP6 = {
+              id: `row_${j}`,
+              activityId: txt(r[2]),
+              idOrig: txt(r[1]),
+              descripcion: txt(r[3]),
+              unidad: txt(r[4]),
+              cantidadCdo: helperParseNum(r[5]),
+              precio: helperParseNum(r[6]),
+              step: rawStepH === null || rawStepH === undefined || rawStepH === '' ? 1 : helperParseNum(rawStepH),
+              venta: helperParseNum(r[colIndices.venta]),
+              subcontratista: col(r, colIndices.subcontratista),
+              cap: col(r, colIndices.cap),
+              scap: col(r, colIndices.scap),
+              tipo: col(r, colIndices.tipo),
+              macro: col(r, colIndices.macro),
+              grupo: col(r, colIndices.grupo),
+              partidas: col(r, colIndices.partidas),
+              unit: col(r, colIndices.unit),
+              componente: col(r, colIndices.componente),
+              ubicacion: col(r, colIndices.ubicacion),
+              proceso: col(r, colIndices.proceso),
+              resp: col(r, colIndices.resp),
+              pAc: col(r, colIndices.pAc),
+              status: col(r, colIndices.status),
+              certificacionesPorFecha: semanal,
+            };
+            const key = colA.toLowerCase();
+            const lista = hijosP6PorActividad.get(key);
+            if (lista) lista.push(hijo); else hijosP6PorActividad.set(key, [hijo]);
+          }
+        }
+
         for (let i = 2; i < jsonData.length; i++) {
           if ((i - 2) % intervaloUpdate === 0 && i > 2) {
             const pctLoop = ((i - 2) / totalFilas) * 30; 
@@ -2661,7 +2711,9 @@ export function useMasterPlan(isLoggedIn = false) {
             ? (activityName || wbsCode)
             : (wbsDescripcion || activityName || wbsCode);
 
+          const hijosP6 = esItemHoja && actIdCleanForP6 ? hijosP6PorActividad.get(actIdCleanForP6) : undefined;
           actividadesProcesadas.push({
+            ...(hijosP6 && hijosP6.length > 0 ? { hijosP6 } : {}),
             id: `row_${i}`,
             wbs: wbsCode,
             wbsRaw: wbsStr,
