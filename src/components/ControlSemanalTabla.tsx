@@ -350,7 +350,8 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   const [expandedSubPartidas, setExpandedSubPartidas] = React.useState<Set<string>>(new Set());
   const [expandedCheckSets, setExpandedCheckSets] = React.useState<Set<string>>(new Set());
 
-  const [hasInitializedDefaultWeek, setHasInitializedDefaultWeek] = React.useState<boolean>(false);
+  // Última semana por defecto que ya se aplicó (se vuelve a aplicar si llegan datos con una semana más nueva)
+  const [semanaDefaultAplicada, setSemanaDefaultAplicada] = React.useState<string>('');
   // Dynamic Hierarchy state
   const [activeHierarchy, setActiveHierarchy] = React.useState<HierarchyDimensionId[]>(() => {
     try {
@@ -432,29 +433,26 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     return Array.from(weekSet).sort();
   }, [actividades, dataPlanificadoPG004]);
 
-  // Set the default week to the last one with executed values
-  React.useEffect(() => {
-    if (!hasInitializedDefaultWeek && actividades && actividades.length > 0) {
-      let maxWeek = '';
-      const isReasonableYear = (k: string) => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return false;
+  // Última semana con avance ejecutado en el CDO (columnas V-)
+  const ultimaSemanaEjecutada = React.useMemo(() => {
+    let maxWeek = '';
+    (actividades || []).forEach(item => {
+      if (!item.esItemHoja || !item.certificacionesPorFecha) return;
+      Object.entries(item.certificacionesPorFecha).forEach(([k, v]) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return;
         const yr = parseInt(k.substring(0, 4), 10);
-        return yr >= 2020 && yr <= 2040;
-      };
-
-      actividades.forEach(item => {
-        if (item.esItemHoja && item.certificacionesPorFecha) {
-          Object.keys(item.certificacionesPorFecha).forEach(k => {
-            if (isReasonableYear(k)) {
-              const val = Number(item.certificacionesPorFecha[k]) || 0;
-              if (Math.abs(val) > 0.001) {
-                if (k > maxWeek) maxWeek = k;
-              }
-            }
-          });
-        }
+        if (yr < 2020 || yr > 2040) return;
+        if (Math.abs(Number(v) || 0) > 0.001 && k > maxWeek) maxWeek = k;
       });
-      if (maxWeek && availableWeeks.includes(maxWeek)) {
+    });
+    return maxWeek;
+  }, [actividades]);
+
+  // Por defecto: hasta la última semana con avance ejecutado. Se recalcula cuando los datos traen una semana nueva.
+  React.useEffect(() => {
+    const maxWeek = ultimaSemanaEjecutada;
+    if (maxWeek && maxWeek !== semanaDefaultAplicada) {
+      if (availableWeeks.includes(maxWeek)) {
         const upToWeeks = availableWeeks.filter(w => w <= maxWeek);
         setIsAllSelected(upToWeeks.length === availableWeeks.length);
         setSelectedWeeks(new Set(upToWeeks));
@@ -485,10 +483,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
           setRangeEndMonth(eParts[1]);
           setRangeEndDay(eParts[2]);
         }
+        setSemanaDefaultAplicada(maxWeek);
       }
-      setHasInitializedDefaultWeek(true);
     }
-  }, [actividades, availableWeeks, hasInitializedDefaultWeek]);
+  }, [ultimaSemanaEjecutada, availableWeeks, semanaDefaultAplicada]);
 
   const [rangeStartYear, setRangeStartYear] = React.useState<string>('');
   const [rangeStartMonth, setRangeStartMonth] = React.useState<string>('');
