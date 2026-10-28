@@ -1941,10 +1941,10 @@ export default function App() {
                     <button
                       id="btn-crono-avance-partidas"
                       onClick={() => setShowAvancePartidasModal(true)}
-                      className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#CD0000] hover:bg-[#A80000] text-white border-[#CD0000] shadow-xs transition-all active:scale-95 cursor-pointer"
+                      className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#5A6A74] hover:bg-[#45535C] text-white border-[#5A6A74] shadow-xs transition-all active:scale-95 cursor-pointer"
                       title="Abrir panel de Avance de Partidas Estructurales y Resumen Económico"
                     >
-                      <Layers className="w-3.5 h-3.5 text-[#FBE9E9]" />
+                      <Layers className="w-3.5 h-3.5 text-[#E2E8EC]" />
                       <span>Avance Partidas</span>
                     </button>
 
@@ -1952,12 +1952,12 @@ export default function App() {
                       <button
                         id="btn-gemini-crono-intel"
                         onClick={() => setShowAIReportMenu(!showAIReportMenu)}
-                        className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#CD0000] hover:bg-[#A80000] text-white border-[#CD0000] shadow-xs transition-all active:scale-95 cursor-pointer"
+                        className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#5B21B6] hover:bg-[#4C1D95] text-white border-[#5B21B6] shadow-xs transition-all active:scale-95 cursor-pointer"
                         title="Generar y consultar reporte de inteligencia artificial por área"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
                         <span>Inteligencia</span>
-                        <ChevronDown className={`w-3.5 h-3.5 text-[#FBE9E9] transition-transform ${showAIReportMenu ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`w-3.5 h-3.5 text-[#E9D5FF] transition-transform ${showAIReportMenu ? 'rotate-180' : ''}`} />
                       </button>
 
                       {/* DROPDOWN MENU WITH 2 OPTIONS */}
