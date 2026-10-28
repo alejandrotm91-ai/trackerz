@@ -2708,19 +2708,19 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           
           // Hierarchical coloring schema for parenting levels to distinguish them clearly
           const rowBg = node.esHoja ? 'bg-white'
-            : node.nivel === 2 ? 'bg-blue-50/70 font-bold border-l-4 border-l-blue-600'
+            : node.nivel === 2 ? 'bg-[#FDF3F3] font-bold border-l-4 border-l-[#CD0000]'
             : node.nivel === 3 ? 'bg-emerald-50/70 font-semibold border-l-4 border-l-emerald-500'
             : node.nivel === 4 ? 'bg-purple-50/60 font-semibold border-l-4 border-l-purple-500'
             : node.nivel === 5 ? 'bg-amber-50/60 font-medium border-l-4 border-l-amber-500'
-            : node.nivel === 6 ? 'bg-rose-50/50 border-l-4 border-l-rose-400'
+            : node.nivel === 6 ? 'bg-blue-50/50 border-l-4 border-l-blue-400'
             : 'bg-cyan-50/50 border-l-4 border-l-cyan-405';
 
           const textCls = node.esHoja ? 'text-gray-700 font-medium'
-            : node.nivel === 2 ? 'font-black text-blue-900 text-[11px]'
+            : node.nivel === 2 ? 'font-black text-[#6B0505] text-[11px]'
             : node.nivel === 3 ? 'font-bold text-emerald-900 text-[10.5px]'
             : node.nivel === 4 ? 'font-semibold text-purple-900 text-[10px]'
             : node.nivel === 5 ? 'font-semibold text-amber-900 text-[10px]'
-            : node.nivel === 6 ? 'font-medium text-rose-900 text-[10px]'
+            : node.nivel === 6 ? 'font-medium text-blue-900 text-[10px]'
             : 'font-medium text-cyan-900 text-[10px]';
 
           let barH = node.esHoja ? 13 : isRoot ? 8 : 6;
@@ -2748,21 +2748,21 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           }
 
           const barColor = node.esHoja ? statusColor(node.p6)
-            : node.nivel === 2 ? '#2563eb' // Blue 600
+            : node.nivel === 2 ? '#CD0000' // Rojo de la marca
             : node.nivel === 3 ? '#059669' // Emerald 600
             : node.nivel === 4 ? '#7c3aed' // Purple 600
             : node.nivel === 5 ? '#d97706' // Amber 600
-            : node.nivel === 6 ? '#db2777' // Pink/Rose 600
+            : node.nivel === 6 ? '#2563eb' // Blue 600
             : '#0891b2'; // Cyan 600
           const barOpacity = node.esHoja ? 1 : 0.6;
 
           const wbsCls = node.esHoja 
             ? 'bg-slate-50 text-slate-650 border-slate-200 font-medium'
-            : node.nivel === 2 ? 'bg-blue-100 text-blue-800 border-blue-300'
+            : node.nivel === 2 ? 'bg-[#FBE5E5] text-[#8A0000] border-[#EFA3A3]'
             : node.nivel === 3 ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
             : node.nivel === 4 ? 'bg-purple-100 text-purple-800 border-purple-250'
             : node.nivel === 5 ? 'bg-amber-100 text-amber-800 border-amber-250'
-            : node.nivel === 6 ? 'bg-rose-100 text-rose-800 border-rose-200'
+            : node.nivel === 6 ? 'bg-blue-100 text-blue-800 border-blue-200'
             : 'bg-cyan-100 text-cyan-800 border-cyan-200';
 
           const x1 = dateToX(span.start);
@@ -2956,11 +2956,11 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
           // Gantt grid correlative background color based on hierarchy depth
           const ganttRowBg = node.esHoja ? '#FFFFFF'
-            : node.nivel === 2 ? '#EFF6FF'
+            : node.nivel === 2 ? '#FDF3F3'
             : node.nivel === 3 ? '#ECFDF5'
             : node.nivel === 4 ? '#F3E8FF'
             : node.nivel === 5 ? '#FEF3C7'
-            : node.nivel === 6 ? '#FFE4E6'
+            : node.nivel === 6 ? '#EFF6FF'
             : '#ECFEFF';
 
           const rowTfVal = calcMinTf(node.key);
