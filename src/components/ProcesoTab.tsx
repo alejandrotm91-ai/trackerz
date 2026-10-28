@@ -1474,22 +1474,22 @@ export const ProcesoTab: React.FC = () => {
                     {/* Card Header (clickable) */}
                     <div
                       onClick={() => handleToggleCard(gk)}
-                      className={`p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 transition-colors select-none ${
+                      className={`px-4 py-2 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 transition-colors select-none ${
                         isCardOpen ? 'border-b border-[#D5DEE2]' : ''
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <button
                           type="button"
-                          className="w-7 h-7 rounded border border-[#D5DEE2] bg-white flex items-center justify-center text-[#5A6A74] text-xs font-bold shrink-0"
+                          className="w-5 h-5 rounded border border-[#D5DEE2] bg-white flex items-center justify-center text-[#5A6A74] text-xs shrink-0"
                         >
                           {isCardOpen ? '▾' : '▸'}
                         </button>
                         <div className="min-w-0">
-                          <h2 className="font-['Barlow_Condensed'] font-semibold text-lg sm:text-xl text-[#14212A] leading-tight truncate">
+                          <h2 className="font-['Barlow_Condensed'] font-semibold text-[15px] tracking-wide text-[#14212A] leading-tight truncate">
                             {cardTitle}
                           </h2>
-                          <div className="text-xs text-[#5A6A74] mt-0.5">
+                          <div className="text-[11px] font-mono text-[#5A6A74]">
                             {group === 'cap' && !supOn && `${Array.from(new Set(gl.map(i => i.proc))).join(' · ')} · `}
                             {cAgg.n} partidas ·{' '}
                             {group === 'cap'
@@ -1539,7 +1539,7 @@ export const ProcesoTab: React.FC = () => {
                             e.stopPropagation();
                             handleCopySummary(cardTitle, innerRows);
                           }}
-                          className="px-2.5 py-1 text-xs border border-[#D5DEE2] rounded hover:border-[#442dd7] hover:text-[#442dd7] text-[#5A6A74] transition-colors cursor-pointer shrink-0"
+                          className="px-2 py-0.5 text-[11px] border border-[#D5DEE2] rounded hover:border-[#442dd7] hover:text-[#442dd7] text-[#5A6A74] transition-colors cursor-pointer shrink-0"
                         >
                           Copiar resumen
                         </button>
