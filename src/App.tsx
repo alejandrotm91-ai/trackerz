@@ -1644,7 +1644,7 @@ export default function App() {
                   onClick={() => pc.switchSource('cloud')}
                   className={`px-3 py-1 font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
                     pc.sourceActive === 'cloud'
-                      ? 'bg-[#CD0000] text-white shadow-xs'
+                      ? 'bg-[#312E81] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A]'
                   }`}
                 >
@@ -1656,7 +1656,7 @@ export default function App() {
                   onClick={() => pc.switchSource('local')}
                   className={`px-3 py-1 font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
                     pc.sourceActive === 'local'
-                      ? 'bg-[#CD0000] text-white shadow-xs'
+                      ? 'bg-[#312E81] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A]'
                   }`}
                 >
@@ -1669,7 +1669,7 @@ export default function App() {
                 <button
                   id="btn-admin-sync"
                   onClick={() => setIsSyncMenuOpen(!isSyncMenuOpen)}
-                  className="px-3.5 py-1.5 text-xs bg-[#CD0000] hover:bg-[#A80000] text-white font-semibold rounded-lg transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  className="px-3.5 py-1.5 text-xs bg-[#312E81] hover:bg-[#26236B] text-white font-semibold rounded-lg transition-all shadow-xs flex items-center gap-2 cursor-pointer"
                   title="Panel de Sincronización"
                 >
                   <span>Cloud {isAdminUnlocked ? '🔓' : '🔒'}</span>
@@ -1810,7 +1810,7 @@ export default function App() {
             <button
               id="btn-logout"
               onClick={handleLogout}
-              className="px-4 py-2 text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold border border-rose-200 rounded-xl transition-all hover:text-rose-800 cursor-pointer"
+              className="px-4 py-2 text-xs bg-[#EEF0FB] hover:bg-[#E0E3F7] text-[#312E81] font-bold border border-[#C7CBEF] rounded-xl transition-all hover:text-[#1E1B4B] cursor-pointer"
             >
               Cerrar Sesión
             </button>
@@ -2048,7 +2048,7 @@ export default function App() {
                     onClick={() => pc.setActiveTab(tab.id)}
                     className={`px-4 sm:px-5 py-2 text-xs rounded-lg transition-all font-semibold ${
                       pc.activeTab === tab.id
-                        ? 'bg-[#CD0000] text-white shadow-xs font-bold'
+                        ? 'bg-[#312E81] text-white shadow-xs font-bold'
                         : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#EEF2F3]'
                     }`}
                   >
@@ -2065,7 +2065,7 @@ export default function App() {
                   onClick={() => pc.setActiveTab('master')}
                   className={`px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border transition-all cursor-pointer shadow-xs active:scale-95 ${
                     pc.activeTab === 'master'
-                      ? 'bg-[#CD0000] text-white border-[#CD0000] shadow-xs ring-2 ring-[#C5BDF7]'
+                      ? 'bg-[#312E81] text-white border-[#312E81] shadow-xs ring-2 ring-[#C7CBEF]'
                       : 'bg-white text-[#5A6A74] border-[#D5DEE2] hover:bg-[#F5F8F9] hover:text-[#14212A]'
                   }`}
                   title="Abrir panel CDO Master Plan"

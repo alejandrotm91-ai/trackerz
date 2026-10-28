@@ -130,7 +130,7 @@ const DialGauge: React.FC<{
 }> = ({
   unit,
   currentValueStr,
-  currentValueColor = 'text-red-600',
+  currentValueColor = 'text-[#312E81]',
   percentage,
   idPrefix,
 }) => {
@@ -159,7 +159,7 @@ const DialGauge: React.FC<{
           <path
             d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
             fill="none"
-            stroke="#CD0000"
+            stroke="#312E81"
             strokeWidth={strokeWidth}
             strokeDasharray={arcLength}
             strokeDashoffset={strokeDashoffset}
@@ -635,7 +635,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                 title="% Avance Proyecto"
                 unit="% Avance Proyecto"
                 currentValueStr={`${pctAvanceReal.toFixed(2)} %`}
-                currentValueColor="text-[#B83227]"
+                currentValueColor="text-[#312E81]"
                 minLabel="0,00 %"
                 maxLabel={`${pctPlanificado.toFixed(2)} %`}
                 percentage={pctAvanceReal}
@@ -647,7 +647,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                 title="% Certificación"
                 unit="% Certificación"
                 currentValueStr={`${certMetrics.pct.toFixed(2)} %`}
-                currentValueColor="text-[#B83227]"
+                currentValueColor="text-[#312E81]"
                 minLabel="0,00 %"
                 maxLabel="100,00 %"
                 percentage={certMetrics.pct}
@@ -659,7 +659,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                 title="Mes"
                 unit="Mes"
                 currentValueStr={String(durationMetrics.elapsedMonths)}
-                currentValueColor="text-[#B83227]"
+                currentValueColor="text-[#312E81]"
                 minLabel="0"
                 maxLabel={String(durationMetrics.totalPlannedMonths)}
                 percentage={durationMetrics.percentage}
