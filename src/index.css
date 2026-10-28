@@ -139,7 +139,7 @@ kbd {
   --ht-grid: #efefed;
   --ht-bad: #b42318;
   /* niveles: rojo de la marca (#CD0000) mezclado con blanco */
-  --ht-lv0: #111111; /* filas de total: negro */
+  --ht-lv0: #312E81; /* filas de total: azul índigo */
   --ht-lv1: #D73333;
   --ht-lv2: #EB9999;
   --ht-lv3: #F2BFBF;
