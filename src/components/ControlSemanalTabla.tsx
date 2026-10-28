@@ -2467,7 +2467,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       dynamicHierarchyTree.forEach(exportDynamicNode);
     }
 
-    // TOTAL PROYECTO ROW (Bottom) - Matches table tfoot (bg-[#CD0000] #1e1b4b, text-white)
+    // TOTAL PROYECTO ROW (Bottom) - Matches table tfoot (negro #111111, text-white)
     addRowHtml(
       'TOTAL FILTRADO',
       '',
@@ -2477,7 +2477,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       globalTot.plan,
       globalTot.ejec,
       globalTot.desv,
-      '#1e1b4b',
+      '#111111',
       '#ffffff',
       'bold',
       '11.5px',
@@ -5074,7 +5074,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   )
                 )}
               </tbody>
-              <tfoot className="bg-[#CD0000] text-white font-extrabold text-xs shadow-md border-t-2 border-indigo-700">
+              <tfoot className="bg-[#111111] text-white font-extrabold text-xs shadow-md border-t-2 border-black">
                 <tr className="ht-g lv0">
                   <td 
                     className={`border-t border-[#A80000] overflow-hidden ${
