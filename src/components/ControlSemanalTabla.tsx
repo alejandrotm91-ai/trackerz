@@ -2744,18 +2744,19 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   };
 
   return (
-    <div className={`bg-white rounded-xl shadow-xs border border-[#D5DEE2] relative ${isCardCollapsed ? 'overflow-hidden' : 'overflow-visible'} animate-fade-in ${soloTablaYSemana ? 'mt-0' : 'mt-6'}`} id="tarjeta-kpi-avance-semanal">
+    <div className={`bg-white rounded-xl shadow-xs border border-[#D5DEE2] relative ${isCardCollapsed ? 'overflow-hidden' : 'overflow-visible'} animate-fade-in mt-0`} id="tarjeta-kpi-avance-semanal">
       {/* Header Bar */}
       {!soloTablaYSemana && (
         <div 
           onClick={() => setIsCardCollapsed(!isCardCollapsed)}
           className={`bg-[#F5F8F9] hover:bg-[#EEF2F3] px-4 py-2 flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 cursor-pointer select-none transition-colors relative ${isExpandMenuOpen ? 'z-50' : 'z-30'} ${isCardCollapsed ? 'rounded-xl' : 'rounded-t-xl border-b border-[#D5DEE2]'}`}
         >
-          <span className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider flex items-center gap-1.5">
-            <span className="text-[#5A6A74] text-xs normal-case">{isCardCollapsed ? '▼' : '▲'}</span>
-            <span>Control de Ejecución · <span className="text-[#5A6A74] font-mono normal-case">{currentWeekLabel}</span></span>
+          <span className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">
+            Control de Ejecución · <span className="text-[#5A6A74] font-mono normal-case">{currentWeekLabel}</span>
           </span>
 
+          <div className="flex items-center gap-2 flex-wrap">
+          {!isCardCollapsed && (
           <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
             {/* Botón Filtro Float Negativo (Reloj) */}
             <button
@@ -2909,6 +2910,9 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                 </>
               )}
             </button>
+          </div>
+          )}
+          <span className="text-[#5A6A74] text-xs shrink-0">{isCardCollapsed ? '▼' : '▲'}</span>
           </div>
         </div>
       )}

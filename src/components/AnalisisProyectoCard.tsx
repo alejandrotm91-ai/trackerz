@@ -2223,12 +2223,12 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
         title="Hacer clic para expandir o colapsar el Análisis de Proyecto"
       >
         <span className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">
-          Análisis de Proyecto · <span className="text-[#5A6A74] font-mono normal-case" title="Actividades filtradas por estado P6: In Progress o Not Started">P6: In Progress &amp; Not Started</span>
+          Análisis de Proyecto · <span className="text-[#5A6A74] font-mono normal-case" title="Actividades filtradas por estado P6: In Progress o Not Started">P6: In Progress &amp; Not Started · {totalScheduledActivities} actividades</span>
         </span>
         <div className="flex items-center gap-3">
-          <span className="hidden sm:inline text-[11px] text-[#5A6A74] font-mono">
+          {!isCardCollapsed && <span className="hidden sm:inline text-[11px] text-[#5A6A74] font-mono">
             Componentes <b className="text-[#14212A]">{totalActiveComponents}</b> · Procesos <b className="text-[#14212A]">{totalActiveProcesos}</b> · CAP <b className="text-[#14212A]">{totalActiveCaps}</b> · SCAP <b className="text-[#14212A]">{totalScapPackages}</b> · Actividades <b className="text-[#14212A]">{totalScheduledActivities}</b>
-          </span>
+          </span>}
           <span className="text-[#5A6A74] text-xs">{isCardCollapsed ? '▼' : '▲'}</span>
         </div>
       </div>

@@ -4602,7 +4602,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
       {/* Tarjeta Colapsable: Análisis de Proyecto (Visión por Paquetes SCAP a 4 semanas por Componente) */}
       {!tipologiaSeleccionada && !partidaSeleccionada && (
-        <div id="cronograma-analisis-proyecto-container" className="w-full pt-2">
+        <div id="cronograma-analisis-proyecto-container" className="w-full -mt-3">
           <AnalisisProyectoCard
             actividades={actividades}
             dataPlanificadoPG004={dataPlanificadoPG004}
@@ -6784,7 +6784,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
       {/* Tarjeta Colapsable: Control de Ejecución (Control Semanal PG-004 vs CDO V-) */}
       {!tipologiaSeleccionada && !partidaSeleccionada && (
-        <div id="cronograma-control-ejecucion-container" className="w-full pt-2">
+        <div id="cronograma-control-ejecucion-container" className="w-full -mt-3">
           {renderBottomControl ? (
             <ControlSemanalTabla
               actividades={actividades}
