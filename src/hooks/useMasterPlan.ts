@@ -3011,7 +3011,7 @@ export function useMasterPlan(isLoggedIn = false) {
               if (r[2]) cdoLookupF.set(String(r[2]).trim().toLowerCase(), info);
             }
 
-            const CT_COL = { COD_PLAN: 5, CODIGO: 6, PARTIDA: 7, DESC: 8, UNIDAD: 9, TARIFA: 12, N_MONTO: 13, Q_MONTO: 16, S_MONTO: 18, U_MONTO: 20, W_MONTO: 22, Z_MONTO: 25, AC_MONTO: 28 };
+            const CT_COL = { COD_PLAN: 5, CODIGO: 6, PARTIDA: 7, DESC: 8, UNIDAD: 9, Q_CONTRATO: 11, Q_ACUM: 17, TARIFA: 12, N_MONTO: 13, Q_MONTO: 16, S_MONTO: 18, U_MONTO: 20, W_MONTO: 22, Z_MONTO: 25, AC_MONTO: 28 };
             const _hojas: PlanillaItem[] = [];
             const _partidas: PlanillaItem[] = [];
             const _enmiendas: any[] = [];
@@ -3046,7 +3046,9 @@ export function useMasterPlan(isLoggedIn = false) {
                 desc: String(desc), unidad: String(r[CT_COL.UNIDAD] || ''), tarifa,
                 contrato: ctPf(r[CT_COL.N_MONTO]), saldo: ctPf(r[CT_COL.Q_MONTO]),
                 acum: ctPf(r[CT_COL.S_MONTO]), anterior: ctPf(r[CT_COL.U_MONTO]),
-                cert: ctPf(r[CT_COL.W_MONTO]), exc: ctPf(r[CT_COL.Z_MONTO]), excE6: ctPf(r[CT_COL.AC_MONTO])
+                cert: ctPf(r[CT_COL.W_MONTO]), exc: ctPf(r[CT_COL.Z_MONTO]), excE6: ctPf(r[CT_COL.AC_MONTO]),
+                // Para cruzar con el Master (comparación CDO vs Planilla)
+                partida, qContrato: ctPf(r[CT_COL.Q_CONTRATO]), qAcum: ctPf(r[CT_COL.Q_ACUM])
               };
               if (esHoja) _hojas.push(item);
               else _partidas.push(item);

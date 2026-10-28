@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { publicarMasterVivo } from '../utils/masterLive';
 import {
   FileSpreadsheet,
   Cloud,
@@ -97,6 +98,8 @@ export function MasterTab({
 }: MasterTabProps) {
   // Master state
   const [items, setItems] = useState<MasterCdoItem[]>([]);
+  // Las demás pestañas (p. ej. CDO vs Planilla) ven lo mismo que se edita aquí
+  useEffect(() => { publicarMasterVivo(items); }, [items]);
   const [semanas, setSemanas] = useState<MasterCdoWeek[]>([]);
   const [fileName, setFileName] = useState<string>('Master_CDO_Online.xlsx');
   const [planId, setPlanId] = useState<string>('master_cdo_default');

@@ -31,6 +31,7 @@ interface PlanillaTabProps {
   certOpen: boolean;
   setCertOpen: (v: boolean) => void;
   actividades?: any[];
+  mapaColumnasMes?: Record<string, number>;
   dataPlanificadoPG004?: any;
   datosCurvaAvance?: any;
   expandedYears?: Set<any>;
@@ -58,6 +59,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
   certOpen,
   setCertOpen,
   actividades,
+  mapaColumnasMes,
   dataPlanificadoPG004,
   datosCurvaAvance,
   expandedYears,
@@ -780,8 +782,8 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
         )}
       </div>
 
-      {planillaCDOvsS && Object.keys(planillaCDOvsS.F || {}).length > 0 && (
-        <CdoVsPlanillaTab cdoVsS={planillaCDOvsS} />
+      {planillaHojas.length > 0 && (
+        <CdoVsPlanillaTab hojas={planillaHojas} grupos={planillaPartidas} actividades={actividades || []} mapaColumnasMes={mapaColumnasMes} />
       )}
 
       {/* Curva de Avance Económico colapsable ubicada debajo de Comparación CDO vs Planilla */}

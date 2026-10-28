@@ -83,6 +83,11 @@ export interface PlanillaItem {
   cert: number;
   exc: number;
   excE6: number;
+  /** Partida (Col H de la Sabana): se cruza con el id.orig del Master. */
+  partida?: string;
+  /** Cantidad del contrato (Col L) y cantidad planillada acumulada (Col R). */
+  qContrato?: number;
+  qAcum?: number;
 }
 
 /** Partida dentro de una actividad P6 (fila del CDO cuya Col A es el Activity ID ".p6"). */

@@ -197,8 +197,6 @@ export async function savePlanToCloud(
     ...sectionUploads('actividades', packArray(actividades.map(compressActividad).map(serialize)), 'Actividades'),
     ...sectionUploads('planillaHojas', packArray(planillaHojas.map(compressPlanillaItem).map(serialize)), 'Hojas de Planilla'),
     ...sectionUploads('planillaPartidas', packArray(planillaPartidas.map(compressPlanillaItem).map(serialize)), 'Partidas de Planilla'),
-    ...sectionUploads('cdo_vs_sabana_F', packDict(planillaCDOvsS?.F || {}), 'Mapeos CDO (F)'),
-    ...sectionUploads('cdo_vs_sabana_H', packDict(planillaCDOvsS?.H || {}), 'Mapeos CDO (H)'),
   ];
   await uploadChunks('master', planId, uploads, onProgress);
 
@@ -375,14 +373,8 @@ export async function loadLatestPlanFromCloud(
     p.excE6 = p.excE6 ?? 0;
   });
 
-  onProgress?.(82, 'Descargando matrices CDO vs Sábana...');
-  const F: Record<string, any> = Object.assign({}, ...(await getSection('master', planId, 'cdo_vs_sabana_F')));
-  const H: Record<string, any> = Object.assign({}, ...(await getSection('master', planId, 'cdo_vs_sabana_H')));
-  if (!planMeta.planillaCDOvsS) {
-    planMeta.planillaCDOvsS = { desalineados: [] };
-  }
-  planMeta.planillaCDOvsS.F = F;
-  planMeta.planillaCDOvsS.H = H;
+  // La comparación CDO vs Planilla se calcula en el navegador desde el Master y la Planilla.
+  if (!planMeta.planillaCDOvsS) planMeta.planillaCDOvsS = { desalineados: [] };
 
   return { planMeta, actividades, planillaHojas, planillaPartidas };
 }

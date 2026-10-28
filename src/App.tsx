@@ -2192,6 +2192,7 @@ export default function App() {
                 certOpen={pc.certOpen}
                 setCertOpen={pc.setCertOpen}
                 actividades={pc.actividades}
+                mapaColumnasMes={pc.mapaColumnasMes}
                 dataPlanificadoPG004={pc.dataPlanificadoPG004}
                 datosCurvaAvance={pc.datosCurvaAvance}
                 expandedYears={pc.expandedYears}
