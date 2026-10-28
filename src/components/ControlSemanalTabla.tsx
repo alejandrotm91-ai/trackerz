@@ -157,12 +157,15 @@ export interface DynamicHierarchyNode {
   children?: DynamicHierarchyNode[];
 }
 
-// Niveles de la jerarquía: gama clara del morado de la app (#442dd7), del más oscuro al blanco.
+// Niveles de la jerarquía: el superior en gris claro (como el encabezado de las tablas)
+// y cada nivel siguiente con su propio tono claro y una barra de color a la izquierda.
 const LEVEL_STYLES = [
+  // gris claro
   {
-    bg: 'bg-[#ddd9f8] hover:bg-[#d2cdf6] text-[#14212A] font-semibold border-b border-[#c7c0f3]',
+    bg: 'bg-[#F5F8F9] hover:bg-[#EEF2F3] text-[#14212A] font-bold border-b border-[#D5DEE2]',
+    accent: 'shadow-[inset_3px_0_0_#5A6A74]',
     text: 'text-[#14212A]',
-    badge: 'bg-white text-[#442dd7] border border-[#c7c0f3]',
+    badge: 'bg-white text-[#5A6A74] border border-[#D5DEE2]',
     subText: 'text-[#5A6A74]',
     chevron: 'text-[#5A6A74]',
     dateText: 'text-[#5A6A74]',
@@ -171,36 +174,84 @@ const LEVEL_STYLES = [
     vEjec: 'text-green-700',
     vSobre: 'text-amber-700'
   },
+  // verde claro
   {
-    bg: 'bg-[#eeecfb] hover:bg-[#e4e1f9] text-[#14212A] font-semibold border-b border-[#ddd9f8]',
+    bg: 'bg-[#EAF6EE] hover:bg-[#DDF0E4] text-[#14212A] font-semibold border-b border-[#CFE8D7]',
+    accent: 'shadow-[inset_3px_0_0_#2B7F52]',
     text: 'text-[#14212A]',
-    badge: 'bg-white text-[#442dd7] border border-[#c7c0f3]',
+    badge: 'bg-white text-[#2B7F52] border border-[#CFE8D7]',
     subText: 'text-[#5A6A74]',
-    chevron: 'text-[#5A6A74]',
+    chevron: 'text-[#2B7F52]',
     dateText: 'text-[#5A6A74]',
     vContrato: 'text-[#14212A] font-semibold',
     vPlan: 'text-slate-700',
     vEjec: 'text-green-700',
     vSobre: 'text-amber-700'
   },
+  // azul claro
   {
-    bg: 'bg-[#f6f5fd] hover:bg-[#eeecfb] text-[#14212A] font-semibold border-b border-[#eeecfb]',
+    bg: 'bg-[#EAF2FB] hover:bg-[#DCE9F7] text-[#14212A] font-semibold border-b border-[#CCDDF1]',
+    accent: 'shadow-[inset_3px_0_0_#2C67A6]',
     text: 'text-[#14212A]',
-    badge: 'bg-white text-[#442dd7] border border-[#c7c0f3]',
+    badge: 'bg-white text-[#2C67A6] border border-[#CCDDF1]',
     subText: 'text-[#5A6A74]',
-    chevron: 'text-[#5A6A74]',
+    chevron: 'text-[#2C67A6]',
     dateText: 'text-[#5A6A74]',
     vContrato: 'text-[#14212A] font-semibold',
     vPlan: 'text-slate-700',
     vEjec: 'text-green-700',
     vSobre: 'text-amber-700'
   },
+  // arena
   {
-    bg: 'bg-[#ffffff] hover:bg-[#f6f5fd] text-[#14212A] font-semibold border-b border-[#efefed]',
+    bg: 'bg-[#FBF4E6] hover:bg-[#F6EBD3] text-[#14212A] font-semibold border-b border-[#EEDDBA]',
+    accent: 'shadow-[inset_3px_0_0_#A86B12]',
     text: 'text-[#14212A]',
-    badge: 'bg-white text-[#442dd7] border border-[#c7c0f3]',
+    badge: 'bg-white text-[#A86B12] border border-[#EEDDBA]',
     subText: 'text-[#5A6A74]',
-    chevron: 'text-[#5A6A74]',
+    chevron: 'text-[#A86B12]',
+    dateText: 'text-[#5A6A74]',
+    vContrato: 'text-[#14212A] font-semibold',
+    vPlan: 'text-slate-700',
+    vEjec: 'text-green-700',
+    vSobre: 'text-amber-700'
+  },
+  // lavanda
+  {
+    bg: 'bg-[#F1EFFC] hover:bg-[#E6E2FA] text-[#14212A] font-semibold border-b border-[#D9D3F6]',
+    accent: 'shadow-[inset_3px_0_0_#442dd7]',
+    text: 'text-[#14212A]',
+    badge: 'bg-white text-[#442dd7] border border-[#D9D3F6]',
+    subText: 'text-[#5A6A74]',
+    chevron: 'text-[#442dd7]',
+    dateText: 'text-[#5A6A74]',
+    vContrato: 'text-[#14212A] font-semibold',
+    vPlan: 'text-slate-700',
+    vEjec: 'text-green-700',
+    vSobre: 'text-amber-700'
+  },
+  // turquesa
+  {
+    bg: 'bg-[#E8F6F5] hover:bg-[#D9EFEE] text-[#14212A] font-semibold border-b border-[#C6E4E2]',
+    accent: 'shadow-[inset_3px_0_0_#0F766E]',
+    text: 'text-[#14212A]',
+    badge: 'bg-white text-[#0F766E] border border-[#C6E4E2]',
+    subText: 'text-[#5A6A74]',
+    chevron: 'text-[#0F766E]',
+    dateText: 'text-[#5A6A74]',
+    vContrato: 'text-[#14212A] font-semibold',
+    vPlan: 'text-slate-700',
+    vEjec: 'text-green-700',
+    vSobre: 'text-amber-700'
+  },
+  // rosa claro
+  {
+    bg: 'bg-[#FBEFF2] hover:bg-[#F6E1E7] text-[#14212A] font-semibold border-b border-[#EDCDD7]',
+    accent: 'shadow-[inset_3px_0_0_#B4235A]',
+    text: 'text-[#14212A]',
+    badge: 'bg-white text-[#B4235A] border border-[#EDCDD7]',
+    subText: 'text-[#5A6A74]',
+    chevron: 'text-[#B4235A]',
     dateText: 'text-[#5A6A74]',
     vContrato: 'text-[#14212A] font-semibold',
     vPlan: 'text-slate-700',
@@ -210,83 +261,13 @@ const LEVEL_STYLES = [
 ];
 
 export const EXCEL_LEVEL_COLORS = [
-  // Nivel 1 (index 0 - Slate 50): bg-slate-50, text-slate-800, text-indigo-700
-  {
-    bg: '#f8fafc',
-    fg: '#1e293b',
-    labelColor: '#4338ca',
-    vContrato: '#0f172a',
-    vPlan: '#4338ca',
-    vEjec: '#1e293b',
-    vSobre: '#b45309',
-    borderColor: '#e2e8f0'
-  },
-  // Nivel 2 (index 1 - Indigo 900): bg-indigo-900/95, text-white
-  {
-    bg: '#312e81',
-    fg: '#ffffff',
-    labelColor: '#ffffff',
-    vContrato: '#ffffff',
-    vPlan: '#c7d2fe',
-    vEjec: '#cbd5e1',
-    vSobre: '#fde68a',
-    borderColor: '#1e1b4b'
-  },
-  // Nivel 3 (index 2 - Purple 100): bg-purple-100/90, text-purple-950
-  {
-    bg: '#f3e8ff',
-    fg: '#3b0764',
-    labelColor: '#3b0764',
-    vContrato: '#3b0764',
-    vPlan: '#4338ca',
-    vEjec: '#475569',
-    vSobre: '#b45309',
-    borderColor: '#e9d5ff'
-  },
-  // Nivel 4 (index 3 - Emerald 100): bg-emerald-100/90, text-emerald-950
-  {
-    bg: '#d1fae5',
-    fg: '#064e3b',
-    labelColor: '#064e3b',
-    vContrato: '#064e3b',
-    vPlan: '#4338ca',
-    vEjec: '#475569',
-    vSobre: '#b45309',
-    borderColor: '#a7f3d0'
-  },
-  // Nivel 5 (index 4 - Sky 100): bg-sky-100/90, text-sky-950
-  {
-    bg: '#e0f2fe',
-    fg: '#082f49',
-    labelColor: '#082f49',
-    vContrato: '#082f49',
-    vPlan: '#4338ca',
-    vEjec: '#475569',
-    vSobre: '#b45309',
-    borderColor: '#bae6fd'
-  },
-  // Nivel 6 (index 5 - Amber 100): bg-amber-100/90, text-amber-950
-  {
-    bg: '#fef3c7',
-    fg: '#78350f',
-    labelColor: '#78350f',
-    vContrato: '#78350f',
-    vPlan: '#4338ca',
-    vEjec: '#475569',
-    vSobre: '#b45309',
-    borderColor: '#fde68a'
-  },
-  // Nivel 7 (index 6 - Teal 100): bg-teal-100/90, text-teal-950
-  {
-    bg: '#ccfbf1',
-    fg: '#042f2e',
-    labelColor: '#042f2e',
-    vContrato: '#042f2e',
-    vPlan: '#4338ca',
-    vEjec: '#475569',
-    vSobre: '#b45309',
-    borderColor: '#99f6e4'
-  }
+  { bg: '#F5F8F9', fg: '#14212A', labelColor: '#5A6A74', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#D5DEE2' },
+  { bg: '#EAF6EE', fg: '#14212A', labelColor: '#2B7F52', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#CFE8D7' },
+  { bg: '#EAF2FB', fg: '#14212A', labelColor: '#2C67A6', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#CCDDF1' },
+  { bg: '#FBF4E6', fg: '#14212A', labelColor: '#A86B12', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#EEDDBA' },
+  { bg: '#F1EFFC', fg: '#14212A', labelColor: '#442dd7', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#D9D3F6' },
+  { bg: '#E8F6F5', fg: '#14212A', labelColor: '#0F766E', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#C6E4E2' },
+  { bg: '#FBEFF2', fg: '#14212A', labelColor: '#B4235A', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#EDCDD7' }
 ];
 
 export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
@@ -2589,8 +2570,8 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
         >
           <td
             colSpan={3}
-            className="px-1 py-1.5 whitespace-nowrap overflow-hidden"
-            style={{ paddingLeft: `${indentPx}px` }}
+            className={`px-1 py-1.5 whitespace-nowrap overflow-hidden ${levelStyle.accent}`}
+            style={{ paddingLeft: `${indentPx + 4}px` }}
           >
             <div className="flex items-center gap-1 whitespace-nowrap overflow-hidden min-w-0">
               {isExp ? (
@@ -5018,19 +4999,19 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                             className="px-2.5 py-2.5 text-right font-mono text-slate-900 cursor-help font-semibold whitespace-nowrap" 
                             title={`Monto Exacto Contrato: $${fmtMoney(compTot.contrato)}`}
                           >
-                            ${fmtMillions(compTot.contrato)}
+                            {fmtMillions(compTot.contrato)}
                           </td>
                           <td 
                             className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" 
                             title={`Monto Exacto Plan: $${fmtMoney(compTot.plan)}`}
                           >
-                            ${fmtMillions(compTot.plan)}
+                            {fmtMillions(compTot.plan)}
                           </td>
                           <td 
                             className="px-2.5 py-2.5 text-right font-mono text-green-700 cursor-help whitespace-nowrap" 
                             title={`Monto Exacto Ejec: $${fmtMoney(compTot.ejec)}`}
                           >
-                            ${fmtMillions(compTot.ejec)}
+                            {fmtMillions(compTot.ejec)}
                           </td>
                           <td 
                             className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" 
@@ -5088,13 +5069,13 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   {soloTablaYSemana ? (
                     <>
                       <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black" title={`Monto Total: $${fmtMoney(globalTot.contrato)}`}>
-                        ${fmtMillions(globalTot.contrato)}
+                        {fmtMillions(globalTot.contrato)}
                       </td>
                       <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-indigo-200" title={`Monto Plan: $${fmtMoney(globalTot.plan)}`}>
-                        ${fmtMillions(globalTot.plan)}
+                        {fmtMillions(globalTot.plan)}
                       </td>
                       <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-rose-200" title={`Monto Ejec: $${fmtMoney(globalTot.ejec)}`}>
-                        ${fmtMillions(globalTot.ejec)}
+                        {fmtMillions(globalTot.ejec)}
                       </td>
                       <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-indigo-300" title={`Total % Plan sobre V. Contrato Global sin filtrar: $${fmtMoney(totalVContratoUnfiltered)}`}>
                         {totalVContratoUnfiltered > 0 ? `${((globalTot.plan / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
