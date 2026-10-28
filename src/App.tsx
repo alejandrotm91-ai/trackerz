@@ -770,14 +770,14 @@ export default function App() {
     return (
       <div key={item.id} className={`transition-colors group ${isDirectMatch && isLeaf ? 'ring-1 ring-inset ring-[#312E81]/30 bg-[#EEF0FB]/40' : ''}`}>
         <div
-          className={`flex items-center py-2 px-3 cursor-pointer transition-colors ${rowBg} ${leftAccent}`}
+          className={`flex items-center py-[3px] px-3 cursor-pointer transition-colors ${rowBg} ${leftAccent}`}
           style={{ paddingLeft: `${indentPadding}px` }}
           onClick={() => {
             if (hasChildren) pc.toggleExpand(item.id);
           }}
         >
           {/* Expander Chevron or Leaf Bullet */}
-          <div className="flex-shrink-0 w-6 flex justify-center items-center">
+          <div className="flex-shrink-0 w-6 h-[18px] flex justify-center items-center">
             {hasChildren ? (
               <button
                 type="button"
@@ -785,7 +785,7 @@ export default function App() {
                   e.stopPropagation();
                   pc.toggleExpand(item.id);
                 }}
-                className={`w-5 h-5 flex items-center justify-center cursor-pointer ${chevronStyle}`}
+                className={`w-5 h-[18px] flex items-center justify-center cursor-pointer ${chevronStyle}`}
                 title={isExpanded ? 'Colapsar partida' : 'Expandir partida'}
               >
                 <ChevronRight
@@ -795,11 +795,11 @@ export default function App() {
                 />
               </button>
             ) : isLeaf ? (
-              <div className="w-5 h-5 flex items-center justify-center">
+              <div className="w-5 h-[18px] flex items-center justify-center">
                 <span className={`w-1.5 h-1.5 rounded-full transition-colors ${isDirectMatch ? 'bg-[#312E81] scale-125' : 'bg-[#C5CFD4] group-hover:bg-[#5A6A74]'}`} />
               </div>
             ) : (
-              <div className="w-5 h-5" />
+              <div className="w-5 h-[18px]" />
             )}
           </div>
           
@@ -807,7 +807,7 @@ export default function App() {
             {/* Código / ID */}
             <div className="text-center font-mono text-[10.5px]">
               {isLeaf ? (
-                <span className="bg-[#F5F8F9] text-[#5A6A74] font-mono font-semibold px-1.5 py-0.5 rounded border border-[#D5DEE2] text-[10px]">
+                <span className="bg-[#F5F8F9] text-[#5A6A74] font-mono font-semibold px-1.5 py-0 leading-[16px] rounded border border-[#D5DEE2] text-[10px]">
                   {item.activityId || '-'}
                 </span>
               ) : (
@@ -819,7 +819,7 @@ export default function App() {
             <div className="min-w-0 pr-2">
               <div className="flex items-center gap-1.5 overflow-hidden">
                 {!isLeaf && (
-                  <span className={`font-mono px-1.5 py-0.5 rounded shrink-0 ${badgeStyle}`}>
+                  <span className={`font-mono px-1.5 py-0 leading-[16px] rounded shrink-0 ${badgeStyle}`}>
                     {item.wbs}
                   </span>
                 )}
