@@ -1090,20 +1090,13 @@ export default function App() {
           <div className="bg-white rounded-3xl border border-indigo-100/80 overflow-hidden shadow-[0_15px_40px_rgba(15,23,42,0.06)] grid md:grid-cols-12 min-h-[520px]">
           
           {/* Brand/Showcase column */}
-          <div className="md:col-span-5 relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-rose-50/70 p-8 md:p-12 flex flex-col justify-between items-center text-center border-r border-slate-100">
-            {/* Hoja grande de fondo, muy suave */}
-            <LogoHoja className="absolute -right-16 -bottom-20 h-[22rem] opacity-[0.05] pointer-events-none select-none" title="" />
-            <div className="my-auto space-y-5 flex flex-col items-center relative">
-              <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-[0_14px_34px_rgba(205,0,0,0.14)] ring-1 ring-rose-100 animate-fade-in">
-                <LogoHoja className="h-16" />
-              </div>
-              <div className="space-y-1">
-                <span className="block text-[32px] leading-none font-extrabold tracking-tight text-slate-900 font-sans">Trakciona</span>
-                <span className="block text-xs text-slate-500 font-medium tracking-wide">Control de avance de obra</span>
-              </div>
+          <div className="md:col-span-5 bg-white p-8 md:p-12 flex flex-col justify-between items-center text-center border-r border-slate-100">
+            <div className="my-auto space-y-4 flex flex-col items-center">
+              <LogoHoja className="h-24 animate-fade-in" />
+              <span className="block text-[32px] leading-none font-extrabold tracking-tight text-slate-900 font-sans">Trakciona</span>
             </div>
 
-            <div className="pt-6 border-t border-slate-200/70 w-full relative">
+            <div className="pt-6 border-t border-slate-100 w-full">
               <p className="text-slate-400 text-[10px] font-mono uppercase tracking-wider">
                 May.2026
               </p>
@@ -1209,7 +1202,7 @@ export default function App() {
               <button
                 type="submit"
                 disabled={isLoggingIn}
-                className="w-full disabled:opacity-60 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 font-sans tracking-tight cursor-pointer"
+                className="w-full disabled:opacity-60 bg-[#CD0000] hover:bg-[#B30000] active:bg-[#990000] text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg shadow-[#CD0000]/15 hover:shadow-[#CD0000]/25 font-sans tracking-tight cursor-pointer"
               >
                 {isLoggingIn ? 'Ingresando...' : 'Ingresar a la Plataforma'}
               </button>
