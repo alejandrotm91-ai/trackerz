@@ -392,3 +392,5 @@ kbd {
 /* Comparación CDO vs Planilla: tabla ancha, celdas compactas para que quepan las 14 columnas */
 .ht-theme table.cvs-tabla :is(td, th) { padding: 3px 4px; font-size: 11.5px; white-space: nowrap; }
 .ht-theme table.cvs-tabla td table :is(td, th) { font-size: 11px; }
+.ht-theme table.cvs-tabla tr.cvs-grupo > td { background: transparent; border-bottom-color: rgba(20,33,42,.08); }
+.ht-theme table.cvs-tabla tbody > tr.cvs-grupo:hover > td { background: transparent; }

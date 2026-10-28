@@ -88,6 +88,17 @@ function unirPorPartida(leaves: CvsLeaf[]): CvsLeaf[] {
   return [...mapa.values()];
 }
 
+/** Colores por nivel, iguales a la tabla Control de Ejecución (Cronograma). */
+const NIVELES = [
+  { fila: 'bg-[#F5F8F9] hover:bg-[#EEF2F3] font-bold', borde: 'shadow-[inset_3px_0_0_#5A6A74]', chevron: 'text-[#5A6A74]', badge: 'bg-white text-[#5A6A74] border border-[#D5DEE2]' },
+  { fila: 'bg-[#EAF6EE] hover:bg-[#DDF0E4] font-semibold', borde: 'shadow-[inset_3px_0_0_#2B7F52]', chevron: 'text-[#2B7F52]', badge: 'bg-white text-[#2B7F52] border border-[#CFE8D7]' },
+  { fila: 'bg-[#EAF2FB] hover:bg-[#DCE9F7] font-semibold', borde: 'shadow-[inset_3px_0_0_#2C67A6]', chevron: 'text-[#2C67A6]', badge: 'bg-white text-[#2C67A6] border border-[#CCDDF1]' },
+  { fila: 'bg-[#FBF4E6] hover:bg-[#F6EBD3] font-semibold', borde: 'shadow-[inset_3px_0_0_#A86B12]', chevron: 'text-[#A86B12]', badge: 'bg-white text-[#A86B12] border border-[#EEDDBA]' },
+  { fila: 'bg-[#F1EFFC] hover:bg-[#E6E2FA] font-semibold', borde: 'shadow-[inset_3px_0_0_#442dd7]', chevron: 'text-[#442dd7]', badge: 'bg-white text-[#442dd7] border border-[#D9D3F6]' },
+  { fila: 'bg-[#E8F6F5] hover:bg-[#D9EFEE] font-semibold', borde: 'shadow-[inset_3px_0_0_#0F766E]', chevron: 'text-[#0F766E]', badge: 'bg-white text-[#0F766E] border border-[#C6E4E2]' },
+  { fila: 'bg-[#FBEFF2] hover:bg-[#F6E1E7] font-semibold', borde: 'shadow-[inset_3px_0_0_#B4235A]', chevron: 'text-[#B4235A]', badge: 'bg-white text-[#B4235A] border border-[#EDCDD7]' },
+];
+
 interface Grupo {
   cod: string;
   hijos: string[];
@@ -432,15 +443,15 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
     if (g.hijos.length === 0 && g.hojas.length === 1) return <FilaHoja l={g.hojas[0]} depth={depth} />;
     const abierto = estaExpandido(cod);
     const desc = resultado?.groupDesc[cod] || g.hojas[0]?.desc || '';
-    const nivelCls = depth === 0 ? 'ht-g lv4' : depth === 1 ? 'ht-g lv5' : 'font-semibold';
+    const nv = NIVELES[Math.min(depth, NIVELES.length - 1)];
     return (
       <>
-        <tr className={`${nivelCls} cursor-pointer`} onClick={() => alternar(cod)}>
-          <td style={{ paddingLeft: 4 + depth * 14 }}>
-            {abierto ? <ChevronDown className="w-3.5 h-3.5 inline" /> : <ChevronRight className="w-3.5 h-3.5 inline" />}
+        <tr className={`cvs-grupo ${nv.fila} text-[#14212A] cursor-pointer`} onClick={() => alternar(cod)}>
+          <td className={nv.borde} style={{ paddingLeft: 4 + depth * 14 }}>
+            {abierto ? <ChevronDown className={`w-3.5 h-3.5 inline ${nv.chevron}`} /> : <ChevronRight className={`w-3.5 h-3.5 inline ${nv.chevron}`} />}
           </td>
           <td className="whitespace-nowrap">
-            {cod} <span className="ml-1 text-[9px] font-normal px-1.5 rounded-full bg-white/70 border border-black/10" title={`${s.n} partidas`}>{s.n}</span>
+            {cod} <span className={`ml-1 text-[9px] font-normal px-1.5 rounded-full ${nv.badge}`} title={`${s.n} partidas`}>{s.n}</span>
           </td>
           <td className="max-w-[230px] truncate" title={desc}>{desc || '—'}</td>
           <td></td><td></td><td></td><td></td><td></td>
