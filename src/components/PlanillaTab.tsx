@@ -65,19 +65,30 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
   expandedYears,
   setExpandedYears,
 }) => {
+  const [graficosOpen, setGraficosOpen] = React.useState(false);
+  // Tipología de contrato elegida en "Resumen por Tipología" (código de la Col G: OC, EQ, EE, ADM…)
+  const [tipoContrato, setTipoContrato] = React.useState('');
+  const hojasTipo = React.useMemo(
+    () => (tipoContrato ? planillaHojas.filter(h => (h.tipoG || 'Sin código') === tipoContrato) : planillaHojas),
+    [planillaHojas, tipoContrato]
+  );
+  const codigosTipo = React.useMemo(
+    () => (tipoContrato ? new Set(hojasTipo.map(h => String(h.cod).trim())) : null),
+    [hojasTipo, tipoContrato]
+  );
+  const tipoContratoLabel = planillaTipRes.find(t => t.tipo === tipoContrato)?.label || tipoContrato;
+
   if (!planillaInfo) return null;
 
-  const [graficosOpen, setGraficosOpen] = React.useState(false);
-
   const q = ctSearch.toLowerCase();
-  const hojasFilt = planillaHojas.filter(h => {
+  const hojasFilt = hojasTipo.filter(h => {
     if (ctFilterTipo && h.tipo !== ctFilterTipo) return false;
     if (ctSoloCert && h.cert === 0) return false;
     if (q && !h.desc.toLowerCase().includes(q) && !h.cod.includes(q)) return false;
     return true;
   });
   
-  const hayFiltro = !!(ctFilterTipo || ctSoloCert || q);
+  const hayFiltro = !!(ctFilterTipo || ctSoloCert || q || tipoContrato);
 
   const ctSumar = (cod: string) => {
     const prefix = cod + '.';
@@ -102,7 +113,8 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
   const T = {
     contrato: _hojaBase.reduce((s, h) => s + h.contrato, 0),
     acum:     _hojaBase.reduce((s, h) => s + h.acum, 0),
-    saldo:    totalEnmSaldoVal,
+    // Con tipología elegida, el saldo es contrato − planillado (igual que en su fila del resumen)
+    saldo:    tipoContrato ? _hojaBase.reduce((s, h) => s + h.contrato - h.acum, 0) : totalEnmSaldoVal,
     anterior: _hojaBase.reduce((s, h) => s + h.anterior, 0),
     cert:     _hojaBase.reduce((s, h) => s + h.cert, 0),
     exc:      _hojaBase.reduce((s, h) => s + h.exc, 0),
@@ -138,6 +150,49 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
     return 0;
   });
   const rootVis = allVis.filter(it => it.nivel === 1);
+
+  // Enmiendas de la tipología elegida, armadas desde las partidas de la Sabana: los capítulos
+  // "Rubros nuevos (Enmienda N)" van a E.N y el resto al Contrato Original (un renglón por capítulo)
+  const enmiendasTipo = (() => {
+    if (!tipoContrato) return null;
+    const descCap: Record<string, string> = {};
+    planillaPartidas.forEach(p => { if (p.nivel === 1) descCap[p.cod] = p.desc; });
+    const grupos = new Map<string, { label: string; orden: number; caps: Map<string, any> }>();
+    hojasTipo.forEach(h => {
+      const cap = String(h.cod).split('.')[0];
+      const desc = descCap[cap] || '';
+      const m = desc.match(/enmienda\s*(\d+)/i);
+      const label = m ? `E.${m[1]}` : 'Contrato Original';
+      const orden = m ? Number(m[1]) : 0;
+      if (!grupos.has(label)) grupos.set(label, { label, orden, caps: new Map() });
+      const caps = grupos.get(label)!.caps;
+      if (!caps.has(cap)) caps.set(cap, { tipo: `${cap} · ${desc}`.trim(), contratoAcum: 0, incremento: 0, monto: 0, planillado: 0, excedentes: 0, saldo: 0 });
+      const f = caps.get(cap);
+      f.monto += h.contrato; f.planillado += h.acum; f.excedentes += h.exc; f.saldo += h.contrato - h.acum;
+    });
+    return [...grupos.values()].sort((a, b) => a.orden - b.orden).map(g => {
+      const filas = [...g.caps.entries()].sort((a, b) => Number(a[0]) - Number(b[0]) || a[0].localeCompare(b[0])).map(([, f]) => f);
+      const sub = filas.reduce((a, f) => ({
+        ...a, monto: a.monto + f.monto, planillado: a.planillado + f.planillado,
+        excedentes: a.excedentes + f.excedentes, saldo: a.saldo + f.saldo,
+      }), { contratoAcum: 0, incremento: 0, monto: 0, planillado: 0, excedentes: 0, saldo: 0 });
+      return { label: g.label, filas, subtotal: sub };
+    });
+  })();
+
+  const alternarTipo = (tipo: string) => {
+    setTipoContrato(prev => (prev === tipo || tipo === 'Total' ? '' : tipo));
+    setEnmExpanded(new Set());
+  };
+  const chipTipo = tipoContrato ? (
+    <button
+      onClick={() => alternarTipo('')}
+      className="ml-2 align-middle normal-case tracking-normal text-[11px] font-semibold text-[#CD0000] bg-[#FBE9E9] hover:bg-[#F6C9C9] px-2 py-0.5 rounded-md"
+      title="Quitar filtro de tipología"
+    >
+      {tipoContratoLabel} ✕
+    </button>
+  ) : null;
 
   const ctToggle = (id: string) => setCtExpanded(prev => {
     const n = new Set(prev);
@@ -312,7 +367,11 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
       {/* Resumen Contrato + Enmiendas */}
       {planillaEnmiendas.length > 0 && (
         <div className="ht-card bg-white rounded-xl shadow-xs p-5 border border-[#D5DEE2]">
-          <h2 className="ht-card-title ht-title">Resumen Contrato + Enmiendas · <span className="ht-sub">{planillaEnmiendas.filter(e => !e.isGranTotal && e.subtotal).length} enmiendas</span></h2>
+          <h2 className="ht-card-title ht-title">
+            Resumen Contrato + Enmiendas · <span className="ht-sub">{(enmiendasTipo || planillaEnmiendas.filter(e => !e.isGranTotal && e.subtotal)).length} enmiendas</span>
+            {chipTipo}
+            {tipoContrato && <span className="ht-sub ml-2 normal-case">calculado desde las partidas de la Sabana · por capítulo</span>}
+          </h2>
           <div className="overflow-x-auto text-xs">
             <table className="min-w-full text-xs">
               <thead>
@@ -330,7 +389,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
               </thead>
               <tbody>
                 {(() => {
-                  const filteredEnms = planillaEnmiendas.filter(e => !e.isGranTotal && e.subtotal);
+                  const filteredEnms = enmiendasTipo || planillaEnmiendas.filter(e => !e.isGranTotal && e.subtotal);
                   const totalEnmIncremento = filteredEnms.reduce((acc, e) => acc + (e.subtotal.incremento || 0), 0);
                   const totalEnmMonto = filteredEnms.reduce((acc, e) => acc + (e.subtotal.monto || 0), 0);
                   const totalEnmPlanillado = filteredEnms.reduce((acc, e) => acc + (e.subtotal.planillado || 0), 0);
@@ -391,7 +450,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                       <tr className="ht-g lv0 bg-slate-100/90 border-t-2 border-slate-350 font-bold text-slate-900">
                         <td className="px-3 py-2.5"></td>
                         <td className="px-3 py-2.5 font-bold text-slate-850">Total</td>
-                        <td className="px-3 py-2.5 text-right text-slate-600 font-bold">{ctFmt(totalContratoAcum)}</td>
+                        <td className="px-3 py-2.5 text-right text-slate-600 font-bold">{totalContratoAcum > 0 ? ctFmt(totalContratoAcum) : '—'}</td>
                         <td className="px-3 py-2.5 text-right text-indigo-700 font-bold">{totalEnmIncremento > 0 ? '' + ctFmt(totalEnmIncremento) : '—'}</td>
                         <td className="px-3 py-2.5 text-right font-black text-slate-900">{ctFmt(totalEnmMonto)}</td>
                         <td className="px-3 py-2.5 text-right text-green-700 font-black">{ctFmt(totalEnmPlanillado)}</td>
@@ -413,7 +472,10 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
         const totalTipoloMonto = planillaTipRes.find(t => t.tipo === 'Total')?.monto || 0;
         return (
           <div className="ht-card bg-white rounded-xl shadow-sm p-5 border border-indigo-600">
-            <h2 className="ht-card-title ht-title">Resumen por Tipología de Contrato</h2>
+            <h2 className="ht-card-title ht-title">
+              Resumen por Tipología de Contrato
+              {chipTipo || <span className="ht-sub ml-2 normal-case">· clic en un tipo para filtrar la pestaña</span>}
+            </h2>
             <div className="overflow-x-auto text-xs">
               <table className="min-w-full text-xs">
                 <thead className="bg-gray-100 border-b">
@@ -430,15 +492,23 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                 <tbody>
                   {planillaTipRes.map((t, i) => {
                     const isTot = t.tipo === 'Total';
+                    const sel = tipoContrato === t.tipo;
+                    const atenuada = !!tipoContrato && !sel && !isTot;
                     return (
-                      <tr key={i} className={`border-t ${isTot ? 'ht-g lv0 bg-blue-50 font-bold' : 'hover:bg-gray-50'}`}>
+                      <tr
+                        key={i}
+                        id={`tipologia-fila-${t.tipo}`}
+                        onClick={() => alternarTipo(t.tipo)}
+                        title={isTot ? 'Ver todas las tipologías' : sel ? 'Quitar filtro' : `Filtrar la pestaña por ${t.label || t.tipo}`}
+                        className={`border-t cursor-pointer transition-colors ${isTot ? 'ht-g lv0 bg-blue-50 font-bold' : sel ? 'bg-[#FBE9E9] font-semibold shadow-[inset_3px_0_0_#CD0000]' : 'hover:bg-[#FDF3F3]'} ${atenuada ? 'opacity-45 hover:opacity-100' : ''}`}
+                      >
                         <td className="px-4 py-2.5 font-medium">{t.label || t.tipo}</td>
                         <td className="px-4 py-2.5 text-right font-semibold">{ctFmt(t.monto)}</td>
                         <td className="px-4 py-2.5 text-right text-gray-500">
                           {isTot ? '100.0%' : (totalTipoloMonto > 0 ? (t.monto / totalTipoloMonto * 100).toFixed(1) + '%' : '0.0%')}
                         </td>
                         <td className="px-4 py-2.5 text-right text-green-700">{ctFmt(t.planillado)}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold">{isTot ? avance : (t.monto > 0 ? (t.planillado / t.monto * 100).toFixed(1) : '0')}%</td>
+                        <td className="px-4 py-2.5 text-right font-semibold">{t.monto > 0 ? (t.planillado / t.monto * 100).toFixed(1) : '0'}%</td>
                         <td className={`px-4 py-2.5 text-right font-semibold ${t.saldo >= 0 ? 'text-orange-600' : 'text-red-650'}`}>
                           {t.saldo !== 0 ? (t.saldo < 0 ? '(' + ctFmt(Math.abs(t.saldo)) + ')' : '' + ctFmt(t.saldo)) : '—'}
                         </td>
@@ -456,7 +526,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
       {/* Gráficos de Certificación por Tipo */}
       {planillaHojas.length > 0 && (() => {
         // Group and sum h.cert (Esta Cert.) or h.acum (V. ACUMULADA) based on ctSoloCert checkbox
-        const targetHojas = ctSoloCert ? planillaHojas.filter(h => h.cert > 0) : planillaHojas;
+        const targetHojas = ctSoloCert ? hojasTipo.filter(h => h.cert > 0) : hojasTipo;
 
         const sumasPorTipo: Record<string, { tipo: string; label: string; planillado: number; contrato: number }> = {};
         targetHojas.forEach(h => {
@@ -553,6 +623,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                 <span className="ht-title">Gráficos de Certificación por Tipo</span>
                 <span className="ht-sub">{graficosOpen ? '▲' : '▼'}</span>
               </div>
+              {chipTipo && <div className="mr-auto">{chipTipo}</div>}
               <div className="flex items-center gap-4">
                 <label className="text-xs text-indigo-950 flex items-center gap-1.5 cursor-pointer font-bold bg-indigo-50/80 hover:bg-indigo-100/80 px-2.5 py-1 rounded-md border border-indigo-200 transition-colors">
                   <input 
@@ -711,6 +782,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
             <span className="ht-title">Detalle de Certificación</span>
             <span className="ht-sub">{certOpen ? '▲' : '▼'}</span>
           </div>
+          {chipTipo && <div className="mr-auto">{chipTipo}</div>}
           <div className="flex items-center gap-4">
             <label className="text-xs text-indigo-950 flex items-center gap-1.5 cursor-pointer font-bold bg-indigo-50/80 hover:bg-indigo-100/80 px-2.5 py-1 rounded-md border border-indigo-200 transition-colors">
               <input 
@@ -783,7 +855,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
       </div>
 
       {planillaHojas.length > 0 && (
-        <CdoVsPlanillaTab hojas={planillaHojas} grupos={planillaPartidas} actividades={actividades || []} mapaColumnasMes={mapaColumnasMes} />
+        <CdoVsPlanillaTab hojas={planillaHojas} grupos={planillaPartidas} actividades={actividades || []} mapaColumnasMes={mapaColumnasMes} codigosPlanilla={codigosTipo} filtroEtiqueta={tipoContrato ? chipTipo : null} />
       )}
 
       {/* Curva de Avance Económico colapsable ubicada debajo de Comparación CDO vs Planilla */}

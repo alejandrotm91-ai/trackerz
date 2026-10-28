@@ -21,6 +21,10 @@ import {
 
 interface CdoVsPlanillaTabProps {
   hojas: PlanillaItem[];
+  /** Filtro externo (tipología de contrato): solo partidas con alguna de estas hojas de la Planilla. */
+  codigosPlanilla?: Set<string> | null;
+  /** Aviso del filtro externo para mostrar en la cabecera. */
+  filtroEtiqueta?: React.ReactNode;
   grupos: PlanillaItem[];
   actividades: Actividad[];
   mapaColumnasMes?: Record<string, number>;
@@ -111,7 +115,7 @@ interface Suma {
 
 const sumaVacia = (): Suma => ({ n: 0, vA: 0, vB: 0, porQ: 0, porP: 0, dV: 0 });
 
-export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupos, actividades, mapaColumnasMes }) => {
+export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupos, actividades, mapaColumnasMes, codigosPlanilla, filtroEtiqueta }) => {
   const [open, setOpen] = React.useState(false);
   const [modo, setModo] = React.useState<ModoComparacion>('presupuesto');
   const [vista, setVista] = React.useState<Vista>('jerarquica');
@@ -131,10 +135,16 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
   const tieneCruce = React.useMemo(() => planillaTieneCruce(hojas), [hojas]);
   const master = useMasterVivo(actividades, mapaColumnasMes, open && tieneCruce);
 
-  const resultado = React.useMemo(() => {
+  const resultadoTodo = React.useMemo(() => {
     if (!tieneCruce || master.items.length === 0) return null;
     return construirComparacion(master.items, hojas, grupos);
   }, [tieneCruce, master.items, hojas, grupos]);
+
+  // Filtro por tipología de contrato (viene de la tarjeta "Resumen por Tipología")
+  const resultado = React.useMemo(() => {
+    if (!resultadoTodo || !codigosPlanilla) return resultadoTodo;
+    return { ...resultadoTodo, leaves: resultadoTodo.leaves.filter(l => l.planilla.some(p => codigosPlanilla.has(p.cod))) };
+  }, [resultadoTodo, codigosPlanilla]);
 
   const txt = MODO_TXT[modo];
 
@@ -531,6 +541,7 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
         <h2 className="text-base font-bold text-gray-800 flex items-center gap-3 flex-wrap">
           <span className="ht-title">Comparación CDO vs Planilla</span>
           <span className="ht-sub hidden lg:inline">Master vs Planilla (Sabana) por partida · cantidad, precio y monto</span>
+          {filtroEtiqueta && <span onClick={e => e.stopPropagation()}>{filtroEtiqueta}</span>}
           {tp && (
             <span className="flex gap-2 text-xs font-normal">
               <span className={`px-2 py-0.5 rounded border bg-white ${colorDif(tp.presupuesto.dV)}`} title="Venta Master − Monto contrato">
