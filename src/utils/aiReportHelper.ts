@@ -1,5 +1,6 @@
 import { Actividad } from '../types';
-import type { DatosReporte } from '../types/reporteIA';
+import type { DatosReporte, ResumenEjecutivoDatos } from '../types/reporteIA';
+import { calcularAvanceEquipos } from './avanceEquipos';
 
 export interface AreaReportData {
   areaName: string;
@@ -433,4 +434,37 @@ export function construirDatosReporte(actividades: Actividad[], fechaCorteState?
   };
 
   return { datos, contexto };
+}
+
+/**
+ * Bloque ejecutivo del reporte con las mismas cifras de las tarjetas de la app:
+ * obra (pestaña Resumen), certificación (pestaña Certificación) y equipos (pestaña Proceso).
+ */
+export function construirEjecutivo(stats: any, planillaTotales: any): ResumenEjecutivoDatos | undefined {
+  if (!stats) return undefined;
+  const n = (v: any) => Number(v) || 0;
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const T = planillaTotales;
+  return {
+    obra: {
+      contrato: r2(n(stats.totalVenta)),
+      ejecutado: r2(n(stats.totalVentaEjecutada)),
+      avance: r2(n(stats.avanceGeneral)),
+      porEjecutar: r2(n(stats.totalSaldo)),
+      excedentes: r2(n(stats.totalExcedentes)),
+    },
+    certificacion: T ? {
+      contrato: r2(n(T.contrato)),
+      certificado: r2(n(T.acum)),
+      avance: n(T.contrato) > 0 ? r2((n(T.acum) / n(T.contrato)) * 100) : 0,
+      porCertificar: r2(n(T.contrato) - n(T.acum)),
+      saldoPlanilla: r2(n(T.saldo)),
+      excedentes: r2(n(T.exc)),
+      ultimaCertificacion: r2(n(T.cert)),
+    } : undefined,
+    componentes: (stats.componentes || [])
+      .filter((c: any) => n(c.venta) > 0)
+      .map((c: any) => ({ nombre: String(c.nombre), contrato: r2(n(c.venta)), ejecutado: r2(n(c.ventaEjecutada)), avance: r2(n(c.avance)) })),
+    equipos: calcularAvanceEquipos(),
+  };
 }

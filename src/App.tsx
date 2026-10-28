@@ -15,7 +15,7 @@ import { PersonalTab } from './components/PersonalTab';
 import { ProcesoTab } from './components/ProcesoTab';
 import { MasterTab } from './components/MasterTab';
 import { AIReportModal } from './components/AIReportModal';
-import { construirDatosReporte } from './utils/aiReportHelper';
+import { construirDatosReporte, construirEjecutivo } from './utils/aiReportHelper';
 import { reporteATexto } from './utils/reporteTexto';
 import type { ReporteIA } from './types/reporteIA';
 import { saveAIReportToCloud, loadAIReportFromCloud, AIReportData } from './utils/cloudSync';
@@ -156,10 +156,18 @@ export default function App() {
 
     try {
       const { datos, contexto } = construirDatosReporte(pc.actividades, pc.fechaCorteState);
+      datos.ejecutivo = construirEjecutivo(pc.stats, pc.planillaTotales);
       // El reporte anterior sirve para medir la evolución
       const previo = aiReportData?.reporte;
       const anterior = previo
-        ? { fechaCorte: previo.datos.fechaCorte, generadoEn: aiReportData!.updatedAt, estadoGeneral: previo.analisis.estadoGeneral, kpis: previo.datos.kpis }
+        ? {
+            fechaCorte: previo.datos.fechaCorte,
+            generadoEn: aiReportData!.updatedAt,
+            estadoGeneral: previo.analisis.estadoGeneral,
+            kpis: previo.datos.kpis,
+            obraAvance: previo.datos.ejecutivo?.obra.avance,
+            certificacionAvance: previo.datos.ejecutivo?.certificacion?.avance,
+          }
         : undefined;
 
       const res = await fetch('/api/ai/crono-report', {

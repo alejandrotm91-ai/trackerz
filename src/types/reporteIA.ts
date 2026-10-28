@@ -18,8 +18,36 @@ export interface KpisReporte {
   partidasEquipos: number;
 }
 
+export interface AvanceEquiposFila {
+  estructuras: number; partidas: number; equipos: number;
+  /** % de avance en valor por etapa (0-100). */
+  fabricacion: number; flete: number; instalacion: number;
+}
+
+export interface AvanceEquipos {
+  total: AvanceEquiposFila;
+  areas: (AvanceEquiposFila & { area: string })[];
+}
+
+/** Bloque ejecutivo: lo esencial del proyecto de un vistazo. */
+export interface ResumenEjecutivoDatos {
+  obra: { contrato: number; ejecutado: number; avance: number; porEjecutar: number; excedentes: number };
+  certificacion?: {
+    contrato: number; certificado: number; avance: number;
+    /** Contrato de la planilla menos lo planillado. */
+    porCertificar: number;
+    /** "Saldo por planillar" de la Sabana (incluye excedentes). */
+    saldoPlanilla?: number;
+    excedentes: number; ultimaCertificacion: number;
+  };
+  componentes: { nombre: string; contrato: number; ejecutado: number; avance: number }[];
+  equipos?: AvanceEquipos;
+}
+
 export interface DatosReporte {
   fechaCorte: string;
+  /** Desde la versión con bloque ejecutivo; los reportes previos no lo traen. */
+  ejecutivo?: ResumenEjecutivoDatos;
   kpis: KpisReporte;
   tipologias: {
     nombre: string; ventaPlan: number; ventaEjecutada: number; variacion: number;
@@ -56,6 +84,9 @@ export interface ReporteIA {
   datos: DatosReporte;
   analisis: AnalisisReporte;
   /** Indicadores del reporte anterior, para mostrar la evolución. */
-  anterior?: { fechaCorte: string; generadoEn: string; estadoGeneral?: EstadoGeneral; kpis: KpisReporte };
+  anterior?: {
+    fechaCorte: string; generadoEn: string; estadoGeneral?: EstadoGeneral; kpis: KpisReporte;
+    obraAvance?: number; certificacionAvance?: number;
+  };
   modelo: string;
 }

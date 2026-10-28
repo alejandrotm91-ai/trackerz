@@ -70,6 +70,122 @@ const Kpi: React.FC<{
   );
 };
 
+const ETAPAS = [
+  { k: 'fabricacion', label: 'Fabr.', color: '#A86B12' },
+  { k: 'flete', label: 'Flete', color: '#2C67A6' },
+  { k: 'instalacion', label: 'Inst.', color: '#2B7F52' },
+] as const;
+
+const Barra: React.FC<{ pct: number; color: string; alto?: string }> = ({ pct, color, alto = 'h-1.5' }) => (
+  <div className={`${alto} bg-[#E3E8EB] rounded-full overflow-hidden`}>
+    <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(pct, 100))}%`, background: color }} />
+  </div>
+);
+
+/** Tarjeta del bloque ejecutivo: título, cifra grande, barra opcional y detalle. */
+const Tarjeta: React.FC<{ titulo: string; valor: string; color?: string; pct?: number; barColor?: string; detalle?: React.ReactNode; extra?: React.ReactNode }> = ({
+  titulo, valor, color = 'text-[#14212A]', pct, barColor = '#442dd7', detalle, extra,
+}) => (
+  <div className="border border-[#D5DEE2] rounded-xl bg-white p-3 flex flex-col gap-1">
+    <div className="text-[10px] font-semibold text-[#5A6A74] uppercase tracking-wider">{titulo}</div>
+    <div className={`text-[22px] leading-tight font-semibold ${color}`}>{valor}</div>
+    {pct !== undefined && <Barra pct={pct} color={barColor} />}
+    {detalle && <div className="text-[11px] text-[#5A6A74] leading-snug">{detalle}</div>}
+    {extra}
+  </div>
+);
+
+const deltaPts = (actual?: number, previo?: number) => {
+  if (actual === undefined || previo === undefined) return null;
+  const d = actual - previo;
+  if (Math.abs(d) < 0.005) return <div className="text-[11px] text-gray-500">Sin cambio vs. anterior</div>;
+  return <div className={`text-[11px] ${d > 0 ? 'text-emerald-700' : 'text-red-600'}`}>{d > 0 ? '▲ +' : '▼ '}{d.toFixed(2)} pts vs. anterior</div>;
+};
+
+/** "El proyecto de un vistazo": avance de obra y certificación, saldos, excedentes, componentes y equipos. */
+const BloqueEjecutivo: React.FC<{ reporte: ReporteIA }> = ({ reporte }) => {
+  const e = reporte.datos.ejecutivo;
+  if (!e) return null;
+  const { obra, certificacion: c, equipos, componentes } = e;
+  const ant = reporte.anterior;
+  return (
+    <section className="space-y-3">
+      <div className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">El proyecto de un vistazo</div>
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+        <Tarjeta titulo="Avance de obra" valor={`${obra.avance.toFixed(2)}%`} color="text-[#2B7F52]" pct={obra.avance} barColor="#2B7F52"
+          detalle={<>{fmtM(obra.ejecutado)} ejecutado de {fmtM(obra.contrato)}</>} extra={deltaPts(obra.avance, ant?.obraAvance)} />
+        {c && (
+          <Tarjeta titulo="Avance de certificación" valor={`${c.avance.toFixed(2)}%`} color="text-[#442dd7]" pct={c.avance}
+            detalle={<>{fmtM(c.certificado)} planillado de {fmtM(c.contrato)}</>} extra={deltaPts(c.avance, ant?.certificacionAvance)} />
+        )}
+        <Tarjeta titulo="Por ejecutar" valor={fmtM(obra.porEjecutar)} color="text-[#A86B12]"
+          detalle={<>{obra.contrato > 0 ? ((obra.porEjecutar / obra.contrato) * 100).toFixed(1) : '0'}% del contrato</>} />
+        {c && (
+          <Tarjeta titulo="Por certificar" valor={fmtM(c.porCertificar)} color="text-[#A86B12]"
+            detalle={<>{c.contrato > 0 ? ((c.porCertificar / c.contrato) * 100).toFixed(1) : '0'}% del contrato de la planilla
+              {c.saldoPlanilla !== undefined && <><br />Saldo por planillar (Sabana, con excedentes): {fmtM(c.saldoPlanilla)}</>}</>} />
+        )}
+        <Tarjeta titulo="Excedentes" valor={`${signo(obra.excedentes)}${fmtM(obra.excedentes)}`}
+          color={obra.excedentes < 0 ? 'text-[#442dd7]' : 'text-red-600'}
+          detalle={<>Obra: {obra.excedentes < 0 ? 'ahorro frente al contrato' : 'sobreejecución'}{c ? <><br />Certificación: {signo(c.excedentes)}{fmtM(c.excedentes)}</> : null}</>} />
+        {c && (
+          <Tarjeta titulo="Última certificación" valor={fmtM(c.ultimaCertificacion)} detalle="monto de esta planilla" />
+        )}
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-2">
+        {equipos && (
+          <div className="border border-[#D5DEE2] rounded-xl bg-white p-3">
+            <div className="flex items-baseline justify-between gap-2 mb-2">
+              <span className="text-[10px] font-semibold text-[#5A6A74] uppercase tracking-wider">Avance de equipos</span>
+              <span className="text-[11px] text-[#5A6A74]">{fmtNum(equipos.total.equipos)} equipos · {fmtNum(equipos.total.partidas)} partidas</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              {ETAPAS.map(et => (
+                <div key={et.k}>
+                  <div className="flex justify-between text-[11px]"><span className="text-[#5A6A74]">{et.label === 'Fabr.' ? 'Fabricación' : et.label === 'Inst.' ? 'Instalación' : 'Flete'}</span><b className="text-[#14212A]">{equipos.total[et.k].toFixed(0)}%</b></div>
+                  <Barra pct={equipos.total[et.k]} color={et.color} alto="h-2" />
+                </div>
+              ))}
+            </div>
+            <div className="space-y-1.5">
+              {equipos.areas.map(a => (
+                <div key={a.area} className="grid grid-cols-[minmax(0,1.3fr)_repeat(3,minmax(0,1fr))] items-center gap-2 text-[11px]">
+                  <span className="truncate font-semibold text-[#14212A]" title={`${a.area} · ${a.estructuras} estructuras · ${a.partidas} partidas · ${fmtNum(a.equipos)} equipos`}>{a.area}</span>
+                  {ETAPAS.map(et => (
+                    <div key={et.k} title={`${et.label} ${a[et.k].toFixed(1)}%`}>
+                      <div className="flex justify-between text-[10px] text-[#5A6A74]"><span>{et.label}</span><b className="text-[#14212A]">{a[et.k].toFixed(0)}%</b></div>
+                      <Barra pct={a[et.k]} color={et.color} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {componentes.length > 0 && (
+          <div className="border border-[#D5DEE2] rounded-xl bg-white p-3">
+            <div className="flex items-baseline justify-between gap-2 mb-2">
+              <span className="text-[10px] font-semibold text-[#5A6A74] uppercase tracking-wider">Avance por componente</span>
+              <span className="text-[11px] text-[#5A6A74]">ejecutado sobre contrato</span>
+            </div>
+            <div className="space-y-1.5">
+              {componentes.map(cp => (
+                <div key={cp.nombre} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_52px_minmax(0,1fr)] items-center gap-2 text-[11px]">
+                  <span className="truncate font-semibold text-[#14212A]" title={cp.nombre}>{cp.nombre}</span>
+                  <Barra pct={cp.avance} color="#442dd7" alto="h-2" />
+                  <b className="text-right text-[#14212A]">{cp.avance.toFixed(1)}%</b>
+                  <span className="text-right text-[#5A6A74] whitespace-nowrap">{fmtM(cp.ejecutado)} / {fmtM(cp.contrato)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};
+
 export const ReporteEstandar: React.FC<{ reporte: ReporteIA }> = ({ reporte }) => {
   const { datos: d, analisis: a, anterior } = reporte;
   const k = d.kpis;
@@ -93,7 +209,10 @@ export const ReporteEstandar: React.FC<{ reporte: ReporteIA }> = ({ reporte }) =
         )}
       </div>
 
-      {/* Indicadores */}
+      <BloqueEjecutivo reporte={reporte} />
+
+      {/* Indicadores del cronograma */}
+      <div className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider pt-1">Indicadores del cronograma</div>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
         <Kpi titulo="Actividades retrasadas" valor={fmtNum(k.retrasadas)} detalle={`de ${fmtNum(k.totalActividades)} actividades`}
           actual={k.retrasadas} previo={p.retrasadas} mejorSiSube={false} />

@@ -13,7 +13,25 @@ export function reporteATexto(r: ReporteIA): string {
   L.push(`# Reporte de Inteligencia · Cronograma`);
   L.push(`Fecha de corte: ${d.fechaCorte} · Estado general: ${a.estadoGeneral}`);
   L.push('');
-  L.push('## Indicadores');
+  const e = d.ejecutivo;
+  if (e) {
+    L.push('## El proyecto de un vistazo');
+    L.push(`- Avance de obra: ${e.obra.avance.toFixed(2)}% (${fmtM(e.obra.ejecutado)} de ${fmtM(e.obra.contrato)}) · por ejecutar ${fmtM(e.obra.porEjecutar)}`);
+    if (e.certificacion) {
+      const c = e.certificacion;
+      L.push(`- Avance de certificación: ${c.avance.toFixed(2)}% (${fmtM(c.certificado)} de ${fmtM(c.contrato)}) · por certificar ${fmtM(c.porCertificar)} · última certificación ${fmtM(c.ultimaCertificacion)}`);
+      L.push(`- Excedentes: obra ${signo(e.obra.excedentes)}${fmtM(e.obra.excedentes)} · certificación ${signo(c.excedentes)}${fmtM(c.excedentes)}`);
+    } else {
+      L.push(`- Excedentes de obra: ${signo(e.obra.excedentes)}${fmtM(e.obra.excedentes)}`);
+    }
+    if (e.equipos) {
+      const t = e.equipos.total;
+      L.push(`- Equipos (${fmtNum(t.equipos)} en ${fmtNum(t.partidas)} partidas): fabricación ${t.fabricacion.toFixed(0)}% · flete ${t.flete.toFixed(0)}% · instalación ${t.instalacion.toFixed(0)}%`);
+      e.equipos.areas.forEach(a => L.push(`  - ${a.area}: fabricación ${a.fabricacion.toFixed(0)}% · flete ${a.flete.toFixed(0)}% · instalación ${a.instalacion.toFixed(0)}%`));
+    }
+    L.push('');
+  }
+  L.push('## Indicadores del cronograma');
   L.push(`- Actividades retrasadas: ${fmtNum(k.retrasadas)} de ${fmtNum(k.totalActividades)}`);
   L.push(`- Próximas 4 semanas: ${fmtNum(k.proximas4Semanas)}`);
   L.push(`- Venta planificada ${fmtM(k.ventaPlan)} · ejecutada ${fmtM(k.ventaEjecutada)} · variación ${signo(k.variacion)}${fmtM(k.variacion)}`);

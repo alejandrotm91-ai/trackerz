@@ -171,6 +171,8 @@ Reglas:
 - Usa únicamente los datos recibidos. No inventes cifras, actividades, áreas ni fechas. Si un dato no está, no lo supongas.
 - Cita las cifras tal como vienen. Montos sin el símbolo $, en millones con dos decimales (p. ej. 2.35M) o con separador de miles (p. ej. 845,120).
 - Una variación negativa significa que lo ejecutado va por debajo de lo planificado (atraso económico).
+- "ejecutivo" trae lo esencial del proyecto: avance de obra (ejecutado sobre el monto del contrato), avance de certificación (planillado sobre el contrato de la planilla), montos por ejecutar y por certificar, excedentes (en obra, negativo = ahorro frente al contrato; en certificación, lo planillado por encima de lo contratado), la última certificación, el avance por componente y el avance de equipos por área en sus tres etapas (fabricación, flete e instalación, en % del valor).
+- resumenEjecutivo abre con el avance de obra y de certificación, y la brecha entre ambos; puntosClave incluye el estado de los equipos (la etapa más rezagada y las áreas críticas).
 - Escribe en español, en tono profesional y directo, sin relleno ni frases genéricas. Prosa sin Markdown, sin viñetas dentro de los textos y sin emojis.
 - Longitudes: resumenEjecutivo de 3 a 5 frases; puntosClave de 3 a 5; hallazgos de 2 a 5; areasCriticas de hasta 5 áreas (las de mayor riesgo); compromisos de hasta 6; recomendaciones de 3 a 5, ordenadas de mayor a menor prioridad, cada una concreta y verificable, con área responsable y plazo (p. ej. "2 semanas").
 - En "area" usa exactamente los nombres de área o tipología que aparecen en los datos (o "General" si aplica a toda la obra).
