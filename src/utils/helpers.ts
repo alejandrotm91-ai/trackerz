@@ -130,3 +130,38 @@ export const isIgnoredFinishDate = (finish: any): boolean => {
   }
   return false;
 };
+
+/**
+ * Agrupación de los códigos de la Col G de la Sabana en el "Resumen por Tipología":
+ * ADM y CRC se muestran juntos como "Indirectos + Aceleración".
+ */
+const GRUPO_TIPOLOGIA: Record<string, string> = { ADM: 'IND', CRC: 'IND' };
+const ETIQUETA_GRUPO: Record<string, string> = { IND: 'Indirectos + Aceleración' };
+
+/** Grupo de tipología de una hoja de la Sabana a partir de su código (Col G). */
+export const grupoTipologia = (tipoG: string): string => {
+  const g = tipoG || 'Sin código';
+  return GRUPO_TIPOLOGIA[g] || g;
+};
+
+/** Une las filas del resumen por tipología que pertenecen al mismo grupo; la fila Total queda al final. */
+export function agruparTipologias(filas: any[] | undefined): any[] {
+  if (!filas || filas.length === 0) return [];
+  const orden: string[] = [];
+  const grupos = new Map<string, any>();
+  let total: any = null;
+  for (const f of filas) {
+    if (f.tipo === 'Total') { total = f; continue; }
+    const g = grupoTipologia(f.tipo);
+    if (!grupos.has(g)) {
+      orden.push(g);
+      grupos.set(g, { ...f, tipo: g, label: ETIQUETA_GRUPO[g] || f.label, monto: 0, planillado: 0, excedentes: 0, saldo: 0 });
+    }
+    const a = grupos.get(g);
+    a.monto += f.monto || 0; a.planillado += f.planillado || 0;
+    a.excedentes += f.excedentes || 0; a.saldo += f.saldo || 0;
+  }
+  const out = orden.map(g => grupos.get(g));
+  if (total) out.push(total);
+  return out;
+}

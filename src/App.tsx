@@ -9,6 +9,7 @@ import { useMasterPlan } from './hooks/useMasterPlan';
 import { CronogramaTab } from './components/CronogramaTab';
 import { PlanillaTab } from './components/PlanillaTab';
 import { LEVEL_STYLES } from './utils/nivelesJerarquia';
+import { agruparTipologias } from './utils/helpers';
 import { ComponenteResumen } from './components/ComponenteResumen';
 import { ResumenFinanciero } from './components/ResumenFinanciero';
 import { CaratulaTab } from './components/CaratulaTab';
@@ -27,6 +28,8 @@ import { apiFetch } from './utils/api';
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const pc = useMasterPlan(isLoggedIn);
+  // ADM y CRC se muestran juntos como "Indirectos + Aceleración"
+  const tipologiasAgrupadas = React.useMemo(() => agruparTipologias(pc.planillaTipRes), [pc.planillaTipRes]);
   const [username, setUsername] = React.useState('');
   // Proyecto de la pantalla de inicio (por ahora solo Los Merinos)
   const [proyecto, setProyecto] = React.useState('los-merinos');
@@ -2032,7 +2035,7 @@ export default function App() {
                 planillaInfo={pc.planillaInfo}
                 planillaTotales={pc.planillaTotales}
                 planillaEnmiendas={pc.planillaEnmiendas}
-                planillaTipRes={pc.planillaTipRes}
+                planillaTipRes={tipologiasAgrupadas}
                 planillaHojas={pc.planillaHojas}
               />
             </div>
@@ -2184,7 +2187,7 @@ export default function App() {
                 planillaCDOvsS={pc.planillaCDOvsS}
                 planillaTotales={pc.planillaTotales}
                 planillaEnmiendas={pc.planillaEnmiendas}
-                planillaTipRes={pc.planillaTipRes}
+                planillaTipRes={tipologiasAgrupadas}
                 planillaHojas={pc.planillaHojas}
                 planillaPartidas={pc.planillaPartidas}
                 enmExpanded={pc.enmExpanded}

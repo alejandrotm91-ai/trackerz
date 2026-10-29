@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { Search, ChevronDown, ChevronRight, CircleDollarSign, TrendingUp, Calendar, Clock, TrendingDown, Download } from 'lucide-react';
-import { ctTipoLabel, ctTipoCfg, ctFmt, ctFmtM, ctPf } from '../utils/helpers';
+import { ctTipoLabel, ctTipoCfg, ctFmt, ctFmtM, ctPf, grupoTipologia } from '../utils/helpers';
 import { CdoVsPlanillaTab } from './CdoVsPlanillaTab';
 import { CurvaAvanceEconomico } from './CurvaAvanceEconomico';
 import { PlanillaItem } from '../types';
@@ -69,7 +69,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
   // Tipología de contrato elegida en "Resumen por Tipología" (código de la Col G: OC, EQ, EE, ADM…)
   const [tipoContrato, setTipoContrato] = React.useState('');
   const hojasTipo = React.useMemo(
-    () => (tipoContrato ? planillaHojas.filter(h => (h.tipoG || 'Sin código') === tipoContrato) : planillaHojas),
+    () => (tipoContrato ? planillaHojas.filter(h => grupoTipologia(h.tipoG) === tipoContrato) : planillaHojas),
     [planillaHojas, tipoContrato]
   );
   const codigosTipo = React.useMemo(
