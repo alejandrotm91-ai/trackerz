@@ -5060,118 +5060,85 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                 <CheckCircle2 className="w-4 h-4 text-indigo-600" />
                 Resumen por Check Set y Tipología
               </h3>
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-sm">
                 <table className="min-w-full text-xs border-collapse text-left">
-                  <thead className="bg-slate-800 text-white">
-                    <tr>
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold w-40">Check Set</th>
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold">Tipología</th>
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold text-right">V.Plan</th>
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold text-right">V.Ejec</th>
-                      {modoEV && (
-                        <th className="px-4 py-3 border-b border-slate-700 font-bold text-right text-amber-300">Sobre Ejecución</th>
-                      )}
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold text-right">Variación</th>
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold text-center w-32">Cant. Actividades</th>
+                  <thead>
+                    <tr className="text-[10px] font-extrabold text-left whitespace-nowrap">
+                      <th className="px-2 py-2.5 w-44">Check Set</th>
+                      <th className="px-2 py-2.5">Tipología</th>
+                      <th className="px-2 py-2.5 text-right">V.Plan</th>
+                      <th className="px-2 py-2.5 text-right">V.Ejec</th>
+                      {modoEV && <th className="px-2 py-2.5 text-right">Sobre Ejecución</th>}
+                      <th className="px-2 py-2.5 text-right">Variación</th>
+                      <th className="px-2 py-2.5 text-right">% Avance</th>
+                      <th className="px-2 py-2.5 text-center w-28">Actividades</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody>
                     {checkSetSummary.map(([csKey, csData]) => {
-                       const tipos = Object.entries(csData.tipologias).sort((a, b) => b[1].desv - a[1].desv);
-                       return (
-                         <React.Fragment key={csKey}>
-                           {/* Fila del Check Set (Total) */}
-                           <tr 
-                             className="bg-slate-100 font-bold cursor-pointer hover:bg-slate-200 transition-colors"
-                             onClick={() => setExpandedCheckSets(prev => {
-                               const next = new Set(prev);
-                               if (next.has(csKey)) next.delete(csKey); else next.add(csKey);
-                               return next;
-                             })}
-                           >
-                             <td className="px-4 py-3 border-b border-slate-200">
-                               <div className="flex items-center gap-1.5">
-                                 {expandedCheckSets.has(csKey) ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
-                                 <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase ${csData.checkSetProps.bg} ${csData.checkSetProps.textC}`}>
-                                   <span className={`w-1.5 h-1.5 rounded-full ${csData.checkSetProps.dot}`}></span>{csKey}
-                                 </span>
-                               </div>
-                             </td>
-                             <td className="px-4 py-3 border-b border-slate-200 text-slate-600 text-[10px] uppercase tracking-wider font-extrabold">
-                               Total {csKey}
-                             </td>
-                             <td className="px-4 py-3 border-b border-slate-200 text-right text-indigo-700 font-mono">
-                               {fmtMoney(csData.totalPlan)}
-                             </td>
-                             <td className="px-4 py-3 border-b border-slate-200 text-right text-slate-500 font-mono">
-                               {fmtMoney(csData.totalEjec)}
-                             </td>
-                             {modoEV && (
-                               <td className="px-4 py-3 border-b border-slate-200 text-right text-amber-600 font-mono font-bold">
-                                 {fmtMoney(csData.totalSobreEjec || 0)}
-                               </td>
-                             )}
-                             <td className={`px-4 py-3 border-b border-slate-200 text-right font-mono font-black ${csData.totalDesv < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                               {fmtDNum(csData.totalDesv)}
-                             </td>
-                             <td className="px-4 py-3 border-b border-slate-200 text-center font-bold text-slate-800 bg-slate-200/50">
-                               {csData.totalCount}
-                             </td>
-                           </tr>
-                           
-                           {/* Filas de Tipologías */}
-                           {expandedCheckSets.has(csKey) && tipos.map(([tipo, tData]) => (
-                             <tr key={`${csKey}-${tipo}`} className="bg-white hover:bg-slate-50 transition-colors">
-                               <td className="px-4 py-2 border-r border-slate-100 bg-slate-50/30"></td>
-                               <td className="px-4 py-2 text-slate-700 font-medium pl-6 relative">
-                                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-200"></div>
-                                 <span className="text-[11px]">{tipo}</span>
-                               </td>
-                               <td className="px-4 py-2 text-right font-mono text-slate-600">
-                                 {fmtMoney(tData.plan)}
-                               </td>
-                               <td className="px-4 py-2 text-right font-mono text-slate-500">
-                                 {fmtMoney(tData.ejec)}
-                               </td>
-                               {modoEV && (
-                                 <td className="px-4 py-2 text-right font-mono text-amber-600 font-bold">
-                                   {fmtMoney(tData.sobreEjec || 0)}
-                                 </td>
-                               )}
-                               <td className={`px-4 py-2 text-right font-mono font-bold ${tData.desv < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                 {fmtDNum(tData.desv)}
-                               </td>
-                               <td className="px-4 py-2 text-center font-mono text-slate-600 font-medium border-l border-slate-100">
-                                 {tData.count}
-                               </td>
-                             </tr>
-                           ))}
-                         </React.Fragment>
-                       );
+                      const tipos = Object.entries(csData.tipologias).sort((a, b) => b[1].desv - a[1].desv);
+                      const abierto = expandedCheckSets.has(csKey);
+                      const nivel = LEVEL_STYLES[0];
+                      const pctCs = csData.totalPlan > 0 ? (csData.totalEjec / csData.totalPlan) * 100 : (csData.totalEjec > 0 ? 100 : 0);
+                      return (
+                        <React.Fragment key={csKey}>
+                          {/* Fila del Check Set: primer nivel, como en la tabla principal */}
+                          <tr
+                            className={`${nivel.bg} cursor-pointer transition-colors whitespace-nowrap`}
+                            onClick={() => setExpandedCheckSets(prev => {
+                              const next = new Set(prev);
+                              if (next.has(csKey)) next.delete(csKey); else next.add(csKey);
+                              return next;
+                            })}
+                          >
+                            <td className={`px-2 py-1.5 ${nivel.accent}`}>
+                              <div className="flex items-center gap-1">
+                                {abierto ? <ChevronDown className={`w-3.5 h-3.5 ${nivel.chevron} shrink-0`} /> : <ChevronRight className={`w-3.5 h-3.5 ${nivel.chevron} shrink-0`} />}
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csData.checkSetProps.bg} ${csData.checkSetProps.textC}`}>
+                                  <span className={`w-1 h-1 rounded-full ${csData.checkSetProps.dot}`}></span>{csKey}
+                                </span>
+                              </div>
+                            </td>
+                            <td className={`px-2 py-1.5 text-[11px] font-bold ${nivel.text}`}>
+                              Total {csKey} <span className={`text-[10px] font-mono font-normal ${nivel.subText}`}>({tipos.length} tipologías)</span>
+                            </td>
+                            <td className={`px-2 py-1.5 text-right font-mono ${nivel.vPlan}`}>{fmtMoney(csData.totalPlan)}</td>
+                            <td className={`px-2 py-1.5 text-right font-mono ${nivel.vEjec}`}>{fmtMoney(csData.totalEjec)}</td>
+                            {modoEV && <td className={`px-2 py-1.5 text-right font-mono font-bold ${nivel.vSobre}`}>{fmtMoney(csData.totalSobreEjec || 0)}</td>}
+                            <td className={`px-2 py-1.5 text-right font-mono font-black ${csData.totalDesv < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{fmtDNum(csData.totalDesv)}</td>
+                            <td className="px-2 py-1.5 text-right font-mono">{pctCs.toFixed(2)}%</td>
+                            <td className="px-2 py-1.5 text-center font-mono font-bold">{csData.totalCount.toLocaleString()}</td>
+                          </tr>
+
+                          {/* Tipologías: filas de detalle */}
+                          {abierto && tipos.map(([tipo, tData]) => {
+                            const pctT = tData.plan > 0 ? (tData.ejec / tData.plan) * 100 : (tData.ejec > 0 ? 100 : 0);
+                            return (
+                              <tr key={`${csKey}-${tipo}`} className="bg-white hover:bg-[#F9FBFB] border-b border-[#EEF2F3] transition-colors whitespace-nowrap">
+                                <td className="px-2 py-1"></td>
+                                <td className="px-2 py-1 text-[11px] text-[#14212A] pl-4">{tipo}</td>
+                                <td className="px-2 py-1 text-right font-mono text-slate-700">{fmtMoney(tData.plan)}</td>
+                                <td className="px-2 py-1 text-right font-mono text-green-700">{fmtMoney(tData.ejec)}</td>
+                                {modoEV && <td className="px-2 py-1 text-right font-mono text-amber-700 font-bold">{fmtMoney(tData.sobreEjec || 0)}</td>}
+                                <td className={`px-2 py-1 text-right font-mono font-bold ${tData.desv < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{fmtDNum(tData.desv)}</td>
+                                <td className="px-2 py-1 text-right font-mono text-slate-700">{pctT.toFixed(2)}%</td>
+                                <td className="px-2 py-1 text-center font-mono text-slate-700">{tData.count.toLocaleString()}</td>
+                              </tr>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
                     })}
                   </tbody>
-                  <tfoot className="bg-slate-900 text-white font-extrabold text-xs shadow-xs border-t-2 border-slate-700">
-                    <tr>
-                      <td className="px-4 py-3 border-t border-slate-700" colSpan={2}>
-                        TOTAL GENERAL
-                      </td>
-                      <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-indigo-300">
-                        {fmtMoney(globalTot.plan)}
-                      </td>
-                      <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-slate-300">
-                        {fmtMoney(globalTot.ejec)}
-                      </td>
-                      {modoEV && (
-                        <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-amber-300 font-bold">
-                          {fmtMoney(globalTot.sobreEjec)}
-                        </td>
-                      )}
-                      <td className={`px-4 py-3 border-t border-slate-700 text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {fmtDNum(globalTot.desv)}
-                      </td>
-                      <td className="px-4 py-3 border-t border-slate-700 text-center font-mono">
-                        {leafItems.length}
-                      </td>
+                  <tfoot>
+                    <tr className="ht-g lv0 font-extrabold whitespace-nowrap">
+                      <td className="px-2 py-2.5" colSpan={2}>TOTAL GENERAL ({leafItems.length.toLocaleString()} it.)</td>
+                      <td className="px-2 py-2.5 text-right font-mono">{fmtMoney(globalTot.plan)}</td>
+                      <td className="px-2 py-2.5 text-right font-mono">{fmtMoney(globalTot.ejec)}</td>
+                      {modoEV && <td className="px-2 py-2.5 text-right font-mono">{fmtMoney(globalTot.sobreEjec)}</td>}
+                      <td className={`px-2 py-2.5 text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-600' : ''}`}>{fmtDNum(globalTot.desv)}</td>
+                      <td className="px-2 py-2.5 text-right font-mono">{globalTot.plan > 0 ? ((globalTot.ejec / globalTot.plan) * 100).toFixed(2) : '0.00'}%</td>
+                      <td className="px-2 py-2.5 text-center font-mono">{leafItems.length.toLocaleString()}</td>
                     </tr>
                   </tfoot>
                 </table>
