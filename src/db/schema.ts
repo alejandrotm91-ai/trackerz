@@ -50,3 +50,13 @@ export const kvDocs = sqliteTable("kv_docs", {
   value: text("value").notNull(), // JSON
   updatedAt: text("updated_at").notNull(),
 });
+
+// Gestiona (actividades y reuniones de obra): cada registro de cada colección
+// (projects, activities, members, time_logs, notifications, meetings, deleted_members)
+// se guarda completo como JSON.
+export const gestionaDocs = sqliteTable("gestiona_docs", {
+  coleccion: text("coleccion").notNull(),
+  id: text("id").notNull(),
+  data: text("data").notNull(), // JSON
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.coleccion, t.id] })]);

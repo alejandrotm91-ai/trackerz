@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "./env";
 import { authRoutes, requireAuth, requireAdmin, type AppEnv } from "./auth";
 import { cloudRoutes, docRoutes } from "./cloud";
+import { gestionaRoutes } from "./gestiona";
 import { getDb } from "../db/index.ts";
 import { saveMasterPlanToDb, getMasterPlanFromDb } from "../db/masterCdo.ts";
 import { analyze, equipmentAnalyze, cronoReport, type LegacyRes } from "./ai";
@@ -13,6 +14,7 @@ app.get("/api/health", (c) => c.json({ status: "ok" }));
 app.route("/api/auth", authRoutes);
 app.route("/api/cloud", cloudRoutes);
 app.route("/api/docs", docRoutes);
+app.route("/api/gestiona", gestionaRoutes);
 
 // Adapta los handlers de IA (estilo Express) a Hono.
 function aiRoute(handler: (req: { body: any }, res: LegacyRes, env: Env) => Promise<void>) {

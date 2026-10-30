@@ -18,6 +18,7 @@ import { ProcesoTab } from './components/ProcesoTab';
 import { MasterTab } from './components/MasterTab';
 import { AIReportModal } from './components/AIReportModal';
 import { LogoHoja } from './components/LogoHoja';
+const GestionaApp = React.lazy(() => import('./gestiona/GestionaApp'));
 import { ClaveAdminDialog } from './components/ClaveAdminDialog';
 import { construirDatosReporte, construirEjecutivo } from './utils/aiReportHelper';
 import { reporteATexto } from './utils/reporteTexto';
@@ -2001,6 +2002,7 @@ export default function App() {
                   ...(pc.planillaInfo ? [{ id: 'planilla', label: '🧾 Certificación' }] : []),
                   { id: 'personal', label: '👷 Personal' },
                   { id: 'proceso', label: '⚙️ Proceso' },
+                  { id: 'gestiona', label: '📋 Gestiona' },
                 ].map(tab => (
                   <button 
                     key={tab.id} 
@@ -2067,6 +2069,13 @@ export default function App() {
             <div className="ht-theme" style={{ display: pc.activeTab === 'proceso' ? 'block' : 'none' }}>
               <ProcesoTab />
             </div>
+          )}
+
+          {/* Gestiona: actividades y reuniones de obra. Se monta solo mientras la pestaña está abierta. */}
+          {pc.activeTab === 'gestiona' && (
+            <React.Suspense fallback={<div className="py-16 text-center text-xs text-[#5A6A74]">Cargando Gestiona…</div>}>
+              <GestionaApp esAdmin={isAdmin} />
+            </React.Suspense>
           )}
 
           {visitedTabs.has('master') && (

@@ -15,6 +15,13 @@
       "when": 1793127716621,
       "tag": "0001_cloud_store",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793327936578,
+      "tag": "0002_swift_gwen_stacy",
+      "breakpoints": true
     }
   ]
 }
