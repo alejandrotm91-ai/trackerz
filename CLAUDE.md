@@ -3,7 +3,7 @@
 App React + Vite (carpeta `src/`) servida desde Cloudflare Workers. Todo corre en Cloudflare + Claude: no hay Firebase ni Google.
 
 - `src/worker/` — API (Hono):
-  - `auth.ts` — inicio de sesión propio (usuario + contraseña) con cookie firmada. Roles: `admin` (usuario "admin", puede publicar) y `viewer` (cualquier otro usuario, solo consulta).
+  - `auth.ts` — inicio de sesión propio (usuario + contraseña) con cookie firmada. Roles: `admin` (usuario "admin", puede publicar) y `viewer` (usuario "visitor", solo consulta; cualquier otro nombre se rechaza).
   - `cloud.ts` — almacén en D1 del cronograma ("master") y la matriz de personal ("personal"), partidos en trozos JSON; y documentos sueltos (reportes de IA).
   - `ai.ts` + `llm.ts` — IA con Claude.
   - `index.ts` — rutas, incluida la sincronización "Master CDO".
@@ -25,7 +25,7 @@ App React + Vite (carpeta `src/`) servida desde Cloudflare Workers. Todo corre e
 Se guardan con `npx wrangler secret put NOMBRE`. Nunca poner claves ni contraseñas en el repositorio.
 - `ANTHROPIC_API_KEY` — clave de la API de Claude
 - `ADMIN_PASSWORD` — contraseña del usuario "admin"
-- `APP_PASSWORD` — contraseña para el resto de usuarios
+- `APP_PASSWORD` — contraseña del usuario "visitor"
 - `SESSION_SECRET` — texto largo y aleatorio para firmar la sesión
 
 ## IA

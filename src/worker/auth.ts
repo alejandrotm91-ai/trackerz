@@ -6,7 +6,7 @@ import type { Env } from "./env";
 // Inicio de sesión propio: usuario + contraseña comprobados en el Worker.
 // Las contraseñas viven como secretos de Cloudflare (nunca en el código):
 //   ADMIN_PASSWORD  → usuario "admin" (puede publicar y modificar datos)
-//   APP_PASSWORD    → cualquier otro usuario (solo consulta)
+//   APP_PASSWORD    → usuario "visitor" (solo consulta)
 //   SESSION_SECRET  → firma la cookie de sesión
 
 export type Role = "admin" | "viewer";
@@ -61,6 +61,9 @@ export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 
+/** Único usuario de consulta (personal que no es admin). */
+const VIEWER_USER = "visitor";
+
 export const authRoutes = new Hono<AppEnv>();
 
 authRoutes.post("/login", async (c) => {
@@ -75,7 +78,7 @@ authRoutes.post("/login", async (c) => {
   let role: Role | null = null;
   if (name.toLowerCase() === "admin") {
     if (await safeEqual(pass, c.env.ADMIN_PASSWORD)) role = "admin";
-  } else if (await safeEqual(pass, c.env.APP_PASSWORD)) {
+  } else if (name.toLowerCase() === VIEWER_USER && await safeEqual(pass, c.env.APP_PASSWORD)) {
     role = "viewer";
   }
   if (!role) return c.json({ error: "Usuario o contraseña incorrectos." }, 401);
