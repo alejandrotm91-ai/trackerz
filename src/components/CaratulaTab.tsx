@@ -8,6 +8,7 @@ import { Actividad } from '../types';
 import { Sparkles, Calendar, DollarSign, Clock, Layers, TrendingUp, TrendingDown, MapPin, CheckCircle2, ChevronRight, Download, Filter, Eye, Info, Hash, FileText, Sparkle } from 'lucide-react';
 import { ControlSemanalTabla } from './ControlSemanalTabla';
 import { CertificacionCard } from './CertificacionCard';
+import { MacWindow } from './MacWindow';
 import { PersonalTrendChart } from './PersonalTrendChart';
 import { usePersonalData } from '../hooks/usePersonalData';
 import { exportCaratulaToPdfA3 } from '../utils/exportCaratulaPdf';
@@ -68,16 +69,19 @@ interface UbicacionData {
   itemsCount: number;
 }
 
-// Format numbers to Million notation (e.g. 102,43M)
+// Format numbers to Million notation (e.g. 102.43M), mismo formato que Certificación
 function fmtMillions(val: number): string {
   const m = val / 1_000_000;
-  return `${m.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
+  return `${m.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
 }
 
-// Format full currency (e.g. 102.430.009,96)
+// Format full amount (e.g. 102,430,009.96), mismo formato que Certificación
 function fmtCurrency(val: number): string {
-  return val.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+// Letra de las tablas (la misma de Certificación), con cifras alineadas
+const NUM_TABLA = "font-['Segoe_UI','Helvetica_Neue',Arial,sans-serif] tabular-nums";
 
 // Format date as DD-mmm-YY (e.g. 25-nov-23)
 function formatMilestoneDate(d: Date | null | undefined): string {
@@ -126,7 +130,7 @@ const DialGauge: React.FC<{
 }> = ({
   unit,
   currentValueStr,
-  currentValueColor = 'text-red-600',
+  currentValueColor = 'text-[#312E81]',
   percentage,
   idPrefix,
 }) => {
@@ -141,7 +145,7 @@ const DialGauge: React.FC<{
 
   return (
     <div id={`${idPrefix}-dial-gauge`} className="flex flex-col items-center select-none">
-      <div className="relative w-44 h-26 sm:w-48 sm:h-28 flex items-end justify-center overflow-hidden">
+      <div className="relative w-32 h-[4.5rem] sm:w-36 sm:h-20 flex items-end justify-center overflow-hidden">
         <svg viewBox="0 0 200 110" className="w-full h-full">
           {/* Background Track Arc */}
           <path
@@ -155,7 +159,7 @@ const DialGauge: React.FC<{
           <path
             d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
             fill="none"
-            stroke="#442dd7"
+            stroke="#312E81"
             strokeWidth={strokeWidth}
             strokeDasharray={arcLength}
             strokeDashoffset={strokeDashoffset}
@@ -166,14 +170,14 @@ const DialGauge: React.FC<{
 
         {/* Big Central Value inside the arch */}
         <div className="absolute inset-0 flex flex-col items-center justify-end pb-1.5 pointer-events-none">
-          <span className={`text-2xl sm:text-3xl font-['Barlow_Condensed'] font-semibold tracking-tight ${currentValueColor}`}>
+          <span className={`text-xl sm:text-2xl font-['Barlow_Condensed'] font-semibold tracking-tight ${currentValueColor}`}>
             {currentValueStr}
           </span>
         </div>
       </div>
 
       {/* Subtitle / Unit label */}
-      <div className="mt-1 text-xs font-semibold text-[#5A6A74] tracking-wide">
+      <div className="mt-0.5 text-[11px] font-semibold text-[#5A6A74] tracking-wide">
         {unit}
       </div>
     </div>
@@ -596,7 +600,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
           type="button"
           onClick={handleExportPdf}
           disabled={isExportingPdf}
-          className="group relative inline-flex items-center justify-center p-2 rounded-xl bg-white hover:bg-[#F5F8F9] border border-[#D5DEE2] hover:border-[#442dd7] text-[#5A6A74] hover:text-[#442dd7] shadow-xs transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          className="group relative inline-flex items-center justify-center p-2 rounded-xl bg-white hover:bg-[#F5F8F9] border border-[#D5DEE2] hover:border-[#CD0000] text-[#5A6A74] hover:text-[#CD0000] shadow-xs transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           title="Exportar Resumen a PDF (Formato A3)"
           aria-label="Exportar Resumen a PDF en formato A3"
         >
@@ -604,7 +608,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
             🚀
           </span>
           {isExportingPdf && (
-            <span className="ml-1.5 text-[11px] font-bold text-[#442dd7] font-mono tracking-tight animate-pulse">
+            <span className="ml-1.5 text-[11px] font-bold text-[#CD0000] font-mono tracking-tight animate-pulse">
               Generando A3...
             </span>
           )}
@@ -615,23 +619,23 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* LEFT / MAIN COLUMN: Vertical Stack */}
-        <div className="lg:col-span-5 space-y-6">
+        <div className="lg:col-span-5 space-y-4">
           
           {/* 1. TOP SECTION: 3 SEMI-CIRCLE GAUGES */}
-          <div id="card-top-gauges" className="bg-white rounded-xl p-5 border border-[#D5DEE2] shadow-xs">
-            <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] mb-4 pb-2 border-b border-[#D5DEE2] flex items-center justify-between">
+          <div id="card-top-gauges" className="bg-white rounded-xl px-4 py-3 border border-[#D5DEE2] shadow-xs">
+            <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] mb-2 pb-1.5 border-b border-[#D5DEE2] flex items-center justify-between">
               <span>Indicadores Generales de Desempeño</span>
               <span className="text-[11px] font-normal text-[#5A6A74]">Corte Actual</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center justify-items-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center justify-items-center">
               {/* Gauge 1: % Avance Proyecto */}
               <DialGauge
                 idPrefix="pct-proyecto"
                 title="% Avance Proyecto"
                 unit="% Avance Proyecto"
                 currentValueStr={`${pctAvanceReal.toFixed(2)} %`}
-                currentValueColor="text-[#B83227]"
+                currentValueColor="text-[#312E81]"
                 minLabel="0,00 %"
                 maxLabel={`${pctPlanificado.toFixed(2)} %`}
                 percentage={pctAvanceReal}
@@ -643,7 +647,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                 title="% Certificación"
                 unit="% Certificación"
                 currentValueStr={`${certMetrics.pct.toFixed(2)} %`}
-                currentValueColor="text-[#B83227]"
+                currentValueColor="text-[#312E81]"
                 minLabel="0,00 %"
                 maxLabel="100,00 %"
                 percentage={certMetrics.pct}
@@ -655,7 +659,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                 title="Mes"
                 unit="Mes"
                 currentValueStr={String(durationMetrics.elapsedMonths)}
-                currentValueColor="text-[#B83227]"
+                currentValueColor="text-[#312E81]"
                 minLabel="0"
                 maxLabel={String(durationMetrics.totalPlannedMonths)}
                 percentage={durationMetrics.percentage}
@@ -664,30 +668,21 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
           </div>
 
           {/* 2. MILESTONES TABLE (Fechas más tardías Z y AA por componente) */}
-          <div id="card-milestones-table" className="bg-white rounded-xl p-4 sm:p-5 border border-[#D5DEE2] shadow-xs overflow-hidden">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#442dd7]" />
-                <span>Hitos Principales por Componente</span>
-                <span className="bg-[#EEECFB] text-[#442dd7] border border-[#442dd7]/30 px-2 py-0.5 rounded-full text-[10px] font-bold normal-case">
-                  Merinos
-                </span>
-              </div>
-              <span className="text-[10px] font-semibold text-[#5A6A74]">
-                Fechas Tardías (Cols Z & AA)
-              </span>
-            </div>
-
+          <MacWindow
+            id="card-milestones-table"
+            title="Hitos principales por componente"
+            extra="Merinos · Fechas tardías (Z y AA)"
+          >
             <div className="overflow-x-auto rounded-xl border border-[#D5DEE2]">
               <table className="w-full text-xs text-left border-collapse">
                 <thead>
                   <tr className="bg-[#F5F8F9] border-b border-[#D5DEE2] text-[#5A6A74] font-semibold">
-                    <th className="py-2.5 px-3 w-12 text-center text-[#442dd7]">Id</th>
+                    <th className="py-2.5 px-3 w-12 text-center text-[#CD0000]">Id</th>
                     <th className="py-2.5 px-3">Milestone</th>
-                    <th className="py-2.5 px-3 text-center text-[#442dd7]">
+                    <th className="py-2.5 px-3 text-center text-[#CD0000]">
                       Baseline
                     </th>
-                    <th className="py-2.5 px-3 text-center text-[#442dd7]">
+                    <th className="py-2.5 px-3 text-center text-[#CD0000]">
                       Actual/Forecast
                     </th>
                     <th className="py-2.5 px-3 text-right">Float</th>
@@ -704,7 +699,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
                         key={`milestone-row-${m.id}-${m.name}-${idx}`}
                         className="hover:bg-[#F5F8F9] transition-colors"
                       >
-                        <td className="py-2.5 px-3 text-center font-bold text-[#442dd7] font-mono">
+                        <td className="py-2.5 px-3 text-center font-bold text-[#CD0000] font-mono">
                           {m.id}
                         </td>
                         <td className="py-2.5 px-3 font-semibold text-[#14212A]">
@@ -744,18 +739,18 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
               </table>
             </div>
 
-            <div className="mt-2 text-right">
-              <span className="text-[10px] text-[#5A6A74] font-mono">
+            <div className="mt-1 text-right leading-none">
+              <span className="ht-note text-[11px]">
                 * Valores negativos en Float indican desfase en días respecto a la línea base.
               </span>
             </div>
-          </div>
+          </MacWindow>
 
           {/* 3. UBICACION / DESGLOSE EN ÁRBOL */}
-          <div id="card-ubicacion-tree" className="bg-white rounded-xl p-4 sm:p-5 border border-[#D5DEE2] shadow-xs overflow-hidden">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#D5DEE2]">
+          <div id="card-ubicacion-tree" className="bg-white rounded-xl px-4 py-3 border border-[#D5DEE2] shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-[#D5DEE2]">
               <div className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-[#442dd7] shrink-0" />
+                <MapPin className="w-4 h-4 text-[#CD0000] shrink-0" />
                 <span>Ubicación</span>
               </div>
               <span className="text-[11px] font-bold text-[#5A6A74] font-mono">
@@ -764,21 +759,21 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
             </div>
 
             {/* Tree bifurcation / branch layout */}
-            <div className="flex items-center justify-between gap-2 sm:gap-4 py-2 w-full">
+            <div className="flex items-center justify-between gap-2 sm:gap-4 w-full">
               
               {/* Root Node: Avance Ejecutado Total */}
               <div className="flex flex-col items-end text-right flex-1 min-w-0">
-                <div className="w-full h-3 bg-[#442dd7] rounded-xs mb-1.5 shadow-xs" />
+                <div className="w-full h-2 bg-[#CD0000] rounded-xs mb-1 shadow-xs" />
                 <div className="text-xs font-bold text-[#14212A] tracking-tight truncate w-full">
                   Avance_Ejecutado
                 </div>
-                <div className="text-xs sm:text-[13px] font-bold text-[#5A6A74] font-mono truncate w-full">
+                <div className={`text-xs leading-tight text-[#5A6A74] truncate w-full ${NUM_TABLA}`}>
                   {fmtCurrency(totalEjec)}
                 </div>
               </div>
 
               {/* Connecting Tree SVG Splines */}
-              <div className="w-8 sm:w-12 h-20 sm:h-24 flex items-center justify-center shrink-0">
+              <div className="w-8 sm:w-12 h-14 flex items-center justify-center shrink-0">
                 <svg viewBox="0 0 60 100" className="w-full h-full text-[#D5DEE2] stroke-current fill-none" preserveAspectRatio="none">
                   {ubicacionData.length === 1 && (
                     <path d="M 0 50 L 60 50" strokeWidth="2.5" />
@@ -800,24 +795,24 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
               </div>
 
               {/* Branch Nodes (Merinos, Progreso, etc.) */}
-              <div className="flex flex-col gap-3.5 sm:gap-4 flex-1 min-w-0">
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                 {ubicacionData.map((u) => {
                   return (
                     <div key={u.nombre} className="flex flex-col items-start text-left w-full">
                       {/* Bar Gauge */}
-                      <div className="w-full h-3 bg-[#EEF2F3] rounded-xs mb-1.5 overflow-hidden border border-[#D5DEE2] relative">
+                      <div className="w-full h-2 bg-[#EEF2F3] rounded-xs mb-0.5 overflow-hidden border border-[#D5DEE2] relative">
                         <div
-                          className="h-full bg-[#442dd7] transition-all duration-500"
+                          className="h-full bg-[#CD0000] transition-all duration-500"
                           style={{ width: `${Math.min(100, Math.max(8, u.porcentaje))}%` }}
                         />
                       </div>
-                      <div className="text-xs font-bold text-[#14212A] flex items-center justify-between w-full gap-1">
+                      <div className="text-xs leading-tight font-bold text-[#14212A] flex items-center justify-between w-full gap-1">
                         <span className="truncate">{u.nombre}</span>
-                        <span className="text-[10px] font-bold text-[#442dd7] font-mono shrink-0">
+                        <span className={`text-[11px] font-normal text-[#CD0000] shrink-0 ${NUM_TABLA}`}>
                           {u.porcentaje.toFixed(1)}%
                         </span>
                       </div>
-                      <div className="text-xs sm:text-[13px] font-bold text-[#5A6A74] font-mono truncate w-full">
+                      <div className={`text-xs leading-tight text-[#5A6A74] truncate w-full ${NUM_TABLA}`}>
                         {fmtCurrency(u.ventaEjec)}
                       </div>
                     </div>
@@ -831,14 +826,17 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
         </div>
 
         {/* RIGHT COLUMN: Tabla de Control de Ejecución (Solo tabla y dropdown de semana) + Certificación */}
-        <div className="lg:col-span-7 space-y-6">
-          <ControlSemanalTabla
-            actividades={actividades}
-            dataPlanificadoPG004={dataPlanificadoPG004}
-            baseVenta={baseVenta}
-            soloTablaYSemana={true}
-          />
+        <div className="lg:col-span-7 space-y-4">
+          <MacWindow title="Avance por componente" extra="V. Contrato · Plan · Ejecutado">
+            <ControlSemanalTabla
+              actividades={actividades}
+              dataPlanificadoPG004={dataPlanificadoPG004}
+              baseVenta={baseVenta}
+              soloTablaYSemana={true}
+            />
+          </MacWindow>
 
+          <MacWindow title="Certificación" extra="Planilla contractual por tipología">
           <CertificacionCard
             planillaInfo={planillaInfo}
             planillaTotales={planillaTotales}
@@ -850,6 +848,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
             showKpis={false}
             showEnmiendas={false}
           />
+          </MacWindow>
         </div>
 
       </div>

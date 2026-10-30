@@ -185,7 +185,7 @@ export const GanttMetricas: React.FC<GanttMetricasProps> = ({
     <div 
       id={id}
       onClick={onClick} 
-      className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border cursor-pointer text-[9.5px] select-none shrink-0 transition-all ${active ? `${bc} ${border} ring-2 ring-offset-1 ring-[#442dd7] shadow-xs` : 'bg-white border-[#D5DEE2] hover:bg-[#F5F8F9]'}`}
+      className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border cursor-pointer text-[9.5px] select-none shrink-0 transition-all ${active ? `${bc} ${border} ring-2 ring-offset-1 ring-[#CD0000] shadow-xs` : 'bg-white border-[#D5DEE2] hover:bg-[#F5F8F9]'}`}
       title={`${label}: ${cnt.toLocaleString()} (${pct(cnt)}%)`}
     >
       <span style={{ background: color, width: 8, height: 8, borderRadius: 2, flexShrink: 0, display: 'inline-block' }} />
@@ -210,7 +210,7 @@ export const GanttMetricas: React.FC<GanttMetricasProps> = ({
       {ganttMetricsOpen && (
         <div id="gantt-metrics-container" className="flex items-center justify-center gap-1.5 px-2 py-2 w-full overflow-x-auto flex-nowrap">
           <Card id="mcard-completed" label="Completado" cnt={counts['Completed']} tc="text-green-700" bc="bg-green-50" border="border-green-300" color="#2B7F52" active={isStatusActive('Completed')} onClick={(e) => handleStatus('Completed', e)} />
-          <Card id="mcard-progress" label="En Curso" cnt={counts['In Progress']} tc="text-[#442dd7]" bc="bg-[#EEECFB]" border="border-[#442dd7]/30" color="#442dd7" active={isStatusActive('In Progress')} onClick={(e) => handleStatus('In Progress', e)} />
+          <Card id="mcard-progress" label="En Curso" cnt={counts['In Progress']} tc="text-[#CD0000]" bc="bg-[#FBE9E9]" border="border-[#CD0000]/30" color="#CD0000" active={isStatusActive('In Progress')} onClick={(e) => handleStatus('In Progress', e)} />
           <Card id="mcard-started" label="No inic." cnt={counts['Not Started']} tc="text-gray-600" bc="bg-gray-50" border="border-[#D5DEE2]" color="#6b7280" active={isStatusActive('Not Started')} onClick={(e) => handleStatus('Not Started', e)} />
           <Card id="mcard-delayed" label="Con Atraso" cnt={atrasados} tc="text-[#B83227]" bc="bg-rose-50" border="border-rose-300" color="#B83227" active={isFloatActive('atrasados')} onClick={(e) => handleFloat('atrasados', e)} />
           <Card id="mcard-critical" label={hasNegativeFloat ? `RC (${minFloat}d)` : "RC"} cnt={criticas} tc="text-[#B83227]" bc="bg-rose-50" border="border-rose-300" color="#B83227" active={isFloatActive('criticas')} onClick={(e) => handleFloat('criticas', e)} />

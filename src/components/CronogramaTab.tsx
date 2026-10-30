@@ -757,7 +757,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           diasAtrasoMaximo: a.diasAtrasoMaximo || 0,
         }));
 
-      const res = await fetch('/api/gemini/analyze', {
+      const res = await fetch('/api/ai/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -779,7 +779,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
       }
     } catch (err: any) {
       console.error(err);
-      setAiError(err.message || 'Hubo un problema al procesar la solicitud con Gemini.');
+      setAiError(err.message || 'Hubo un problema al procesar la solicitud con la IA.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -1059,9 +1059,9 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
               </div>
             </div>
             
-            <div className="text-center font-semibold">${valoresReales.venta.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-            <div className="text-center text-blue-700 font-semibold">${valoresReales.ventaPlan.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-            <div className="text-center text-green-700 font-semibold">${valoresReales.ventaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+            <div className="text-center font-semibold">{valoresReales.venta.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+            <div className="text-center text-blue-700 font-semibold">{valoresReales.ventaPlan.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+            <div className="text-center text-green-700 font-semibold">{valoresReales.ventaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
             
             <div className="text-center">
               <div className="flex items-center justify-center gap-1">
@@ -1074,7 +1074,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
             
             <div className="text-center">
               <div className={`text-sm font-semibold ${valoresReales.saldo < 0 ? 'text-red-600' : 'text-green-700'}`}>
-                {valoresReales.saldo < 0 ? `($${Math.abs(valoresReales.saldo).toLocaleString('en-US', { minimumFractionDigits: 2 })})` : `$${valoresReales.saldo.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                {valoresReales.saldo < 0 ? `(${Math.abs(valoresReales.saldo).toLocaleString('en-US', { minimumFractionDigits: 2 })})` : `${valoresReales.saldo.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
               </div>
             </div>
             <div className="text-center font-semibold text-gray-500">-</div>
@@ -1093,7 +1093,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Gemini AI Schedule Intel Panel */}
+      {/* IA Schedule Intel Panel */}
       {isGanttAIPanelOpen && (
         <div className="bg-slate-900 border border-indigo-500/80 rounded-2xl shadow-xl overflow-hidden relative transition-all animate-fade-in">
           {/* Subtle decorative grid background */}
@@ -1107,13 +1107,13 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-white flex items-center gap-2">
-                    <span>Asistente de Inteligencia Gemini AI</span>
+                    <span>Asistente de Inteligencia Artificial</span>
                     <span className="text-[9px] font-black uppercase tracking-wider bg-indigo-500/25 border border-indigo-400/40 text-indigo-200 px-2.5 py-0.5 rounded-full">
                       PMI-SP Advisor
                     </span>
                   </h3>
                   <p className="text-xs text-slate-450 max-w-2xl mt-0.5 leading-relaxed">
-                    Consulte al motor de Gemini 3.5 para auditar la lógica del WBS, analizar holguras totales (Total Float), diagnosticar causas de atraso y generar planes de aceleración de plazos.
+                    Consulte al motor de IA para auditar la lógica del WBS, analizar holguras totales (Total Float), diagnosticar causas de atraso y generar planes de aceleración de plazos.
                   </p>
                 </div>
               </div>
@@ -1223,7 +1223,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                             {aiError}
                           </p>
                           <div className="mt-3 text-[10px] bg-red-900/30 border border-red-800/45 p-2.5 rounded font-mono text-indigo-200">
-                            Tip: Puedes agregar la clave "GEMINI_API_KEY" desde la sección superior derecha: Settings &rarr; Secrets.
+                            Tip: si el problema persiste, intenta de nuevo en unos minutos.
                           </div>
                         </div>
                       </div>
@@ -1245,7 +1245,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
                 <div className="border-t border-slate-900 mt-4 pt-3 flex items-center justify-between text-[10px] text-slate-500 font-bold">
                   <span>CONFORMIDAD PMI STANDARD</span>
-                  <span>Gemini 3.5 Active Intelligence</span>
+                  <span>Active Intelligence</span>
                 </div>
               </div>
             </div>
@@ -1390,7 +1390,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
           return (
             <div 
-              className="absolute top-full left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 text-slate-700 font-sans text-xs p-3 flex flex-col gap-2.5 max-h-[380px] overflow-hidden select-none"
+              className="ht-dd absolute top-full left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 text-slate-700 font-sans text-xs p-3 flex flex-col gap-2.5 max-h-[380px] overflow-hidden select-none"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">
@@ -1622,7 +1622,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
           return (
             <div 
-              className="absolute top-full left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 text-slate-700 font-sans text-xs p-3 flex flex-col gap-2.5 max-h-[380px] overflow-hidden select-none"
+              className="ht-dd absolute top-full left-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 text-slate-700 font-sans text-xs p-3 flex flex-col gap-2.5 max-h-[380px] overflow-hidden select-none"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">
@@ -2708,19 +2708,19 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           
           // Hierarchical coloring schema for parenting levels to distinguish them clearly
           const rowBg = node.esHoja ? 'bg-white'
-            : node.nivel === 2 ? 'bg-blue-50/70 font-bold border-l-4 border-l-blue-600'
+            : node.nivel === 2 ? 'bg-[#FDF3F3] font-bold border-l-4 border-l-[#CD0000]'
             : node.nivel === 3 ? 'bg-emerald-50/70 font-semibold border-l-4 border-l-emerald-500'
             : node.nivel === 4 ? 'bg-purple-50/60 font-semibold border-l-4 border-l-purple-500'
             : node.nivel === 5 ? 'bg-amber-50/60 font-medium border-l-4 border-l-amber-500'
-            : node.nivel === 6 ? 'bg-rose-50/50 border-l-4 border-l-rose-400'
+            : node.nivel === 6 ? 'bg-blue-50/50 border-l-4 border-l-blue-400'
             : 'bg-cyan-50/50 border-l-4 border-l-cyan-405';
 
           const textCls = node.esHoja ? 'text-gray-700 font-medium'
-            : node.nivel === 2 ? 'font-black text-blue-900 text-[11px]'
+            : node.nivel === 2 ? 'font-black text-[#6B0505] text-[11px]'
             : node.nivel === 3 ? 'font-bold text-emerald-900 text-[10.5px]'
             : node.nivel === 4 ? 'font-semibold text-purple-900 text-[10px]'
             : node.nivel === 5 ? 'font-semibold text-amber-900 text-[10px]'
-            : node.nivel === 6 ? 'font-medium text-rose-900 text-[10px]'
+            : node.nivel === 6 ? 'font-medium text-blue-900 text-[10px]'
             : 'font-medium text-cyan-900 text-[10px]';
 
           let barH = node.esHoja ? 13 : isRoot ? 8 : 6;
@@ -2748,21 +2748,21 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           }
 
           const barColor = node.esHoja ? statusColor(node.p6)
-            : node.nivel === 2 ? '#2563eb' // Blue 600
+            : node.nivel === 2 ? '#CD0000' // Rojo de la marca
             : node.nivel === 3 ? '#059669' // Emerald 600
             : node.nivel === 4 ? '#7c3aed' // Purple 600
             : node.nivel === 5 ? '#d97706' // Amber 600
-            : node.nivel === 6 ? '#db2777' // Pink/Rose 600
+            : node.nivel === 6 ? '#2563eb' // Blue 600
             : '#0891b2'; // Cyan 600
           const barOpacity = node.esHoja ? 1 : 0.6;
 
           const wbsCls = node.esHoja 
             ? 'bg-slate-50 text-slate-650 border-slate-200 font-medium'
-            : node.nivel === 2 ? 'bg-blue-100 text-blue-800 border-blue-300'
+            : node.nivel === 2 ? 'bg-[#FBE5E5] text-[#8A0000] border-[#EFA3A3]'
             : node.nivel === 3 ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
             : node.nivel === 4 ? 'bg-purple-100 text-purple-800 border-purple-250'
             : node.nivel === 5 ? 'bg-amber-100 text-amber-800 border-amber-250'
-            : node.nivel === 6 ? 'bg-rose-100 text-rose-800 border-rose-200'
+            : node.nivel === 6 ? 'bg-blue-100 text-blue-800 border-blue-200'
             : 'bg-cyan-100 text-cyan-800 border-cyan-200';
 
           const x1 = dateToX(span.start);
@@ -2956,11 +2956,11 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
 
           // Gantt grid correlative background color based on hierarchy depth
           const ganttRowBg = node.esHoja ? '#FFFFFF'
-            : node.nivel === 2 ? '#EFF6FF'
+            : node.nivel === 2 ? '#FDF3F3'
             : node.nivel === 3 ? '#ECFDF5'
             : node.nivel === 4 ? '#F3E8FF'
             : node.nivel === 5 ? '#FEF3C7'
-            : node.nivel === 6 ? '#FFE4E6'
+            : node.nivel === 6 ? '#EFF6FF'
             : '#ECFEFF';
 
           const rowTfVal = calcMinTf(node.key);
@@ -3227,7 +3227,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
                     ganttHierarchyMode === 'wbs'
-                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      ? 'bg-[#CD0000] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#F5F8F9]'
                   }`}
                   title="Vista 1: WBS (Partidas / Capítulos)"
@@ -3249,7 +3249,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
                     ganttHierarchyMode === 'tipo_subc_scap_unit'
-                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      ? 'bg-[#CD0000] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#F5F8F9]'
                   }`}
                   title="Vista 2: Fases (Componente - Tipo - SubC - Scap - Unit)"
@@ -3317,7 +3317,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                           }
                         }
                       }}
-                      className={`px-2.5 py-1 rounded-md transition-all ${active ? 'bg-[#442dd7] text-white shadow-xs' : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white'}`}
+                      className={`px-2.5 py-1 rounded-md transition-all ${active ? 'bg-[#CD0000] text-white shadow-xs' : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white'}`}
                     >
                       {l}
                     </button>
@@ -3366,7 +3366,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                             }
                           }
                         }}
-                        className={`px-2 py-1 rounded-md transition-all ${isTfActive ? 'bg-[#442dd7] text-white shadow-xs font-bold' : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white'}`}
+                        className={`px-2 py-1 rounded-md transition-all ${isTfActive ? 'bg-[#CD0000] text-white shadow-xs font-bold' : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white'}`}
                       >
                         {l}
                       </button>
@@ -3391,12 +3391,12 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   }}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                     ganttExp.size > 0 && ganttHierarchyLevel !== '1'
-                      ? 'bg-white text-[#442dd7] shadow-xs border border-[#D5DEE2] font-bold'
+                      ? 'bg-white text-[#CD0000] shadow-xs border border-[#D5DEE2] font-bold'
                       : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white/60'
                   }`}
                   title="Expandir todas las partidas de la jerarquía"
                 >
-                  <ChevronsUpDown className="w-3.5 h-3.5 text-[#442dd7]" />
+                  <ChevronsUpDown className="w-3.5 h-3.5 text-[#CD0000]" />
                   <span>Exp.</span>
                 </button>
                 <button
@@ -3408,12 +3408,12 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   }}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                     ganttExp.size === 0 || ganttHierarchyLevel === '1'
-                      ? 'bg-white text-[#442dd7] shadow-xs border border-[#D5DEE2] font-bold'
+                      ? 'bg-white text-[#CD0000] shadow-xs border border-[#D5DEE2] font-bold'
                       : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-white/60'
                   }`}
                   title="Colapsar toda la jerarquía"
                 >
-                  <ChevronsDownUp className="w-3.5 h-3.5 text-[#442dd7]" />
+                  <ChevronsDownUp className="w-3.5 h-3.5 text-[#CD0000]" />
                   <span>Colap.</span>
                 </button>
               </div>
@@ -3426,7 +3426,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                   onClick={() => setIsGanttPAcDropdownOpen(!isGanttPAcDropdownOpen)}
                   className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-all text-[10px] font-bold shadow-xs cursor-pointer ${
                     ganttPAc !== 'all'
-                      ? 'bg-[#442dd7] text-white border-[#442dd7] hover:bg-[#3722b5]'
+                      ? 'bg-[#CD0000] text-white border-[#CD0000] hover:bg-[#A80000]'
                       : 'bg-white text-[#5A6A74] border-[#D5DEE2] hover:bg-[#F5F8F9] hover:text-[#14212A]'
                   }`}
                   title="Filtrar actividades por P.Ac (Columna AO CDO)"
@@ -3451,7 +3451,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                       onClick={(e) => { e.stopPropagation(); setIsGanttPAcDropdownOpen(false); }} 
                     />
                     <div 
-                      className="absolute left-0 mt-1 w-64 max-h-72 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                      className="ht-dd absolute left-0 mt-1 w-64 max-h-72 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3620,7 +3620,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                     />
                     <div
                       id="gantt-export-menu"
-                      className="absolute left-0 mt-1.5 w-36 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-1.5 select-none animate-fade-in space-y-1"
+                      className="ht-dd absolute left-0 mt-1.5 w-36 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-1.5 select-none animate-fade-in space-y-1"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
@@ -3843,7 +3843,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                 </button>
 
                 {isSmartFilterOpen && (
-                  <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 p-3.5 flex flex-col gap-3">
+                  <div className="ht-dd absolute right-0 mt-1.5 w-64 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 p-3.5 flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                       <div className="flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
@@ -4600,9 +4600,24 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
         );
       })()}
 
+      {/* Tarjeta Colapsable: Control de Ejecución (Control Semanal PG-004 vs CDO V-) */}
+      {!tipologiaSeleccionada && !partidaSeleccionada && (
+        <div id="cronograma-control-ejecucion-container" className="w-full -mt-3">
+          {renderBottomControl ? (
+            <ControlSemanalTabla
+              actividades={actividades}
+              dataPlanificadoPG004={dataPlanificadoPG004}
+              baseVenta={baseVenta}
+            />
+          ) : (
+            <div className="bg-white rounded-xl p-4 border border-slate-200 text-center text-xs text-slate-400 font-medium animate-pulse">
+              Cargando tabla de control de ejecución...
+            </div>
+          )}
+
       {/* Tarjeta Colapsable: Análisis de Proyecto (Visión por Paquetes SCAP a 4 semanas por Componente) */}
       {!tipologiaSeleccionada && !partidaSeleccionada && (
-        <div id="cronograma-analisis-proyecto-container" className="w-full pt-2">
+        <div id="cronograma-analisis-proyecto-container" className="w-full mt-3">
           <AnalisisProyectoCard
             actividades={actividades}
             dataPlanificadoPG004={dataPlanificadoPG004}
@@ -5502,7 +5517,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           setEqAiInput('');
 
           try {
-            const response = await fetch('/api/gemini/equipment-analyze', {
+            const response = await fetch('/api/ai/equipment-analyze', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -5892,7 +5907,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                                       <div 
                                         onClick={toggleSubcCollapse}
                                         className="px-4 py-2.5 border-b border-indigo-200/50 flex items-center justify-between hover:opacity-90 transition-opacity cursor-pointer select-none"
-                                        style={{ backgroundColor: '#e0e7ff' }}
+                                        style={{ backgroundColor: '#FBE5E5' }}
                                       >
                                         <div className="flex flex-col gap-0.5 text-left min-w-0">
                                           <div className="flex items-center gap-2">
@@ -6681,7 +6696,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                       {eqAiLoading && (
                         <div className="flex items-center gap-2 text-slate-500 text-[11px] font-bold pl-1">
                           <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-600" />
-                          <span>Gemini está procesando...</span>
+                          <span>La IA está procesando...</span>
                         </div>
                       )}
 
@@ -6753,7 +6768,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                         type="text"
                         value={eqAiInput}
                         onChange={e => setEqAiInput(e.target.value)}
-                        placeholder="Pregúntale a Gemini..."
+                        placeholder="Pregúntale a la IA..."
                         disabled={eqAiLoading}
                         className="flex-1 bg-white border border-slate-250 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-400 disabled:opacity-70 shadow-mini"
                       />
@@ -6782,20 +6797,6 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
         );
       })()}
 
-      {/* Tarjeta Colapsable: Control de Ejecución (Control Semanal PG-004 vs CDO V-) */}
-      {!tipologiaSeleccionada && !partidaSeleccionada && (
-        <div id="cronograma-control-ejecucion-container" className="w-full pt-2">
-          {renderBottomControl ? (
-            <ControlSemanalTabla
-              actividades={actividades}
-              dataPlanificadoPG004={dataPlanificadoPG004}
-              baseVenta={baseVenta}
-            />
-          ) : (
-            <div className="bg-white rounded-xl p-4 border border-slate-200 text-center text-xs text-slate-400 font-medium animate-pulse">
-              Cargando tabla de control de ejecución...
-            </div>
-          )}
         </div>
       )}
     </div>

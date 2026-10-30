@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { LEVEL_STYLES } from '../utils/nivelesJerarquia';
 import { Download, ChevronRight, ChevronDown, FileSpreadsheet, Check, Copy, ChevronsUpDown, ChevronsDownUp, Calendar, Filter, Search, Minus, ArrowUp, ArrowDown, ArrowUpDown, RotateCcw, CheckCircle2, Percent, SlidersHorizontal, Plus, X, Layers, Sparkles } from 'lucide-react';
 import { hasDirectoOrDSegment } from '../utils/masterCdoHierarchy';
 
@@ -50,7 +51,7 @@ export const HIERARCHY_DIMENSIONS: Record<HierarchyDimensionId, HierarchyDimensi
     shortLabel: 'Tipología',
     icon: '🏷️',
     description: 'Tipología de edificación o lote',
-    headerColorClass: '#312e81'
+    headerColorClass: '#7A0000'
   },
   grupo: {
     id: 'grupo',
@@ -157,171 +158,15 @@ export interface DynamicHierarchyNode {
   children?: DynamicHierarchyNode[];
 }
 
-const LEVEL_STYLES = [
-  {
-    bg: 'bg-slate-50 hover:bg-slate-100/90 text-slate-800 font-bold border-b border-slate-200 shadow-2xs',
-    text: 'text-indigo-700',
-    badge: 'bg-slate-900 text-white',
-    subText: 'text-slate-500',
-    chevron: 'text-slate-600',
-    dateText: 'text-slate-600',
-    vContrato: 'text-slate-900',
-    vPlan: 'text-indigo-700 font-bold',
-    vEjec: 'text-slate-800',
-    vSobre: 'text-amber-700'
-  },
-  {
-    bg: 'bg-indigo-900/95 text-white hover:bg-[#442dd7] font-extrabold border-b border-indigo-950 shadow-xs',
-    text: 'text-white',
-    badge: 'bg-indigo-100 text-indigo-800',
-    subText: 'text-indigo-200',
-    chevron: 'text-indigo-200',
-    dateText: 'text-indigo-100',
-    vContrato: 'text-white',
-    vPlan: 'text-indigo-200',
-    vEjec: 'text-slate-300',
-    vSobre: 'text-amber-300'
-  },
-  {
-    bg: 'bg-purple-100/90 hover:bg-purple-200/90 text-purple-950 font-extrabold border-b border-purple-200 border-l-2 border-l-purple-600',
-    text: 'text-purple-950',
-    badge: 'bg-purple-200 text-purple-900',
-    subText: 'text-purple-700',
-    chevron: 'text-purple-700',
-    dateText: 'text-purple-800',
-    vContrato: 'text-purple-950',
-    vPlan: 'text-indigo-700',
-    vEjec: 'text-slate-600',
-    vSobre: 'text-amber-700'
-  },
-  {
-    bg: 'bg-emerald-100/90 hover:bg-emerald-200/90 text-emerald-950 font-bold border-b border-emerald-200 border-l-2 border-l-emerald-600',
-    text: 'text-emerald-950',
-    badge: 'bg-emerald-200 text-emerald-900',
-    subText: 'text-emerald-800',
-    chevron: 'text-emerald-800',
-    dateText: 'text-emerald-800',
-    vContrato: 'text-emerald-950',
-    vPlan: 'text-indigo-700',
-    vEjec: 'text-slate-600',
-    vSobre: 'text-amber-700'
-  },
-  {
-    bg: 'bg-sky-100/90 hover:bg-sky-200/90 text-sky-950 font-bold border-b border-sky-200 border-l-2 border-l-sky-600',
-    text: 'text-sky-950',
-    badge: 'bg-sky-200 text-sky-900',
-    subText: 'text-sky-700',
-    chevron: 'text-sky-700',
-    dateText: 'text-sky-800',
-    vContrato: 'text-sky-950',
-    vPlan: 'text-indigo-700',
-    vEjec: 'text-slate-600',
-    vSobre: 'text-amber-700'
-  },
-  {
-    bg: 'bg-amber-100/90 hover:bg-amber-200/90 text-amber-950 font-semibold border-b border-amber-200 border-l-2 border-l-amber-600',
-    text: 'text-amber-950',
-    badge: 'bg-amber-200 text-amber-900',
-    subText: 'text-amber-800',
-    chevron: 'text-amber-800',
-    dateText: 'text-amber-800',
-    vContrato: 'text-amber-950',
-    vPlan: 'text-indigo-700',
-    vEjec: 'text-slate-600',
-    vSobre: 'text-amber-700'
-  },
-  {
-    bg: 'bg-teal-100/90 hover:bg-teal-200/90 text-teal-950 font-semibold border-b border-teal-200 border-l-2 border-l-teal-600',
-    text: 'text-teal-950',
-    badge: 'bg-teal-200 text-teal-900',
-    subText: 'text-teal-800',
-    chevron: 'text-teal-800',
-    dateText: 'text-teal-800',
-    vContrato: 'text-teal-950',
-    vPlan: 'text-indigo-700',
-    vEjec: 'text-slate-600',
-    vSobre: 'text-amber-700'
-  }
-];
 
 export const EXCEL_LEVEL_COLORS = [
-  // Nivel 1 (index 0 - Slate 50): bg-slate-50, text-slate-800, text-indigo-700
-  {
-    bg: '#f8fafc',
-    fg: '#1e293b',
-    labelColor: '#4338ca',
-    vContrato: '#0f172a',
-    vPlan: '#4338ca',
-    vEjec: '#1e293b',
-    vSobre: '#b45309',
-    borderColor: '#e2e8f0'
-  },
-  // Nivel 2 (index 1 - Indigo 900): bg-indigo-900/95, text-white
-  {
-    bg: '#312e81',
-    fg: '#ffffff',
-    labelColor: '#ffffff',
-    vContrato: '#ffffff',
-    vPlan: '#c7d2fe',
-    vEjec: '#cbd5e1',
-    vSobre: '#fde68a',
-    borderColor: '#1e1b4b'
-  },
-  // Nivel 3 (index 2 - Purple 100): bg-purple-100/90, text-purple-950
-  {
-    bg: '#f3e8ff',
-    fg: '#3b0764',
-    labelColor: '#3b0764',
-    vContrato: '#3b0764',
-    vPlan: '#4338ca',
-    vEjec: '#475569',
-    vSobre: '#b45309',
-    borderColor: '#e9d5ff'
-  },
-  // Nivel 4 (index 3 - Emerald 100): bg-emerald-100/90, text-emerald-950
-  {
-    bg: '#d1fae5',
-    fg: '#064e3b',
-    labelColor: '#064e3b',
-    vContrato: '#064e3b',
-    vPlan: '#4338ca',
-    vEjec: '#475569',
-    vSobre: '#b45309',
-    borderColor: '#a7f3d0'
-  },
-  // Nivel 5 (index 4 - Sky 100): bg-sky-100/90, text-sky-950
-  {
-    bg: '#e0f2fe',
-    fg: '#082f49',
-    labelColor: '#082f49',
-    vContrato: '#082f49',
-    vPlan: '#4338ca',
-    vEjec: '#475569',
-    vSobre: '#b45309',
-    borderColor: '#bae6fd'
-  },
-  // Nivel 6 (index 5 - Amber 100): bg-amber-100/90, text-amber-950
-  {
-    bg: '#fef3c7',
-    fg: '#78350f',
-    labelColor: '#78350f',
-    vContrato: '#78350f',
-    vPlan: '#4338ca',
-    vEjec: '#475569',
-    vSobre: '#b45309',
-    borderColor: '#fde68a'
-  },
-  // Nivel 7 (index 6 - Teal 100): bg-teal-100/90, text-teal-950
-  {
-    bg: '#ccfbf1',
-    fg: '#042f2e',
-    labelColor: '#042f2e',
-    vContrato: '#042f2e',
-    vPlan: '#4338ca',
-    vEjec: '#475569',
-    vSobre: '#b45309',
-    borderColor: '#99f6e4'
-  }
+  { bg: '#F5F8F9', fg: '#14212A', labelColor: '#5A6A74', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#D5DEE2' },
+  { bg: '#EAF6EE', fg: '#14212A', labelColor: '#2B7F52', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#CFE8D7' },
+  { bg: '#EAF2FB', fg: '#14212A', labelColor: '#2C67A6', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#CCDDF1' },
+  { bg: '#FBF4E6', fg: '#14212A', labelColor: '#A86B12', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#EEDDBA' },
+  { bg: '#FBEFF2', fg: '#14212A', labelColor: '#B4235A', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#EDCDD7' },
+  { bg: '#FEF8D8', fg: '#14212A', labelColor: '#9A7B00', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#F2E39A' },
+  { bg: '#FDEEE8', fg: '#14212A', labelColor: '#C2410C', vContrato: '#14212A', vPlan: '#334155', vEjec: '#15803d', vSobre: '#b45309', borderColor: '#F4CBBB' }
 ];
 
 export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
@@ -404,7 +249,8 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   const [expandedSubPartidas, setExpandedSubPartidas] = React.useState<Set<string>>(new Set());
   const [expandedCheckSets, setExpandedCheckSets] = React.useState<Set<string>>(new Set());
 
-  const [hasInitializedDefaultWeek, setHasInitializedDefaultWeek] = React.useState<boolean>(false);
+  // Última semana por defecto que ya se aplicó (se vuelve a aplicar si llegan datos con una semana más nueva)
+  const [semanaDefaultAplicada, setSemanaDefaultAplicada] = React.useState<string>('');
   // Dynamic Hierarchy state
   const [activeHierarchy, setActiveHierarchy] = React.useState<HierarchyDimensionId[]>(() => {
     try {
@@ -486,29 +332,26 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     return Array.from(weekSet).sort();
   }, [actividades, dataPlanificadoPG004]);
 
-  // Set the default week to the last one with executed values
-  React.useEffect(() => {
-    if (!hasInitializedDefaultWeek && actividades && actividades.length > 0) {
-      let maxWeek = '';
-      const isReasonableYear = (k: string) => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return false;
+  // Última semana con avance ejecutado en el CDO (columnas V-)
+  const ultimaSemanaEjecutada = React.useMemo(() => {
+    let maxWeek = '';
+    (actividades || []).forEach(item => {
+      if (!item.esItemHoja || !item.certificacionesPorFecha) return;
+      Object.entries(item.certificacionesPorFecha).forEach(([k, v]) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) return;
         const yr = parseInt(k.substring(0, 4), 10);
-        return yr >= 2020 && yr <= 2040;
-      };
-
-      actividades.forEach(item => {
-        if (item.esItemHoja && item.certificacionesPorFecha) {
-          Object.keys(item.certificacionesPorFecha).forEach(k => {
-            if (isReasonableYear(k)) {
-              const val = Number(item.certificacionesPorFecha[k]) || 0;
-              if (Math.abs(val) > 0.001) {
-                if (k > maxWeek) maxWeek = k;
-              }
-            }
-          });
-        }
+        if (yr < 2020 || yr > 2040) return;
+        if (Math.abs(Number(v) || 0) > 0.001 && k > maxWeek) maxWeek = k;
       });
-      if (maxWeek && availableWeeks.includes(maxWeek)) {
+    });
+    return maxWeek;
+  }, [actividades]);
+
+  // Por defecto: hasta la última semana con avance ejecutado. Se recalcula cuando los datos traen una semana nueva.
+  React.useEffect(() => {
+    const maxWeek = ultimaSemanaEjecutada;
+    if (maxWeek && maxWeek !== semanaDefaultAplicada) {
+      if (availableWeeks.includes(maxWeek)) {
         const upToWeeks = availableWeeks.filter(w => w <= maxWeek);
         setIsAllSelected(upToWeeks.length === availableWeeks.length);
         setSelectedWeeks(new Set(upToWeeks));
@@ -539,10 +382,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
           setRangeEndMonth(eParts[1]);
           setRangeEndDay(eParts[2]);
         }
+        setSemanaDefaultAplicada(maxWeek);
       }
-      setHasInitializedDefaultWeek(true);
     }
-  }, [actividades, availableWeeks, hasInitializedDefaultWeek]);
+  }, [ultimaSemanaEjecutada, availableWeeks, semanaDefaultAplicada]);
 
   const [rangeStartYear, setRangeStartYear] = React.useState<string>('');
   const [rangeStartMonth, setRangeStartMonth] = React.useState<string>('');
@@ -872,11 +715,11 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   const fmtMoney = (v: number) => (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtMillions = (v: number) => `${((v || 0) / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
   const fmtDNum = (d: number) => d < 0 
-    ? `($${Math.abs(d).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` 
-    : `$${(d || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    ? `(${Math.abs(d).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` 
+    : `${(d || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtDNumMillions = (d: number) => d < 0 
-    ? `($${fmtMillions(Math.abs(d))})` 
-    : `$${fmtMillions(d)}`;
+    ? `(${fmtMillions(Math.abs(d))})` 
+    : `${fmtMillions(d)}`;
 
   const fmtDateVal = (d: Date | string | null | undefined): string => {
     if (!d) return '—';
@@ -1041,15 +884,15 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     let extraInfo = '';
     if (label.includes('Contrato')) {
       const acumContrato = Number(item.venta) || 0;
-      extraInfo = `💰 Presupuesto Contrato (Col I): $${acumContrato.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      extraInfo = `💰 Presupuesto Contrato (Col I): ${acumContrato.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     } else if (label.includes('Plan')) {
       const acumPlan = item.ventaPlan || 0;
-      extraInfo = `💰 Acum. Planificado (AS): $${acumPlan.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      extraInfo = `💰 Acum. Planificado (AS): ${acumPlan.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     } else if (label.includes('Ejec.')) {
       const acumEjec = item.ventaEjecutada || 0;
-      extraInfo = `💰 Acum. Ejecutado (AV): $${acumEjec.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      extraInfo = `💰 Acum. Ejecutado (AV): ${acumEjec.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     } else if (label.includes('Sobre')) {
-      extraInfo = `💰 Saldo Sobre Ejecución (excedente sobre V.Contrato): $${valorEcon.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      extraInfo = `💰 Saldo Sobre Ejecución (excedente sobre V.Contrato): ${valorEcon.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     }
 
     const p = getItemPrecio(item);
@@ -2367,7 +2210,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       const pctStr = `${pctAvance.toFixed(2)}%`;
       const isDarkRow = fg.toLowerCase() === '#ffffff';
       const desvColor = cellStyles?.desvColor || (isDarkRow ? (desv < 0 ? '#fca5a5' : '#86efac') : (desv < 0 ? '#dc2626' : '#15803d'));
-      const planColor = cellStyles?.vPlanColor || (isDarkRow ? '#c7d2fe' : '#4338ca');
+      const planColor = cellStyles?.vPlanColor || (isDarkRow ? '#F6C9C9' : '#A80000');
       const ejecColor = cellStyles?.vEjecColor || (isDarkRow ? '#cbd5e1' : '#475569');
       const contratoColor = cellStyles?.vContratoColor || (isDarkRow ? '#ffffff' : fg);
       const sobreColor = cellStyles?.sobreEjecColor || (isDarkRow ? '#fde68a' : '#b45309');
@@ -2392,7 +2235,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       const paddingLeft = 4 + (indentCount * 4);
 
       const sobreEjecTd = isEVExportActive ? `
-          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${sobreColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(sobreEjec)}</td>
+          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${sobreColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${fmtMoney(sobreEjec)}</td>
       ` : '';
 
       // Explicit inline styles on every td for full Excel background fill & typography hierarchy
@@ -2403,9 +2246,9 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
           <td style="padding: 6px 10px; border: 1px solid ${bColor}; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '\\@';">${capText}</td>
           <td style="padding: 6px 10px; border: 1px solid ${bColor}; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight};">${desc}</td>
           <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: center; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg};">${blFinishStr}</td>
-          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${contratoColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(vContrato)}</td>
-          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${planColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(vPlan)}</td>
-          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${ejecColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${fmtMoney(vEjec)}</td>
+          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${contratoColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${fmtMoney(vContrato)}</td>
+          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${planColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${fmtMoney(vPlan)}</td>
+          <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${ejecColor}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${fmtMoney(vEjec)}</td>
           ${sobreEjecTd}
           <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${desvColor}; font-weight: bold; mso-number-format: '\\$#,##0.00';">${fmtDNum(desv)}</td>
           <td style="padding: 6px 10px; border: 1px solid ${bColor}; text-align: right; font-family: Calibri, Arial, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '0.00%';">${pctStr}</td>
@@ -2473,7 +2316,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
               capVal,
               sobreEjecucion,
               {
-                vPlanColor: '#4338ca',
+                vPlanColor: '#A80000',
                 vEjecColor: '#64748b',
                 vContratoColor: '#475569',
                 sobreEjecColor: '#b45309',
@@ -2523,7 +2366,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       dynamicHierarchyTree.forEach(exportDynamicNode);
     }
 
-    // TOTAL PROYECTO ROW (Bottom) - Matches table tfoot (bg-[#442dd7] #1e1b4b, text-white)
+    // TOTAL PROYECTO ROW (Bottom) - Matches table tfoot (azul índigo #312E81, text-white)
     addRowHtml(
       'TOTAL FILTRADO',
       '',
@@ -2533,7 +2376,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       globalTot.plan,
       globalTot.ejec,
       globalTot.desv,
-      '#1e1b4b',
+      '#312E81',
       '#ffffff',
       'bold',
       '11.5px',
@@ -2542,11 +2385,11 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       '',
       globalTot.sobreEjec,
       {
-        vPlanColor: '#c7d2fe',
+        vPlanColor: '#F6C9C9',
         vEjecColor: '#cbd5e1',
         vContratoColor: '#ffffff',
         sobreEjecColor: '#fde68a',
-        borderColor: '#312e81',
+        borderColor: '#7A0000',
         labelColor: '#ffffff'
       }
     );
@@ -2558,18 +2401,18 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
       <table style="border-collapse: collapse; font-family: Calibri, Arial, sans-serif; font-size: 11px; color: #1e293b; width: 100%;">
         <thead>
           <tr style="background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: left;">
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">WBS / Nivel Jerárquico</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">Activity ID</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">CAP</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">Descripción</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: center;">BL Finish</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">V. Contrato</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #c7d2fe; font-weight: bold; text-align: right;">V.Plan</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #fecdd3; font-weight: bold; text-align: right;">V.Ejec</th>
-            ${isEVExportActive ? '<th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #fde68a; font-weight: bold; text-align: right;">Sobre Ejecución</th>' : ''}
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">Variación</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">% Avance</th>
-            <th style="padding: 8px 10px; border: 1px solid #312e81; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: center;">Check Set</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">WBS / Nivel Jerárquico</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">Activity ID</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">CAP</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold;">Descripción</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: center;">BL Finish</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">V. Contrato</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #F6C9C9; font-weight: bold; text-align: right;">V.Plan</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #fecdd3; font-weight: bold; text-align: right;">V.Ejec</th>
+            ${isEVExportActive ? '<th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #fde68a; font-weight: bold; text-align: right;">Sobre Ejecución</th>' : ''}
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">Variación</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: right;">% Avance</th>
+            <th style="padding: 8px 10px; border: 1px solid #7A0000; background-color: #1e1b4b; color: #ffffff; font-weight: bold; text-align: center;">Check Set</th>
           </tr>
         </thead>
         <tbody>
@@ -2624,8 +2467,8 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
         >
           <td
             colSpan={3}
-            className="px-1 py-1.5 whitespace-nowrap overflow-hidden"
-            style={{ paddingLeft: `${indentPx}px` }}
+            className={`px-1 py-1.5 whitespace-nowrap overflow-hidden ${levelStyle.accent}`}
+            style={{ paddingLeft: `${indentPx + 4}px` }}
           >
             <div className="flex items-center gap-1 whitespace-nowrap overflow-hidden min-w-0">
               {isExp ? (
@@ -2650,29 +2493,29 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
           <td
             className={`px-2 py-2 text-right font-mono cursor-help whitespace-nowrap ${levelStyle.vContrato}`}
             title={modoEV 
-              ? `Monto Exacto Contrato: $${fmtMoney(nodeTot.contrato)}${getCantidadTooltipForGroup(node.items, 'contrato', 'V. Contrato') ? '\n' + getCantidadTooltipForGroup(node.items, 'contrato', 'V. Contrato') : ''}` 
+              ? `Monto Exacto Contrato: ${fmtMoney(nodeTot.contrato)}${getCantidadTooltipForGroup(node.items, 'contrato', 'V. Contrato') ? '\n' + getCantidadTooltipForGroup(node.items, 'contrato', 'V. Contrato') : ''}` 
               : getCantidadTooltipForGroup(node.items, 'contrato', 'V. Contrato')}
           >
-            {modoEV ? fmtMillions(nodeTot.contrato) : `$${fmtMoney(nodeTot.contrato)}`}
+            {modoEV ? fmtMillions(nodeTot.contrato) : `${fmtMoney(nodeTot.contrato)}`}
           </td>
           <td
             className={`px-2 py-2 text-right font-mono cursor-help whitespace-nowrap ${levelStyle.vPlan}`}
             title={getCantidadTooltipForGroup(node.items, 'plan', 'V.Plan')}
           >
-            ${fmtMoney(nodeTot.plan)}
+            {fmtMoney(nodeTot.plan)}
           </td>
           <td
             className={`px-2 py-2 text-right font-mono cursor-help whitespace-nowrap ${levelStyle.vEjec}`}
             title={getCantidadTooltipForGroup(node.items, 'ejec', 'V.Ejec')}
           >
-            ${fmtMoney(nodeTot.ejec)}
+            {fmtMoney(nodeTot.ejec)}
           </td>
           {modoEV && (
             <td
               className={`px-2 py-2 text-right font-mono cursor-help font-bold whitespace-nowrap ${levelStyle.vSobre}`}
               title={getCantidadTooltipForGroup(node.items, 'sobreEjec', 'Sobre Ejecución')}
             >
-              ${fmtMoney(nodeTot.sobreEjec)}
+              {fmtMoney(nodeTot.sobreEjec)}
             </td>
           )}
           <td
@@ -2730,26 +2573,26 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     className="px-2 py-1.5 text-right font-mono text-slate-600 cursor-help hover:bg-slate-100 transition-colors whitespace-nowrap"
                     title={getCantidadTooltipForItem(item, vContrato, 'V. Contrato')}
                   >
-                    {modoEV ? fmtMillions(vContrato) : `$${fmtMoney(vContrato)}`}
+                    {modoEV ? fmtMillions(vContrato) : `${fmtMoney(vContrato)}`}
                   </td>
                   <td
                     className="px-2 py-1.5 text-right font-mono font-bold text-indigo-700 cursor-help hover:bg-indigo-50 transition-colors"
                     title={getCantidadTooltipForItem(item, vPlan, 'V.Plan')}
                   >
-                    ${fmtMoney(vPlan)}
+                    {fmtMoney(vPlan)}
                   </td>
                   <td
                     className="px-2 py-1.5 text-right font-mono font-bold text-slate-400 cursor-help hover:bg-slate-100 transition-colors"
                     title={getCantidadTooltipForItem(item, vEjec, 'V.Ejec')}
                   >
-                    ${fmtMoney(vEjec)}
+                    {fmtMoney(vEjec)}
                   </td>
                   {modoEV && (
                     <td
                       className="px-2 py-1.5 text-right font-mono font-bold text-amber-600 cursor-help hover:bg-amber-50 transition-colors whitespace-nowrap"
                       title={getCantidadTooltipForItem(item, sobreEjecucion, 'Sobre Ejecución')}
                     >
-                      ${fmtMoney(sobreEjecucion)}
+                      {fmtMoney(sobreEjecucion)}
                     </td>
                   )}
                   <td
@@ -2779,38 +2622,28 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   };
 
   return (
-    <div className={`bg-white rounded-2xl shadow-sm border border-slate-200/90 relative ${isCardCollapsed ? 'overflow-hidden' : 'overflow-visible'} animate-fade-in ${soloTablaYSemana ? 'mt-0' : 'mt-6'}`} id="tarjeta-kpi-avance-semanal">
+    <div className={`bg-white rounded-xl shadow-xs border border-[#D5DEE2] relative ${isCardCollapsed ? 'overflow-hidden' : 'overflow-visible'} animate-fade-in mt-0`} id="tarjeta-kpi-avance-semanal">
       {/* Header Bar */}
       {!soloTablaYSemana && (
         <div 
           onClick={() => setIsCardCollapsed(!isCardCollapsed)}
-          className={`bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 px-5 py-4 text-white flex items-center justify-between flex-wrap gap-3 cursor-pointer select-none hover:opacity-95 transition-all relative ${isExpandMenuOpen ? 'z-50' : 'z-30'} ${isCardCollapsed ? 'rounded-2xl' : 'rounded-t-2xl'}`}
+          className={`bg-[#F5F8F9] hover:bg-[#EEF2F3] px-4 py-2 flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 cursor-pointer select-none transition-colors relative ${isExpandMenuOpen ? 'z-50' : 'z-30'} ${isCardCollapsed && soloTablaYSemana ? 'rounded-xl' : 'rounded-t-xl border-b border-[#D5DEE2]'}`}
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-700/50 rounded-xl border border-indigo-500/40">
-              {isCardCollapsed ? <ChevronRight className="w-5 h-5 text-indigo-200" /> : <ChevronDown className="w-5 h-5 text-indigo-200" />}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
-                  <span>📅 Control de Ejecución</span>
-                </h3>
-                <span className="text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2.5 py-0.5 rounded-full font-mono font-bold uppercase">
-                  {currentWeekLabel}
-                </span>
-              </div>
-            </div>
-          </div>
+          <span className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">
+            Control de Ejecución · <span className="text-[#5A6A74] font-mono normal-case">{currentWeekLabel}</span>
+          </span>
 
+          <div className="flex items-center gap-2 flex-wrap">
+          {!isCardCollapsed && (
           <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
             {/* Botón Filtro Float Negativo (Reloj) */}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setFilterFloatNegativo(prev => !prev); }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95 ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95 ${
                 filterFloatNegativo
-                  ? 'bg-rose-500 text-white border-rose-300 shadow-rose-900/30 ring-2 ring-rose-300/80 font-black'
-                  : 'border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white'
+                  ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
+                  : 'border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A]'
               }`}
               title={
                 filterFloatNegativo
@@ -2821,7 +2654,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             >
               <span className="text-sm select-none" role="img" aria-label="Reloj">⏰</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
-                filterFloatNegativo ? 'bg-white text-rose-700' : 'bg-rose-500/30 text-rose-200 border border-rose-400/40'
+                filterFloatNegativo ? 'bg-white text-rose-700' : 'bg-rose-50 text-rose-700 border border-rose-200'
               }`}>
                 {totalFloatNegativoCount}
               </span>
@@ -2831,15 +2664,15 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setModoEV(prev => !prev); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95 ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95 ${
                 modoEV
-                  ? 'bg-amber-400 text-amber-950 border-amber-300 shadow-amber-900/30 ring-2 ring-amber-300/80 font-black'
-                  : 'border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white'
+                  ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
+                  : 'border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A]'
               }`}
               title={modoEV ? "Modo E.V activo: V.Ejec topeado a V.Contrato y columna Sobre Ejecución visible. Clic para desactivar." : "Activar modo E.V (Earned Value): recalcula V.Ejec (máx. V.Contrato) y muestra columna Sobre Ejecución"}
               id="btn-toggle-modo-ev-header"
             >
-              <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${modoEV ? 'bg-amber-600 text-white' : 'bg-indigo-900/80 text-amber-300'}`}>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${modoEV ? 'bg-amber-400 text-amber-950' : 'bg-amber-50 text-amber-700'}`}>
                 E.V
               </span>
               <span>{modoEV ? 'Modo E.V (ON)' : 'Modo E.V'}</span>
@@ -2850,13 +2683,13 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIsHierarchyModalOpen(true); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95"
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A] transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95"
                 title="Organizar la jerarquía de la tabla (CAP, SCAP, Partidas, etc. estilo Power BI)"
                 id="btn-organizar-jerarquia-header"
               >
-                <SlidersHorizontal className="w-4 h-4 text-indigo-200" />
+                <SlidersHorizontal className="w-4 h-4 text-[#5A6A74]" />
                 <span>Jerarquía</span>
-                <span className="text-[10px] bg-indigo-900/90 text-indigo-200 px-1.5 py-0.2 rounded font-mono font-bold">
+                <span className="text-[10px] bg-[#EEF2F3] text-[#5A6A74] px-1.5 py-0.2 rounded font-mono font-bold">
                   {activeHierarchy.length}
                 </span>
               </button>
@@ -2867,18 +2700,18 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIsExpandMenuOpen(!isExpandMenuOpen); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95"
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A] transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95"
                 id="btn-expandir-nivel-control-semanal"
               >
-                <ChevronsUpDown className="w-4 h-4 text-indigo-200" />
+                <ChevronsUpDown className="w-4 h-4 text-[#5A6A74]" />
                 <span>Exp. Nivel</span>
-                <ChevronDown className="w-3 h-3 text-indigo-300 ml-0.5" />
+                <ChevronDown className="w-3 h-3 text-[#5A6A74] ml-0.5" />
               </button>
 
               {isExpandMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setIsExpandMenuOpen(false); }} />
-                  <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 py-1.5 text-xs animate-fade-in select-none text-slate-800 ring-1 ring-black/10">
+                  <div className="ht-dd absolute right-0 mt-2 w-64 bg-white border border-slate-200/90 rounded-2xl shadow-2xl z-50 py-1.5 text-xs animate-fade-in select-none text-slate-800 ring-1 ring-black/10">
                     <div className="px-3.5 py-1.5 font-bold text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-100 flex items-center justify-between">
                       <span>Expandir Jerarquía</span>
                       <span className="text-[9px] text-indigo-600 font-semibold">Tabla Semanal</span>
@@ -2925,20 +2758,20 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
 
             <button
               onClick={handleCollapseAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/40 bg-indigo-700/80 hover:bg-indigo-600 text-white transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A] transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95"
               title="Colapsar todo"
               id="btn-colapsar-control-semanal"
             >
-              <ChevronsDownUp className="w-4 h-4 text-indigo-200" />
+              <ChevronsDownUp className="w-4 h-4 text-[#5A6A74]" />
               <span>Colapsar</span>
             </button>
 
             <button
               onClick={handleCopyTableForExcel}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all text-xs font-bold shadow-sm shrink-0 cursor-pointer active:scale-95 ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all text-xs font-medium shadow-none shrink-0 cursor-pointer active:scale-95 ${
                 copied
-                  ? 'bg-emerald-600 border-emerald-400 text-white shadow-emerald-900/30'
-                  : 'border-emerald-500/50 bg-emerald-700/90 hover:bg-emerald-600 text-white'
+                  ? 'bg-emerald-600 border-emerald-600 text-white'
+                  : 'border-[#D5DEE2] bg-white hover:bg-[#EEF2F3] text-[#14212A]'
               }`}
               title="Copiar tabla filtrada para Excel con formato y colores por jerarquía"
               id="btn-copiar-excel-control-semanal"
@@ -2950,12 +2783,37 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                 </>
               ) : (
                 <>
-                  <Copy className="w-4 h-4 text-emerald-200" />
+                  <Copy className="w-4 h-4 text-emerald-700" />
                   <span>Copiar Tabla</span>
                 </>
               )}
             </button>
           </div>
+          )}
+          <span className="text-[#5A6A74] text-xs shrink-0">{isCardCollapsed ? '▼' : '▲'}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Vista previa con la tarjeta colapsada: los 4 indicadores (clic para abrir) */}
+      {isCardCollapsed && !soloTablaYSemana && (
+        <div
+          className="px-3 py-1.5 grid grid-cols-2 lg:grid-cols-4 gap-1.5 cursor-pointer"
+          onClick={() => setIsCardCollapsed(false)}
+          title="Abrir Control de Ejecución"
+          id="kpi-preview-colapsada"
+        >
+          {[
+            { k: modoEV ? 'V.Plan (E.V)' : 'Planificado (PG-004)', v: fmtMoney(kpiTot.plan), cls: 'text-[#14212A]' },
+            { k: modoEV ? 'V.Ejec (E.V)' : 'Ejecutado (CDO V-)', v: fmtMoney(kpiTot.ejec), cls: 'text-[#2B7F52]' },
+            { k: 'Variación Económica', v: fmtDNum(kpiTot.desv), cls: kpiTot.desv < 0 ? 'text-[#B83227]' : 'text-[#2B7F52]' },
+            { k: '% Avance Económico', v: kpiTot.plan > 0 ? `${((kpiTot.ejec / kpiTot.plan) * 100).toFixed(2)}%` : '—', cls: 'text-[#312E81]' },
+          ].map(x => (
+            <div key={x.k} className="flex items-baseline justify-between gap-2 rounded-lg border border-[#E3E9EC] bg-[#F9FBFB] px-2.5 py-1">
+              <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#5A6A74] truncate">{x.k}</span>
+              <span className={`text-[12.5px] font-bold font-mono whitespace-nowrap ${x.cls}`}>{x.v}</span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -2992,7 +2850,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsWeekDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 min-w-[320px] sm:min-w-[380px] max-w-[90vw] mt-1.5 max-h-[460px] overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2.5 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
+                    className="ht-dd absolute left-0 min-w-[320px] sm:min-w-[380px] max-w-[90vw] mt-1.5 max-h-[460px] overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2.5 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Header with Quick Actions */}
@@ -3328,7 +3186,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsPAcDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 min-w-[260px] sm:min-w-[300px] max-w-[90vw] mt-1.5 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
+                    className="ht-dd absolute left-0 min-w-[260px] sm:min-w-[300px] max-w-[90vw] mt-1.5 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3477,7 +3335,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         onClick={(e) => { e.stopPropagation(); setIsPartidasDropdownOpen(false); }} 
                       />
                       <div 
-                        className="absolute left-0 min-w-[280px] sm:min-w-[320px] max-w-[90vw] mt-1.5 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
+                        className="ht-dd absolute left-0 min-w-[280px] sm:min-w-[320px] max-w-[90vw] mt-1.5 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3587,7 +3445,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsTipologiaDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3670,7 +3528,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsStatusDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3729,7 +3587,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             </div>
 
             {/* Filter by Partida D WBS */}
-            <div className={`relative flex-1 min-w-[175px] ${isPartidaDDropdownOpen ? 'z-30' : 'z-auto'}`} id="contenedor-filtro-partida-d">
+            <div className={`relative flex-1 min-w-[175px] ${isPartidaDDropdownOpen ? 'z-30' : 'z-auto'}`} id="contenedor-desplegable-partida-d">
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5 truncate">
                 <Filter className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                 <span className="truncate">Partida D (WBS):</span>
@@ -3753,10 +3611,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                 }
               >
                 <span className="truncate flex items-center gap-1.5">
-                  <span className="text-sm">
+                  <span className="text-xs leading-none">
                     {filterPartidaD === 'only_d' ? '🎯' : filterPartidaD === 'exclude_d' ? '🚫' : '📁'}
                   </span>
-                  <span className="truncate font-bold">
+                  <span className="truncate">
                     {filterPartidaD === 'only_d'
                       ? 'Solo Partida D'
                       : filterPartidaD === 'exclude_d'
@@ -3774,7 +3632,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsPartidaDDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 min-w-[220px] mt-1 bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
+                    className="ht-dd absolute left-0 min-w-[220px] mt-1 bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none ring-1 ring-slate-900/5"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between">
@@ -3911,7 +3769,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsVariacionDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 right-0 mt-1 bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 right-0 mt-1 bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between">
@@ -3964,7 +3822,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                             ? 'bg-rose-50 text-rose-900 border border-rose-200/80 font-bold'
                             : 'hover:bg-rose-50/50 text-slate-700 border border-transparent'
                         }`}
-                        title="Solo ítems con retraso real (variación < -$1)"
+                        title="Solo ítems con retraso real (variación < -1)"
                       >
                         <div className="flex items-center gap-2 truncate">
                           <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-all ${
@@ -3975,7 +3833,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                           <span className="truncate text-rose-700 font-bold">Retrasos (-)</span>
                         </div>
                         <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-rose-100 text-rose-800 shrink-0">
-                          Desvío &lt; -$1
+                          Desvío &lt; -1
                         </span>
                       </button>
 
@@ -4001,7 +3859,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                           <span className="truncate text-emerald-700 font-bold">Adelantos (+)</span>
                         </div>
                         <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-emerald-100 text-emerald-800 shrink-0">
-                          Desvío &gt; $0
+                          Desvío &gt; 0
                         </span>
                       </button>
                     </div>
@@ -4039,7 +3897,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsSubCDropdownOpen(false); }} 
                   />
                   <div 
-                    className="absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="sticky top-0 bg-white z-10 pb-1 pt-0.5 border-b border-slate-100 mb-1.5">
@@ -4172,7 +4030,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             </div>
 
             {/* Search Input */}
-            <div className="flex-1 min-w-[180px]">
+            <div className="flex-1 min-w-[180px]" id="contenedor-desplegable-buscar">
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
                 <Search className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Buscar WBS / Actividad:</span>
@@ -4187,7 +4045,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             </div>
 
             {/* Check Set Filter */}
-            <div className="flex-1 min-w-[150px]">
+            <div className="flex-1 min-w-[150px]" id="contenedor-desplegable-checkset">
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Check Set:</span>
@@ -4256,7 +4114,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </span>
                   )}
                 </div>
-                <span className="text-base font-extrabold text-indigo-950 font-mono block">${fmtMoney(kpiTot.plan)}</span>
+                <span className="text-base font-extrabold text-indigo-950 font-mono block">{fmtMoney(kpiTot.plan)}</span>
                 <div className="text-[10px] text-indigo-600 font-semibold mt-0.5">
                   {filterPlanEjec === 'plan' ? (
                     <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -4297,11 +4155,11 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </span>
                   )}
                 </div>
-                <span className="text-base font-extrabold text-rose-950 font-mono block">${fmtMoney(kpiTot.ejec)}</span>
+                <span className="text-base font-extrabold text-rose-950 font-mono block">{fmtMoney(kpiTot.ejec)}</span>
                 {modoEV && kpiTot.sobreEjec > 0 && (
                   <div className="mt-0.5">
                     <span className="text-[9.5px] text-amber-800 font-extrabold bg-amber-100 border border-amber-300/80 px-1.5 py-0.2 rounded shadow-2xs">
-                      Sobre Ejec.: ${fmtMoney(kpiTot.sobreEjec)}
+                      Sobre Ejec.: {fmtMoney(kpiTot.sobreEjec)}
                     </span>
                   </div>
                 )}
@@ -4419,10 +4277,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     const isSelected = activeTipologiaSet.has(tip.nombre) && activeTipologiaSet.size < tipologíasDisponibles.length;
                     const desvAbs = Math.abs(tip.desviacion);
                     const desvFmt = desvAbs >= 1000000
-                      ? `$${(desvAbs / 1000000).toFixed(2)}M`
+                      ? `${(desvAbs / 1000000).toFixed(2)}M`
                       : desvAbs >= 1000
-                      ? `$${(desvAbs / 1000).toFixed(1)}K`
-                      : `$${desvAbs.toFixed(0)}`;
+                      ? `${(desvAbs / 1000).toFixed(1)}K`
+                      : `${desvAbs.toFixed(0)}`;
 
                     return (
                       <div
@@ -4453,7 +4311,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         </div>
                         <div>
                           <div className="flex justify-between items-baseline leading-none mb-1">
-                            <span className="text-[9px] font-medium text-slate-500 uppercase tracking-tight">Variación $</span>
+                            <span className="text-[9px] font-medium text-slate-500 uppercase tracking-tight">Variación </span>
                             <p className={`text-xs font-black font-mono ${tip.desviacion >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                               {tip.desviacion >= 0 ? desvFmt : `(${desvFmt})`}
                             </p>
@@ -4577,7 +4435,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         {isPresetMenuOpen && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setIsPresetMenuOpen(false)} />
-                            <div className="absolute right-0 mt-1.5 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-xs ring-1 ring-black/10">
+                            <div className="ht-dd absolute right-0 mt-1.5 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-xs ring-1 ring-black/10">
                               <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
                                 Plantillas de Jerarquía
                               </div>
@@ -4618,7 +4476,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                           {isAddDimMenuOpen && (
                             <>
                               <div className="fixed inset-0 z-40" onClick={() => setIsAddDimMenuOpen(false)} />
-                              <div className="absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-xs ring-1 ring-black/10">
+                              <div className="ht-dd absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 text-xs ring-1 ring-black/10">
                                 <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
                                   Agregar Campo
                                 </div>
@@ -4772,9 +4630,9 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
             <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-sm">
             <table className="min-w-full text-xs border-collapse">
               <thead>
-                <tr className="bg-[#442dd7] text-white font-extrabold text-[11px] text-left whitespace-nowrap">
+                <tr className="bg-[#CD0000] text-white font-extrabold text-[11px] text-left whitespace-nowrap">
                   <th 
-                    className={`border-b border-[#3722b5] cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap ${
+                    className={`border-b border-[#A80000] cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap ${
                       soloTablaYSemana 
                         ? 'w-1 whitespace-nowrap px-2 py-2.5 text-left' 
                         : 'w-[125px] max-w-[125px] px-1 py-2.5 text-left'
@@ -4798,7 +4656,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   {!soloTablaYSemana && (
                     <>
                       <th 
-                        className="px-2 py-2.5 border-b border-[#3722b5] cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                        className="px-2 py-2.5 border-b border-[#A80000] cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                         onClick={() => handleToggleSort('activityId')}
                         title="Clic para cambiar el orden por Activity ID"
                       >
@@ -4816,7 +4674,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         </div>
                       </th>
                       <th 
-                        className="px-2 py-2.5 border-b border-[#3722b5] min-w-[130px] max-w-[280px] cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                        className="px-2 py-2.5 border-b border-[#A80000] min-w-[130px] max-w-[280px] cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                         onClick={() => handleToggleSort('descripcion')}
                         title="Clic para cambiar el orden por Descripción"
                       >
@@ -4834,7 +4692,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         </div>
                       </th>
                       <th 
-                        className="px-2 py-2.5 border-b border-[#3722b5] text-center cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                        className="px-2 py-2.5 border-b border-[#A80000] text-center cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                         onClick={() => handleToggleSort('blFinish')}
                         title="Clic para cambiar el orden por BL Finish"
                       >
@@ -4854,7 +4712,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </>
                   )}
                   <th 
-                    className="px-2 py-2.5 border-b border-[#3722b5] text-right cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                    className="px-2 py-2.5 border-b border-[#A80000] text-right cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('contrato')}
                     title={modoEV ? "Clic para ordenar por V. Contrato (valores abreviados en Millones M)" : "Clic para cambiar el orden por V. Contrato"}
                   >
@@ -4872,7 +4730,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </div>
                   </th>
                   <th 
-                    className="px-2 py-2.5 border-b border-[#3722b5] text-right text-indigo-200 cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                    className="px-2 py-2.5 border-b border-[#A80000] text-right text-indigo-200 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('plan')}
                     title="Clic para cambiar el orden por V.Plan"
                   >
@@ -4890,7 +4748,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </div>
                   </th>
                   <th 
-                    className="px-2 py-2.5 border-b border-[#3722b5] text-right text-rose-200 cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                    className="px-2 py-2.5 border-b border-[#A80000] text-right text-rose-200 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('ejec')}
                     title="Clic para cambiar el orden por V.Ejec"
                   >
@@ -4909,7 +4767,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   </th>
                   {!soloTablaYSemana && modoEV && (
                     <th 
-                      className="px-2 py-2.5 border-b border-[#3722b5] text-right text-amber-300 cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                      className="px-2 py-2.5 border-b border-[#A80000] text-right text-amber-300 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                       onClick={() => handleToggleSort('sobreEjec')}
                       title="Clic para cambiar el orden por Sobre Ejecución"
                     >
@@ -4929,7 +4787,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   )}
                   {soloTablaYSemana && (
                     <th 
-                      className="px-2 py-2.5 border-b border-[#3722b5] text-right text-indigo-300 cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                      className="px-2 py-2.5 border-b border-[#A80000] text-right text-indigo-300 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                       onClick={() => handleToggleSort('pctPlan')}
                       title="Clic para cambiar el orden por % Plan"
                     >
@@ -4949,7 +4807,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   )}
                   {soloTablaYSemana && (
                     <th 
-                      className="px-2 py-2.5 border-b border-[#3722b5] text-right text-rose-300 cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                      className="px-2 py-2.5 border-b border-[#A80000] text-right text-rose-300 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                       onClick={() => handleToggleSort('pctEjec')}
                       title="Clic para cambiar el orden por % Ejec"
                     >
@@ -4968,7 +4826,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </th>
                   )}
                   <th 
-                    className="px-2 py-2.5 border-b border-[#3722b5] text-right cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                    className="px-2 py-2.5 border-b border-[#A80000] text-right cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('variacion')}
                     title={soloTablaYSemana ? "Clic para cambiar el orden por % Variación" : "Clic para cambiar el orden por Variación"}
                   >
@@ -4988,7 +4846,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   {!soloTablaYSemana && (
                     <>
                       <th 
-                        className="px-2 py-2.5 border-b border-[#3722b5] text-right cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                        className="px-2 py-2.5 border-b border-[#A80000] text-right cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                         onClick={() => handleToggleSort('pctAvance')}
                         title="Clic para cambiar el orden por % Avance"
                       >
@@ -5006,7 +4864,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                         </div>
                       </th>
                       <th 
-                        className="px-2 py-2.5 border-b border-[#3722b5] text-center cursor-pointer select-none hover:bg-[#3722b5]/80 transition-colors whitespace-nowrap"
+                        className="px-2 py-2.5 border-b border-[#A80000] text-center cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                         onClick={() => handleToggleSort('checkSet')}
                         title="Clic para cambiar el orden por Check Set"
                       >
@@ -5050,44 +4908,44 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       const compPctDesvVal = compPctEjecVal - compPctPlanVal;
 
                       return (
-                        <tr key={comp} className="bg-slate-50 text-slate-800 font-bold transition-colors border-b border-slate-200 shadow-2xs whitespace-nowrap">
+                        <tr key={comp} className="text-slate-800 hover:bg-slate-50/50 transition-colors whitespace-nowrap">
                           <td className="w-1 whitespace-nowrap px-2 py-2 pl-1.5 overflow-hidden">
                             <div className="flex items-center gap-1 whitespace-nowrap overflow-hidden min-w-0">
-                              <span className="text-[11.5px] tracking-wide text-indigo-700 font-bold whitespace-nowrap truncate min-w-0" title={comp}>🏛️ {comp}</span>
+                              <span className="font-medium text-slate-800 whitespace-nowrap truncate min-w-0" title={comp}>🏛️ {comp}</span>
                             </div>
                           </td>
                           <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-slate-900 cursor-help font-bold whitespace-nowrap" 
-                            title={`Monto Exacto Contrato: $${fmtMoney(compTot.contrato)}`}
+                            className="px-2.5 py-2.5 text-right font-mono text-slate-900 cursor-help font-semibold whitespace-nowrap" 
+                            title={`Monto Exacto Contrato: ${fmtMoney(compTot.contrato)}`}
                           >
-                            ${fmtMillions(compTot.contrato)}
+                            {fmtMillions(compTot.contrato)}
                           </td>
                           <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-indigo-700 cursor-help font-bold whitespace-nowrap" 
-                            title={`Monto Exacto Plan: $${fmtMoney(compTot.plan)}`}
+                            className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" 
+                            title={`Monto Exacto Plan: ${fmtMoney(compTot.plan)}`}
                           >
-                            ${fmtMillions(compTot.plan)}
+                            {fmtMillions(compTot.plan)}
                           </td>
                           <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-slate-800 cursor-help font-bold whitespace-nowrap" 
-                            title={`Monto Exacto Ejec: $${fmtMoney(compTot.ejec)}`}
+                            className="px-2.5 py-2.5 text-right font-mono text-green-700 cursor-help whitespace-nowrap" 
+                            title={`Monto Exacto Ejec: ${fmtMoney(compTot.ejec)}`}
                           >
-                            ${fmtMillions(compTot.ejec)}
+                            {fmtMillions(compTot.ejec)}
                           </td>
                           <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-indigo-700 cursor-help font-bold whitespace-nowrap" 
-                            title={`% Plan (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: $${fmtMoney(compBasePct)}): ${compPctPlanVal.toFixed(4)}%`}
+                            className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" 
+                            title={`% Plan (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: ${fmtMoney(compBasePct)}): ${compPctPlanVal.toFixed(4)}%`}
                           >
                             {compPctPlanVal.toFixed(2)}%
                           </td>
                           <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-rose-700 cursor-help font-bold whitespace-nowrap" 
-                            title={`% Ejec (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: $${fmtMoney(compBasePct)}): ${compPctEjecVal.toFixed(4)}%`}
+                            className="px-2.5 py-2.5 text-right font-mono text-slate-800 cursor-help font-semibold whitespace-nowrap" 
+                            title={`% Ejec (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: ${fmtMoney(compBasePct)}): ${compPctEjecVal.toFixed(4)}%`}
                           >
                             {compPctEjecVal.toFixed(2)}%
                           </td>
                           <td 
-                            className={`px-2.5 py-2.5 text-right font-mono font-black cursor-help whitespace-nowrap ${compPctDesvVal < 0 ? 'text-red-700' : 'text-emerald-700'}`} 
+                            className={`px-2.5 py-2.5 text-right font-mono font-semibold cursor-help whitespace-nowrap ${compPctDesvVal < 0 ? 'text-red-600' : 'text-green-700'}`} 
                             title={`Monto Exacto Variación: ${fmtDNum(compTot.desv)} | % Variación (% Ejec - % Plan): ${compPctDesvVal.toFixed(4)}%`}
                           >
                             {compPctDesvVal > 0 ? `+${compPctDesvVal.toFixed(2)}%` : `${compPctDesvVal.toFixed(2)}%`}
@@ -5108,10 +4966,10 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   )
                 )}
               </tbody>
-              <tfoot className="bg-[#442dd7] text-white font-extrabold text-xs shadow-md border-t-2 border-indigo-700">
-                <tr>
+              <tfoot className="bg-[#312E81] text-white font-extrabold text-xs shadow-md border-t-2 border-[#312E81]">
+                <tr className="ht-g lv0">
                   <td 
-                    className={`border-t border-[#3722b5] overflow-hidden ${
+                    className={`border-t border-[#A80000] overflow-hidden ${
                       soloTablaYSemana 
                         ? 'w-1 whitespace-nowrap px-2 py-2.5' 
                         : 'px-2 py-2.5'
@@ -5123,28 +4981,28 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     </div>
                   </td>
                   {!soloTablaYSemana && (
-                    <td className="px-2 py-2.5 border-t border-[#3722b5] text-center font-mono text-[10px] text-indigo-200">
+                    <td className="px-2 py-2.5 border-t border-[#A80000] text-center font-mono text-[10px] text-indigo-200">
                       {fmtDateVal(globalTot.maxBlFinish)}
                     </td>
                   )}
                   {soloTablaYSemana ? (
                     <>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black" title={`Monto Total: $${fmtMoney(globalTot.contrato)}`}>
-                        ${fmtMillions(globalTot.contrato)}
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black" title={`Monto Total: ${fmtMoney(globalTot.contrato)}`}>
+                        {fmtMillions(globalTot.contrato)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-indigo-200" title={`Monto Plan: $${fmtMoney(globalTot.plan)}`}>
-                        ${fmtMillions(globalTot.plan)}
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-indigo-200" title={`Monto Plan: ${fmtMoney(globalTot.plan)}`}>
+                        {fmtMillions(globalTot.plan)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-rose-200" title={`Monto Ejec: $${fmtMoney(globalTot.ejec)}`}>
-                        ${fmtMillions(globalTot.ejec)}
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-rose-200" title={`Monto Ejec: ${fmtMoney(globalTot.ejec)}`}>
+                        {fmtMillions(globalTot.ejec)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-indigo-300" title={`Total % Plan sobre V. Contrato Global sin filtrar: $${fmtMoney(totalVContratoUnfiltered)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-indigo-300" title={`Total % Plan sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
                         {totalVContratoUnfiltered > 0 ? `${((globalTot.plan / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black text-rose-300" title={`Total % Ejec sobre V. Contrato Global sin filtrar: $${fmtMoney(totalVContratoUnfiltered)}`}>
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-rose-300" title={`Total % Ejec sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
                         {totalVContratoUnfiltered > 0 ? `${((globalTot.ejec / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
                       </td>
-                      <td className={`px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`} title={`Monto Variación: ${fmtDNum(globalTot.desv)} | Total % Variación: ${totalVContratoUnfiltered > 0 ? (((globalTot.ejec - globalTot.plan) / totalVContratoUnfiltered) * 100).toFixed(4) : '0.0000'}%`}>
+                      <td className={`px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`} title={`Monto Variación: ${fmtDNum(globalTot.desv)} | Total % Variación: ${totalVContratoUnfiltered > 0 ? (((globalTot.ejec - globalTot.plan) / totalVContratoUnfiltered) * 100).toFixed(4) : '0.0000'}%`}>
                         {(() => {
                           const totalPctPlan = totalVContratoUnfiltered > 0 ? (globalTot.plan / totalVContratoUnfiltered) * 100 : 0;
                           const totalPctEjec = totalVContratoUnfiltered > 0 ? (globalTot.ejec / totalVContratoUnfiltered) * 100 : 0;
@@ -5156,29 +5014,29 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   ) : (
                     <>
                       <td 
-                        className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono whitespace-nowrap"
-                        title={`Monto Total Contrato: $${fmtMoney(globalTot.contrato)}`}
+                        className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono whitespace-nowrap"
+                        title={`Monto Total Contrato: ${fmtMoney(globalTot.contrato)}`}
                       >
-                        {modoEV ? fmtMillions(globalTot.contrato) : `$${fmtMoney(globalTot.contrato)}`}
+                        {modoEV ? fmtMillions(globalTot.contrato) : `${fmtMoney(globalTot.contrato)}`}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono text-indigo-200">
-                        ${fmtMoney(globalTot.plan)}
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono text-indigo-200">
+                        {fmtMoney(globalTot.plan)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono text-slate-300">
-                        ${fmtMoney(globalTot.ejec)}
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono text-slate-300">
+                        {fmtMoney(globalTot.ejec)}
                       </td>
                       {modoEV && (
-                        <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono text-amber-300 font-bold whitespace-nowrap" title={`Monto Sobre Ejecución: $${fmtMoney(globalTot.sobreEjec)}`}>
-                          ${fmtMoney(globalTot.sobreEjec)}
+                        <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono text-amber-300 font-bold whitespace-nowrap" title={`Monto Sobre Ejecución: ${fmtMoney(globalTot.sobreEjec)}`}>
+                          {fmtMoney(globalTot.sobreEjec)}
                         </td>
                       )}
-                      <td className={`px-2 py-2.5 border-t border-[#3722b5] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                      <td className={`px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                         {fmtDNum(globalTot.desv)}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-right font-mono">
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono">
                         {globalTot.plan > 0 ? `${((globalTot.ejec / globalTot.plan) * 100).toFixed(2)}%` : '—'}
                       </td>
-                      <td className="px-2 py-2.5 border-t border-[#3722b5] text-center font-mono">
+                      <td className="px-2 py-2.5 border-t border-[#A80000] text-center font-mono">
                         {(() => {
                           const csTot = getAccumulatedCheckSet(leafItems);
                           return (
@@ -5202,118 +5060,85 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                 <CheckCircle2 className="w-4 h-4 text-indigo-600" />
                 Resumen por Check Set y Tipología
               </h3>
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-sm">
                 <table className="min-w-full text-xs border-collapse text-left">
-                  <thead className="bg-slate-800 text-white">
-                    <tr>
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold w-40">Check Set</th>
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold">Tipología</th>
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold text-right">V.Plan</th>
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold text-right">V.Ejec</th>
-                      {modoEV && (
-                        <th className="px-4 py-3 border-b border-slate-700 font-bold text-right text-amber-300">Sobre Ejecución</th>
-                      )}
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold text-right">Variación</th>
-                      <th className="px-4 py-3 border-b border-slate-700 font-bold text-center w-32">Cant. Actividades</th>
+                  <thead>
+                    <tr className="text-[10px] font-extrabold text-left whitespace-nowrap">
+                      <th className="px-2 py-2.5 w-44">Check Set</th>
+                      <th className="px-2 py-2.5">Tipología</th>
+                      <th className="px-2 py-2.5 text-right">V.Plan</th>
+                      <th className="px-2 py-2.5 text-right">V.Ejec</th>
+                      {modoEV && <th className="px-2 py-2.5 text-right">Sobre Ejecución</th>}
+                      <th className="px-2 py-2.5 text-right">Variación</th>
+                      <th className="px-2 py-2.5 text-right">% Avance</th>
+                      <th className="px-2 py-2.5 text-center w-28">Actividades</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody>
                     {checkSetSummary.map(([csKey, csData]) => {
-                       const tipos = Object.entries(csData.tipologias).sort((a, b) => b[1].desv - a[1].desv);
-                       return (
-                         <React.Fragment key={csKey}>
-                           {/* Fila del Check Set (Total) */}
-                           <tr 
-                             className="bg-slate-100 font-bold cursor-pointer hover:bg-slate-200 transition-colors"
-                             onClick={() => setExpandedCheckSets(prev => {
-                               const next = new Set(prev);
-                               if (next.has(csKey)) next.delete(csKey); else next.add(csKey);
-                               return next;
-                             })}
-                           >
-                             <td className="px-4 py-3 border-b border-slate-200">
-                               <div className="flex items-center gap-1.5">
-                                 {expandedCheckSets.has(csKey) ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
-                                 <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase ${csData.checkSetProps.bg} ${csData.checkSetProps.textC}`}>
-                                   <span className={`w-1.5 h-1.5 rounded-full ${csData.checkSetProps.dot}`}></span>{csKey}
-                                 </span>
-                               </div>
-                             </td>
-                             <td className="px-4 py-3 border-b border-slate-200 text-slate-600 text-[10px] uppercase tracking-wider font-extrabold">
-                               Total {csKey}
-                             </td>
-                             <td className="px-4 py-3 border-b border-slate-200 text-right text-indigo-700 font-mono">
-                               ${fmtMoney(csData.totalPlan)}
-                             </td>
-                             <td className="px-4 py-3 border-b border-slate-200 text-right text-slate-500 font-mono">
-                               ${fmtMoney(csData.totalEjec)}
-                             </td>
-                             {modoEV && (
-                               <td className="px-4 py-3 border-b border-slate-200 text-right text-amber-600 font-mono font-bold">
-                                 ${fmtMoney(csData.totalSobreEjec || 0)}
-                               </td>
-                             )}
-                             <td className={`px-4 py-3 border-b border-slate-200 text-right font-mono font-black ${csData.totalDesv < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                               {fmtDNum(csData.totalDesv)}
-                             </td>
-                             <td className="px-4 py-3 border-b border-slate-200 text-center font-bold text-slate-800 bg-slate-200/50">
-                               {csData.totalCount}
-                             </td>
-                           </tr>
-                           
-                           {/* Filas de Tipologías */}
-                           {expandedCheckSets.has(csKey) && tipos.map(([tipo, tData]) => (
-                             <tr key={`${csKey}-${tipo}`} className="bg-white hover:bg-slate-50 transition-colors">
-                               <td className="px-4 py-2 border-r border-slate-100 bg-slate-50/30"></td>
-                               <td className="px-4 py-2 text-slate-700 font-medium pl-6 relative">
-                                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-200"></div>
-                                 <span className="text-[11px]">{tipo}</span>
-                               </td>
-                               <td className="px-4 py-2 text-right font-mono text-slate-600">
-                                 ${fmtMoney(tData.plan)}
-                               </td>
-                               <td className="px-4 py-2 text-right font-mono text-slate-500">
-                                 ${fmtMoney(tData.ejec)}
-                               </td>
-                               {modoEV && (
-                                 <td className="px-4 py-2 text-right font-mono text-amber-600 font-bold">
-                                   ${fmtMoney(tData.sobreEjec || 0)}
-                                 </td>
-                               )}
-                               <td className={`px-4 py-2 text-right font-mono font-bold ${tData.desv < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                 {fmtDNum(tData.desv)}
-                               </td>
-                               <td className="px-4 py-2 text-center font-mono text-slate-600 font-medium border-l border-slate-100">
-                                 {tData.count}
-                               </td>
-                             </tr>
-                           ))}
-                         </React.Fragment>
-                       );
+                      const tipos = Object.entries(csData.tipologias).sort((a, b) => b[1].desv - a[1].desv);
+                      const abierto = expandedCheckSets.has(csKey);
+                      const nivel = LEVEL_STYLES[0];
+                      const pctCs = csData.totalPlan > 0 ? (csData.totalEjec / csData.totalPlan) * 100 : (csData.totalEjec > 0 ? 100 : 0);
+                      return (
+                        <React.Fragment key={csKey}>
+                          {/* Fila del Check Set: primer nivel, como en la tabla principal */}
+                          <tr
+                            className={`${nivel.bg} cursor-pointer transition-colors whitespace-nowrap`}
+                            onClick={() => setExpandedCheckSets(prev => {
+                              const next = new Set(prev);
+                              if (next.has(csKey)) next.delete(csKey); else next.add(csKey);
+                              return next;
+                            })}
+                          >
+                            <td className={`px-2 py-1.5 ${nivel.accent}`}>
+                              <div className="flex items-center gap-1">
+                                {abierto ? <ChevronDown className={`w-3.5 h-3.5 ${nivel.chevron} shrink-0`} /> : <ChevronRight className={`w-3.5 h-3.5 ${nivel.chevron} shrink-0`} />}
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${csData.checkSetProps.bg} ${csData.checkSetProps.textC}`}>
+                                  <span className={`w-1 h-1 rounded-full ${csData.checkSetProps.dot}`}></span>{csKey}
+                                </span>
+                              </div>
+                            </td>
+                            <td className={`px-2 py-1.5 text-[11px] font-bold ${nivel.text}`}>
+                              Total {csKey} <span className={`text-[10px] font-mono font-normal ${nivel.subText}`}>({tipos.length} tipologías)</span>
+                            </td>
+                            <td className={`px-2 py-1.5 text-right font-mono ${nivel.vPlan}`}>{fmtMoney(csData.totalPlan)}</td>
+                            <td className={`px-2 py-1.5 text-right font-mono ${nivel.vEjec}`}>{fmtMoney(csData.totalEjec)}</td>
+                            {modoEV && <td className={`px-2 py-1.5 text-right font-mono font-bold ${nivel.vSobre}`}>{fmtMoney(csData.totalSobreEjec || 0)}</td>}
+                            <td className={`px-2 py-1.5 text-right font-mono font-black ${csData.totalDesv < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{fmtDNum(csData.totalDesv)}</td>
+                            <td className="px-2 py-1.5 text-right font-mono">{pctCs.toFixed(2)}%</td>
+                            <td className="px-2 py-1.5 text-center font-mono font-bold">{csData.totalCount.toLocaleString()}</td>
+                          </tr>
+
+                          {/* Tipologías: filas de detalle */}
+                          {abierto && tipos.map(([tipo, tData]) => {
+                            const pctT = tData.plan > 0 ? (tData.ejec / tData.plan) * 100 : (tData.ejec > 0 ? 100 : 0);
+                            return (
+                              <tr key={`${csKey}-${tipo}`} className="bg-white hover:bg-[#F9FBFB] border-b border-[#EEF2F3] transition-colors whitespace-nowrap">
+                                <td className="px-2 py-1"></td>
+                                <td className="px-2 py-1 text-[11px] text-[#14212A] pl-4">{tipo}</td>
+                                <td className="px-2 py-1 text-right font-mono text-slate-700">{fmtMoney(tData.plan)}</td>
+                                <td className="px-2 py-1 text-right font-mono text-green-700">{fmtMoney(tData.ejec)}</td>
+                                {modoEV && <td className="px-2 py-1 text-right font-mono text-amber-700 font-bold">{fmtMoney(tData.sobreEjec || 0)}</td>}
+                                <td className={`px-2 py-1 text-right font-mono font-bold ${tData.desv < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{fmtDNum(tData.desv)}</td>
+                                <td className="px-2 py-1 text-right font-mono text-slate-700">{pctT.toFixed(2)}%</td>
+                                <td className="px-2 py-1 text-center font-mono text-slate-700">{tData.count.toLocaleString()}</td>
+                              </tr>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
                     })}
                   </tbody>
-                  <tfoot className="bg-slate-900 text-white font-extrabold text-xs shadow-xs border-t-2 border-slate-700">
-                    <tr>
-                      <td className="px-4 py-3 border-t border-slate-700" colSpan={2}>
-                        TOTAL GENERAL
-                      </td>
-                      <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-indigo-300">
-                        ${fmtMoney(globalTot.plan)}
-                      </td>
-                      <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-slate-300">
-                        ${fmtMoney(globalTot.ejec)}
-                      </td>
-                      {modoEV && (
-                        <td className="px-4 py-3 border-t border-slate-700 text-right font-mono text-amber-300 font-bold">
-                          ${fmtMoney(globalTot.sobreEjec)}
-                        </td>
-                      )}
-                      <td className={`px-4 py-3 border-t border-slate-700 text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {fmtDNum(globalTot.desv)}
-                      </td>
-                      <td className="px-4 py-3 border-t border-slate-700 text-center font-mono">
-                        {leafItems.length}
-                      </td>
+                  <tfoot>
+                    <tr className="ht-g lv0 font-extrabold whitespace-nowrap">
+                      <td className="px-2 py-2.5" colSpan={2}>TOTAL GENERAL ({leafItems.length.toLocaleString()} it.)</td>
+                      <td className="px-2 py-2.5 text-right font-mono">{fmtMoney(globalTot.plan)}</td>
+                      <td className="px-2 py-2.5 text-right font-mono">{fmtMoney(globalTot.ejec)}</td>
+                      {modoEV && <td className="px-2 py-2.5 text-right font-mono">{fmtMoney(globalTot.sobreEjec)}</td>}
+                      <td className={`px-2 py-2.5 text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-600' : ''}`}>{fmtDNum(globalTot.desv)}</td>
+                      <td className="px-2 py-2.5 text-right font-mono">{globalTot.plan > 0 ? ((globalTot.ejec / globalTot.plan) * 100).toFixed(2) : '0.00'}%</td>
+                      <td className="px-2 py-2.5 text-center font-mono">{leafItems.length.toLocaleString()}</td>
                     </tr>
                   </tfoot>
                 </table>

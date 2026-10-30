@@ -51,15 +51,15 @@ import {
 } from '../utils/personalParser';
 import { getInitialPersonalData, RAW_SAMPLE_PERSONAL_MERINOS } from '../data/samplePersonalData';
 import {
-  savePersonalPlanToFirebase,
-  loadLatestPersonalPlanFromFirebase
-} from '../utils/firebaseSync';
+  savePersonalPlanToCloud,
+  loadLatestPersonalPlanFromCloud
+} from '../utils/cloudSync';
 import { PersonalTrendChart } from './PersonalTrendChart';
 import { CollapsibleHierarchyDropdown } from './CollapsibleHierarchyDropdown';
 import { MultiSelectMonthDropdown } from './MultiSelectMonthDropdown';
 
 export function PersonalTab() {
-  // State: Loaded personal data from Firestore or sample demonstration data
+  // State: Loaded personal data from the cloud or sample demonstration data
   const [registros, setRegistros] = useState<PersonalRegistro[]>([]);
   const [currentFileName, setCurrentFileName] = useState<string>('');
   const [isSyncingWithCloud, setIsSyncingWithCloud] = useState<boolean>(false);
@@ -67,14 +67,14 @@ export function PersonalTab() {
   const [isCloudLoaded, setIsCloudLoaded] = useState<boolean>(false);
   const [isLoadingCloud, setIsLoadingCloud] = useState<boolean>(true);
 
-  // On mount: Load latest personal data from Firestore.
+  // On mount: Load latest personal data from the cloud.
   // If no cloud data exists, show demo sample data without failing.
   useEffect(() => {
     let isMounted = true;
     async function loadCloudData() {
       setIsLoadingCloud(true);
       try {
-        const cloudData = await loadLatestPersonalPlanFromFirebase();
+        const cloudData = await loadLatestPersonalPlanFromCloud();
         if (!isMounted) return;
 
         if (cloudData && cloudData.registros && cloudData.registros.length > 0) {
@@ -923,7 +923,7 @@ export function PersonalTab() {
       .slice(0, 20);
   }, [filteredRegistros, stats.numDiasMes, isAllMesesSelected, selectedMeses, isAllSemanasSelected, selectedSemanas, isAllFechasSelected, selectedFechas, mesCorrienteKey]);
 
-  // Upload currently loaded records to Firebase
+  // Upload currently loaded records to the cloud
   const handleSyncToCloud = async () => {
     if (isSyncingRef.current || registros.length === 0) {
       setUploadFeedback({ type: 'error', message: 'No hay datos para sincronizar o ya hay una carga en curso.' });
@@ -935,7 +935,7 @@ export function PersonalTab() {
       setSyncProgress({ pct: 20, message: 'Iniciando sincronización con la nube...' });
       setIsUploadModalOpen(true); // Open modal to show progress
 
-      await savePersonalPlanToFirebase(currentFileName || 'Matriz_Personal.xlsx', registros, (pct, statusMsg) => {
+      await savePersonalPlanToCloud(currentFileName || 'Matriz_Personal.xlsx', registros, (pct, statusMsg) => {
         setSyncProgress({ pct, message: statusMsg });
       });
       setIsCloudLoaded(true);
@@ -944,7 +944,7 @@ export function PersonalTab() {
         message: `¡Se sincronizaron exitosamente ${registros.length} registros en la nube!`
       });
     } catch (syncErr) {
-      console.warn('Error sincronizando con Firebase:', syncErr);
+      console.warn('Error sincronizando con la nube:', syncErr);
       setUploadFeedback({
         type: 'error',
         message: 'Ocurrió un error al intentar sincronizar con la nube. Intenta nuevamente.'
@@ -1024,7 +1024,7 @@ export function PersonalTab() {
 
       setUploadFeedback({
         type: 'success',
-        message: `¡Se cargaron exitosamente ${nuevosRegistros.length} registros desde "${file.name}" para esta sesión! Para guardarlo en Firebase usa el botón "Guardar en Nube".`
+        message: `¡Se cargaron exitosamente ${nuevosRegistros.length} registros desde "${file.name}" para esta sesión! Para guardarlo en la nube usa el botón "Guardar en Nube".`
       });
 
       setTimeout(() => {
@@ -1143,7 +1143,7 @@ export function PersonalTab() {
                 <th style="padding: 6px 8px;">MUJERES</th>
                 <th style="padding: 6px 8px;">DIURNO</th>
                 <th style="padding: 6px 8px;">NOCHE</th>
-                <th style="padding: 6px 10px; background-color: #312e81;">TOTAL PERSONAL</th>
+                <th style="padding: 6px 10px; background-color: #7A0000;">TOTAL PERSONAL</th>
                 <th style="padding: 6px 8px;">% DOTACIÓN</th>
                 <th style="padding: 6px 8px;">REGISTROS</th>
                 <th style="padding: 6px 12px;">FRENTES PRINCIPALES</th>
@@ -1165,7 +1165,7 @@ export function PersonalTab() {
               <td style="padding: 4px 8px; text-align: right;">${r.mujeresTotal}</td>
               <td style="padding: 4px 8px; text-align: right;">${r.diurnoTotal}</td>
               <td style="padding: 4px 8px; text-align: right;">${r.nocheTotal}</td>
-              <td style="padding: 4px 8px; text-align: right; font-weight: bold; background-color: #e0e7ff;">${r.total}</td>
+              <td style="padding: 4px 8px; text-align: right; font-weight: bold; background-color: #FBE5E5;">${r.total}</td>
               <td style="padding: 4px 8px; text-align: right; mso-number-format: '0.0%';">${r.porcentaje.toFixed(1)}%</td>
               <td style="padding: 4px 8px; text-align: right;">${r.registros}</td>
               <td style="padding: 4px 8px; font-size: 9pt; color: #475569;">${r.frentes.slice(0, 4).join('; ')}</td>
@@ -1219,7 +1219,7 @@ export function PersonalTab() {
                 <th style="padding: 5px 6px;">Mn</th>
                 <th style="padding: 5px 6px;">H</th>
                 <th style="padding: 5px 6px;">M</th>
-                <th style="padding: 5px 8px; background-color: #312e81;">Total</th>
+                <th style="padding: 5px 8px; background-color: #7A0000;">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -1248,7 +1248,7 @@ export function PersonalTab() {
               <td style="padding: 3px 6px; text-align: right;">${r.mn || ''}</td>
               <td style="padding: 3px 6px; text-align: right; font-weight: bold;">${r.h}</td>
               <td style="padding: 3px 6px; text-align: right; font-weight: bold;">${r.m}</td>
-              <td style="padding: 3px 8px; text-align: right; font-weight: bold; background-color: #e0e7ff;">${r.total}</td>
+              <td style="padding: 3px 8px; text-align: right; font-weight: bold; background-color: #FBE5E5;">${r.total}</td>
             </tr>
           `;
         });
@@ -1316,16 +1316,16 @@ export function PersonalTab() {
       />
 
       {/* Top Banner Card (Ultra-compact) */}
-      <div className="bg-white rounded-xl px-4 py-3 sm:px-5 sm:py-3.5 text-[#14212A] shadow-xs border border-[#D5DEE2] relative overflow-hidden">
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+      <div className="ht-card bg-white rounded-xl px-4 py-3 sm:px-5 sm:py-3.5 text-[#14212A] shadow-xs border border-[#D5DEE2] relative overflow-hidden">
+        <div className="ht-card-title relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="p-1.5 rounded-lg bg-[#EEECFB] text-[#442dd7] flex items-center justify-center shrink-0">
+            <div className="hidden p-1.5 rounded-lg bg-[#FBE9E9] text-[#CD0000] items-center justify-center shrink-0">
               <HardHat className="w-4 h-4" />
             </div>
-            <h1 className="text-base sm:text-lg font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wide flex items-center gap-2 flex-wrap">
-              <span>Análisis de Personal de Obra</span>
+            <h1 className="flex items-center gap-2 flex-wrap">
+              <span className="ht-title">Análisis de Personal de Obra</span>
               {isLoadingCloud ? (
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#EEECFB] border border-[#442dd7]/30 text-[#442dd7] flex items-center gap-1 font-sans normal-case">
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#FBE9E9] border border-[#CD0000]/30 text-[#CD0000] flex items-center gap-1 font-sans normal-case">
                   <RefreshCw className="w-3 h-3 animate-spin" />
                   <span>Cargando datos...</span>
                 </span>
@@ -1340,7 +1340,7 @@ export function PersonalTab() {
                     </span>
                   )}
                   {isCloudLoaded ? (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[#2C67A6] flex items-center gap-1 font-sans normal-case" title="Sincronizado en Firebase Firestore">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[#2C67A6] flex items-center gap-1 font-sans normal-case" title="Sincronizado en la nube (Cloudflare)">
                       <Cloud className="w-3 h-3 text-[#2C67A6]" />
                       <span>Nube</span>
                     </span>
@@ -1362,7 +1362,7 @@ export function PersonalTab() {
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
             <button
               onClick={() => setIsUploadModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-[#442dd7] hover:bg-[#3722b5] text-white shadow-xs transition-all active:scale-95 cursor-pointer border border-[#442dd7]"
+              className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-[#CD0000] hover:bg-[#A80000] text-white shadow-xs transition-all active:scale-95 cursor-pointer border border-[#CD0000]"
               id="btn-abrir-carga-excel-personal"
               title="Cargar archivo Excel o CSV con matriz de personal de obra"
             >
@@ -1375,7 +1375,7 @@ export function PersonalTab() {
                 onClick={handleSyncToCloud}
                 disabled={isSyncingWithCloud}
                 className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 bg-white hover:bg-[#F5F8F9] text-[#2C67A6] border border-[#D5DEE2] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
-                title="Guardar archivo actual en Firebase para todos los usuarios"
+                title="Guardar archivo actual en la nube para todos los usuarios"
               >
                 <CloudUpload className="w-3.5 h-3.5 text-[#2C67A6]" />
                 <span>Guardar en Nube</span>
@@ -1432,10 +1432,10 @@ export function PersonalTab() {
         </div>
 
         {/* Location Selector Pills */}
-        <div className="mt-3.5 pt-3 border-t border-[#D5DEE2] flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-[#5A6A74] flex items-center gap-1.5 uppercase tracking-wide font-['Barlow_Condensed']">
-              <MapPin className="w-3.5 h-3.5 text-[#442dd7]" />
+              <MapPin className="w-3.5 h-3.5 text-[#CD0000]" />
               <span>Ubicación / Sede:</span>
             </span>
 
@@ -1444,7 +1444,7 @@ export function PersonalTab() {
                 onClick={() => setUbicacionFilter('all')}
                 className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                   ubicacionFilter === 'all'
-                    ? 'bg-[#442dd7] text-white shadow-xs'
+                    ? 'bg-[#CD0000] text-white shadow-xs'
                     : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
               >
@@ -1457,7 +1457,7 @@ export function PersonalTab() {
                   onClick={() => setUbicacionFilter(ub)}
                   className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                     ubicacionFilter === ub
-                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      ? 'bg-[#CD0000] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A]'
                   }`}
                 >
@@ -1542,11 +1542,10 @@ export function PersonalTab() {
       ) : (
         <>
           {/* Filter Control Bar - Placed BEFORE KPI Cards */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs" id="filtros-analisis-container">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-2.5">
+          <div className="ht-card bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs" id="filtros-analisis-container">
+        <div className="ht-card-title flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-2.5">
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-indigo-600" />
-            <span className="text-xs font-bold text-slate-800">Filtros de Análisis</span>
+            <span className="ht-title">Filtros de Análisis</span>
             {hasActiveFilters && (
               <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full">
                 Filtros Activos
@@ -1849,29 +1848,29 @@ export function PersonalTab() {
           }}
           className={`bg-white border rounded-xl p-4 shadow-xs hover:shadow-sm transition-all select-none cursor-pointer relative overflow-hidden group ${
             tipoFilter === 'all' && turnoFilter === 'all' && generoFilter === 'all' && empresaFilter === 'all' && frenteFilter === 'all'
-              ? 'border-[#D5DEE2] hover:border-[#442dd7]'
-              : 'border-[#442dd7] bg-[#EEECFB]/20 ring-2 ring-[#442dd7]/30'
+              ? 'border-[#D5DEE2] hover:border-[#CD0000]'
+              : 'border-[#CD0000] bg-[#FBE9E9]/20 ring-2 ring-[#CD0000]/30'
           }`}
           title="Haz clic para ver el total general y limpiar filtros de tarjetas"
         >
           <div className="flex items-center justify-between text-[#5A6A74] mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#5A6A74]">Total Prom. / Día</span>
-            <Users className="w-4 h-4 text-[#442dd7] group-hover:scale-110 transition-transform" />
+            <Users className="w-4 h-4 text-[#CD0000] group-hover:scale-110 transition-transform" />
           </div>
           <div className="text-2xl sm:text-3xl font-['Barlow_Condensed'] font-semibold text-[#14212A] tracking-tight">
             {stats.promDiario.toFixed(1)}
           </div>
           <div className="text-[11px] text-[#5A6A74] mt-1 flex items-center justify-between font-medium">
-            <span className="truncate font-semibold text-[#442dd7]">{stats.mesCorrienteLabel}</span>
+            <span className="truncate font-semibold text-[#CD0000]">{stats.mesCorrienteLabel}</span>
             <span className="text-[#5A6A74] font-mono text-[10px]">{stats.numDiasMes}d</span>
           </div>
           {tipoFilter !== 'all' || turnoFilter !== 'all' || generoFilter !== 'all' || empresaFilter !== 'all' ? (
-            <div className="mt-1.5 pt-1 border-t border-[#D5DEE2] flex items-center justify-between text-[11px] font-bold text-[#442dd7]">
+            <div className="mt-1.5 pt-1 border-t border-[#D5DEE2] flex items-center justify-between text-[11px] font-bold text-[#CD0000]">
               <span>Filtros activos</span>
               <span className="underline">Limpiar ✕</span>
             </div>
           ) : (
-            <div className="mt-1.5 pt-1 border-t border-[#D5DEE2] text-[10px] font-medium text-[#5A6A74] group-hover:text-[#442dd7] flex items-center justify-between">
+            <div className="mt-1.5 pt-1 border-t border-[#D5DEE2] text-[10px] font-medium text-[#5A6A74] group-hover:text-[#CD0000] flex items-center justify-between">
               <span>Acum: {stats.totalPersonal.toLocaleString('en-US')}</span>
               <span>•</span>
             </div>
@@ -1977,14 +1976,14 @@ export function PersonalTab() {
           id="kpi-card-genero"
           className={`border rounded-xl p-4 shadow-xs hover:shadow-sm transition-all select-none relative overflow-hidden group ${
             generoFilter !== 'all'
-              ? 'bg-[#F5F8F9] border-[#442dd7] ring-2 ring-[#442dd7]/30 shadow-xs'
+              ? 'bg-[#F5F8F9] border-[#CD0000] ring-2 ring-[#CD0000]/30 shadow-xs'
               : 'bg-white border-[#D5DEE2] hover:border-slate-300'
           }`}
           title="Haz clic en Hombres o Mujeres para filtrar gráficos y tablas por género"
         >
           <div className="flex items-center justify-between text-[#5A6A74] mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#5A6A74]">Género (Prom. Día)</span>
-            <UserCheck className="w-4 h-4 text-[#442dd7] group-hover:scale-110 transition-transform" />
+            <UserCheck className="w-4 h-4 text-[#CD0000] group-hover:scale-110 transition-transform" />
           </div>
           
           <div className="flex items-center gap-1.5 font-mono my-0.5">
@@ -1997,13 +1996,13 @@ export function PersonalTab() {
               }}
               className={`flex-1 py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border ${
                 generoFilter === 'hombres'
-                  ? 'bg-[#442dd7] text-white font-black border-[#442dd7] shadow-xs'
-                  : 'bg-white hover:bg-[#F5F8F9] text-[#14212A] border-[#D5DEE2] hover:border-[#442dd7]'
+                  ? 'bg-[#CD0000] text-white font-black border-[#CD0000] shadow-xs'
+                  : 'bg-white hover:bg-[#F5F8F9] text-[#14212A] border-[#D5DEE2] hover:border-[#CD0000]'
               }`}
               title="Filtrar solo registros de Hombres"
             >
               <div className="text-xl font-['Barlow_Condensed'] font-semibold leading-tight">{stats.promHombres.toFixed(1)}</div>
-              <div className={`text-[9px] font-bold uppercase ${generoFilter === 'hombres' ? 'text-white' : 'text-[#442dd7]'}`}>
+              <div className={`text-[9px] font-bold uppercase ${generoFilter === 'hombres' ? 'text-white' : 'text-[#CD0000]'}`}>
                 Hombres
               </div>
             </button>
@@ -2030,11 +2029,11 @@ export function PersonalTab() {
           </div>
 
           <div className="text-[10px] text-[#5A6A74] mt-1 flex items-center justify-between font-semibold">
-            <span className="text-[#442dd7]">{stats.pctHombres.toFixed(0)}% H</span>
+            <span className="text-[#CD0000]">{stats.pctHombres.toFixed(0)}% H</span>
             <span className="text-[#B83227]">{stats.pctMujeres.toFixed(0)}% M</span>
           </div>
           {generoFilter !== 'all' && (
-            <div className="mt-1 pt-1 border-t border-[#D5DEE2] flex items-center justify-between text-[10px] font-bold text-[#442dd7]">
+            <div className="mt-1 pt-1 border-t border-[#D5DEE2] flex items-center justify-between text-[10px] font-bold text-[#CD0000]">
               <span>✓ Solo {generoFilter === 'hombres' ? 'Hombres' : 'Mujeres'}</span>
               <button
                 onClick={(e) => {
@@ -2055,7 +2054,7 @@ export function PersonalTab() {
           id="kpi-card-turnos"
           className={`border rounded-xl p-4 shadow-xs hover:shadow-sm transition-all select-none relative overflow-hidden group ${
             turnoFilter !== 'all'
-              ? 'bg-[#F5F8F9] border-[#442dd7] ring-2 ring-[#442dd7]/30 shadow-xs'
+              ? 'bg-[#F5F8F9] border-[#CD0000] ring-2 ring-[#CD0000]/30 shadow-xs'
               : 'bg-white border-[#D5DEE2] hover:border-slate-300'
           }`}
           title="Haz clic en Diurno o Noche para filtrar gráficos y tablas por turno"
@@ -2064,7 +2063,7 @@ export function PersonalTab() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#5A6A74]">Turnos (Prom. Día)</span>
             <div className="flex items-center gap-1">
               <Sun className="w-3.5 h-3.5 text-[#A86B12]" />
-              <Moon className="w-3.5 h-3.5 text-[#442dd7]" />
+              <Moon className="w-3.5 h-3.5 text-[#CD0000]" />
             </div>
           </div>
           
@@ -2098,13 +2097,13 @@ export function PersonalTab() {
               }}
               className={`flex-1 py-1 px-1.5 rounded-lg text-center transition-all cursor-pointer border ${
                 turnoFilter === 'noche'
-                  ? 'bg-[#442dd7] text-white font-black border-[#442dd7] shadow-xs'
-                  : 'bg-white hover:bg-[#F5F8F9] text-[#14212A] border-[#D5DEE2] hover:border-[#442dd7]'
+                  ? 'bg-[#CD0000] text-white font-black border-[#CD0000] shadow-xs'
+                  : 'bg-white hover:bg-[#F5F8F9] text-[#14212A] border-[#D5DEE2] hover:border-[#CD0000]'
               }`}
               title="Filtrar solo registros de Turno Noche"
             >
-              <div className="text-xl font-['Barlow_Condensed'] font-semibold leading-tight text-[#442dd7]">{stats.promNoche.toFixed(1)}</div>
-              <div className={`text-[9px] font-bold uppercase ${turnoFilter === 'noche' ? 'text-white' : 'text-[#442dd7]'}`}>
+              <div className="text-xl font-['Barlow_Condensed'] font-semibold leading-tight text-[#CD0000]">{stats.promNoche.toFixed(1)}</div>
+              <div className={`text-[9px] font-bold uppercase ${turnoFilter === 'noche' ? 'text-white' : 'text-[#CD0000]'}`}>
                 Noche
               </div>
             </button>
@@ -2112,10 +2111,10 @@ export function PersonalTab() {
 
           <div className="text-[10px] text-[#5A6A74] mt-1 flex items-center justify-between font-semibold">
             <span className="text-[#A86B12]">{stats.pctDiurno.toFixed(0)}% Día</span>
-            <span className="text-[#442dd7]">{stats.pctNoche.toFixed(0)}% Noche</span>
+            <span className="text-[#CD0000]">{stats.pctNoche.toFixed(0)}% Noche</span>
           </div>
           {turnoFilter !== 'all' && (
-            <div className="mt-1 pt-1 border-t border-[#D5DEE2] flex items-center justify-between text-[10px] font-bold text-[#442dd7]">
+            <div className="mt-1 pt-1 border-t border-[#D5DEE2] flex items-center justify-between text-[10px] font-bold text-[#CD0000]">
               <span>✓ Solo {turnoFilter === 'diurno' ? 'Diurno' : 'Noche'}</span>
               <button
                 onClick={(e) => {
@@ -2156,8 +2155,8 @@ export function PersonalTab() {
           }}
           className={`rounded-xl p-4 shadow-xs hover:shadow-sm transition-all select-none cursor-pointer relative overflow-hidden group ${
             empresaFilter !== 'all'
-              ? 'bg-[#EEECFB]/40 border-2 border-[#442dd7] ring-2 ring-[#442dd7]/30 shadow-xs scale-[1.01]'
-              : 'bg-white border border-[#D5DEE2] hover:border-[#442dd7] hover:bg-[#F5F8F9]'
+              ? 'bg-[#FBE9E9]/40 border-2 border-[#CD0000] ring-2 ring-[#CD0000]/30 shadow-xs scale-[1.01]'
+              : 'bg-white border border-[#D5DEE2] hover:border-[#CD0000] hover:bg-[#F5F8F9]'
           }`}
           title={
             empresaFilter !== 'all'
@@ -2167,9 +2166,9 @@ export function PersonalTab() {
               : 'Empresas contratistas activas'
           }
         >
-          <div className="flex items-center justify-between text-[#442dd7] mb-1">
+          <div className="flex items-center justify-between text-[#CD0000] mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#5A6A74]">Contratistas</span>
-            <Building2 className="w-4 h-4 text-[#442dd7] group-hover:scale-110 transition-transform" />
+            <Building2 className="w-4 h-4 text-[#CD0000] group-hover:scale-110 transition-transform" />
           </div>
           <div className="text-2xl sm:text-3xl font-['Barlow_Condensed'] font-semibold text-[#14212A] tracking-tight">
             {stats.totalEmpresas}
@@ -2179,12 +2178,12 @@ export function PersonalTab() {
           </div>
           <div className="mt-1.5 pt-1 border-t border-[#D5DEE2] text-[10px] font-bold flex items-center justify-between">
             {empresaFilter !== 'all' ? (
-              <span className="text-[#442dd7] flex items-center gap-1 font-bold truncate">
+              <span className="text-[#CD0000] flex items-center gap-1 font-bold truncate">
                 <span>✓ {empresaFilter.substring(0, 10)}</span>
-                <span className="text-[#442dd7] font-normal underline shrink-0">(✕)</span>
+                <span className="text-[#CD0000] font-normal underline shrink-0">(✕)</span>
               </span>
             ) : stats.topEmpresa ? (
-              <span className="text-[#442dd7] group-hover:underline truncate text-[9px]">
+              <span className="text-[#CD0000] group-hover:underline truncate text-[9px]">
                 Prom: {stats.topEmpresa.promedioDiarioMesCorriente.toFixed(1)}/día ➔
               </span>
             ) : (
@@ -2195,14 +2194,14 @@ export function PersonalTab() {
       </div>
 
       {/* Sub-view Navigation Bar / Selector */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-[#D5DEE2] shadow-xs" id="personal-subview-bar">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#F5F8F9] px-4 py-1.5 rounded-xl border border-[#D5DEE2] shadow-xs" id="personal-subview-bar">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-lg bg-[#EEECFB] text-[#442dd7] shrink-0">
+          <div className="hidden p-2 rounded-lg bg-[#FBE9E9] text-[#CD0000] shrink-0">
             <Layers className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-xs font-['Barlow_Condensed'] font-semibold uppercase tracking-wider text-[#14212A] block">Modo de Visualización de Personal</span>
-            <span className="text-[11px] text-[#5A6A74] font-medium">Selecciona el tipo de informe o análisis operativo</span>
+            <span className="ht-title">Modo de Visualización de Personal</span>
+            <span className="ht-sub"> · Selecciona el tipo de informe o análisis operativo</span>
           </div>
         </div>
 
@@ -2213,7 +2212,7 @@ export function PersonalTab() {
             onClick={() => setActiveSubView('graficos')}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               activeSubView === 'graficos'
-                ? 'bg-[#442dd7] text-white shadow-xs'
+                ? 'bg-[#CD0000] text-white shadow-xs'
                 : 'text-[#5A6A74] hover:text-[#14212A]'
             }`}
           >
@@ -2225,7 +2224,7 @@ export function PersonalTab() {
             onClick={() => setActiveSubView('resumen')}
             className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               activeSubView === 'resumen'
-                ? 'bg-[#442dd7] text-white shadow-xs'
+                ? 'bg-[#CD0000] text-white shadow-xs'
                 : 'text-[#5A6A74] hover:text-[#14212A]'
             }`}
           >
@@ -2389,18 +2388,18 @@ export function PersonalTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4" id="donut-cards-summary-grid">
             {/* Donut 1: Directo vs Indirecto */}
             <div
-              className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-emerald-300 transition-all cursor-pointer group"
+              className="ht-card bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-emerald-300 transition-all cursor-pointer group"
               onClick={() => {
                 setTipoFilter(prev => prev === 'all' ? 'Directo' : prev === 'Directo' ? 'Indirecto' : 'all');
                 setPage(1);
               }}
               title="Haz clic para alternar filtro entre Directo, Indirecto o Todos"
             >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">
+              <div className="ht-card-title flex items-center justify-between mb-2">
+                <h4 className="ht-title text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">
                   Clasificación Operativa
                 </h4>
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">
+                <span className="ht-sub">
                   {stats.mesCorrienteLabel}
                 </span>
               </div>
@@ -2465,18 +2464,18 @@ export function PersonalTab() {
 
             {/* Donut 2: Género Hombres vs Mujeres */}
             <div
-              className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-indigo-300 transition-all cursor-pointer group"
+              className="ht-card bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-indigo-300 transition-all cursor-pointer group"
               onClick={() => {
                 setGeneroFilter(prev => prev === 'all' ? 'hombres' : prev === 'hombres' ? 'mujeres' : 'all');
                 setPage(1);
               }}
               title="Haz clic para alternar filtro entre Hombres, Mujeres o Todos"
             >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-indigo-700 transition-colors">
+              <div className="ht-card-title flex items-center justify-between mb-2">
+                <h4 className="ht-title text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-indigo-700 transition-colors">
                   Distribución por Género
                 </h4>
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">
+                <span className="ht-sub">
                   {stats.mesCorrienteLabel}
                 </span>
               </div>
@@ -2492,7 +2491,7 @@ export function PersonalTab() {
                         cy="50"
                         r="38"
                         fill="none"
-                        stroke="#6366f1"
+                        stroke="#D93030"
                         strokeWidth="18"
                         strokeDasharray={`${stats.pctHombres * 2.387} 238.7`}
                       />
@@ -2541,18 +2540,18 @@ export function PersonalTab() {
 
             {/* Donut 3: Turnos Diurno vs Noche */}
             <div
-              className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-amber-300 transition-all cursor-pointer group"
+              className="ht-card bg-white border border-slate-200 rounded-2xl p-5 shadow-sm text-center hover:border-amber-300 transition-all cursor-pointer group"
               onClick={() => {
                 setTurnoFilter(prev => prev === 'all' ? 'diurno' : prev === 'diurno' ? 'noche' : 'all');
                 setPage(1);
               }}
               title="Haz clic para alternar filtro entre Diurno, Noche o Todos"
             >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-amber-700 transition-colors">
+              <div className="ht-card-title flex items-center justify-between mb-2">
+                <h4 className="ht-title text-xs font-black text-slate-900 uppercase tracking-wider group-hover:text-amber-700 transition-colors">
                   Turnos Operativos
                 </h4>
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">
+                <span className="ht-sub">
                   {stats.mesCorrienteLabel}
                 </span>
               </div>
@@ -2617,10 +2616,10 @@ export function PersonalTab() {
           </div>
 
           {/* Top Frentes de Trabajo */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm transition-all overflow-hidden" id="top-frentes-personal-card">
+          <div className="ht-card bg-white border border-slate-200 rounded-2xl shadow-sm transition-all overflow-hidden" id="top-frentes-personal-card">
             <div
               onClick={() => setIsTopFrentesCollapsed(prev => !prev)}
-              className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-slate-50/70 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
+              className="ht-head p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-slate-50/70 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
               data-open={!isTopFrentesCollapsed}
               role="button"
               tabIndex={0}
@@ -2628,13 +2627,12 @@ export function PersonalTab() {
             >
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                  <HardHat className="w-4 h-4 text-indigo-600" />
-                  <span>Top 10 Frentes con Mayor Concentración de Personal</span>
+                  <span className="ht-title">Top 10 Frentes con Mayor Concentración de Personal</span>
                   <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full ml-1 font-mono">
                     {frentesDistribucion.length}
                   </span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="ht-sub mt-0.5">
                   Promedio diario por frente de trabajo en <strong className="text-indigo-900">{stats.mesCorrienteLabel}</strong> ({stats.numDiasMes} {stats.numDiasMes === 1 ? 'día activo' : 'días activos'}).
                 </p>
               </div>
@@ -2717,10 +2715,10 @@ export function PersonalTab() {
           </div>
 
           {/* Top Actividades de Trabajo */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm transition-all overflow-hidden" id="top-actividades-personal-card">
+          <div className="ht-card bg-white border border-slate-200 rounded-2xl shadow-sm transition-all overflow-hidden" id="top-actividades-personal-card">
             <div
               onClick={() => setIsTopActividadesCollapsed(prev => !prev)}
-              className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-slate-50/70 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
+              className="ht-head p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none hover:bg-slate-50/70 transition-colors border-b border-transparent data-[open=true]:border-slate-100"
               data-open={!isTopActividadesCollapsed}
               role="button"
               tabIndex={0}
@@ -2728,13 +2726,12 @@ export function PersonalTab() {
             >
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-indigo-600" />
-                  <span>Top 20 Actividades con Mayor Concentración de Personal</span>
+                  <span className="ht-title">Top 20 Actividades con Mayor Concentración de Personal</span>
                   <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full ml-1 font-mono">
                     {actividadesDistribucion.length}
                   </span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="ht-sub mt-0.5">
                   Promedio diario por actividad en <strong className="text-indigo-900">{stats.mesCorrienteLabel}</strong> ({stats.numDiasMes} {stats.numDiasMes === 1 ? 'día activo' : 'días activos'}).
                 </p>
               </div>
@@ -2863,14 +2860,13 @@ export function PersonalTab() {
           />
 
           {/* Top 12 Empresas: Stacked Bar Chart */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div className="ht-card bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <div className="ht-card-title flex flex-wrap items-center justify-between gap-2 mb-4">
               <div>
-                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-indigo-600" />
-                  <span>Top 12 Contratistas por Cantidad de Personal (Directo vs Indirecto)</span>
+                <h3 className="flex items-center gap-2">
+                  <span className="ht-title">Top 12 Contratistas por Cantidad de Personal (Directo vs Indirecto)</span>
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="ht-sub">
                   Promedio diario y dotación por empresa en <strong className="text-indigo-900">{stats.mesCorrienteLabel}</strong> clasificada por tipo.
                 </p>
               </div>

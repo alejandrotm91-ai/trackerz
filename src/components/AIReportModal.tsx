@@ -1,7 +1,9 @@
+import { ReporteEstandar } from './ReporteEstandar';
+import { exportarReportePdf } from '../utils/exportReportePdf';
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Sparkles, X, RefreshCw, Copy, Check, Clock, UserCheck, AlertTriangle, ShieldAlert, Calendar, BarChart2, LayoutGrid, Package, ChevronDown, ChevronUp } from 'lucide-react';
-import { AIReportData } from '../utils/firebaseSync';
+import { Download, Sparkles, X, RefreshCw, Copy, Check, Clock, UserCheck, AlertTriangle, ShieldAlert, Calendar, BarChart2, LayoutGrid, Package, ChevronDown, ChevronUp } from 'lucide-react';
+import { AIReportData } from '../utils/cloudSync';
 
 interface AIReportModalProps {
   isOpen: boolean;
@@ -21,7 +23,7 @@ function preprocessMarkdownText(markdown?: string): string {
   text = text.replace(/\s*\|\|\s*/g, '\n| ');
 
   // 2. Fix cases where header alignment row is glued to the first data row
-  text = text.replace(/(\|\s*:?-+:?\s*\|)\s*(\|\s*[*_a-zA-Z0-9])/g, '$1\n$2');
+  text = text.replace(/(\|\s*:?-+:?\s*\|)\s*(\|\s*[*_a-zA-Z0-9])/g, '1\n2');
 
   const rawLines = text.split('\n');
   const resultLines: string[] = [];
@@ -205,7 +207,7 @@ function CompactTipologiaCards({ headers, rows }: { headers: string[]; rows: str
                       : 'text-slate-700'
                   }`}
                 >
-                  {varEcon || '$0.00'}
+                  {varEcon || '0.00'}
                 </span>
               </div>
             </div>
@@ -641,14 +643,14 @@ function PowerBIHorizontalBarChart({
                 >
                   {pct > 22 && (
                     <span className="text-white font-sans font-bold text-[10px] tracking-tight whitespace-nowrap pr-1">
-                      {item.formattedValue || (isNeg ? `-$${absVal.toLocaleString()}` : `$${item.value.toLocaleString()}`)}
+                      {item.formattedValue || (isNeg ? `-${absVal.toLocaleString()}` : `${item.value.toLocaleString()}`)}
                     </span>
                   )}
                 </div>
 
                 {pct <= 22 && (
                   <span className="ml-2 font-sans font-bold text-[10px] text-slate-700 whitespace-nowrap">
-                    {item.formattedValue || (isNeg ? `-$${absVal.toLocaleString()}` : `$${item.value.toLocaleString()}`)}
+                    {item.formattedValue || (isNeg ? `-${absVal.toLocaleString()}` : `${item.value.toLocaleString()}`)}
                   </span>
                 )}
 
@@ -1181,6 +1183,34 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
   isGenerating
 }) => {
   const [copied, setCopied] = React.useState(false);
+  const [exportando, setExportando] = React.useState(false);
+  const pdfRef = React.useRef<HTMLDivElement>(null);
+
+  // El PDF se arma desde una copia oculta del reporte con ancho fijo (A4)
+  React.useEffect(() => {
+    if (!exportando || !report?.reporte) return;
+    const r = report.reporte;
+    let cancelado = false;
+    (async () => {
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      if (cancelado || !pdfRef.current) return;
+      try {
+        const fecha = new Date(report.updatedAt);
+        const sello = isNaN(fecha.getTime()) ? '' : fecha.toISOString().slice(0, 10);
+        await exportarReportePdf(pdfRef.current, {
+          archivo: `Reporte_Inteligencia_${sello || 'trackerz'}.pdf`,
+          titulo: 'Reporte de Inteligencia · Cronograma',
+          subtitulo: `Fecha de corte: ${r.datos.fechaCorte} · Generado: ${isNaN(fecha.getTime()) ? '' : fecha.toLocaleDateString('es-ES')}`,
+        });
+      } catch (e: any) {
+        console.error('Error al exportar el PDF:', e);
+        alert(`No se pudo exportar el PDF: ${e?.message || e}`);
+      } finally {
+        if (!cancelado) setExportando(false);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [exportando, report]);
 
   if (!isOpen) return null;
 
@@ -1210,7 +1240,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
         
         {/* HEADER */}
         <div className="px-6 py-4 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white flex items-center justify-between shrink-0">
@@ -1222,11 +1252,11 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 Reporte de Inteligencia Artificial - Cronograma
                 <span className="text-[10px] bg-indigo-500/30 text-indigo-200 font-semibold px-2 py-0.5 rounded-full border border-indigo-400/20">
-                  Gemini 3.6 Flash
+                  {report?.reporte ? 'Claude Sonnet 5.5' : 'IA'}
                 </span>
               </h2>
               <p className="text-xs text-indigo-200/80">
-                Análisis por áreas, retraso económico por tipología (variación {'>'} $10k USD) y proyección
+                Reporte estándar: resumen, retraso económico, atrasos, próximas 4 semanas, equipos y recomendaciones
               </p>
             </div>
           </div>
@@ -1254,7 +1284,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
                 {report.summary.totalItemsCriticos10k !== undefined && report.summary.totalItemsCriticos10k > 0 && (
                   <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3 text-amber-600" />
-                    {report.summary.totalItemsCriticos10k} Partidas Desv. {'>'} $10k USD
+                    {report.summary.totalItemsCriticos10k} Partidas Desv. {'>'} 10k USD
                   </span>
                 )}
                 <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md border border-rose-200 flex items-center gap-1">
@@ -1279,12 +1309,14 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
                 <Sparkles className="w-6 h-6 text-indigo-600 absolute inset-0 m-auto" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-bold text-slate-800">Analizando Cronograma de Obra por Áreas...</h3>
+                <h3 className="text-base font-bold text-slate-800">Generando el reporte estándar…</h3>
                 <p className="text-xs text-slate-500 max-w-md">
-                  Gemini AI está procesando las actividades retrasadas, evaluando holguras y consolidando las tareas de las próximas 4 semanas.
+                  La app ya calculó las cifras. Claude está escribiendo el análisis y comparándolo con el reporte anterior; puede tardar uno o dos minutos.
                 </p>
               </div>
             </div>
+          ) : report?.reporte ? (
+            <ReporteEstandar reporte={report.reporte} />
           ) : report ? (() => {
             const processed = preprocessMarkdownText(report.markdown);
             const { mainMarkdown, scapMarkdown, scapTitle } = splitScapSection(processed);
@@ -1310,7 +1342,7 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
               <h3 className="text-base font-bold text-slate-800">Sin Reporte Generado Aún</h3>
               <p className="text-xs text-slate-500 max-w-md">
                 {isAdmin
-                  ? 'Aún no se ha creado un reporte de Inteligencia Artificial para este cronograma. Haz clic en el botón inferior para realizar el primer análisis por área con Gemini AI.'
+                  ? 'Aún no se ha creado un reporte de Inteligencia Artificial para este cronograma. Haz clic en el botón inferior para realizar el primer análisis por área con IA.'
                   : 'El administrador de la obra aún no ha generado el reporte de Inteligencia Artificial. Cuando sea actualizado por el administrador, podrás consultar la información en esta pantalla.'}
               </p>
               {isAdmin && (
@@ -1326,6 +1358,14 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
           )}
         </div>
 
+        {exportando && report?.reporte && (
+          <div aria-hidden style={{ position: 'fixed', left: -12000, top: 0, width: 900, background: '#ffffff', pointerEvents: 'none' }}>
+            <div ref={pdfRef} className="reporte-pdf" style={{ width: 900, padding: 0, background: '#ffffff' }}>
+              <ReporteEstandar reporte={report.reporte} paraPdf />
+            </div>
+          </div>
+        )}
+
         {/* FOOTER */}
         <div className="px-6 py-3.5 bg-slate-100 border-t border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
@@ -1337,6 +1377,16 @@ export const AIReportModal: React.FC<AIReportModalProps> = ({
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
                 <span>{copied ? '¡Copiado!' : 'Copiar Texto'}</span>
+              </button>
+            )}
+            {report?.reporte && (
+              <button
+                onClick={() => setExportando(true)}
+                disabled={isGenerating || exportando}
+                className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Download className={`w-3.5 h-3.5 text-slate-500 ${exportando ? 'animate-pulse' : ''}`} />
+                <span>{exportando ? 'Generando PDF…' : 'Exportar PDF (A4)'}</span>
               </button>
             )}
           </div>
