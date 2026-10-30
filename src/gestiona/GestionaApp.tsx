@@ -744,7 +744,7 @@ export default function GestionaApp({ esAdmin }: { esAdmin: boolean }) {
       />
 
       {/* Main Workspace Canvas */}
-      <main className={`flex-1 p-3 sm:p-4 lg:p-6 w-full mx-auto overflow-x-auto no-scrollbar-x bg-slate-100 transition-all duration-200 ${
+      <main className={`flex-1 p-3 sm:p-4 w-full mx-auto overflow-x-auto no-scrollbar-x bg-[#E9EEF1] transition-all duration-200 ${
         currentWorkspace === 'construccion'
           ? "max-w-[1850px]"
           : "max-w-7xl"
