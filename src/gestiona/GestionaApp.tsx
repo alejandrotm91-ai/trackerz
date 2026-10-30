@@ -704,7 +704,10 @@ export default function GestionaApp({ esAdmin }: { esAdmin: boolean }) {
   };
 
   return (
-    <div className="gestiona-app bg-slate-100 text-slate-900 flex flex-col font-sans rounded-xl border border-[#D5DEE2] overflow-hidden">
+    <div className={`gestiona-app bg-slate-100 text-slate-900 flex flex-col font-sans rounded-xl border border-[#D5DEE2] overflow-hidden ${
+      // Construcción (6 fases) usa el ancho de la ventana, hasta 1850 px; Equipamiento, el de Trakciona
+      currentWorkspace === 'construccion' ? 'relative left-1/2 -translate-x-1/2 w-[min(calc(100vw-48px),1850px)] max-w-none' : ''
+    }`}>
       {/* Barra de Trakciona: estado de sincronización, permisos e importación */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5 bg-white border-b border-[#D5DEE2] text-[11px] text-[#5A6A74]">
         <span>
@@ -744,7 +747,7 @@ export default function GestionaApp({ esAdmin }: { esAdmin: boolean }) {
       />
 
       {/* Main Workspace Canvas */}
-      <main className={`flex-1 p-3 sm:p-4 w-full mx-auto overflow-x-auto no-scrollbar-x bg-[#E9EEF1] transition-all duration-200 ${
+      <main className={`flex-1 w-full mx-auto overflow-x-auto no-scrollbar-x transition-all duration-200 ${currentWorkspace === 'construccion' ? 'p-3 sm:p-4 bg-[#E9EEF1]' : 'p-3 sm:p-4 lg:p-6 bg-slate-100'} ${
         currentWorkspace === 'construccion'
           ? "max-w-[1850px]"
           : "max-w-7xl"

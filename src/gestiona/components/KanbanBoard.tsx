@@ -213,6 +213,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onToggleTimer,
   activeTimerActivityId,
 }) => {
+  const esConstruccion = currentWorkspace === 'construccion';
   const canEdit = canUserEdit(currentMember);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedResponsible, setSelectedResponsible] = useState<string>("all");
@@ -807,7 +808,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
       </div>
 
-      {/* Kanban Board Columns Grid (Phases) */}
+      {/* Kanban Board Columns Grid (Phases). Construcción (6 fases) usa columnas más separadas y sin ancho mínimo. */}
       <div 
         className={`grid grid-cols-1 md:grid-cols-2 ${
           columns.length === 3
@@ -819,7 +820,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             : columns.length >= 6
             ? "lg:grid-cols-3 xl:grid-cols-6"
             : "lg:grid-cols-3"
-        } gap-4 flex-1 items-start`}
+        } ${esConstruccion ? "gap-4" : "gap-3"} flex-1 items-start`}
       >
         {columns.map((col, colIdx) => {
           const colActivities = activitiesByPhase[col.id] || [];
@@ -829,8 +830,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               onDragOver={(e) => handleColumnDragOver(e, col.id)}
               onDragLeave={(e) => handleColumnDragLeave(e, col.id)}
               onDrop={(e) => handleColumnDrop(e, col.id)}
-              className={`bg-[#F7F9FA] border rounded-lg p-2.5 flex flex-col min-h-[520px] max-h-[calc(100vh-200px)] shadow-xs border-t-3 transition-colors min-w-0 ${
-                dragOverColumn === col.id ? "border-blue-400 bg-blue-50/20" : "border-[#D5DEE2]"
+              className={`border rounded-lg flex flex-col min-h-[520px] max-h-[calc(100vh-200px)] border-t-3 transition-colors ${
+                esConstruccion
+                  ? "bg-[#F7F9FA] p-2.5 shadow-xs min-w-0"
+                  : "bg-slate-100/70 p-3 shadow-2xs min-w-[220px]"
+              } ${
+                dragOverColumn === col.id ? "border-blue-400 bg-blue-50/20" : esConstruccion ? "border-[#D5DEE2]" : "border-slate-200"
               } ${col.borderTop}`}
             >
               {/* Column Header */}

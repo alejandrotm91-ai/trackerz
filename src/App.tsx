@@ -2075,10 +2075,7 @@ export default function App() {
           {/* Gestiona: actividades y reuniones de obra. Se monta solo mientras la pestaña está abierta. */}
           {pc.activeTab === 'gestiona' && (
             <React.Suspense fallback={<div className="py-16 text-center text-xs text-[#5A6A74]">Cargando Gestiona…</div>}>
-              {/* Gestiona usa todo el ancho de la ventana (hasta 1850 px), no solo el de Trakciona */}
-              <div className="relative left-1/2 -translate-x-1/2 w-[min(calc(100vw-48px),1850px)] max-w-none">
-                <GestionaApp esAdmin={isAdmin} />
-              </div>
+              <GestionaApp esAdmin={isAdmin} />
             </React.Suspense>
           )}
 
