@@ -11,7 +11,7 @@ App React + Vite (carpeta `src/`) servida desde Cloudflare Workers. Todo corre e
 - `src/db/` — esquema Drizzle (SQLite/D1) y consultas. Migraciones en `migrations/`.
 - `wrangler.jsonc` — configuración de Cloudflare (este proyecto usa Wrangler, no `cf` directo).
 - `scripts-legacy/` — scripts sueltos que dejó Google AI Studio. No se usan.
-- `src/gestiona/` — pestaña Gestiona (actividades y reuniones de obra), traída del repo `alejandrotm91-ai/gestiona` sin Firebase ni IA. Datos en D1 (`gestiona_docs`, un JSON por registro y colección) vía `src/worker/gestiona.ts` (`/api/gestiona`). Todos consultan; solo el admin modifica (`canUserEdit` → `getPuedeEscribir`). La pestaña relee los datos cada 15 s. El admin puede importar un respaldo JSON `{coleccion: [registros]}`; importar reemplaza los registros con el mismo id.
+- `src/gestiona/` — pestaña Gestiona (actividades y reuniones de obra), traída del repo `alejandrotm91-ai/gestiona` sin Firebase ni IA. Datos en D1 (`gestiona_docs`, un JSON por registro y colección) vía `src/worker/gestiona.ts` (`/api/gestiona`). Todos consultan; solo el admin modifica (`canUserEdit` → `getPuedeEscribir`). La pestaña relee los datos cada 15 s. Los datos se importaron una vez desde Firebase (30/10/2026); ya no hay importación.
 
 ## Comandos
 - `npm run dev` — compila y corre todo local (Worker + D1 simulada) en http://localhost:8787. Requiere `.dev.vars` (copiar de `.dev.vars.example`) y `npm run db:migrate:local` la primera vez.

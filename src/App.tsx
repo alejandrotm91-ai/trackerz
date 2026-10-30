@@ -1894,15 +1894,16 @@ export default function App() {
 
 
             {/* Tab Selection */}
-            <div className="flex flex-col md:flex-row justify-center relative min-h-[46px] items-center gap-3">
-              {/* Botones a la izquierda: en línea con el toggle y debajo del título Trakciona */}
-              <div className="md:absolute left-0 mt-3 md:mt-0 flex items-center gap-2 justify-start">
+            {/* Tres columnas en pantallas anchas (botones | pestañas | Master); en estrechas, se reparten en líneas sin montarse */}
+            <div className="flex flex-wrap justify-center items-center gap-3 min-h-[46px] xl:grid xl:grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)]">
+              {/* Botones a la izquierda (Cronograma) */}
+              <div className="flex items-center gap-2 justify-start xl:justify-self-start">
                 {pc.activeTab === 'cronograma' && (
                   <div className="flex items-center gap-2 relative" ref={aiMenuRef}>
                     <button
                       id="btn-crono-avance-partidas"
                       onClick={() => setShowAvancePartidasModal(true)}
-                      className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#5A6A74] hover:bg-[#45535C] text-white border-[#5A6A74] shadow-xs transition-all active:scale-95 cursor-pointer"
+                      className="whitespace-nowrap px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#5A6A74] hover:bg-[#45535C] text-white border-[#5A6A74] shadow-xs transition-all active:scale-95 cursor-pointer"
                       title="Abrir panel de Avance de Partidas Estructurales y Resumen Económico"
                     >
                       <Layers className="w-3.5 h-3.5 text-[#E2E8EC]" />
@@ -1913,7 +1914,7 @@ export default function App() {
                       <button
                         id="btn-gemini-crono-intel"
                         onClick={() => setShowAIReportMenu(!showAIReportMenu)}
-                        className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#5B21B6] hover:bg-[#4C1D95] text-white border-[#5B21B6] shadow-xs transition-all active:scale-95 cursor-pointer"
+                        className="whitespace-nowrap px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#5B21B6] hover:bg-[#4C1D95] text-white border-[#5B21B6] shadow-xs transition-all active:scale-95 cursor-pointer"
                         title="Generar y consultar reporte de inteligencia artificial por área"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
@@ -2020,7 +2021,7 @@ export default function App() {
               </div>
 
               {/* Controles a la derecha: debajo de Cerrar Sesión */}
-              <div className="md:absolute right-0 mt-3 md:mt-0 flex items-center gap-2 justify-end">
+              <div className="flex items-center gap-2 justify-end xl:justify-self-end">
                 {/* Botón separado de Master ubicado a la derecha del toggle, en línea y debajo de Cerrar Sesión */}
                 <button
                   id="tab-selector-master"

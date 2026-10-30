@@ -4,7 +4,6 @@ import {
   cargarTodo,
   alCambiar,
   setPuedeEscribir,
-  importarRespaldo,
   saveActivityToCloud, 
   deleteActivityFromCloud, 
   saveMemberToCloud, 
@@ -281,25 +280,6 @@ export default function GestionaApp({ esAdmin }: { esAdmin: boolean }) {
     }, 15000);
     return () => { quitar(); window.clearInterval(intervalo); };
   }, [recargar]);
-
-  // Importar respaldo (solo admin)
-  const archivoRef = useRef<HTMLInputElement>(null);
-  const [importando, setImportando] = useState(false);
-  const handleImportar = async (archivo: File) => {
-    setImportando(true);
-    try {
-      const respaldo = JSON.parse(await archivo.text());
-      const r = await importarRespaldo(respaldo);
-      const resumen = Object.entries(r.conteo).map(([k, v]) => `${k}: ${v}`).join("\n");
-      alert(`Respaldo importado.\n\n${resumen}${r.omitidos.length ? `\n\nOmitidos: ${r.omitidos.length}` : ''}`);
-      await recargar();
-    } catch (e: any) {
-      alert("No se pudo importar el respaldo: " + (e?.message || e));
-    } finally {
-      setImportando(false);
-      if (archivoRef.current) archivoRef.current.value = '';
-    }
-  };
 
   // 2. Active Stopwatch Timer tick
   useEffect(() => {
@@ -731,21 +711,10 @@ export default function GestionaApp({ esAdmin }: { esAdmin: boolean }) {
           {esAdmin ? 'Edición habilitada (admin)' : 'Modo consulta: solo el admin puede modificar'}
           {ultimaLectura && <> · actualizado {ultimaLectura.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</>}
         </span>
-        {esAdmin && (
-          <>
-            <input ref={archivoRef} type="file" accept="application/json,.json" className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportar(f); }} />
-            <button type="button" disabled={importando} onClick={() => archivoRef.current?.click()}
-              className="px-2.5 py-1 rounded-md border border-[#C7CBEF] bg-[#EEF0FB] text-[#312E81] font-semibold hover:bg-[#E0E3F7] disabled:opacity-50 cursor-pointer">
-              {importando ? 'Importando…' : 'Importar respaldo (.json)'}
-            </button>
-          </>
-        )}
       </div>
       {datosVacios && (
         <div className="m-4 p-4 rounded-xl border border-dashed border-[#C7CBEF] bg-white text-sm text-[#14212A]">
-          Gestiona todavía no tiene datos en Trakciona.
-          {esAdmin ? ' Usa “Importar respaldo (.json)” para cargar el respaldo exportado de Gestiona.' : ' El administrador debe importar el respaldo.'}
+          Gestiona todavía no tiene actividades.
         </div>
       )}
       {/* Top Application Header */}

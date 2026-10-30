@@ -136,15 +136,3 @@ export async function deleteNotificationFromCloud(notificationId: string): Promi
 export async function clearAllNotificationsFromCloud(notificationIds: string[]): Promise<void> {
   for (const id of notificationIds || []) await borrar(COLLECTIONS.NOTIFICATIONS, id);
 }
-
-/** Importa un respaldo { coleccion: [registros] } (solo admin). */
-export async function importarRespaldo(respaldo: unknown): Promise<{ conteo: Record<string, number>; omitidos: string[] }> {
-  const res = await apiFetch("/api/gestiona/importar", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(respaldo),
-  });
-  const r = await res.json();
-  avisarCambio();
-  return r;
-}

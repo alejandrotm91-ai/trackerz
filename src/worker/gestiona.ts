@@ -15,7 +15,6 @@ const COLECCIONES = new Set([
 ]);
 const ID_RE = /^[A-Za-z0-9_.:@ -]{1,160}$/;
 const MAX_DOC_CHARS = 900_000;
-const LOTE = 50; // sentencias por lote de D1
 
 export const gestionaRoutes = new Hono<AppEnv>();
 
@@ -54,32 +53,4 @@ gestionaRoutes.delete("/:col/:id", requireAdmin, async (c) => {
   if (invalido(col, id)) return c.json({ error: "Parámetros inválidos." }, 400);
   await c.env.DB.prepare("DELETE FROM gestiona_docs WHERE coleccion = ? AND id = ?").bind(col, id).run();
   return c.json({ ok: true });
-});
-
-// Importar un respaldo { coleccion: [registros...] }. Agrega o reemplaza por id; no borra nada.
-gestionaRoutes.post("/importar", requireAdmin, async (c) => {
-  const cuerpo = await c.req.json<Record<string, unknown>>().catch(() => null);
-  if (!cuerpo || typeof cuerpo !== "object") return c.json({ error: "Respaldo inválido." }, 400);
-  const ahora = new Date().toISOString();
-  const sentencias: D1PreparedStatement[] = [];
-  const conteo: Record<string, number> = {};
-  const omitidos: string[] = [];
-  for (const [col, lista] of Object.entries(cuerpo)) {
-    if (!COLECCIONES.has(col) || !Array.isArray(lista)) continue;
-    conteo[col] = 0;
-    for (const reg of lista) {
-      if (!reg || typeof reg !== "object") continue;
-      const { _id, ...datos } = reg as Record<string, unknown>;
-      const id = String((datos as any).id ?? _id ?? "");
-      const texto = JSON.stringify(datos);
-      if (!ID_RE.test(id) || texto.length > MAX_DOC_CHARS) { omitidos.push(`${col}/${id || "(sin id)"}`); continue; }
-      sentencias.push(
-        c.env.DB.prepare("INSERT OR REPLACE INTO gestiona_docs (coleccion, id, data, updated_at) VALUES (?, ?, ?, ?)")
-          .bind(col, id, texto, ahora)
-      );
-      conteo[col]++;
-    }
-  }
-  for (let i = 0; i < sentencias.length; i += LOTE) await c.env.DB.batch(sentencias.slice(i, i + LOTE));
-  return c.json({ ok: true, conteo, omitidos });
 });
