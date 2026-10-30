@@ -47,7 +47,10 @@ export default function App() {
 
   // Al abrir la app, recuperar la sesión si la cookie sigue vigente
   React.useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'same-origin' })
+    // Si la red retiene la respuesta (p. ej. un filtro corporativo), no quedarse en blanco: a los 8 s se muestra el inicio de sesión
+    const control = new AbortController();
+    const limite = window.setTimeout(() => control.abort(), 8000);
+    fetch('/api/auth/me', { credentials: 'same-origin', signal: control.signal })
       .then(res => (res.ok ? res.json() : null))
       .then(user => {
         if (user) {
@@ -57,7 +60,7 @@ export default function App() {
         }
       })
       .catch(() => {})
-      .finally(() => setIsCheckingSession(false));
+      .finally(() => { window.clearTimeout(limite); setIsCheckingSession(false); });
 
     const onExpired = () => {
       setIsLoggedIn(false);
@@ -65,7 +68,7 @@ export default function App() {
       setLoginError('Su sesión venció. Vuelva a iniciar sesión.');
     };
     window.addEventListener('trackerz:session-expired', onExpired);
-    return () => window.removeEventListener('trackerz:session-expired', onExpired);
+    return () => { window.clearTimeout(limite); window.removeEventListener('trackerz:session-expired', onExpired); };
   }, []);
 
   // States for Admin verification of Sincronizacion/Actualizacion Nube and Cargar Otro Archivo
@@ -928,10 +931,13 @@ export default function App() {
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
+    const control = new AbortController();
+    const limite = window.setTimeout(() => control.abort(), 20000);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         credentials: 'same-origin',
+        signal: control.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password }),
       });
@@ -945,9 +951,14 @@ export default function App() {
       setPassword('');
       setLoginError('');
       setIsLoggedIn(true);
-    } catch {
-      setLoginError('No se pudo conectar con el servidor.');
+    } catch (err) {
+      setLoginError(
+        (err as Error)?.name === 'AbortError'
+          ? 'El servidor no respondió a tiempo. Puede que la red (p. ej. un filtro corporativo) esté bloqueando la conexión.'
+          : 'No se pudo conectar con el servidor.'
+      );
     } finally {
+      window.clearTimeout(limite);
       setIsLoggingIn(false);
     }
   };
@@ -987,7 +998,12 @@ export default function App() {
 
   // Mientras se comprueba si hay una sesión abierta, no mostrar nada.
   if (isCheckingSession) {
-    return <div className="min-h-screen bg-slate-50/50" />;
+    return (
+      <div className="min-h-screen bg-slate-50/50 flex flex-col items-center justify-center gap-3">
+        <LogoHoja className="h-12 animate-pulse" />
+        <span className="text-xs text-[#5A6A74]">Conectando…</span>
+      </div>
+    );
   }
 
   // If not logged in, show custom elegant Landing login page.
