@@ -212,7 +212,7 @@ export const MultiSelectMonthDropdown: React.FC<MultiSelectMonthDropdownProps> =
 
       {/* Popover Menu */}
       {isOpen && (
-        <div className="ht-dd absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 min-w-[250px]">
+        <div className="ht-dd absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 min-w-[300px]">
           {/* Header & Quick Search */}
           <div className="p-2 border-b border-slate-100 bg-slate-50/80 space-y-1.5">
             <div className="relative">

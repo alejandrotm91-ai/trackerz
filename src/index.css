@@ -435,3 +435,27 @@ kbd {
 /* PDF del reporte de Inteligencia: la fuente web de los títulos no se incrusta en la imagen,
    así que se usa una condensada del sistema y el título no se parte */
 .reporte-pdf [class*="Barlow"] { font-family: "Arial Narrow", "Helvetica Neue", Arial, sans-serif !important; white-space: nowrap; }
+
+/* Tarjetas con un desplegable abierto: el panel sale por encima del contenido en vez de quedar recortado */
+.ht-theme .ht-card:has(.ht-dd) { overflow: visible; position: relative; z-index: 40; }
+.ht-theme .ht-card:has(.ht-dd) > :is(.ht-card-title, .ht-head) { border-radius: 11px 11px 0 0; }
+/* botones de los paneles: sin partir el texto ("Todo", "Limpiar", "Colapsar") */
+.ht-theme .ht-dd button { white-space: nowrap; }
+
+/* Personal · Filtros de análisis: los seis controles con la misma altura */
+.ht-theme #filtros-analisis-container :is(.ht-trigger, select, input[type="text"]) {
+  height: 28px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ht-fg);
+  background-color: var(--ht-bg);
+  border: 1px solid var(--ht-line);
+  border-radius: 8px;
+  box-shadow: none;
+  --tw-ring-shadow: 0 0 #0000;
+}
+.ht-theme #filtros-analisis-container input[type="text"] { padding-left: 28px; }
+.ht-theme #filtros-analisis-container input[type="text"] + svg { top: 7px; }
+.ht-theme #filtros-analisis-container > div:last-child > div { min-width: 0; }

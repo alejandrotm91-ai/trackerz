@@ -351,7 +351,7 @@ export const CollapsibleHierarchyDropdown: React.FC<CollapsibleHierarchyDropdown
 
       {/* Dropdown Menu Popover */}
       {isOpen && (
-        <div className="ht-dd absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 min-w-[260px]">
+        <div className="ht-dd absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 min-w-[300px]">
           {/* Header & Quick Search */}
           <div className="p-2 border-b border-slate-100 bg-slate-50/80 space-y-1.5">
             <div className="relative">
@@ -376,7 +376,7 @@ export const CollapsibleHierarchyDropdown: React.FC<CollapsibleHierarchyDropdown
             </div>
 
             {/* Quick Actions (Select all / Clear / Expand all) */}
-            <div className="flex items-center justify-between px-1 text-[10px] text-slate-500 font-medium">
+            <div className="flex flex-wrap items-center justify-between gap-1 px-1 text-[10px] text-slate-500 font-medium">
               <div className="flex items-center gap-1.5">
                 {isMultiSelect ? (
                   <>
