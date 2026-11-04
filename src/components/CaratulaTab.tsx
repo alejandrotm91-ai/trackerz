@@ -15,6 +15,8 @@ import { exportCaratulaToPdfA3 } from '../utils/exportCaratulaPdf';
 
 interface CaratulaTabProps {
   actividades: Actividad[];
+  /** Admin: puede ocultar columnas de Avance por Componente */
+  esAdmin?: boolean;
   stats: any;
   baseVenta?: string;
   periodoSeleccionado?: any;
@@ -186,6 +188,7 @@ const DialGauge: React.FC<{
 
 export const CaratulaTab: React.FC<CaratulaTabProps> = ({
   actividades,
+  esAdmin = false,
   stats,
   baseVenta = 'reformulada',
   datosCurvaAvance,
@@ -833,6 +836,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
               dataPlanificadoPG004={dataPlanificadoPG004}
               baseVenta={baseVenta}
               soloTablaYSemana={true}
+              esAdmin={esAdmin}
             />
           </MacWindow>
 

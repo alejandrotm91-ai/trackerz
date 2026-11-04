@@ -2044,6 +2044,7 @@ export default function App() {
           {visitedTabs.has('caratula') && (
             <div id="tab-resumen-wrapper" className="ht-theme" style={{ display: pc.activeTab === 'caratula' ? 'block' : 'none' }}>
               <CaratulaTab
+                esAdmin={isAdmin}
                 actividades={pc.actividades}
                 stats={pc.stats}
                 baseVenta={pc.baseVenta}

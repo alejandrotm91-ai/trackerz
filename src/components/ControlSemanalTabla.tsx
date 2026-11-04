@@ -13,6 +13,8 @@ export interface ControlSemanalTablaProps {
   dataPlanificadoPG004?: any;
   baseVenta?: string;
   soloTablaYSemana?: boolean;
+  /** Admin: puede ocultar columnas de "Avance por Componente" (solo en esta sesión). */
+  esAdmin?: boolean;
   defaultCollapsed?: boolean;
   modoEVInicial?: boolean;
 }
@@ -174,6 +176,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   dataPlanificadoPG004,
   baseVenta = 'venta',
   soloTablaYSemana = false,
+  esAdmin = false,
   defaultCollapsed,
   modoEVInicial = false,
 }) => {
@@ -228,6 +231,13 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
   const [searchQuery, setSearchQuery] = React.useState<string>('');
   const [filterCheckSet, setFilterCheckSet] = React.useState<'all' | 'retraso' | 'adelanto' | 'en_plazo'>('all');
   const [modoPorcentaje, setModoPorcentaje] = React.useState<'total' | 'ponderado'>('total');
+  // Avance por Componente (Resumen): columnas que el admin oculta de forma provisional (no se guarda)
+  const [colsOcultas, setColsOcultas] = React.useState<Set<string>>(new Set());
+  const [menuColsAbierto, setMenuColsAbierto] = React.useState(false);
+  const verCol = (k: string) => !soloTablaYSemana || !colsOcultas.has(k);
+  // Sin V.Plan ni %Plan, la variación mide lo que falta por ejecutar:
+  //  Total → (V.Contrato − V.Ejec) / V.Contrato del Master sin filtros · Pond. → 100% − %Ejec
+  const variacionSinPlan = soloTablaYSemana && colsOcultas.has('plan') && colsOcultas.has('pctPlan');
   const [isCardCollapsed, setIsCardCollapsed] = React.useState<boolean>(
     defaultCollapsed !== undefined ? defaultCollapsed : (soloTablaYSemana ? false : true)
   );
@@ -1819,13 +1829,21 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
           const compBasePctA = modoPorcentaje === 'ponderado'
             ? (compUnfilteredContratoA > 0 ? compUnfilteredContratoA : (totA.contrato > 0 ? totA.contrato : 0))
             : totalVContratoUnfiltered;
-          const pctDesvA = compBasePctA > 0 ? ((totA.ejec - totA.plan) / compBasePctA) * 100 : 0;
+          const pctDesvA = variacionSinPlan
+            ? (modoPorcentaje === 'ponderado'
+                ? 100 - (compBasePctA > 0 ? (totA.ejec / compBasePctA) * 100 : 0)
+                : (totalVContratoUnfiltered > 0 ? ((totA.contrato - totA.ejec) / totalVContratoUnfiltered) * 100 : 0))
+            : compBasePctA > 0 ? ((totA.ejec - totA.plan) / compBasePctA) * 100 : 0;
 
           const compUnfilteredContratoB = totalVContratoByComponentUnfiltered.get(keyB) || 0;
           const compBasePctB = modoPorcentaje === 'ponderado'
             ? (compUnfilteredContratoB > 0 ? compUnfilteredContratoB : (totB.contrato > 0 ? totB.contrato : 0))
             : totalVContratoUnfiltered;
-          const pctDesvB = compBasePctB > 0 ? ((totB.ejec - totB.plan) / compBasePctB) * 100 : 0;
+          const pctDesvB = variacionSinPlan
+            ? (modoPorcentaje === 'ponderado'
+                ? 100 - (compBasePctB > 0 ? (totB.ejec / compBasePctB) * 100 : 0)
+                : (totalVContratoUnfiltered > 0 ? ((totB.contrato - totB.ejec) / totalVContratoUnfiltered) * 100 : 0))
+            : compBasePctB > 0 ? ((totB.ejec - totB.plan) / compBasePctB) * 100 : 0;
           diff = pctDesvA - pctDesvB;
         } else {
           diff = totA.desv - totB.desv;
@@ -1854,7 +1872,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
     }
 
     return sortDirection === 'asc' ? diff : -diff;
-  }, [sortColumn, sortDirection, tot, soloTablaYSemana, totalVContratoByComponentUnfiltered, totalVContratoUnfiltered, modoPorcentaje, getAccumulatedCheckSet]);
+  }, [sortColumn, sortDirection, tot, soloTablaYSemana, totalVContratoByComponentUnfiltered, totalVContratoUnfiltered, modoPorcentaje, getAccumulatedCheckSet, variacionSinPlan]);
 
   const compareLeafItems = React.useCallback((itemA: any, itemB: any) => {
     let diff = 0;
@@ -3280,6 +3298,57 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
               </div>
             )}
 
+
+            {/* Columnas visibles (solo admin; provisional, no se guarda) */}
+            {soloTablaYSemana && esAdmin && (
+              <div className="flex flex-col gap-1 shrink-0 relative" id="contenedor-columnas-componente">
+                <label className="block text-xs font-bold text-slate-700 whitespace-nowrap">Columnas:</label>
+                <button
+                  type="button"
+                  onClick={() => setMenuColsAbierto(v => !v)}
+                  className={`h-[28px] px-2.5 text-xs rounded-lg border bg-white whitespace-nowrap cursor-pointer ${colsOcultas.size ? 'border-[#312E81] text-[#312E81] font-semibold' : 'border-[#D5DEE2] text-[#14212A]'}`}
+                  title="Ocultar o mostrar columnas de la tabla (solo en esta sesión)"
+                >
+                  {colsOcultas.size ? `${colsOcultas.size} oculta${colsOcultas.size > 1 ? 's' : ''}` : 'Todas'} ▾
+                </button>
+                {menuColsAbierto && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setMenuColsAbierto(false)} />
+                    <div className="ht-dd absolute right-0 top-full mt-1 z-50 bg-white border border-[#D5DEE2] rounded-lg shadow-xl p-2 min-w-[230px] text-xs">
+                      {[
+                        ['contrato', 'V. Contrato'],
+                        ['plan', 'V.Plan'],
+                        ['ejec', 'V.Ejec'],
+                        ['pctPlan', '% Plan'],
+                        ['pctEjec', '% Ejec'],
+                        ['variacion', '% Variación'],
+                      ].map(([k, nombre]) => (
+                        <label key={k} className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-[#F5F8F9] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!colsOcultas.has(k)}
+                            onChange={() => setColsOcultas(prev => {
+                              const n = new Set(prev);
+                              if (n.has(k)) n.delete(k); else n.add(k);
+                              return n;
+                            })}
+                          />
+                          <span>{nombre}</span>
+                        </label>
+                      ))}
+                      <div className="mt-1.5 pt-1.5 border-t border-[#EEF2F3] text-[11px] text-[#5A6A74] leading-snug">
+                        Sin V.Plan ni % Plan, la variación pasa a ser lo pendiente: Total = (V.Contrato − V.Ejec) / V.Contrato del Master; Pond. = 100% − % Ejec.
+                      </div>
+                      {colsOcultas.size > 0 && (
+                        <button type="button" onClick={() => setColsOcultas(new Set())} className="mt-1.5 w-full px-2 py-1 rounded border border-[#D5DEE2] hover:bg-[#F5F8F9] cursor-pointer">
+                          Mostrar todas
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Quick Reset in Carátula View if filters are active */}
             {soloTablaYSemana && hasActiveFilters && (
@@ -4711,6 +4780,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       </th>
                     </>
                   )}
+                  {verCol('contrato') && (
                   <th 
                     className="px-2 py-2.5 border-b border-[#A80000] text-right cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('contrato')}
@@ -4729,6 +4799,8 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       )}
                     </div>
                   </th>
+                  )}
+                  {verCol('plan') && (
                   <th 
                     className="px-2 py-2.5 border-b border-[#A80000] text-right text-indigo-200 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('plan')}
@@ -4747,6 +4819,8 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       )}
                     </div>
                   </th>
+                  )}
+                  {verCol('ejec') && (
                   <th 
                     className="px-2 py-2.5 border-b border-[#A80000] text-right text-rose-200 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('ejec')}
@@ -4765,6 +4839,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       )}
                     </div>
                   </th>
+                  )}
                   {!soloTablaYSemana && modoEV && (
                     <th 
                       className="px-2 py-2.5 border-b border-[#A80000] text-right text-amber-300 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
@@ -4785,7 +4860,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       </div>
                     </th>
                   )}
-                  {soloTablaYSemana && (
+                  {soloTablaYSemana && verCol('pctPlan') && (
                     <th 
                       className="px-2 py-2.5 border-b border-[#A80000] text-right text-indigo-300 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                       onClick={() => handleToggleSort('pctPlan')}
@@ -4805,7 +4880,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       </div>
                     </th>
                   )}
-                  {soloTablaYSemana && (
+                  {soloTablaYSemana && verCol('pctEjec') && (
                     <th 
                       className="px-2 py-2.5 border-b border-[#A80000] text-right text-rose-300 cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                       onClick={() => handleToggleSort('pctEjec')}
@@ -4825,6 +4900,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       </div>
                     </th>
                   )}
+                  {verCol('variacion') && (
                   <th 
                     className="px-2 py-2.5 border-b border-[#A80000] text-right cursor-pointer select-none hover:bg-[#A80000]/80 transition-colors whitespace-nowrap"
                     onClick={() => handleToggleSort('variacion')}
@@ -4843,6 +4919,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                       )}
                     </div>
                   </th>
+                  )}
                   {!soloTablaYSemana && (
                     <>
                       <th 
@@ -4889,7 +4966,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                 {soloTablaYSemana ? (
                   sortedComponentes.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">
+                      <td colSpan={1 + ['contrato', 'plan', 'ejec', 'pctPlan', 'pctEjec', 'variacion'].filter(verCol).length} className="py-8 text-center text-slate-400 font-medium">
                         No hay datos para la semana y filtros seleccionados.
                       </td>
                     </tr>
@@ -4905,7 +4982,14 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
 
                       const compPctPlanVal = compBasePct > 0 ? (compTot.plan / compBasePct) * 100 : 0;
                       const compPctEjecVal = compBasePct > 0 ? (compTot.ejec / compBasePct) * 100 : 0;
-                      const compPctDesvVal = compPctEjecVal - compPctPlanVal;
+                      const compPctDesvVal = variacionSinPlan
+                        ? (modoPorcentaje === 'ponderado'
+                            ? 100 - compPctEjecVal
+                            : (totalVContratoUnfiltered > 0 ? ((compTot.contrato - compTot.ejec) / totalVContratoUnfiltered) * 100 : 0))
+                        : compPctEjecVal - compPctPlanVal;
+                      const formulaVar = variacionSinPlan
+                        ? (modoPorcentaje === 'ponderado' ? '100% − % Ejec' : `(V.Contrato − V.Ejec) / ${fmtMoney(totalVContratoUnfiltered)}`)
+                        : '% Ejec − % Plan';
 
                       return (
                         <tr key={comp} className="text-slate-800 hover:bg-slate-50/50 transition-colors whitespace-nowrap">
@@ -4914,42 +4998,39 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                               <span className="font-medium text-slate-800 whitespace-nowrap truncate min-w-0" title={comp}>🏛️ {comp}</span>
                             </div>
                           </td>
-                          <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-slate-900 cursor-help font-semibold whitespace-nowrap" 
-                            title={`Monto Exacto Contrato: ${fmtMoney(compTot.contrato)}`}
-                          >
-                            {fmtMillions(compTot.contrato)}
-                          </td>
-                          <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" 
-                            title={`Monto Exacto Plan: ${fmtMoney(compTot.plan)}`}
-                          >
-                            {fmtMillions(compTot.plan)}
-                          </td>
-                          <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-green-700 cursor-help whitespace-nowrap" 
-                            title={`Monto Exacto Ejec: ${fmtMoney(compTot.ejec)}`}
-                          >
-                            {fmtMillions(compTot.ejec)}
-                          </td>
-                          <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" 
-                            title={`% Plan (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: ${fmtMoney(compBasePct)}): ${compPctPlanVal.toFixed(4)}%`}
-                          >
-                            {compPctPlanVal.toFixed(2)}%
-                          </td>
-                          <td 
-                            className="px-2.5 py-2.5 text-right font-mono text-slate-800 cursor-help font-semibold whitespace-nowrap" 
-                            title={`% Ejec (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: ${fmtMoney(compBasePct)}): ${compPctEjecVal.toFixed(4)}%`}
-                          >
-                            {compPctEjecVal.toFixed(2)}%
-                          </td>
-                          <td 
-                            className={`px-2.5 py-2.5 text-right font-mono font-semibold cursor-help whitespace-nowrap ${compPctDesvVal < 0 ? 'text-red-600' : 'text-green-700'}`} 
-                            title={`Monto Exacto Variación: ${fmtDNum(compTot.desv)} | % Variación (% Ejec - % Plan): ${compPctDesvVal.toFixed(4)}%`}
-                          >
-                            {compPctDesvVal > 0 ? `+${compPctDesvVal.toFixed(2)}%` : `${compPctDesvVal.toFixed(2)}%`}
-                          </td>
+                          {verCol('contrato') && (
+                            <td className="px-2.5 py-2.5 text-right font-mono text-slate-900 cursor-help font-semibold whitespace-nowrap" title={`Monto Exacto Contrato: ${fmtMoney(compTot.contrato)}`}>
+                              {fmtMillions(compTot.contrato)}
+                            </td>
+                          )}
+                          {verCol('plan') && (
+                            <td className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" title={`Monto Exacto Plan: ${fmtMoney(compTot.plan)}`}>
+                              {fmtMillions(compTot.plan)}
+                            </td>
+                          )}
+                          {verCol('ejec') && (
+                            <td className="px-2.5 py-2.5 text-right font-mono text-green-700 cursor-help whitespace-nowrap" title={`Monto Exacto Ejec: ${fmtMoney(compTot.ejec)}`}>
+                              {fmtMillions(compTot.ejec)}
+                            </td>
+                          )}
+                          {verCol('pctPlan') && (
+                            <td className="px-2.5 py-2.5 text-right font-mono text-slate-700 cursor-help whitespace-nowrap" title={`% Plan (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: ${fmtMoney(compBasePct)}): ${compPctPlanVal.toFixed(4)}%`}>
+                              {compPctPlanVal.toFixed(2)}%
+                            </td>
+                          )}
+                          {verCol('pctEjec') && (
+                            <td className="px-2.5 py-2.5 text-right font-mono text-slate-800 cursor-help font-semibold whitespace-nowrap" title={`% Ejec (${modoPorcentaje === 'ponderado' ? 'Ponderado sobre V. Contrato sin filtrar de ' + comp : 'Total sobre V. Contrato Global sin filtrar'} - Base: ${fmtMoney(compBasePct)}): ${compPctEjecVal.toFixed(4)}%`}>
+                              {compPctEjecVal.toFixed(2)}%
+                            </td>
+                          )}
+                          {verCol('variacion') && (
+                            <td
+                              className={`px-2.5 py-2.5 text-right font-mono font-semibold cursor-help whitespace-nowrap ${variacionSinPlan ? 'text-[#14212A]' : compPctDesvVal < 0 ? 'text-red-600' : 'text-green-700'}`}
+                              title={`% Variación = ${formulaVar}: ${compPctDesvVal.toFixed(4)}%${variacionSinPlan ? '' : ` | Monto Exacto Variación: ${fmtDNum(compTot.desv)}`}`}
+                            >
+                              {variacionSinPlan ? `${compPctDesvVal.toFixed(2)}%` : compPctDesvVal > 0 ? `+${compPctDesvVal.toFixed(2)}%` : `${compPctDesvVal.toFixed(2)}%`}
+                            </td>
+                          )}
                         </tr>
                       );
                     })
@@ -4987,29 +5068,54 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                   )}
                   {soloTablaYSemana ? (
                     <>
-                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black" title={`Monto Total: ${fmtMoney(globalTot.contrato)}`}>
-                        {fmtMillions(globalTot.contrato)}
-                      </td>
-                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-indigo-200" title={`Monto Plan: ${fmtMoney(globalTot.plan)}`}>
-                        {fmtMillions(globalTot.plan)}
-                      </td>
-                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-rose-200" title={`Monto Ejec: ${fmtMoney(globalTot.ejec)}`}>
-                        {fmtMillions(globalTot.ejec)}
-                      </td>
-                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-indigo-300" title={`Total % Plan sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
-                        {totalVContratoUnfiltered > 0 ? `${((globalTot.plan / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
-                      </td>
-                      <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-rose-300" title={`Total % Ejec sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
-                        {totalVContratoUnfiltered > 0 ? `${((globalTot.ejec / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
-                      </td>
-                      <td className={`px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`} title={`Monto Variación: ${fmtDNum(globalTot.desv)} | Total % Variación: ${totalVContratoUnfiltered > 0 ? (((globalTot.ejec - globalTot.plan) / totalVContratoUnfiltered) * 100).toFixed(4) : '0.0000'}%`}>
-                        {(() => {
-                          const totalPctPlan = totalVContratoUnfiltered > 0 ? (globalTot.plan / totalVContratoUnfiltered) * 100 : 0;
-                          const totalPctEjec = totalVContratoUnfiltered > 0 ? (globalTot.ejec / totalVContratoUnfiltered) * 100 : 0;
-                          const totalPctDesv = totalPctEjec - totalPctPlan;
-                          return totalPctDesv > 0 ? `+${totalPctDesv.toFixed(2)}%` : `${totalPctDesv.toFixed(2)}%`;
-                        })()}
-                      </td>
+                      {verCol('contrato') && (
+                        <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black" title={`Monto Total: ${fmtMoney(globalTot.contrato)}`}>
+                          {fmtMillions(globalTot.contrato)}
+                        </td>
+                      )}
+                      {verCol('plan') && (
+                        <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-indigo-200" title={`Monto Plan: ${fmtMoney(globalTot.plan)}`}>
+                          {fmtMillions(globalTot.plan)}
+                        </td>
+                      )}
+                      {verCol('ejec') && (
+                        <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-rose-200" title={`Monto Ejec: ${fmtMoney(globalTot.ejec)}`}>
+                          {fmtMillions(globalTot.ejec)}
+                        </td>
+                      )}
+                      {verCol('pctPlan') && (
+                        <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-indigo-300" title={`Total % Plan sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
+                          {totalVContratoUnfiltered > 0 ? `${((globalTot.plan / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
+                        </td>
+                      )}
+                      {verCol('pctEjec') && (
+                        <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black text-rose-300" title={`Total % Ejec sobre V. Contrato Global sin filtrar: ${fmtMoney(totalVContratoUnfiltered)}`}>
+                          {totalVContratoUnfiltered > 0 ? `${((globalTot.ejec / totalVContratoUnfiltered) * 100).toFixed(2)}%` : '0.00%'}
+                        </td>
+                      )}
+                      {verCol('variacion') && (() => {
+                        const totalPctPlan = totalVContratoUnfiltered > 0 ? (globalTot.plan / totalVContratoUnfiltered) * 100 : 0;
+                        const totalPctEjec = totalVContratoUnfiltered > 0 ? (globalTot.ejec / totalVContratoUnfiltered) * 100 : 0;
+                        if (variacionSinPlan) {
+                          const v = modoPorcentaje === 'ponderado'
+                            ? 100 - totalPctEjec
+                            : (totalVContratoUnfiltered > 0 ? ((globalTot.contrato - globalTot.ejec) / totalVContratoUnfiltered) * 100 : 0);
+                          const formula = modoPorcentaje === 'ponderado'
+                            ? '100% − % Ejec'
+                            : `(V.Contrato − V.Ejec) / ${fmtMoney(totalVContratoUnfiltered)}`;
+                          return (
+                            <td className="px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black" title={`% Variación = ${formula}: ${v.toFixed(4)}%`}>
+                              {v.toFixed(2)}%
+                            </td>
+                          );
+                        }
+                        const totalPctDesv = totalPctEjec - totalPctPlan;
+                        return (
+                          <td className={`px-2 py-2.5 border-t border-[#A80000] text-right font-mono font-black ${globalTot.desv < 0 ? 'text-red-400' : 'text-emerald-400'}`} title={`Monto Variación: ${fmtDNum(globalTot.desv)} | Total % Variación: ${totalVContratoUnfiltered > 0 ? (((globalTot.ejec - globalTot.plan) / totalVContratoUnfiltered) * 100).toFixed(4) : '0.0000'}%`}>
+                            {totalPctDesv > 0 ? `+${totalPctDesv.toFixed(2)}%` : `${totalPctDesv.toFixed(2)}%`}
+                          </td>
+                        );
+                      })()}
                     </>
                   ) : (
                     <>
