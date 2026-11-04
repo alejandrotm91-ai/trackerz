@@ -38,6 +38,7 @@ import {
   Database,
   Briefcase
 } from 'lucide-react';
+import { publicarPersonalVivo } from '../utils/personalVivo';
 import { PersonalRegistro, PersonalResumenEmpresa } from '../types/personal';
 import {
   clasificarTipoPersonal,
@@ -113,6 +114,12 @@ export function PersonalTab() {
       isMounted = false;
     };
   }, []);
+
+  // Compartir con el Resumen lo que hay cargado (nube o Excel nuevo) cada vez que cambia
+  useEffect(() => {
+    if (isLoadingCloud) return;
+    publicarPersonalVivo({ registros, fileName: currentFileName, enNube: isCloudLoaded });
+  }, [registros, currentFileName, isCloudLoaded, isLoadingCloud]);
 
   // Sub-view: 'resumen' | 'detalle' | 'graficos' (Default: 'graficos')
   const [activeSubView, setActiveSubView] = useState<'resumen' | 'detalle' | 'graficos'>('graficos');

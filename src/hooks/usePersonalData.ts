@@ -13,6 +13,7 @@ import {
 } from '../utils/personalParser';
 import { getInitialPersonalData } from '../data/samplePersonalData';
 import { loadLatestPersonalPlanFromCloud } from '../utils/cloudSync';
+import { usePersonalVivo } from '../utils/personalVivo';
 
 export function usePersonalData() {
   const [registros, setRegistros] = useState<PersonalRegistro[]>([]);
@@ -63,8 +64,13 @@ export function usePersonalData() {
     };
   }, []);
 
+  // Si la pestaña Personal ya tiene datos (nube o Excel nuevo), se usan esos: así el Resumen
+  // muestra siempre lo mismo que Personal, también tras cargar un archivo.
+  const vivo = usePersonalVivo();
+  const fuente = vivo ? vivo.registros : registros;
+
   const normalizedRegistros = useMemo(() => {
-    return registros.map(r => {
+    return fuente.map(r => {
       const empresaEstandarizada = cleanEmpresaName(r.empresa);
       const frenteEstandarizado = standardizeFrente(r.frente);
       const actividadEstandarizada = standardizeActividad(r.actividad);
@@ -85,7 +91,7 @@ export function usePersonalData() {
       }
       return r;
     });
-  }, [registros]);
+  }, [fuente]);
 
   const availableMeses: [string, string][] = useMemo(() => {
     const map = new Map<string, string>();
@@ -109,9 +115,9 @@ export function usePersonalData() {
     normalizedRegistros,
     availableMeses,
     availableSemanas,
-    currentFileName,
+    currentFileName: vivo ? vivo.fileName : currentFileName,
     setCurrentFileName,
-    isCloudLoaded,
+    isCloudLoaded: vivo ? vivo.enNube : isCloudLoaded,
     setIsCloudLoaded,
     isLoading
   };
