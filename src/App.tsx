@@ -18,6 +18,7 @@ import { ProcesoTab } from './components/ProcesoTab';
 import { MasterTab } from './components/MasterTab';
 import { AIReportModal } from './components/AIReportModal';
 import { LogoHoja } from './components/LogoHoja';
+import { LogoIngreso } from './components/LogoIngreso';
 const GestionaApp = React.lazy(() => import('./gestiona/GestionaApp'));
 import { ClaveAdminDialog } from './components/ClaveAdminDialog';
 import { construirDatosReporte, construirEjecutivo } from './utils/aiReportHelper';
@@ -1053,7 +1054,7 @@ export default function App() {
           {/* Brand/Showcase column */}
           <div className="md:col-span-5 bg-white p-8 md:p-12 flex flex-col justify-between items-center text-center border-r border-slate-100">
             <div className="my-auto space-y-4 flex flex-col items-center">
-              <LogoHoja className="h-24 animate-fade-in" />
+              <LogoIngreso className="h-24 animate-fade-in" />
               <span className="block text-[32px] leading-none font-extrabold tracking-tight text-slate-900 font-sans">Trakciona</span>
             </div>
 
