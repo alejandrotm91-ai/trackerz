@@ -3,66 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  collection,
-  doc,
-  setDoc,
-  getDoc,
-  getDocs,
-  query,
-  orderBy,
-  limit,
-  deleteDoc
-} from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { db, masterDb, auth } from '../firebase';
 import { MasterCdoItem, MasterCdoWeek, MasterCdoPlanDoc, MasterCdoTotals } from '../types/masterCdo';
 import { Actividad } from '../types';
-import { parseWbsAndDescription } from './masterCdoHierarchy';
+import { parseWbsAndDescription, stepDeFila, ventaDeFila } from './masterCdoHierarchy';
 import { parseFlexibleDate } from '../hooks/useMasterPlan';
-
-export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-export interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-  };
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
-  const errStr = error instanceof Error ? error.message : String(error);
-  const errInfo: FirestoreErrorInfo = {
-    error: errStr,
-    authInfo: {
-      userId: auth.currentUser?.uid || null,
-      email: auth.currentUser?.email || null,
-      emailVerified: auth.currentUser?.emailVerified || null,
-      isAnonymous: auth.currentUser?.isAnonymous || null,
-    },
-    operationType,
-    path
-  };
-
-  console.error('Firestore Error in masterCdoSync: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-const CHUNK_SIZE = 150; // rows per Firestore chunk to stay well within 1MB limit
+import { apiFetch } from './api';
 
 /**
  * Calculates master CDO totals
@@ -73,11 +19,17 @@ export function calculateMasterTotals(items: MasterCdoItem[], semanas: MasterCdo
   let totalCantidadPresupuesto = 0;
   let totalCantidadEjecutada = 0;
 
+  // Una actividad P6 vale la suma de sus partidas: no se cuenta su propia fila.
+  const actividadesP6 = new Set(
+    items.map(i => i.parentActivityId?.trim().toLowerCase()).filter(Boolean) as string[]
+  );
+
   for (const item of items) {
+    if (!item.parentActivityId && item.activityId && actividadesP6.has(item.activityId.trim().toLowerCase())) continue;
     const cantPres = Number(item.cantidadPresupuesto) || 0;
     const precio = Number(item.precio) || 0;
-    const step = Number(item.step) || 1;
-    const venta = Number(item.venta) || (cantPres * precio * step);
+    const step = stepDeFila(item.step);
+    const venta = ventaDeFila(item);
 
     totalVentaPresupuesto += venta;
     totalCantidadPresupuesto += cantPres;
@@ -132,7 +84,9 @@ export function initializeMasterCdoFromActividades(
   // Collect all unique date keys found across actividades (certificaciones, planificado, etc.)
   const detectedDatesSet = new Set<string>();
 
-  actividades.forEach(a => {
+  const conHijos: any[] = [];
+  actividades.forEach(a => { conHijos.push(a); (a.hijosP6 || []).forEach(h => conHijos.push(h)); });
+  conHijos.forEach(a => {
     if (a.certificacionesPorFecha) {
       Object.keys(a.certificacionesPorFecha).forEach(d => {
         if (d && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
@@ -213,12 +167,12 @@ export function initializeMasterCdoFromActividades(
     }
   }
 
-  // Filter leaf items or all items
-  const items: MasterCdoItem[] = actividades.map((act, idx) => {
+  // Convierte una actividad (o una partida de actividad P6) en una fila del Master.
+  const toItem = (act: Actividad, idx: number): MasterCdoItem => {
     const cantPres = Number(act.cantidadCdo) || 0;
     const precio = Number(act.precio) || 0;
-    const step = Number(act.step) || 1;
-    const venta = Number(act.venta) || (cantPres * precio * step);
+    const step = stepDeFila(act.step);
+    const venta = Number(act.venta) || 0; // Col I tal cual
 
     // Initial weekly quantities & monetary progress:
     // 1. If cantidadesPorFecha exists (from Q- columns), it holds the true physical quantity.
@@ -293,15 +247,30 @@ export function initializeMasterCdoFromActividades(
       cantidadesSemanales,
       ventasSemanales
     };
+  };
+
+  // Mismo orden que el CDO: cada actividad P6 seguida de sus partidas (que cuelgan de ella).
+  const items: MasterCdoItem[] = [];
+  actividades.forEach((act, idx) => {
+    items.push(toItem(act, idx));
+    (act.hijosP6 || []).forEach(h => {
+      const comoActividad = {
+        ...h,
+        wbs: act.wbs,
+        wbsRaw: (act as any).wbsRaw,
+        esItemHoja: true,
+      } as unknown as Actividad;
+      items.push({ ...toItem(comoActividad, idx), parentActivityId: act.activityId || '' });
+    });
   });
 
   return { items, semanas };
 }
 
 /**
- * Saves a Master CDO document and its chunks into Firestore
+ * Guarda el Master CDO en D1 a través de la API del Worker
  */
-export async function saveMasterCdoToFirebase(
+export async function saveMasterCdoToCloud(
   planId: string,
   fileName: string,
   items: MasterCdoItem[],
@@ -323,31 +292,18 @@ export async function saveMasterCdoToFirebase(
     totales
   };
 
-  const currentUser = auth.currentUser;
-  if (!currentUser) throw new Error("Debes iniciar sesión para sincronizar datos en la nube.");
-  
   if (onProgress) onProgress(40, 'Enviando datos al servidor SQL...');
-  const token = await currentUser.getIdToken();
-  
-  const response = await fetch('/api/master-cdo/save', {
+  await apiFetch('/api/master-cdo/save', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ planId, planData, items })
   });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Error al guardar en el servidor SQL.');
-  }
 
   if (onProgress) onProgress(100, '¡Guardado exitoso en SQL!');
   return planId;
 }
 
-export async function loadLatestMasterCdoFromFirebase(
+export async function loadLatestMasterCdoFromCloud(
   onProgress?: (pct: number, statusMsg: string) => void,
   chunkDelay: number = 0
 ): Promise<{
@@ -357,25 +313,10 @@ export async function loadLatestMasterCdoFromFirebase(
   const planId = 'master_cdo_default'; // Default plan ID for now
   if (onProgress) onProgress(10, 'Conectando a base de datos SQL...');
   
-  const currentUser = auth.currentUser;
-  if (!currentUser) throw new Error("Debes iniciar sesión para descargar datos de la nube.");
-  
-  const token = await currentUser.getIdToken();
-  
   if (onProgress) onProgress(50, 'Descargando información desde SQL...');
-  const response = await fetch(`/api/master-cdo/load/${planId}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-
+  const response = await apiFetch(`/api/master-cdo/load/${planId}`, undefined, [404]);
   if (response.status === 404) {
     return null; // Plan not found
-  }
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Error al descargar datos de SQL.');
   }
 
   if (onProgress) onProgress(90, 'Procesando datos recibidos...');
@@ -520,7 +461,9 @@ export async function parseMasterCdoFromExcel(
     const row = jsonData[i];
     if (!row) continue;
 
-    const rawObs = row[obsCol] ? String(row[obsCol]).trim() : '';
+    // Obs solo cuenta si trae texto de WBS (hay filas con basura tipo "¿").
+    const obsTxt = row[obsCol] ? String(row[obsCol]).trim() : '';
+    const rawObs = /[a-z0-9]/i.test(obsTxt) ? obsTxt : '';
     const rawColA = row[0] ? String(row[0]).trim() : '';
     const hierarchyText = rawObs || rawColA;
     if (!hierarchyText) continue;
@@ -542,8 +485,8 @@ export async function parseMasterCdoFromExcel(
     const unidad = row[4] ? String(row[4]).trim() : 'UND';
     const cantidadPresupuesto = parseNum(row[cantCol]);
     const precio = parseNum(row[precioCol]);
-    const step = parseNum(row[stepCol]) || 1;
-    const venta = parseNum(row[8]) || (cantidadPresupuesto * precio * step);
+    const step = stepDeFila(row[stepCol]);
+    const venta = parseNum(row[8]); // Col I tal cual (vacía = 0)
     const subcontratista = row[subcCol] ? String(row[subcCol]).trim() : 'Propio';
     const esItemHoja = !!activityId || cantidadPresupuesto > 0;
 
@@ -583,7 +526,11 @@ export async function parseMasterCdoFromExcel(
       }
     });
 
+    // Partida de una actividad P6: su Col A es el Activity ID ".p6" de la actividad.
+    const parentActivityId = activityId && /p6/i.test(rawColA) ? rawColA : undefined;
+
     items.push({
+      ...(parentActivityId ? { parentActivityId } : {}),
       id: `row_${i}`,
       wbs,
       wbsRaw: rawColA,
@@ -641,7 +588,7 @@ export function exportMasterCdoToExcel(
   // Add weekly columns: for each week we create 2 columns: Cantidad and Avance Económico
   semanas.forEach(sem => {
     headerRow1.push(`Q - ${sem.label}`);
-    headerRow1.push(`V - ${sem.label} ($)`);
+    headerRow1.push(`V - ${sem.label}`);
   });
 
   const aoaData: any[][] = [headerRow1];
@@ -649,8 +596,8 @@ export function exportMasterCdoToExcel(
   items.forEach(item => {
     const cantPres = Number(item.cantidadPresupuesto) || 0;
     const precio = Number(item.precio) || 0;
-    const step = Number(item.step) || 1;
-    const venta = Number(item.venta) || (cantPres * precio * step);
+    const step = stepDeFila(item.step);
+    const venta = ventaDeFila(item);
 
     let sumCantEjecutada = 0;
     const weeklyValues: number[] = [];

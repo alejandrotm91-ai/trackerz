@@ -9,7 +9,7 @@ export const CT_TIPO_COLORS = [
   {bg:'bg-yellow-50', border:'border-yellow-300', text:'text-yellow-800', bar:'bg-yellow-500' },
   {bg:'bg-green-50',  border:'border-green-300',  text:'text-green-800',  bar:'bg-green-500'  },
   {bg:'bg-red-50',    border:'border-red-300',    text:'text-red-800',    bar:'bg-red-500'    },
-  {bg:'bg-indigo-50', border:'border-indigo-300', text:'text-indigo-800', bar:'bg-indigo-500' },
+  {bg:'bg-sky-50',    border:'border-sky-300',    text:'text-sky-800',    bar:'bg-sky-500'    },
   {bg:'bg-pink-50',   border:'border-pink-300',   text:'text-pink-800',   bar:'bg-pink-500'   },
   {bg:'bg-orange-50', border:'border-orange-300', text:'text-orange-800', bar:'bg-orange-500' },
   {bg:'bg-teal-50',   border:'border-teal-300',   text:'text-teal-800',   bar:'bg-teal-500'   },
@@ -48,7 +48,7 @@ export const ctFmt = (v: any, d: number = 2): string => {
 };
 
 export const ctFmtM = (v: any): string => {
-  return `$${(Number(v || 0) / 1e6).toFixed(2)}M`;
+  return `${(Number(v || 0) / 1e6).toFixed(2)}M`;
 };
 
 export const ctPf = (v: any): number => {
@@ -130,3 +130,38 @@ export const isIgnoredFinishDate = (finish: any): boolean => {
   }
   return false;
 };
+
+/**
+ * Agrupación de los códigos de la Col G de la Sabana en el "Resumen por Tipología":
+ * ADM y CRC se muestran juntos como "Indirectos + Aceleración".
+ */
+const GRUPO_TIPOLOGIA: Record<string, string> = { ADM: 'IND', CRC: 'IND' };
+const ETIQUETA_GRUPO: Record<string, string> = { IND: 'Indirectos + Aceleración' };
+
+/** Grupo de tipología de una hoja de la Sabana a partir de su código (Col G). */
+export const grupoTipologia = (tipoG: string): string => {
+  const g = tipoG || 'Sin código';
+  return GRUPO_TIPOLOGIA[g] || g;
+};
+
+/** Une las filas del resumen por tipología que pertenecen al mismo grupo; la fila Total queda al final. */
+export function agruparTipologias(filas: any[] | undefined): any[] {
+  if (!filas || filas.length === 0) return [];
+  const orden: string[] = [];
+  const grupos = new Map<string, any>();
+  let total: any = null;
+  for (const f of filas) {
+    if (f.tipo === 'Total') { total = f; continue; }
+    const g = grupoTipologia(f.tipo);
+    if (!grupos.has(g)) {
+      orden.push(g);
+      grupos.set(g, { ...f, tipo: g, label: ETIQUETA_GRUPO[g] || f.label, monto: 0, planillado: 0, excedentes: 0, saldo: 0 });
+    }
+    const a = grupos.get(g);
+    a.monto += f.monto || 0; a.planillado += f.planillado || 0;
+    a.excedentes += f.excedentes || 0; a.saldo += f.saldo || 0;
+  }
+  const out = orden.map(g => grupos.get(g));
+  if (total) out.push(total);
+  return out;
+}

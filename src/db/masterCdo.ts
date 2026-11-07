@@ -1,98 +1,127 @@
-import { db } from './index.ts';
-import { masterPlans, masterWeeks, masterItems, masterItemProgress } from './schema.ts';
 import { eq } from 'drizzle-orm';
+import type { Db } from './index.ts';
+import { masterPlans, masterWeeks, masterItems } from './schema.ts';
 import type { MasterCdoPlanDoc, MasterCdoWeek, MasterCdoItem } from '../types/masterCdo.ts';
 
-export async function saveMasterPlanToDb(planId: string, planData: MasterCdoPlanDoc, items: MasterCdoItem[]) {
-  try {
-    // Upsert Plan
-    await db.insert(masterPlans)
-      .values({
-        id: planId,
-        fileName: planData.fileName,
-        totalRows: planData.totalRows,
-        updatedAt: planData.updatedAt,
-        updatedBy: planData.updatedBy,
-        totales: planData.totales,
-      })
-      .onConflictDoUpdate({
-        target: masterPlans.id,
-        set: {
-          fileName: planData.fileName,
-          totalRows: planData.totalRows,
-          updatedAt: planData.updatedAt,
-          updatedBy: planData.updatedBy,
-          totales: planData.totales,
-        }
-      });
+// D1 permite como máximo 100 parámetros por consulta y ~100 KB por sentencia.
+const MAX_PARAMS = 99;
+const MAX_BYTES = 60_000;
 
-    // Delete existing weeks and items for this plan to replace them
-    // (A more optimized way is upserting, but replacing is easier to guarantee no stale data)
-    await db.delete(masterWeeks).where(eq(masterWeeks.planId, planId));
-    await db.delete(masterItems).where(eq(masterItems.planId, planId));
+function normalizeItem(item: MasterCdoItem): MasterCdoItem {
+  return {
+    ...item,
+    wbs: item.wbs || '',
+    idOrig: item.idOrig || '',
+    activityId: item.activityId || '',
+    descripcion: item.descripcion || '',
+    unidad: item.unidad || '',
+    cantidadPresupuesto: item.cantidadPresupuesto || 0,
+    precio: item.precio || 0,
+    step: item.step || 1,
+    venta: item.venta || 0,
+    subcontratista: item.subcontratista || '',
+    pAc: item.pAc || '',
+    cap: item.cap || '',
+    scap: item.scap || '',
+    proceso: item.proceso || '',
+    status: item.status || '',
+    esItemHoja: item.esItemHoja ?? true,
+    wbsRaw: item.wbsRaw || '',
+    wbsDesc: item.wbsDesc || '',
+    macro: item.macro || '',
+    grupo: item.grupo || '',
+    tipo: item.tipo || '',
+    partidas: item.partidas || '',
+    componente: item.componente || '',
+    unit: item.unit || '',
+    ubicacion: item.ubicacion || '',
+    resp: item.resp || '',
+    notas: item.notas || '',
+    cantidadesSemanales: item.cantidadesSemanales || {},
+    ventasSemanales: item.ventasSemanales || {},
+  };
+}
 
-    // Insert Weeks
-    if (planData.semanas && planData.semanas.length > 0) {
-      await db.insert(masterWeeks).values(
-        planData.semanas.map(w => ({
-          id: `${planId}_${w.id}`, // prefix with planId to ensure uniqueness
-          planId,
-          fecha: w.fecha,
-          label: w.label,
-          cerrada: w.cerrada || false
-        }))
-      );
+/** Agrupa filas en lotes que respetan los límites de D1. */
+function chunkRows<T>(rows: T[], columns: number, sizeOf: (row: T) => number): T[][] {
+  const perStatement = Math.floor(MAX_PARAMS / columns);
+  const chunks: T[][] = [];
+  let current: T[] = [];
+  let bytes = 0;
+  for (const row of rows) {
+    const rowBytes = sizeOf(row);
+    if (current.length > 0 && (current.length >= perStatement || bytes + rowBytes > MAX_BYTES)) {
+      chunks.push(current);
+      current = [];
+      bytes = 0;
     }
+    current.push(row);
+    bytes += rowBytes;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
 
-    // Insert Items
-    if (items && items.length > 0) {
-      const itemsToInsert = items.map(item => ({
+export async function saveMasterPlanToDb(db: Db, planId: string, planData: MasterCdoPlanDoc, items: MasterCdoItem[]) {
+  try {
+    const planValues = {
+      id: planId,
+      fileName: planData.fileName,
+      totalRows: planData.totalRows,
+      updatedAt: planData.updatedAt,
+      updatedBy: planData.updatedBy,
+      totales: planData.totales,
+    };
+
+    const weekRows = (planData.semanas ?? []).map(w => ({
+      id: `${planId}_${w.id}`, // prefijo con planId para garantizar unicidad
+      planId,
+      fecha: w.fecha,
+      label: w.label,
+      cerrada: w.cerrada || false,
+    }));
+
+    const itemRows = (items ?? []).map(item => {
+      const normalized = normalizeItem(item);
+      return {
         id: `${planId}_${item.id}`,
         planId,
-        wbs: item.wbs || '',
-        idOrig: item.idOrig || '',
-        activityId: item.activityId || '',
-        descripcion: item.descripcion || '',
-        unidad: item.unidad || '',
-        cantidadPresupuesto: item.cantidadPresupuesto || 0,
-        precio: item.precio || 0,
-        step: item.step || 1,
-        venta: item.venta || 0,
-        subcontratista: item.subcontratista || '',
-        pAc: item.pAc || '',
-        cap: item.cap || '',
-        scap: item.scap || '',
-        proceso: item.proceso || '',
-        status: item.status || '',
-        esItemHoja: item.esItemHoja ?? true,
-        wbsRaw: item.wbsRaw || '',
-        wbsDesc: item.wbsDesc || '',
-        macro: item.macro || '',
-        grupo: item.grupo || '',
-        tipo: item.tipo || '',
-        partidas: item.partidas || '',
-        componente: item.componente || '',
-        unit: item.unit || '',
-        ubicacion: item.ubicacion || '',
-        resp: item.resp || '',
-        notas: item.notas || '',
-        cantidadesSemanales: item.cantidadesSemanales || {},
-        ventasSemanales: item.ventasSemanales || {}
-      }));
-      
-      // Batch insert items to avoid too many parameters in one query
-      const chunkSize = 1000;
-      for (let i = 0; i < itemsToInsert.length; i += chunkSize) {
-        await db.insert(masterItems).values(itemsToInsert.slice(i, i + chunkSize));
-      }
+        wbs: normalized.wbs,
+        data: normalized,
+      };
+    });
+
+    const statements: any[] = [
+      db.insert(masterPlans).values(planValues).onConflictDoUpdate({
+        target: masterPlans.id,
+        set: {
+          fileName: planValues.fileName,
+          totalRows: planValues.totalRows,
+          updatedAt: planValues.updatedAt,
+          updatedBy: planValues.updatedBy,
+          totales: planValues.totales,
+        },
+      }),
+      db.delete(masterWeeks).where(eq(masterWeeks.planId, planId)),
+      db.delete(masterItems).where(eq(masterItems.planId, planId)),
+    ];
+
+    for (const chunk of chunkRows(weekRows, 5, w => JSON.stringify(w).length)) {
+      statements.push(db.insert(masterWeeks).values(chunk));
     }
+    for (const chunk of chunkRows(itemRows, 4, r => JSON.stringify(r.data).length + 200)) {
+      statements.push(db.insert(masterItems).values(chunk));
+    }
+
+    // db.batch() corre todo en una sola transacción: si algo falla, no queda un plan a medias.
+    await db.batch(statements as [any, ...any[]]);
   } catch (error) {
     console.error("Database query failed (saveMasterPlanToDb):", error);
-    throw new Error("Failed to save master plan to SQL.", { cause: error });
+    throw new Error("Failed to save master plan to D1.", { cause: error });
   }
 }
 
-export async function getMasterPlanFromDb(planId: string) {
+export async function getMasterPlanFromDb(db: Db, planId: string) {
   try {
     const plans = await db.select().from(masterPlans).where(eq(masterPlans.id, planId));
     if (plans.length === 0) return null;
@@ -105,41 +134,13 @@ export async function getMasterPlanFromDb(planId: string) {
       id: w.id.replace(`${planId}_`, ''),
       fecha: w.fecha,
       label: w.label,
-      cerrada: w.cerrada || false
+      cerrada: w.cerrada || false,
     }));
 
-    const items: MasterCdoItem[] = itemsData.map(i => ({
-      id: i.id.replace(`${planId}_`, ''),
-      wbs: i.wbs,
-      idOrig: i.idOrig,
-      activityId: i.activityId || '',
-      descripcion: i.descripcion,
-      unidad: i.unidad || '',
-      cantidadPresupuesto: i.cantidadPresupuesto || 0,
-      precio: i.precio || 0,
-      step: i.step || 1,
-      venta: i.venta || 0,
-      subcontratista: i.subcontratista || '',
-      pAc: i.pAc || '',
-      cap: i.cap || '',
-      scap: i.scap || '',
-      proceso: i.proceso || '',
-      status: i.status || '',
-      esItemHoja: i.esItemHoja || false,
-      wbsRaw: i.wbsRaw || '',
-      wbsDesc: i.wbsDesc || '',
-      macro: i.macro || '',
-      grupo: i.grupo || '',
-      tipo: i.tipo || '',
-      partidas: i.partidas || '',
-      componente: i.componente || '',
-      unit: i.unit || '',
-      ubicacion: i.ubicacion || '',
-      resp: i.resp || '',
-      notas: i.notas || '',
-      cantidadesSemanales: (i.cantidadesSemanales || {}) as Record<string, number>,
-      ventasSemanales: (i.ventasSemanales || {}) as Record<string, number>
-    }));
+    const items: MasterCdoItem[] = itemsData.map(i => {
+      const data = i.data as MasterCdoItem;
+      return { ...data, id: i.id.replace(`${planId}_`, '') };
+    });
 
     return {
       planDoc: {
@@ -149,12 +150,12 @@ export async function getMasterPlanFromDb(planId: string) {
         updatedAt: plan.updatedAt || '',
         updatedBy: plan.updatedBy || '',
         totales: plan.totales as any,
-        semanas
+        semanas,
       } as MasterCdoPlanDoc,
-      items
+      items,
     };
   } catch (error) {
     console.error("Database query failed (getMasterPlanFromDb):", error);
-    throw new Error("Failed to load master plan from SQL.", { cause: error });
+    throw new Error("Failed to load master plan from D1.", { cause: error });
   }
 }
