@@ -772,7 +772,7 @@ export default function App() {
     const chevronStyle = isLeaf ? '' : nivelStyle.chevron;
     const barColor = isLeaf ? '#2B7F52' : nivelStyle.bar;
 
-    const indentPadding = 6 + (level - 1) * 10;
+    const indentPadding = 6 + (level - 1) * 3; // sangría leve: 3 px por nivel (hasta 9 niveles)
     const isDirectMatch = wbsSearchResults.isActive && wbsSearchResults.matchingItemIds.has(item.id);
 
     return (
