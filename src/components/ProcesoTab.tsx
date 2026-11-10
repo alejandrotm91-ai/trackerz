@@ -206,6 +206,12 @@ export const ProcesoTab: React.FC = () => {
     );
   }, [proc, comp, scap, subc, kf, agua, q, searchInput, prov, pend, mode]);
 
+  // Cuadro de montos de las tarjetas de etapa: colapsado (solo el total) mientras no haya filtros,
+  // abierto con cualquier filtro. Abrirlo o cerrarlo a mano vale hasta el siguiente cambio de filtros.
+  const [montosManual, setMontosManual] = useState<boolean | null>(null);
+  useEffect(() => { setMontosManual(null); }, [anyFilter]);
+  const montosAbiertos = montosManual ?? anyFilter;
+
   // Other filters flag to limit SCAP & SubC buttons to max 7 (v23-v27, v30)
   // Per specification: mode === 'open' does NOT count as a filter for this limit!
   const otherFiltersActive = useMemo(() => {
@@ -1077,11 +1083,20 @@ export const ProcesoTab: React.FC = () => {
                     className="grid grid-cols-[auto_1fr_1fr_1fr] gap-x-2 gap-y-0.5 pt-2 mt-1 border-t border-[#EEF2F3] text-[11px] font-mono"
                     title={`Montos de ${STN[k].toLowerCase()} según el estado de cada partida (columnas Venta, Venta_Plan y Venta Ex del Master). Las válvulas aportan el ${Math.round(VALV_PARTE[k] * 100)} % del monto de su paquete.`}
                   >
-                    <span className="font-sans text-[#5A6A74]">Montos</span>
+                    <button
+                      type="button"
+                      onClick={() => setMontosManual(!montosAbiertos)}
+                      className="font-sans text-left text-[#5A6A74] hover:text-[#14212A] cursor-pointer whitespace-nowrap"
+                      title={montosAbiertos ? 'Ocultar el detalle por estado' : 'Ver los montos por estado (Terminados, En curso, Sin iniciar)'}
+                    >
+                      Montos {montosAbiertos ? '▾' : '▸'}
+                    </button>
                     <span className="text-right text-[#5A6A74]">Venta</span>
                     <span className="text-right text-[#5A6A74]">V. Plan</span>
                     <span className="text-right text-[#5A6A74]">V. Ejec</span>
-                    {([['done', 'Terminados'], ['cur', 'En curso'], ['none', 'Sin iniciar'], ['tot', 'Total']] as const).map(([key, lab]) => (
+                    {([['done', 'Terminados'], ['cur', 'En curso'], ['none', 'Sin iniciar'], ['tot', 'Total']] as const)
+                      .filter(([key]) => montosAbiertos || key === 'tot')
+                      .map(([key, lab]) => (
                       <React.Fragment key={key}>
                         <span className={`font-sans ${key === 'tot' ? 'font-semibold text-[#14212A]' : 'text-[#5A6A74]'}`}>{lab}</span>
                         <span className={`text-right ${key === 'tot' ? 'font-semibold' : ''} text-[#14212A]`}>{fM(dinero[key].v)}</span>
