@@ -264,6 +264,27 @@ export const ProcesoTab: React.FC = () => {
     return it.qty > 0 ? Math.min(U, (U * (s.ex || 0)) / it.qty) : 0;
   };
 
+  // Unidades ejecutadas de una etapa (sin depender del modo de cantidad)
+  const exReal = (it: Equipo, k: StageKey) => {
+    const s = it.s[k];
+    const U = eqU(it);
+    if (s.done) return U;
+    return it.qty > 0 ? Math.min(U, (U * (s.ex || 0)) / it.qty) : 0;
+  };
+
+  // Unidades de una partida dentro del filtro de tarjetas: si una etapa filtrada está "en curso"
+  // en la partida, solo cuenta lo ejecutado en esa etapa (p. ej. 13,6 de 31 en flete), no la partida entera.
+  const uSel = (it: Equipo, skip?: string) => {
+    let u = eqU(it);
+    for (const k of STG) {
+      if (k === skip) continue;
+      const v = kf[k];
+      if (!v || !v.length) continue;
+      if (stSt(it, k) === 'cur') u = Math.min(u, exReal(it, k));
+    }
+    return u;
+  };
+
   // Data for stage cards (each skips its own filter per spec!)
   const stageCardData = useMemo(() => {
     return STG.map(k => {
@@ -275,7 +296,9 @@ export const ProcesoTab: React.FC = () => {
       const diff = Math.max(0, N - ex);
       const cnt = { done: 0, cur: 0, none: 0 };
       for (const it of list) {
-        cnt[stSt(it, k)] += eqU(it);
+        const st = stSt(it, k);
+        // En curso: unidades ya ejecutadas en la etapa; terminados y sin iniciar: la partida completa
+        cnt[st] += st === 'cur' ? exReal(it, k) : uSel(it, k);
       }
       const sel = kf[k] || [];
       return { k, a, N, ex, diff, cnt, sel };
@@ -286,7 +309,7 @@ export const ProcesoTab: React.FC = () => {
   const fourthCardData = useMemo(() => {
     const a = agg(finalFiltered);
     const eqF = finalFiltered.filter(it => eqU(it) > 0);
-    const NF = eqF.reduce((t, it) => t + eqU(it), 0);
+    const NF = eqF.reduce((t, it) => t + uSel(it), 0);
     const materialPartidas = finalFiltered.length - eqF.length;
     const critList = baseFiltered.filter(it => kfPass(it, kf, 'crit') && isCrit(it));
     const isCritActive = Boolean(kf.crit && kf.crit.length > 0);
@@ -1400,7 +1423,7 @@ export const ProcesoTab: React.FC = () => {
                               {sk}
                             </h2>
                             <div className="text-[11px] font-mono text-[#5A6A74]">
-                              {bInfo?.capsCount || 1} estructuras · {bAgg.n} partidas · {fq((bInfo?.items ?? gl).reduce((t, it) => t + eqU(it), 0))} equipos
+                              {bInfo?.capsCount || 1} estructuras · {bAgg.n} partidas · {fq((bInfo?.items ?? gl).reduce((t, it) => t + uSel(it), 0))} equipos
                             </div>
                           </div>
                         </div>
@@ -1495,7 +1518,7 @@ export const ProcesoTab: React.FC = () => {
                             {group === 'cap'
                               ? `${new Set(gl.map(i => i.prov)).size} proveedores`
                               : `${new Set(gl.map(i => i.cap)).size} estructuras`} ·{' '}
-                            {fq(gl.reduce((t, it) => t + eqU(it), 0))} equipos
+                            {fq(gl.reduce((t, it) => t + uSel(it), 0))} equipos
                           </div>
                         </div>
                       </div>
