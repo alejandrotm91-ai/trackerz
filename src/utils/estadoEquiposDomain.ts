@@ -254,6 +254,9 @@ export const isValvulaScap = (scap: string | null | undefined): boolean => {
 };
 
 /* ------------------- (new v32) Válvulas sin desglose .p6 ------------------- */
+/** Reparto del monto de los paquetes de válvulas entre etapas. */
+export const VALV_PARTE: Record<StageKey, number> = { D: 0.6, E: 0.2, F: 0.2 };
+
 export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
   const par = new Map<string, { r: any[]; q: number; ex: number; v: number; vx: number; vp: number; hayPlan: boolean; n: number; sub: Map<string, number> }>();
   const T = (v: any) => v == null ? '' : String(v).trim();
@@ -317,10 +320,16 @@ export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
       // El avance de las válvulas es suministro (compra y fabricación + flete): las que se fletean ya
       // están fabricadas. A la fecha ninguna está instalada, así que la instalación queda sin avance
       // (mantiene sus fechas planificadas). Revisar cuando empiece el montaje de válvulas.
+      // El monto del paquete (suministro e instalación) se reparte 60 % compra y fabricación,
+      // 20 % flete y 20 % instalación, en Venta y V. Plan. Lo ejecutado se reparte igual
+      // pero sin instalación, porque a la fecha no hay válvulas instaladas.
       s: {
-        D: { ...S },
-        E: { ...S },
-        F: { ...S, ex: 0, pex: 0, vex: 0, done: false, status: null, startA: false, finA: false }
+        D: { ...S, venta: S.venta * VALV_PARTE.D, vex: S.vex * VALV_PARTE.D, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.D },
+        E: { ...S, venta: S.venta * VALV_PARTE.E, vex: S.vex * VALV_PARTE.E, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.E },
+        F: {
+          ...S, venta: S.venta * VALV_PARTE.F, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.F,
+          ex: 0, pex: 0, vex: 0, done: false, status: null, startA: false, finA: false
+        }
       },
       valv: pid,
       nv: P.n,

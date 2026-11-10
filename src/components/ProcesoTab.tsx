@@ -32,6 +32,7 @@ import {
   kfPass,
   kfAny,
   isCable,
+  VALV_PARTE,
   eqU,
   compLab,
   isValvulaScap
@@ -277,7 +278,7 @@ export const ProcesoTab: React.FC = () => {
   };
 
   // Montos (Venta, Venta_Plan y Venta Ex del Master) de una etapa, por estado de las partidas.
-  // Las válvulas tienen un solo monto (suministro e instalación): cuenta solo en Compra y fabricación.
+  // Las válvulas reparten su monto 60 / 20 / 20 entre las etapas (ver VALV_PARTE).
   type Montos = { v: number; p: number; e: number };
   const montosPorEstado = (list: Equipo[], k: StageKey) => {
     const r: Record<'done' | 'cur' | 'none' | 'tot', Montos> = {
@@ -285,7 +286,6 @@ export const ProcesoTab: React.FC = () => {
     };
     let hayPlan = false;
     for (const it of list) {
-      if (it.valv && k !== 'D') continue;
       const s = it.s[k];
       if (!s || s.missing) continue;
       if (s.vplan != null) hayPlan = true;
@@ -326,7 +326,7 @@ export const ProcesoTab: React.FC = () => {
     const materialPartidas = finalFiltered.length - eqF.length;
     const critList = baseFiltered.filter(it => kfPass(it, kf, 'crit') && isCrit(it));
     const isCritActive = Boolean(kf.crit && kf.crit.length > 0);
-    // Montos de la selección: las tres etapas (válvulas una sola vez)
+    // Montos de la selección: las tres etapas
     const tot = { v: 0, p: 0, e: 0 };
     let hayPlan = false;
     for (const k of STG) {
@@ -1075,7 +1075,7 @@ export const ProcesoTab: React.FC = () => {
                   {/* Montos por estado: Venta (col I), V. Plan (col AO) y V. Ejec (col AR) del Master */}
                   <div
                     className="grid grid-cols-[auto_1fr_1fr_1fr] gap-x-2 gap-y-0.5 pt-2 mt-1 border-t border-[#EEF2F3] text-[11px] font-mono"
-                    title={`Montos de ${STN[k].toLowerCase()} según el estado de cada partida (columnas Venta, Venta_Plan y Venta Ex del Master).${k !== 'D' ? ' Las válvulas tienen un solo monto (suministro e instalación) y se cuentan en Compra y fabricación.' : ''}`}
+                    title={`Montos de ${STN[k].toLowerCase()} según el estado de cada partida (columnas Venta, Venta_Plan y Venta Ex del Master). Las válvulas aportan el ${Math.round(VALV_PARTE[k] * 100)} % del monto de su paquete.`}
                   >
                     <span className="font-sans text-[#5A6A74]">Montos</span>
                     <span className="text-right text-[#5A6A74]">Venta</span>
@@ -1126,7 +1126,7 @@ export const ProcesoTab: React.FC = () => {
               {/* Montos de la selección (las tres etapas; válvulas una sola vez) */}
               <div
                 className="grid grid-cols-3 gap-x-2 pt-2 border-t border-[#EEF2F3] font-mono text-[11px]"
-                title="Suma de las tres etapas de las partidas seleccionadas (columnas Venta, Venta_Plan y Venta Ex del Master). Las válvulas cuentan una sola vez."
+                title="Suma de las tres etapas de las partidas seleccionadas (columnas Venta, Venta_Plan y Venta Ex del Master). Las válvulas reparten su monto 60 % fabricación, 20 % flete y 20 % instalación."
               >
                 <span className="text-[#5A6A74]">Venta</span>
                 <span className="text-[#5A6A74]">V. Plan</span>
@@ -1963,7 +1963,7 @@ export const ProcesoTab: React.FC = () => {
               <strong>Tarjetas superiores:</strong> cuentan equipos físicos. Una partida en u aporta su Cantidad (6 partidas de compuertas = 18 compuertas); una en glb aporta 1 conjunto; las partidas de material en m, kg, ton o m² no se cuentan.
             </li>
             <li>
-              <strong>Filtro de tarjetas:</strong> los botones Terminados, En curso y Sin iniciar de cada etapa, y Total Float ≤ 0, filtran las tarjetas de abajo y también las otras tarjetas superiores. Cada tarjeta se calcula con los filtros de las demás, así que sus propios botones siguen mostrando su distribución completa. Debajo de los botones, cada etapa muestra la Venta, la V. Plan y la V. Ejec (columnas I, AO y AR de la pestaña cdo del Master) de sus partidas según su estado; las válvulas, con un solo monto de suministro e instalación, cuentan solo en Compra y fabricación.
+              <strong>Filtro de tarjetas:</strong> los botones Terminados, En curso y Sin iniciar de cada etapa, y Total Float ≤ 0, filtran las tarjetas de abajo y también las otras tarjetas superiores. Cada tarjeta se calcula con los filtros de las demás, así que sus propios botones siguen mostrando su distribución completa. Debajo de los botones, cada etapa muestra la Venta, la V. Plan y la V. Ejec (columnas I, AO y AR de la pestaña cdo del Master) de sus partidas según su estado; las válvulas, con un solo monto de suministro e instalación, lo reparten 60 % en Compra y fabricación, 20 % en Flete y 20 % en Instalación (lo ejecutado va a fabricación y flete; la instalación queda en cero hasta que se monten).
             </li>
             <li>
               <strong>Riesgo por Total Float</strong> de la etapa pendiente más próxima: ≤ 0 Crítico, 1 a 20 Alto, 21 a 30 Moderado, más de 30 Moderado-Bajo. Retraso = fin esperado − fin de línea base de la instalación.
