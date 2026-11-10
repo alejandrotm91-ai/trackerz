@@ -40,13 +40,16 @@ import {
 import { masReciente, leerLocal, leerDeNube, EVENTO_EQUIPOS } from '../utils/equiposVivo';
 import { Equipo, RawSnapshot, StageKey } from '../types/estadoEquipos';
 
-/** Monto compacto: millones con 2 decimales, miles con 1 (formato es-ES, como el resto de la pestaña). */
+/** Monto compacto: millones con 2 decimales y miles sin decimales (formato es-ES, como el resto de la pestaña). */
 const fM = (v: number): string => {
   const a = Math.abs(v);
   if (a >= 1e6) return (v / 1e6).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' M';
-  if (a >= 1e3) return (v / 1e3).toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' K';
+  if (a >= 1e3) return (v / 1e3).toLocaleString('es-ES', { maximumFractionDigits: 0 }) + ' K';
   return v.toLocaleString('es-ES', { maximumFractionDigits: 0 });
 };
+
+/** Números de montos con la misma letra que las cifras grandes de equipos. */
+const NUM = "font-['Barlow_Condensed'] font-semibold text-[15px] leading-tight tabular-nums";
 
 export const ProcesoTab: React.FC = () => {
   // Raw snapshot data state (loads from localStorage or embedded SNAP)
@@ -1080,13 +1083,13 @@ export const ProcesoTab: React.FC = () => {
 
                   {/* Montos por estado: Venta (col I), V. Plan (col AO) y V. Ejec (col AR) del Master */}
                   <div
-                    className="grid grid-cols-[auto_1fr_1fr_1fr] gap-x-2 gap-y-0.5 pt-2 mt-1 border-t border-[#EEF2F3] text-[11px] font-mono"
+                    className="grid grid-cols-[auto_1fr_1fr_1fr] gap-x-2 gap-y-0.5 items-baseline pt-2 mt-1 border-t border-[#EEF2F3] text-[11px]"
                     title={`Montos de ${STN[k].toLowerCase()} según el estado de cada partida (columnas Venta, Venta_Plan y Venta Ex del Master). Las válvulas aportan el ${Math.round(VALV_PARTE[k] * 100)} % del monto de su paquete.`}
                   >
                     <button
                       type="button"
                       onClick={() => setMontosManual(!montosAbiertos)}
-                      className="font-sans text-left text-[#5A6A74] hover:text-[#14212A] cursor-pointer whitespace-nowrap"
+                      className="text-left text-[#5A6A74] hover:text-[#14212A] cursor-pointer whitespace-nowrap"
                       title={montosAbiertos ? 'Ocultar el detalle por estado' : 'Ver los montos por estado (Terminados, En curso, Sin iniciar)'}
                     >
                       Montos {montosAbiertos ? '▾' : '▸'}
@@ -1098,10 +1101,10 @@ export const ProcesoTab: React.FC = () => {
                       .filter(([key]) => montosAbiertos || key === 'tot')
                       .map(([key, lab]) => (
                       <React.Fragment key={key}>
-                        <span className={`font-sans ${key === 'tot' ? 'font-semibold text-[#14212A]' : 'text-[#5A6A74]'}`}>{lab}</span>
-                        <span className={`text-right ${key === 'tot' ? 'font-semibold' : ''} text-[#14212A]`}>{fM(dinero[key].v)}</span>
-                        <span className={`text-right ${key === 'tot' ? 'font-semibold' : ''} text-[#14212A]`}>{dinero.hayPlan ? fM(dinero[key].p) : '—'}</span>
-                        <span className={`text-right ${key === 'tot' ? 'font-semibold' : ''} text-[#2B7F52]`}>{fM(dinero[key].e)}</span>
+                        <span className={key === 'tot' ? 'font-semibold text-[#14212A]' : 'text-[#5A6A74]'}>{lab}</span>
+                        <span className={`text-right ${NUM} ${key === 'tot' ? 'text-[16px] font-bold' : ''} text-[#14212A]`}>{fM(dinero[key].v)}</span>
+                        <span className={`text-right ${NUM} ${key === 'tot' ? 'text-[16px] font-bold' : ''} text-[#14212A]`}>{dinero.hayPlan ? fM(dinero[key].p) : '—'}</span>
+                        <span className={`text-right ${NUM} ${key === 'tot' ? 'text-[16px] font-bold' : ''} text-[#2B7F52]`}>{fM(dinero[key].e)}</span>
                       </React.Fragment>
                     ))}
                   </div>
@@ -1140,15 +1143,15 @@ export const ProcesoTab: React.FC = () => {
 
               {/* Montos de la selección (las tres etapas; válvulas una sola vez) */}
               <div
-                className="grid grid-cols-3 gap-x-2 pt-2 border-t border-[#EEF2F3] font-mono text-[11px]"
+                className="grid grid-cols-3 gap-x-2 items-baseline pt-2 border-t border-[#EEF2F3] text-[11px]"
                 title="Suma de las tres etapas de las partidas seleccionadas (columnas Venta, Venta_Plan y Venta Ex del Master). Las válvulas reparten su monto 60 % fabricación, 20 % flete y 20 % instalación."
               >
                 <span className="text-[#5A6A74]">Venta</span>
                 <span className="text-[#5A6A74]">V. Plan</span>
                 <span className="text-[#5A6A74]">V. Ejec</span>
-                <b className="text-[#14212A]">{fM(fourthCardData.dinero.v)}</b>
-                <b className="text-[#14212A]">{fourthCardData.dinero.hayPlan ? fM(fourthCardData.dinero.p) : '—'}</b>
-                <b className="text-[#2B7F52]">{fM(fourthCardData.dinero.e)}</b>
+                <b className={`${NUM} text-[18px] font-bold text-[#14212A]`}>{fM(fourthCardData.dinero.v)}</b>
+                <b className={`${NUM} text-[18px] font-bold text-[#14212A]`}>{fourthCardData.dinero.hayPlan ? fM(fourthCardData.dinero.p) : '—'}</b>
+                <b className={`${NUM} text-[18px] font-bold text-[#2B7F52]`}>{fM(fourthCardData.dinero.e)}</b>
               </div>
 
               {/* Botón Total Float <= 0 */}
