@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useId } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -181,6 +181,9 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
   // Visible lines toggles
   const [showDirecto, setShowDirecto] = useState<boolean>(true);
   const [showIndirecto, setShowIndirecto] = useState<boolean>(true);
+  // Ids propios del SVG: Resumen y Personal muestran este gráfico a la vez y, con ids repetidos,
+  // el gráfico visible tomaba el brillo y los rellenos del oculto y no dibujaba la línea del total.
+  const svgId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const [showTotal, setShowTotal] = useState<boolean>(true);
   // Hovered Point index for Tooltip
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -1137,20 +1140,20 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
         >
           <defs>
             {/* Gradients */}
-            <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={`gradTotal-${svgId}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#CD0000" stopOpacity="0.25" />
               <stop offset="100%" stopColor="#CD0000" stopOpacity="0.00" />
             </linearGradient>
-            <linearGradient id="gradDirecto" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={`gradDirecto-${svgId}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#10b981" stopOpacity="0.30" />
               <stop offset="100%" stopColor="#10b981" stopOpacity="0.00" />
             </linearGradient>
-            <linearGradient id="gradIndirecto" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={`gradIndirecto-${svgId}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.25" />
               <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.00" />
             </linearGradient>
             {/* Drop Shadow for Lines */}
-            <filter id="shadowGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <filter id={`shadowGlow-${svgId}`} x="-20%" y="-20%" width="140%" height="140%">
               <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15" />
             </filter>
           </defs>
@@ -1294,13 +1297,13 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
 
           {/* Area Gradients */}
           {showTotal && tipoFilter === 'all' && (
-            <path d={buildAreaPath(totalPoints)} fill="url(#gradTotal)" />
+            <path d={buildAreaPath(totalPoints)} fill={`url(#gradTotal-${svgId})`} />
           )}
           {showDirecto && tipoFilter !== 'Indirecto' && (
-            <path d={buildAreaPath(directPoints)} fill="url(#gradDirecto)" />
+            <path d={buildAreaPath(directPoints)} fill={`url(#gradDirecto-${svgId})`} />
           )}
           {showIndirecto && tipoFilter !== 'Directo' && (
-            <path d={buildAreaPath(indirectPoints)} fill="url(#gradIndirecto)" />
+            <path d={buildAreaPath(indirectPoints)} fill={`url(#gradIndirecto-${svgId})`} />
           )}
 
           {/* Lines */}
@@ -1313,7 +1316,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
               strokeWidth="3.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              filter="url(#shadowGlow)"
+              filter={`url(#shadowGlow-${svgId})`}
             />
           )}
 
