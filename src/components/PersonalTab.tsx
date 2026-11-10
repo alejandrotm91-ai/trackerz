@@ -2889,67 +2889,86 @@ export function PersonalTab() {
               </div>
             </div>
 
-            {/* Horizontal Stacked Bars */}
-            <div className="space-y-2.5">
-              {resumenPorEmpresa.slice(0, 12).map(r => {
-                const maxAvg = resumenPorEmpresa[0]?.promedioDiarioMesCorriente || 1;
-                const pctDirectoBar = (r.directoPromedioMesCorriente / maxAvg) * 100;
-                const pctIndirectoBar = (r.indirectoPromedioMesCorriente / maxAvg) * 100;
-
-                return (
-                  <div key={r.empresa} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-800 truncate max-w-sm">{r.empresa}</span>
-                      <div className="flex items-center gap-2 font-mono text-xs">
-                        {r.directoPromedioMesCorriente > 0 && (
-                          <span className="text-emerald-700 font-bold" title={`Directo mes: ${r.directoPromedioMesCorriente.toFixed(1)}/día`}>
-                            {r.directoPromedioMesCorriente.toFixed(1)} dir
-                          </span>
-                        )}
-                        {r.indirectoPromedioMesCorriente > 0 && (
-                          <span className="text-amber-700 font-bold" title={`Indirecto mes: ${r.indirectoPromedioMesCorriente.toFixed(1)}/día`}>
-                            {r.indirectoPromedioMesCorriente.toFixed(1)} ind
-                          </span>
-                        )}
-                        <span className="font-black text-indigo-950 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded text-[11px]">
-                          Prom: {r.promedioDiarioMesCorriente.toFixed(1)}/día ({r.porcentaje.toFixed(1)}%)
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-normal hidden sm:inline" title="Total Acumulado Multimes">
-                          (Acum: {r.total})
-                        </span>
+            {/* Barras verticales apiladas: directo abajo, indirecto encima */}
+            {(() => {
+              const top = resumenPorEmpresa.slice(0, 12);
+              const maxAvg = Math.max(1, ...top.map(r => r.promedioDiarioMesCorriente));
+              // Escala redonda para las líneas guía (4 tramos)
+              const paso = Math.pow(10, Math.floor(Math.log10(maxAvg / 4)));
+              const tramo = [1, 2, 2.5, 5, 10].map(m => m * paso).find(t => t * 4 >= maxAvg) || maxAvg / 4;
+              const tope = tramo * 4;
+              const ALTO = 240;
+              return (
+                <div className="flex gap-2">
+                  {/* Eje Y */}
+                  <div className="relative shrink-0 w-8 text-[10px] font-mono text-slate-400" style={{ height: ALTO, marginTop: 18 }}>
+                    {[0, 1, 2, 3, 4].map(i => (
+                      <span key={i} className="absolute right-0 -translate-y-1/2" style={{ top: ALTO - (i * tramo / tope) * ALTO }}>
+                        {Math.round(i * tramo)}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex-1 min-w-0 overflow-x-auto">
+                    <div className="min-w-[640px]">
+                      <div className="relative" style={{ height: ALTO + 18 }}>
+                        {/* Líneas guía */}
+                        {[0, 1, 2, 3, 4].map(i => (
+                          <div
+                            key={i}
+                            className={`absolute left-0 right-0 border-t ${i === 0 ? 'border-slate-300' : 'border-dashed border-slate-200'}`}
+                            style={{ top: 18 + ALTO - (i * tramo / tope) * ALTO }}
+                          />
+                        ))}
+                        <div className="absolute inset-x-0 bottom-0 flex items-end justify-around gap-2 px-1" style={{ height: ALTO + 18 }}>
+                          {top.map(r => {
+                            const hDir = (r.directoPromedioMesCorriente / tope) * ALTO;
+                            const hInd = (r.indirectoPromedioMesCorriente / tope) * ALTO;
+                            return (
+                              <div
+                                key={r.empresa}
+                                className="flex-1 max-w-[88px] flex flex-col items-center justify-end h-full"
+                                title={`${r.empresa}\nDirecto: ${r.directoPromedioMesCorriente.toFixed(1)}/día\nIndirecto: ${r.indirectoPromedioMesCorriente.toFixed(1)}/día\nPromedio: ${r.promedioDiarioMesCorriente.toFixed(1)}/día (${r.porcentaje.toFixed(1)} %)\nAcumulado: ${r.total}`}
+                              >
+                                <span className="text-[11px] font-black text-indigo-950 font-mono leading-none mb-1">
+                                  {r.promedioDiarioMesCorriente.toFixed(1)}
+                                </span>
+                                <div className="w-full flex flex-col rounded-t-md overflow-hidden shadow-xs">
+                                  {hInd > 0 && (
+                                    <div
+                                      className="bg-amber-500 hover:bg-amber-600 transition-colors flex items-center justify-center text-[10px] text-white font-black leading-none select-none"
+                                      style={{ height: Math.max(hInd, 2) }}
+                                    >
+                                      {hInd >= 14 ? r.indirectoPromedioMesCorriente.toFixed(1) : ''}
+                                    </div>
+                                  )}
+                                  {hDir > 0 && (
+                                    <div
+                                      className="bg-emerald-500 hover:bg-emerald-600 transition-colors flex items-center justify-center text-[10px] text-white font-black leading-none select-none"
+                                      style={{ height: Math.max(hDir, 2) }}
+                                    >
+                                      {hDir >= 14 ? r.directoPromedioMesCorriente.toFixed(1) : ''}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {/* Nombres de los contratistas */}
+                      <div className="flex justify-around gap-2 px-1 pt-1.5">
+                        {top.map(r => (
+                          <div key={r.empresa} className="flex-1 max-w-[88px] text-center" title={r.empresa}>
+                            <div className="text-[10px] font-bold text-slate-700 leading-tight line-clamp-2 break-words">{r.empresa}</div>
+                            <div className="text-[9px] text-slate-400 font-mono">{r.porcentaje.toFixed(1)} %</div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-
-                    <div className="w-full bg-slate-100 h-5.5 rounded-lg overflow-hidden flex shadow-inner">
-                      {pctDirectoBar > 0 && (
-                        <div
-                          className="bg-emerald-500 hover:bg-emerald-600 transition-all flex items-center justify-center text-[10px] text-white font-black shrink-0 px-1 leading-none select-none"
-                          style={{
-                            width: `${pctDirectoBar}%`,
-                            minWidth: r.directoPromedioMesCorriente > 0 ? '22px' : '0px'
-                          }}
-                          title={`${r.empresa} - Promedio Directo: ${r.directoPromedioMesCorriente.toFixed(1)}/día`}
-                        >
-                          {r.directoPromedioMesCorriente.toFixed(1)}
-                        </div>
-                      )}
-                      {pctIndirectoBar > 0 && (
-                        <div
-                          className="bg-amber-500 hover:bg-amber-600 transition-all flex items-center justify-center text-[10px] text-white font-black shrink-0 px-1 leading-none select-none"
-                          style={{
-                            width: `${pctIndirectoBar}%`,
-                            minWidth: r.indirectoPromedioMesCorriente > 0 ? '22px' : '0px'
-                          }}
-                          title={`${r.empresa} - Promedio Indirecto: ${r.indirectoPromedioMesCorriente.toFixed(1)}/día`}
-                        >
-                          {r.indirectoPromedioMesCorriente.toFixed(1)}
-                        </div>
-                      )}
-                    </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
