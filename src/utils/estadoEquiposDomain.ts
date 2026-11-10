@@ -312,7 +312,14 @@ export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
     const subs = [...P.sub.entries()].sort((a, b) => b[1] - a[1]);
     const it: Equipo = {
       base: pid,
-      s: { D: { ...S }, E: { ...S }, F: { ...S } },
+      // El avance de las válvulas es suministro (compra y fabricación + flete): las que se fletean ya
+      // están fabricadas. A la fecha ninguna está instalada, así que la instalación queda sin avance
+      // (mantiene sus fechas planificadas). Revisar cuando empiece el montaje de válvulas.
+      s: {
+        D: { ...S },
+        E: { ...S },
+        F: { ...S, ex: 0, pex: 0, vex: 0, done: false, status: null, startA: false, finA: false }
+      },
       valv: pid,
       nv: P.n,
       proc: T(proc) || '(sin proceso)',
