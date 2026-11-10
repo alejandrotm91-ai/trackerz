@@ -39,6 +39,14 @@ import {
 import { masReciente, leerLocal, leerDeNube, EVENTO_EQUIPOS } from '../utils/equiposVivo';
 import { Equipo, RawSnapshot, StageKey } from '../types/estadoEquipos';
 
+/** Monto compacto: millones con 2 decimales, miles con 1 (formato es-ES, como el resto de la pestaña). */
+const fM = (v: number): string => {
+  const a = Math.abs(v);
+  if (a >= 1e6) return (v / 1e6).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' M';
+  if (a >= 1e3) return (v / 1e3).toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' K';
+  return v.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+};
+
 export const ProcesoTab: React.FC = () => {
   // Raw snapshot data state (loads from localStorage or embedded SNAP)
   // Estado de equipos: el más reciente entre este navegador y el incluido en la app; al abrir,
@@ -268,6 +276,29 @@ export const ProcesoTab: React.FC = () => {
     return it.qty > 0 ? Math.min(U, (U * (s.ex || 0)) / it.qty) : 0;
   };
 
+  // Montos (Venta, Venta_Plan y Venta Ex del Master) de una etapa, por estado de las partidas.
+  // Las válvulas tienen un solo monto (suministro e instalación): cuenta solo en Compra y fabricación.
+  type Montos = { v: number; p: number; e: number };
+  const montosPorEstado = (list: Equipo[], k: StageKey) => {
+    const r: Record<'done' | 'cur' | 'none' | 'tot', Montos> = {
+      done: { v: 0, p: 0, e: 0 }, cur: { v: 0, p: 0, e: 0 }, none: { v: 0, p: 0, e: 0 }, tot: { v: 0, p: 0, e: 0 }
+    };
+    let hayPlan = false;
+    for (const it of list) {
+      if (it.valv && k !== 'D') continue;
+      const s = it.s[k];
+      if (!s || s.missing) continue;
+      if (s.vplan != null) hayPlan = true;
+      const m = r[stSt(it, k)];
+      for (const x of [m, r.tot]) {
+        x.v += s.venta || 0;
+        x.p += s.vplan || 0;
+        x.e += s.vex || 0;
+      }
+    }
+    return { ...r, hayPlan };
+  };
+
   // Data for stage cards (each skips its own filter per spec!)
   const stageCardData = useMemo(() => {
     return STG.map(k => {
@@ -282,7 +313,8 @@ export const ProcesoTab: React.FC = () => {
         cnt[stSt(it, k)] += eqU(it);
       }
       const sel = kf[k] || [];
-      return { k, a, N, ex, diff, cnt, sel };
+      const dinero = montosPorEstado(list, k);
+      return { k, a, N, ex, diff, cnt, sel, dinero };
     });
   }, [baseFiltered, kf, mode]);
 
@@ -294,7 +326,15 @@ export const ProcesoTab: React.FC = () => {
     const materialPartidas = finalFiltered.length - eqF.length;
     const critList = baseFiltered.filter(it => kfPass(it, kf, 'crit') && isCrit(it));
     const isCritActive = Boolean(kf.crit && kf.crit.length > 0);
-    return { a, NF, materialPartidas, critCount: critList.length, isCritActive };
+    // Montos de la selección: las tres etapas (válvulas una sola vez)
+    const tot = { v: 0, p: 0, e: 0 };
+    let hayPlan = false;
+    for (const k of STG) {
+      const m = montosPorEstado(finalFiltered, k);
+      tot.v += m.tot.v; tot.p += m.tot.p; tot.e += m.tot.e;
+      hayPlan = hayPlan || m.hayPlan;
+    }
+    return { a, NF, materialPartidas, critCount: critList.length, isCritActive, dinero: { ...tot, hayPlan } };
   }, [baseFiltered, finalFiltered, kf]);
 
   // Handle toggling filter chips in the 4 KPI cards (v22)
@@ -961,7 +1001,7 @@ export const ProcesoTab: React.FC = () => {
 
         {/* 4. KPI Cards Grid (4 cards) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {stageCardData.map(({ k, a, N, ex, diff, cnt, sel }) => {
+          {stageCardData.map(({ k, a, N, ex, diff, cnt, sel, dinero }) => {
             const isStageOn = sel.length > 0;
             const stageColor = k === 'D' ? '#A86B12' : k === 'E' ? '#2C67A6' : '#2B7F52';
             return (
@@ -1031,6 +1071,25 @@ export const ProcesoTab: React.FC = () => {
                       );
                     })}
                   </div>
+
+                  {/* Montos por estado: Venta (col I), V. Plan (col AO) y V. Ejec (col AR) del Master */}
+                  <div
+                    className="grid grid-cols-[auto_1fr_1fr_1fr] gap-x-2 gap-y-0.5 pt-2 mt-1 border-t border-[#EEF2F3] text-[11px] font-mono"
+                    title={`Montos de ${STN[k].toLowerCase()} según el estado de cada partida (columnas Venta, Venta_Plan y Venta Ex del Master).${k !== 'D' ? ' Las válvulas tienen un solo monto (suministro e instalación) y se cuentan en Compra y fabricación.' : ''}`}
+                  >
+                    <span className="font-sans text-[#5A6A74]">Montos</span>
+                    <span className="text-right text-[#5A6A74]">Venta</span>
+                    <span className="text-right text-[#5A6A74]">V. Plan</span>
+                    <span className="text-right text-[#5A6A74]">V. Ejec</span>
+                    {([['done', 'Terminados'], ['cur', 'En curso'], ['none', 'Sin iniciar'], ['tot', 'Total']] as const).map(([key, lab]) => (
+                      <React.Fragment key={key}>
+                        <span className={`font-sans ${key === 'tot' ? 'font-semibold text-[#14212A]' : 'text-[#5A6A74]'}`}>{lab}</span>
+                        <span className={`text-right ${key === 'tot' ? 'font-semibold' : ''} text-[#14212A]`}>{fM(dinero[key].v)}</span>
+                        <span className={`text-right ${key === 'tot' ? 'font-semibold' : ''} text-[#14212A]`}>{dinero.hayPlan ? fM(dinero[key].p) : '—'}</span>
+                        <span className={`text-right ${key === 'tot' ? 'font-semibold' : ''} text-[#2B7F52]`}>{fM(dinero[key].e)}</span>
+                      </React.Fragment>
+                    ))}
+                  </div>
                 </div>
               </div>
             );
@@ -1062,6 +1121,19 @@ export const ProcesoTab: React.FC = () => {
                     No incluye {fourthCardData.materialPartidas} partidas de material (m, kg, ton, m²)
                   </div>
                 )}
+              </div>
+
+              {/* Montos de la selección (las tres etapas; válvulas una sola vez) */}
+              <div
+                className="grid grid-cols-3 gap-x-2 pt-2 border-t border-[#EEF2F3] font-mono text-[11px]"
+                title="Suma de las tres etapas de las partidas seleccionadas (columnas Venta, Venta_Plan y Venta Ex del Master). Las válvulas cuentan una sola vez."
+              >
+                <span className="text-[#5A6A74]">Venta</span>
+                <span className="text-[#5A6A74]">V. Plan</span>
+                <span className="text-[#5A6A74]">V. Ejec</span>
+                <b className="text-[#14212A]">{fM(fourthCardData.dinero.v)}</b>
+                <b className="text-[#14212A]">{fourthCardData.dinero.hayPlan ? fM(fourthCardData.dinero.p) : '—'}</b>
+                <b className="text-[#2B7F52]">{fM(fourthCardData.dinero.e)}</b>
               </div>
 
               {/* Botón Total Float <= 0 */}
@@ -1891,7 +1963,7 @@ export const ProcesoTab: React.FC = () => {
               <strong>Tarjetas superiores:</strong> cuentan equipos físicos. Una partida en u aporta su Cantidad (6 partidas de compuertas = 18 compuertas); una en glb aporta 1 conjunto; las partidas de material en m, kg, ton o m² no se cuentan.
             </li>
             <li>
-              <strong>Filtro de tarjetas:</strong> los botones Terminados, En curso y Sin iniciar de cada etapa, y Total Float ≤ 0, filtran las tarjetas de abajo y también las otras tarjetas superiores. Cada tarjeta se calcula con los filtros de las demás, así que sus propios botones siguen mostrando su distribución completa.
+              <strong>Filtro de tarjetas:</strong> los botones Terminados, En curso y Sin iniciar de cada etapa, y Total Float ≤ 0, filtran las tarjetas de abajo y también las otras tarjetas superiores. Cada tarjeta se calcula con los filtros de las demás, así que sus propios botones siguen mostrando su distribución completa. Debajo de los botones, cada etapa muestra la Venta, la V. Plan y la V. Ejec (columnas I, AO y AR de la pestaña cdo del Master) de sus partidas según su estado; las válvulas, con un solo monto de suministro e instalación, cuentan solo en Compra y fabricación.
             </li>
             <li>
               <strong>Riesgo por Total Float</strong> de la etapa pendiente más próxima: ≤ 0 Crítico, 1 a 20 Alto, 21 a 30 Moderado, más de 30 Moderado-Bajo. Retraso = fin esperado − fin de línea base de la instalación.

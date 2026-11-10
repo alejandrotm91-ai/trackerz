@@ -255,12 +255,12 @@ export const isValvulaScap = (scap: string | null | undefined): boolean => {
 
 /* ------------------- (new v32) Válvulas sin desglose .p6 ------------------- */
 export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
-  const par = new Map<string, { r: any[]; q: number; ex: number; v: number; vx: number; n: number; sub: Map<string, number> }>();
+  const par = new Map<string, { r: any[]; q: number; ex: number; v: number; vx: number; vp: number; hayPlan: boolean; n: number; sub: Map<string, number> }>();
   const T = (v: any) => v == null ? '' : String(v).trim();
 
   for (const r of raw.m) {
     if (r[14] === 'VP') {
-      par.set(T(r[0]), { r, q: 0, ex: 0, v: 0, vx: 0, n: 0, sub: new Map() });
+      par.set(T(r[0]), { r, q: 0, ex: 0, v: 0, vx: 0, vp: 0, hayPlan: false, n: 0, sub: new Map() });
     }
   }
 
@@ -278,6 +278,7 @@ export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
     P.ex += ex;
     P.v += isN(r[4]) ? r[4] : 0;
     P.vx += isN(r[17]) ? r[17] : 0;
+    if (isN(r[24])) { P.vp += r[24]; P.hayPlan = true; }
     P.n++;
     const sc = T(r[5]) || '(sin proveedor)';
     P.sub.set(sc, (P.sub.get(sc) || 0) + q);
@@ -297,6 +298,7 @@ export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
       qty: q,
       venta: isN(venta) && venta > 0 ? venta : P.v,
       vex: isN(vex) && vex > 0 ? vex : P.vx,
+      vplan: isN(r[24]) && r[24] > 0 ? r[24] : P.hayPlan ? P.vp : null,
       pex: isN(pex) ? pex : null,
       ex,
       done,
@@ -392,6 +394,7 @@ export function build(raw: RawSnapshot): Equipo[] {
       qty: q,
       venta: isN(venta) ? venta : 0,
       vex: isN(vex) ? vex : 0,
+      vplan: isN(r[24]) ? r[24] : null,
       pex: pexN,
       ex,
       done,
@@ -432,6 +435,7 @@ export function build(raw: RawSnapshot): Equipo[] {
           qty: it.qty,
           venta: 0,
           vex: 0,
+          vplan: 0,
           pex: 0,
           done: false,
           status: null,
@@ -614,6 +618,7 @@ export function leerEquiposDeLibro(wb: XLSX.WorkBook, name: string): { rows: any
 
   const C = need.map(n => h.map[n]);
   const gi = h.map['Grupos'];
+  const cPlan = h.map['Venta_Plan']; // opcional: los Master antiguos no la traen
   const wi = h.map['WBS'];
 
   const vcols = Object.entries(h.map)
@@ -674,7 +679,8 @@ export function leerEquiposDeLibro(wb: XLSX.WorkBook, name: string): { rows: any
       num(v[21]),
       v[22] == null ? null : String(v[22]).trim()
     ];
-    if (gk === 'V') row.push(wbs);
+    row.push(gk === 'V' ? wbs : null); // [23] paquete de la válvula
+    row.push(cPlan == null ? null : num(cellV(ws, r, cPlan))); // [24] Venta_Plan
     rows.push(row);
   }
 
