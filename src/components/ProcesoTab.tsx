@@ -272,15 +272,19 @@ export const ProcesoTab: React.FC = () => {
     return it.qty > 0 ? Math.min(U, (U * (s.ex || 0)) / it.qty) : 0;
   };
 
-  // Unidades de una partida dentro del filtro de tarjetas: si una etapa filtrada está "en curso"
-  // en la partida, solo cuenta lo ejecutado en esa etapa (p. ej. 13,6 de 31 en flete), no la partida entera.
+  // Unidades de una partida dentro del filtro de tarjetas. Si la partida está "en curso" en una etapa
+  // filtrada, cuenta según lo pedido: En curso → lo ya ejecutado (p. ej. 13,6 de 31 en flete);
+  // Sin iniciar → lo que falta (31 − 13,6); ambos → la partida entera.
   const uSel = (it: Equipo, skip?: string) => {
-    let u = eqU(it);
+    const U = eqU(it);
+    let u = U;
     for (const k of STG) {
       if (k === skip) continue;
       const v = kf[k];
-      if (!v || !v.length) continue;
-      if (stSt(it, k) === 'cur') u = Math.min(u, exReal(it, k));
+      if (!v || !v.length || stSt(it, k) !== 'cur') continue;
+      const ex = exReal(it, k);
+      const parte = v.includes('cur') && v.includes('none') ? U : v.includes('cur') ? ex : v.includes('none') ? U - ex : U;
+      u = Math.min(u, parte);
     }
     return u;
   };
@@ -297,8 +301,16 @@ export const ProcesoTab: React.FC = () => {
       const cnt = { done: 0, cur: 0, none: 0 };
       for (const it of list) {
         const st = stSt(it, k);
-        // En curso: unidades ya ejecutadas en la etapa; terminados y sin iniciar: la partida completa
-        cnt[st] += st === 'cur' ? exReal(it, k) : uSel(it, k);
+        const u = uSel(it, k); // unidades de la partida según los filtros de las otras etapas
+        if (st === 'cur') {
+          // Lo ejecutado va a En curso y lo que falta a Sin iniciar: los tres botones suman el total
+          const U = eqU(it);
+          const frac = U > 0 ? exReal(it, k) / U : 0;
+          cnt.cur += u * frac;
+          cnt.none += u * (1 - frac);
+        } else {
+          cnt[st] += u;
+        }
       }
       const sel = kf[k] || [];
       return { k, a, N, ex, diff, cnt, sel };
@@ -1905,7 +1917,7 @@ export const ProcesoTab: React.FC = () => {
               <strong>Tarjetas superiores:</strong> cuentan equipos físicos. Una partida en u aporta su Cantidad (6 partidas de compuertas = 18 compuertas); una en glb aporta 1 conjunto; las partidas de material en m, kg, ton o m² no se cuentan.
             </li>
             <li>
-              <strong>Filtro de tarjetas:</strong> los botones Terminados, En curso y Sin iniciar de cada etapa, y Total Float ≤ 0, filtran las tarjetas de abajo y también las otras tarjetas superiores. Cada tarjeta se calcula con los filtros de las demás, así que sus propios botones siguen mostrando su distribución completa.
+              <strong>Filtro de tarjetas:</strong> los botones Terminados, En curso y Sin iniciar de cada etapa, y Total Float ≤ 0, filtran las tarjetas de abajo y también las otras tarjetas superiores. Cada tarjeta se calcula con los filtros de las demás, así que sus propios botones siguen mostrando su distribución completa. En una partida a medio avanzar, lo ejecutado cuenta en «En curso» y lo que falta en «Sin iniciar»: los tres botones suman el total de equipos, y al filtrar se cuenta solo esa parte de la partida.
             </li>
             <li>
               <strong>Riesgo por Total Float</strong> de la etapa pendiente más próxima: ≤ 0 Crítico, 1 a 20 Alto, 21 a 30 Moderado, más de 30 Moderado-Bajo. Retraso = fin esperado − fin de línea base de la instalación.
