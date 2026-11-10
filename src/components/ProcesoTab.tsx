@@ -264,31 +264,6 @@ export const ProcesoTab: React.FC = () => {
     return it.qty > 0 ? Math.min(U, (U * (s.ex || 0)) / it.qty) : 0;
   };
 
-  // Unidades ejecutadas de una etapa (sin depender del modo de cantidad)
-  const exReal = (it: Equipo, k: StageKey) => {
-    const s = it.s[k];
-    const U = eqU(it);
-    if (s.done) return U;
-    return it.qty > 0 ? Math.min(U, (U * (s.ex || 0)) / it.qty) : 0;
-  };
-
-  // Unidades de una partida dentro del filtro de tarjetas. Si la partida está "en curso" en una etapa
-  // filtrada, cuenta según lo pedido: En curso → lo ya ejecutado (p. ej. 13,6 de 31 en flete);
-  // Sin iniciar → lo que falta (31 − 13,6); ambos → la partida entera.
-  const uSel = (it: Equipo, skip?: string) => {
-    const U = eqU(it);
-    let u = U;
-    for (const k of STG) {
-      if (k === skip) continue;
-      const v = kf[k];
-      if (!v || !v.length || stSt(it, k) !== 'cur') continue;
-      const ex = exReal(it, k);
-      const parte = v.includes('cur') && v.includes('none') ? U : v.includes('cur') ? ex : v.includes('none') ? U - ex : U;
-      u = Math.min(u, parte);
-    }
-    return u;
-  };
-
   // Data for stage cards (each skips its own filter per spec!)
   const stageCardData = useMemo(() => {
     return STG.map(k => {
@@ -300,17 +275,7 @@ export const ProcesoTab: React.FC = () => {
       const diff = Math.max(0, N - ex);
       const cnt = { done: 0, cur: 0, none: 0 };
       for (const it of list) {
-        const st = stSt(it, k);
-        const u = uSel(it, k); // unidades de la partida según los filtros de las otras etapas
-        if (st === 'cur') {
-          // Lo ejecutado va a En curso y lo que falta a Sin iniciar: los tres botones suman el total
-          const U = eqU(it);
-          const frac = U > 0 ? exReal(it, k) / U : 0;
-          cnt.cur += u * frac;
-          cnt.none += u * (1 - frac);
-        } else {
-          cnt[st] += u;
-        }
+        cnt[stSt(it, k)] += eqU(it);
       }
       const sel = kf[k] || [];
       return { k, a, N, ex, diff, cnt, sel };
@@ -321,7 +286,7 @@ export const ProcesoTab: React.FC = () => {
   const fourthCardData = useMemo(() => {
     const a = agg(finalFiltered);
     const eqF = finalFiltered.filter(it => eqU(it) > 0);
-    const NF = eqF.reduce((t, it) => t + uSel(it), 0);
+    const NF = eqF.reduce((t, it) => t + eqU(it), 0);
     const materialPartidas = finalFiltered.length - eqF.length;
     const critList = baseFiltered.filter(it => kfPass(it, kf, 'crit') && isCrit(it));
     const isCritActive = Boolean(kf.crit && kf.crit.length > 0);
@@ -1435,7 +1400,7 @@ export const ProcesoTab: React.FC = () => {
                               {sk}
                             </h2>
                             <div className="text-[11px] font-mono text-[#5A6A74]">
-                              {bInfo?.capsCount || 1} estructuras · {bAgg.n} partidas · {fq((bInfo?.items ?? gl).reduce((t, it) => t + uSel(it), 0))} equipos
+                              {bInfo?.capsCount || 1} estructuras · {bAgg.n} partidas · {fq((bInfo?.items ?? gl).reduce((t, it) => t + eqU(it), 0))} equipos
                             </div>
                           </div>
                         </div>
@@ -1530,7 +1495,7 @@ export const ProcesoTab: React.FC = () => {
                             {group === 'cap'
                               ? `${new Set(gl.map(i => i.prov)).size} proveedores`
                               : `${new Set(gl.map(i => i.cap)).size} estructuras`} ·{' '}
-                            {fq(gl.reduce((t, it) => t + uSel(it), 0))} equipos
+                            {fq(gl.reduce((t, it) => t + eqU(it), 0))} equipos
                           </div>
                         </div>
                       </div>
@@ -1917,7 +1882,7 @@ export const ProcesoTab: React.FC = () => {
               <strong>Tarjetas superiores:</strong> cuentan equipos físicos. Una partida en u aporta su Cantidad (6 partidas de compuertas = 18 compuertas); una en glb aporta 1 conjunto; las partidas de material en m, kg, ton o m² no se cuentan.
             </li>
             <li>
-              <strong>Filtro de tarjetas:</strong> los botones Terminados, En curso y Sin iniciar de cada etapa, y Total Float ≤ 0, filtran las tarjetas de abajo y también las otras tarjetas superiores. Cada tarjeta se calcula con los filtros de las demás, así que sus propios botones siguen mostrando su distribución completa. En una partida a medio avanzar, lo ejecutado cuenta en «En curso» y lo que falta en «Sin iniciar»: los tres botones suman el total de equipos, y al filtrar se cuenta solo esa parte de la partida.
+              <strong>Filtro de tarjetas:</strong> los botones Terminados, En curso y Sin iniciar de cada etapa, y Total Float ≤ 0, filtran las tarjetas de abajo y también las otras tarjetas superiores. Cada tarjeta se calcula con los filtros de las demás, así que sus propios botones siguen mostrando su distribución completa.
             </li>
             <li>
               <strong>Riesgo por Total Float</strong> de la etapa pendiente más próxima: ≤ 0 Crítico, 1 a 20 Alto, 21 a 30 Moderado, más de 30 Moderado-Bajo. Retraso = fin esperado − fin de línea base de la instalación.

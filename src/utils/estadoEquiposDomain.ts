@@ -109,9 +109,7 @@ export function kfPass(it: Equipo, kf: Record<string, string[]>, skip?: string):
       if (!isCrit(it)) return false;
     } else {
       const sKey = k as StageKey;
-      const st = stSt(it, sKey);
-      // "Sin iniciar" también trae las partidas en curso, por su parte aún pendiente
-      if (!v.includes(st) && !(st === 'cur' && v.includes('none'))) return false;
+      if (!v.includes(stSt(it, sKey))) return false;
     }
   }
   return true;
