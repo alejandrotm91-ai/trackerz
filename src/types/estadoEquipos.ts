@@ -80,6 +80,8 @@ export interface RawSnapshot {
     master: string;
     masterWeek: string | null;
     built?: string;
+    /** Momento exacto de la carga (ISO), para elegir la versión más reciente */
+    cargado?: string;
   };
   m: any[][];
 }

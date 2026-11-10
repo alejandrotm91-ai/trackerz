@@ -36,24 +36,28 @@ import {
   compLab,
   isValvulaScap
 } from '../utils/estadoEquiposDomain';
+import { masReciente, leerLocal, leerDeNube, EVENTO_EQUIPOS } from '../utils/equiposVivo';
 import { Equipo, RawSnapshot, StageKey } from '../types/estadoEquipos';
 
 export const ProcesoTab: React.FC = () => {
   // Raw snapshot data state (loads from localStorage or embedded SNAP)
-  const [raw, setRaw] = useState<RawSnapshot>(() => {
-    try {
-      const saved = localStorage.getItem(LS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed.m) && parsed.m.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.warn('Error reading raw snapshot from localStorage', e);
-    }
-    return snapData as unknown as RawSnapshot;
-  });
+  // Estado de equipos: el más reciente entre este navegador y el incluido en la app; al abrir,
+  // se compara también con el publicado en la nube, y se actualiza al cargar un Master nuevo.
+  const [raw, setRaw] = useState<RawSnapshot>(
+    () => masReciente(leerLocal(), snapData as unknown as RawSnapshot) || (snapData as unknown as RawSnapshot)
+  );
+  useEffect(() => {
+    let vivo = true;
+    leerDeNube().then(nube => {
+      if (vivo && nube) setRaw(prev => masReciente(prev, nube) || prev);
+    });
+    const alCargar = (e: Event) => {
+      const snap = (e as CustomEvent<RawSnapshot>).detail;
+      if (snap && Array.isArray(snap.m) && snap.m.length) setRaw(snap);
+    };
+    window.addEventListener(EVENTO_EQUIPOS, alCargar);
+    return () => { vivo = false; window.removeEventListener(EVENTO_EQUIPOS, alCargar); };
+  }, []);
 
   // Built domain model (869 equipments from Master)
   const model = useMemo(() => build(raw), [raw]);
@@ -482,7 +486,8 @@ export const ProcesoTab: React.FC = () => {
         meta: {
           master: name,
           masterWeek: wk || 'S/F',
-          built: new Date().toISOString().slice(0, 10)
+          built: new Date().toISOString().slice(0, 10),
+          cargado: new Date().toISOString()
         },
         m: rows
       };
@@ -506,11 +511,15 @@ export const ProcesoTab: React.FC = () => {
     try {
       localStorage.removeItem(LS_KEY);
     } catch (e) {}
-    const orig = snapData as unknown as RawSnapshot;
-    setRaw(orig);
-    setUploadMsg({
-      text: `Se restauró la carga original (${orig.meta.master}, ${orig.meta.masterWeek}).`,
-      type: 'ok'
+    const incluido = snapData as unknown as RawSnapshot;
+    setRaw(incluido);
+    leerDeNube().then(nube => {
+      const orig = masReciente(nube, incluido) || incluido;
+      setRaw(orig);
+      setUploadMsg({
+        text: `Se restauró la versión publicada (${orig.meta.master}, ${orig.meta.masterWeek}).`,
+        type: 'ok'
+      });
     });
     showToast('Carga original restaurada');
   };

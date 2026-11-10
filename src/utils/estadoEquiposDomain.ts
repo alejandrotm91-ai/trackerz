@@ -590,7 +590,15 @@ export async function readMaster(file: File): Promise<{ rows: any[][]; wk: strin
     cellText: false,
     cellStyles: false
   });
-  const ws = wb.Sheets.cdo || wb.Sheets.CDO || wb.Sheets[wb.SheetNames[0]];
+  return leerEquiposDeLibro(wb, file.name);
+}
+
+/**
+ * Extrae las partidas de equipos (02.Procura_Eq., 03.Flete_Eq., 04.Precom_Eq. y válvulas) de un
+ * libro del Master ya leído. Lo usan el botón de carga de Proceso y la carga general del Master.
+ */
+export function leerEquiposDeLibro(wb: XLSX.WorkBook, name: string): { rows: any[][]; wk: string | null; name: string } {
+  const ws = wb.Sheets.cdo || wb.Sheets.CDO || wb.Sheets[wb.SheetNames.find(n => n.toLowerCase() === 'cdo') || wb.SheetNames[0]];
   if (!ws) throw new Error('No se encontró la pestaña cdo en el archivo.');
 
   const need = [
@@ -679,5 +687,14 @@ export async function readMaster(file: File): Promise<{ rows: any[][]; wk: strin
     if (vs[i] > 1000) wk = k.slice(2);
   });
 
-  return { rows, wk, name: file.name };
+  return { rows, wk, name };
+}
+
+/** Snapshot de equipos listo para Proceso a partir de un libro del Master. */
+export function snapshotDeLibro(wb: XLSX.WorkBook, name: string): RawSnapshot {
+  const { rows, wk } = leerEquiposDeLibro(wb, name);
+  return {
+    meta: { master: name, masterWeek: wk || 'S/F', built: new Date().toISOString().slice(0, 10), cargado: new Date().toISOString() },
+    m: rows
+  } as RawSnapshot;
 }

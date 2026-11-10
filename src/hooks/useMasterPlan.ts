@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { snapshotDeLibro } from '../utils/estadoEquiposDomain';
+import { guardarLocal, publicarEnNube } from '../utils/equiposVivo';
+import type { RawSnapshot } from '../types/estadoEquipos';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Actividad, PlanillaItem, HijoP6 } from '../types';
@@ -305,6 +308,8 @@ export function rebuildAggregatedDates(actividadesProcesadas: Actividad[]): Acti
 
 export function useMasterPlan(isLoggedIn = false) {
   const [fileData, setFileData] = useState<any>(null);
+  // Equipos (pestaña Proceso) del último Master cargado en esta sesión; se publican con el plan
+  const equiposSnapRef = useRef<RawSnapshot | null>(null);
   const [cloudPlanData, setCloudPlanData] = useState<any>(null);
   const [localPlanData, setLocalPlanData] = useState<any>(null);
   const [sourceActive, setSourceActive] = useState<string>('cloud');
@@ -698,6 +703,14 @@ export function useMasterPlan(isLoggedIn = false) {
         isCloud: true,
         updatedAt: new Date().toISOString()
       }));
+      // Publicar también el estado de equipos, para que Proceso muestre este Master a todos
+      if (equiposSnapRef.current) {
+        try {
+          await publicarEnNube(equiposSnapRef.current);
+        } catch (eqErr) {
+          console.warn('No se pudo publicar el estado de equipos:', eqErr);
+        }
+      }
       
       alert('¡El Master Plan se ha publicado en la nube correctamente! Ahora cualquier usuario que abra la plataforma verá esta información de forma predeterminada.');
     } catch (err) {
@@ -1863,6 +1876,15 @@ export function useMasterPlan(isLoggedIn = false) {
       await updateProgress(10, 'Parseando workbook Excel...');
       const data = new Uint8Array(arrayBuffer);
       const workbook = XLSX.read(data, { type: 'array' });
+
+      // Estado de equipos de la pestaña Proceso, desde este mismo Master
+      try {
+        const snapEq = snapshotDeLibro(workbook, fileName);
+        equiposSnapRef.current = snapEq;
+        guardarLocal(snapEq);
+      } catch (eqErr) {
+        console.warn('No se pudo extraer el estado de equipos del Master:', eqErr);
+      }
 
       // Read Check/check tab mapping if present
       const checkSheetMapping = new Map<string, string>();
