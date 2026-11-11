@@ -66,7 +66,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
   expandedYears,
   setExpandedYears,
 }) => {
-  const [graficosOpen, setGraficosOpen] = React.useState(false);
+  const [graficosOpen, setGraficosOpen] = React.useState(true);
   // Tipología de contrato elegida en "Resumen por Tipología" (código de la Col G: OC, EQ, EE, ADM…)
   const [tipoContrato, setTipoContrato] = React.useState('');
   const hojasTipo = React.useMemo(
@@ -706,7 +706,7 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                           </span>
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">
-                          <span className="w-[105px] text-right font-mono text-slate-600 font-semibold">{ctFmt(s.contrato)}</span>
+                          {!ctSoloCert && <span className="w-[105px] text-right font-mono text-slate-600 font-semibold">{ctFmt(s.contrato)}</span>}
                           <div className="w-[125px] text-right flex items-center justify-end gap-1">
                             <span className={`font-mono font-bold ${isSelected ? 'text-indigo-805 scale-105 font-black' : 'text-indigo-700'}`}>{ctFmt(s.total)}</span>
                             <span className="text-[10px] text-slate-400 font-semibold">({(s.frac * 100).toFixed(1)}%)</span>
@@ -723,14 +723,14 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
                         <div className="hidden sm:flex items-center justify-between px-2.5 py-1 border-b border-slate-100">
                           <span>Tipo</span>
                           <div className="flex items-center gap-4">
-                            <span className="w-[105px] text-right">V. Contrato</span>
+                            {!ctSoloCert && <span className="w-[105px] text-right">V. Contrato</span>}
                             <span className="w-[125px] text-right">{ctSoloCert ? 'Esta Cert' : 'V. Acumulado (%)'}</span>
                           </div>
                         </div>
                         <div className="hidden lg:flex items-center justify-between px-2.5 py-1 border-b border-slate-100">
                           <span>Tipo</span>
                           <div className="flex items-center gap-4">
-                            <span className="w-[105px] text-right">V. Contrato</span>
+                            {!ctSoloCert && <span className="w-[105px] text-right">V. Contrato</span>}
                             <span className="w-[125px] text-right">{ctSoloCert ? 'Esta Cert' : 'V. Acumulado (%)'}</span>
                           </div>
                         </div>
