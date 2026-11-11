@@ -3514,7 +3514,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsTipologiaDropdownOpen(false); }} 
                   />
                   <div 
-                    className="ht-dd absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 w-max min-w-full max-w-[min(90vw,420px)] overflow-x-hidden mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3597,7 +3597,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsStatusDropdownOpen(false); }} 
                   />
                   <div 
-                    className="ht-dd absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 w-max min-w-full max-w-[min(90vw,420px)] overflow-x-hidden mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-1">
@@ -3838,7 +3838,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsVariacionDropdownOpen(false); }} 
                   />
                   <div 
-                    className="ht-dd absolute left-0 right-0 mt-1 bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 w-max min-w-full max-w-[min(90vw,420px)] overflow-x-hidden mt-1 bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2 py-1 mb-1.5 border-b border-slate-100 flex items-center justify-between">
@@ -3966,7 +3966,7 @@ export const ControlSemanalTabla: React.FC<ControlSemanalTablaProps> = ({
                     onClick={(e) => { e.stopPropagation(); setIsSubCDropdownOpen(false); }} 
                   />
                   <div 
-                    className="ht-dd absolute left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
+                    className="ht-dd absolute left-0 w-max min-w-full max-w-[min(90vw,420px)] overflow-x-hidden mt-1 max-h-80 overflow-y-auto bg-white border border-indigo-200 rounded-2xl shadow-2xl z-50 p-2 text-xs animate-fade-in select-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="sticky top-0 bg-white z-10 pb-1 pt-0.5 border-b border-slate-100 mb-1.5">
