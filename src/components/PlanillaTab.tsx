@@ -7,6 +7,7 @@ import React from 'react';
 import { Search, ChevronDown, ChevronRight, CircleDollarSign, TrendingUp, Calendar, Clock, TrendingDown, Download } from 'lucide-react';
 import { ctTipoLabel, ctTipoCfg, ctFmt, ctFmtM, ctPf, grupoTipologia } from '../utils/helpers';
 import { CdoVsPlanillaTab } from './CdoVsPlanillaTab';
+import { NIVELES_TABLA } from '../utils/nivelesJerarquia';
 import { CurvaAvanceEconomico } from './CurvaAvanceEconomico';
 import { PlanillaItem } from '../types';
 
@@ -201,70 +202,52 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
     return n;
   });
 
+  // Fila del Detalle de Certificación: mismo formato que la tabla Comparación CDO vs Planilla
+  // (filas compactas, color por nivel con barra a la izquierda y sangría de 14 px por nivel).
+  const ctNum = (v: number) => Math.round(v || 0).toLocaleString('en-US');
   const renderCtItem = (item: any): React.ReactNode => {
     const hijos = allVis.filter(h => h.cod.startsWith(item.cod + '.') && h.nivel === item.nivel + 1);
     const isExp = ctExpanded.has(item.id);
-    const depth = item.nivel - 1;
+    const depth = Math.max(0, item.nivel - 1);
     const v = item.esHoja ? item : ctSumar(item.cod);
     const av = v.contrato > 0 ? (v.acum / v.contrato * 100) : 0;
     const cfg = ctTipoCfg(item.tipo || '');
-    let rowBg = 'bg-white font-normal';
-    let descClass = 'text-gray-900 text-sm';
-    if (!item.esHoja) {
-      if (item.nivel === 1) {
-        rowBg = 'bg-blue-50/85 border-l-4 border-l-blue-650 hover:bg-blue-100/70';
-        descClass = 'text-blue-950 font-extrabold text-[13px]';
-      } else if (item.nivel === 2) {
-        rowBg = 'bg-emerald-50/65 border-l-2 border-l-emerald-500 hover:bg-emerald-100/60';
-        descClass = 'text-emerald-900 font-bold text-[12px]';
-      } else if (item.nivel === 3) {
-        rowBg = 'bg-purple-50/65 border-l-2 border-l-purple-500 hover:bg-purple-100/60';
-        descClass = 'text-purple-900 font-bold text-[12px]';
-      } else if (item.nivel === 4) {
-        rowBg = 'bg-amber-50/65 border-l-2 border-l-amber-500 hover:bg-amber-100/60';
-        descClass = 'text-amber-900 font-semibold text-[12px]';
-      } else if (item.nivel === 5) {
-        rowBg = 'bg-rose-50/65 border-l-2 border-l-rose-400 hover:bg-rose-100/60';
-        descClass = 'text-rose-900 font-semibold text-[12px]';
-      } else {
-        rowBg = 'bg-slate-50/80 border-l-2 border-l-slate-400 hover:bg-slate-100';
-        descClass = 'text-slate-800 font-medium text-[12px]';
-      }
-    } else {
-      descClass = 'text-gray-800 text-[12px] font-normal';
-    }
-    
+    const grupo = !item.esHoja;
+    const nv = NIVELES_TABLA[Math.min(depth, NIVELES_TABLA.length - 1)];
     return (
       <React.Fragment key={item.id}>
-        <div className={`flex items-center border-b border-gray-100 cursor-pointer ${rowBg}`}
-          style={{ paddingLeft: 4 + depth * 4, paddingRight: 12, paddingTop: 7, paddingBottom: 7 }}
-          onClick={() => hijos.length && ctToggle(item.id)}>
-          <div className="flex-shrink-0 w-5 mr-1">
-            {hijos.length > 0 && (isExp ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />)}
-          </div>
-          <div className="flex-shrink-0 w-12 mr-2 text-center text-xs flex items-center justify-center">
+        <tr
+          className={grupo ? `cvs-grupo ${nv.fila} text-[#14212A] cursor-pointer` : hijos.length ? 'cursor-pointer' : ''}
+          onClick={() => hijos.length && ctToggle(item.id)}
+        >
+          <td className={grupo ? nv.borde : 'text-gray-400'} style={{ paddingLeft: 4 + depth * 14 }}>
+            {hijos.length > 0 && (isExp
+              ? <ChevronDown className={`w-3.5 h-3.5 inline ${grupo ? nv.chevron : ''}`} />
+              : <ChevronRight className={`w-3.5 h-3.5 inline ${grupo ? nv.chevron : 'opacity-40'}`} />)}
+          </td>
+          <td className={`whitespace-nowrap ${grupo ? '' : 'text-[11px]'}`}>
+            {item.cod}
+            {grupo && hijos.length > 0 && <span className={`ml-1 text-[9px] font-normal px-1.5 rounded-full ${nv.badge}`} title={`${hijos.length} subpartidas`}>{hijos.length}</span>}
+          </td>
+          <td className="max-w-[320px] truncate" title={item.desc}>{item.desc}</td>
+          <td className="text-center">
             {item.esHoja && <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap inline-block leading-none ${cfg.bg} ${cfg.text}`} title={item.tipo || ''}>{ctTipoLabel(item.tipo) || '—'}</span>}
-          </div>
-          <div className="flex-1 min-w-0 mr-4">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[10px] text-gray-400 font-mono flex-shrink-0">{item.cod}</span>
-              <span className={`truncate ${descClass}`}>{item.desc}</span>
-            </div>
-            {item.esHoja && item.unidad && <div className="text-[10px] text-gray-400">{item.tarifa > 0 && `${ctFmt(item.tarifa, 4)}/${item.unidad}`}</div>}
-          </div>
-          <div className="flex-shrink-0 grid text-right text-xs" style={{ gridTemplateColumns: '8.5rem 8.5rem 7rem 5.5rem 7rem', gap: '8px', width: '39rem' }}>
-            <div><div className="font-semibold">{ctFmt(v.contrato)}</div><div className="text-gray-400 text-[10px]">Contrato</div></div>
-            <div><div className="text-green-700 font-semibold">{ctFmt(v.acum)}</div><div className="text-gray-400 text-[10px]">Acumulado</div></div>
-            <div><div className={`font-semibold ${v.cert > 0 ? 'text-purple-700 font-extrabold' : 'text-gray-300'}`}>{v.cert > 0 ? `${ctFmt(v.cert)}` : '—'}</div><div className="text-gray-400 text-[10px]">Esta Cert.</div></div>
-            <div>
-              <div className="font-semibold text-gray-700">{av.toFixed(1)}%</div>
-              <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden mt-0.5">
-                <div className={`h-full ${av >= 100 ? 'bg-green-500' : av >= 75 ? 'bg-blue-500' : 'bg-red-400'}`} style={{ width: `${Math.min(av, 100)}%` }} />
-              </div>
-            </div>
-            <div><div className={`font-semibold ${v.saldo < 0 ? 'text-red-600' : 'text-orange-600'}`}>{v.saldo < 0 ? `(${ctFmt(Math.abs(v.saldo))})` : `${ctFmt(v.saldo)}`}</div><div className="text-gray-400 text-[10px]">Saldo</div></div>
-          </div>
-        </div>
+          </td>
+          <td className="text-[11px] text-gray-500">{item.esHoja ? item.unidad || '' : ''}</td>
+          <td className="text-right">{item.esHoja && item.tarifa > 0 ? ctFmt(item.tarifa, 2) : ''}</td>
+          <td className="text-right">{ctNum(v.contrato)}</td>
+          <td className="text-right text-green-700">{ctNum(v.acum)}</td>
+          <td className={`text-right ${v.cert > 0 ? 'text-purple-700 font-semibold' : 'text-gray-300'}`}>{v.cert > 0 ? ctNum(v.cert) : '—'}</td>
+          <td className="text-right">
+            <span className="inline-flex items-center gap-1.5 justify-end">
+              <span className="inline-block w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden align-middle">
+                <span className={`block h-full ${av >= 100 ? 'bg-green-500' : av >= 75 ? 'bg-blue-500' : 'bg-red-400'}`} style={{ width: `${Math.min(av, 100)}%` }} />
+              </span>
+              <span className="w-11 text-right">{av.toFixed(1)}%</span>
+            </span>
+          </td>
+          <td className={`text-right ${v.saldo < 0 ? 'text-red-600' : 'text-orange-600'}`}>{v.saldo < 0 ? `(${ctNum(Math.abs(v.saldo))})` : ctNum(v.saldo)}</td>
+        </tr>
         {isExp && hijos.map(h => renderCtItem(h))}
       </React.Fragment>
     );
@@ -821,33 +804,43 @@ export const PlanillaTab: React.FC<PlanillaTabProps> = ({
               {ctFilterTipo && <button onClick={() => setCtFilterTipo('')} className="text-xs text-blue-600 bg-blue-100 hover:bg-blue-200 px-2 py-0.5 rounded font-medium">Filtro Tipo: {ctFilterTipo} ✕</button>}
             </div>
 
-            {/* Table Header */}
-            <div className="flex items-center bg-slate-50 border-b border-gray-200 font-semibold text-[10px] text-slate-500 py-2.5 px-3" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
-              <div className="flex-shrink-0 w-5 mr-1"></div> {/* Left spacer for folder caret */}
-              <div className="flex-shrink-0 w-10 mr-2 text-center uppercase tracking-wider font-bold">Tipo</div>
-              <div className="flex-1 min-w-0 mr-4 text-left uppercase tracking-wider font-bold">Descripción</div>
-              <div className="flex-shrink-0 grid text-right uppercase tracking-wider font-bold" style={{ gridTemplateColumns: '8.5rem 8.5rem 7rem 5.5rem 7rem', gap: '8px', width: '39rem' }}>
-                <div>V. Contrato</div>
-                <div>V. Acumulada</div>
-                <div>Esta Cert.</div>
-                <div className="text-right">Avance</div>
-                <div>Saldo</div>
-              </div>
-            </div>
-
-            <div>
-              {rootVis.map(it => renderCtItem(it))}
-            </div>
-            
-            {/* Table Footer totals */}
-            <div className="flex items-center bg-blue-150 border-t-2 border-blue-300 font-bold text-sm" style={{ paddingLeft: 12+5+10+4, paddingRight: 12, paddingTop: 10, paddingBottom: 10 }}>
-              <div className="flex-1">TOTAL GENERAL (PLANILLA)</div>
-              <div className="flex-shrink-0 grid text-right text-xs" style={{ gridTemplateColumns: '8.5rem 8.5rem 7rem 5.5rem 7rem', gap: '8px', width: '39rem' }}>
-                <div>{ctFmt(T.contrato)}</div>
-                <div className="text-green-800">{ctFmt(T.acum)}</div>
-                <div className="text-purple-700">{ctFmt(T.cert)}</div>
-                <div>{avance}%</div>
-                <div className="text-orange-700">{ctFmt(T.saldo)}</div>
+            {/* Tabla con el formato de Comparación CDO vs Planilla */}
+            <div className="p-3">
+              <div className="overflow-auto max-h-[44rem] border border-gray-200 rounded-lg">
+                <table className="min-w-full cvs-tabla">
+                  <thead className="sticky top-0 z-10">
+                    <tr>
+                      <th className="w-6"></th>
+                      <th className="text-left">Código</th>
+                      <th className="text-left">Descripción</th>
+                      <th className="text-center">Tipo</th>
+                      <th className="text-left">Und</th>
+                      <th className="text-right">Tarifa</th>
+                      <th className="text-right">V. Contrato</th>
+                      <th className="text-right">V. Acumulada</th>
+                      <th className="text-right">Esta Cert.</th>
+                      <th className="text-right">Avance</th>
+                      <th className="text-right">Saldo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rootVis.map(it => renderCtItem(it))}
+                    {rootVis.length === 0 && (
+                      <tr><td colSpan={11} className="text-center text-gray-500 !py-6">No hay partidas con estos filtros.</td></tr>
+                    )}
+                  </tbody>
+                  <tfoot className="sticky bottom-0 z-10">
+                    <tr className="ht-g lv0">
+                      <td></td>
+                      <td colSpan={5}>TOTAL GENERAL (PLANILLA)</td>
+                      <td className="text-right">{ctNum(T.contrato)}</td>
+                      <td className="text-right">{ctNum(T.acum)}</td>
+                      <td className="text-right">{ctNum(T.cert)}</td>
+                      <td className="text-right">{avance}%</td>
+                      <td className="text-right">{T.saldo < 0 ? `(${ctNum(Math.abs(T.saldo))})` : ctNum(T.saldo)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
           </div>
