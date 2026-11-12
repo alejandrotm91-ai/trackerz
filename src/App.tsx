@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Upload, ChevronRight, ChevronDown, Building2, Download, Search, Filter, Lock, Unlock, User, FileSpreadsheet, AlertCircle, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles, Brain, RefreshCw, Globe, Server, FileText, ChevronsUpDown, ChevronsDownUp, Layers, X } from 'lucide-react';
+import { Upload, ChevronRight, ChevronDown, Building2, Download, Search, Filter, Lock, Unlock, User, FileSpreadsheet, AlertCircle, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles, Brain, RefreshCw, Globe, Server, FileText, ChevronsUpDown, ChevronsDownUp, Layers, X, CalendarRange } from 'lucide-react';
 import { useMasterPlan } from './hooks/useMasterPlan';
 import { CronogramaTab } from './components/CronogramaTab';
 import { PlanillaTab } from './components/PlanillaTab';
@@ -17,6 +17,7 @@ import { PersonalTab } from './components/PersonalTab';
 import { ProcesoTab } from './components/ProcesoTab';
 import { MasterTab } from './components/MasterTab';
 import { AIReportModal } from './components/AIReportModal';
+import { ReportePeriodoModal } from './components/ReportePeriodoModal';
 import { LogoHoja } from './components/LogoHoja';
 import { LogoIngreso } from './components/LogoIngreso';
 const GestionaApp = React.lazy(() => import('./gestiona/GestionaApp'));
@@ -83,6 +84,7 @@ export default function App() {
   // States for AI Crono Report
   const [showAIReportMenu, setShowAIReportMenu] = React.useState(false);
   const [showAIReportModal, setShowAIReportModal] = React.useState(false);
+  const [showReportePeriodo, setShowReportePeriodo] = React.useState(false);
   const [aiReportData, setAiReportData] = React.useState<AIReportData | null>(null);
   const [isGeneratingAIReport, setIsGeneratingAIReport] = React.useState(false);
   const aiMenuRef = React.useRef<HTMLDivElement>(null);
@@ -1989,6 +1991,27 @@ export default function App() {
                               </div>
                             </div>
                           </button>
+
+                          {/* Option 3: Reporte de avance por período */}
+                          <button
+                            onClick={() => {
+                              setShowAIReportMenu(false);
+                              setShowReportePeriodo(true);
+                            }}
+                            className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#F5F8F9] transition-colors flex items-start gap-2.5 group cursor-pointer"
+                          >
+                            <div className="p-1.5 bg-[#EEF0FB] rounded-lg text-[#312E81] group-hover:bg-[#312E81] group-hover:text-white transition-colors mt-0.5">
+                              <CalendarRange className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-[#14212A] group-hover:text-[#312E81] transition-colors">
+                                3. Avance por período
+                              </div>
+                              <div className="text-[11px] text-[#5A6A74] leading-tight">
+                                Informe ejecutivo del avance de obra por componente en las semanas que elijas.
+                              </div>
+                            </div>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -2250,6 +2273,14 @@ export default function App() {
         verificando={claveReporte.verificando}
         onConfirmar={confirmarClaveReporte}
         onCancelar={() => setClaveReporte({ abierto: false, error: '', verificando: false })}
+      />
+      <ReportePeriodoModal
+        isOpen={showReportePeriodo}
+        onClose={() => setShowReportePeriodo(false)}
+        actividades={pc.actividades || []}
+        dataPlanificadoPG004={pc.dataPlanificadoPG004}
+        isAdmin={isAdmin}
+        username={username}
       />
       <AIReportModal
         isOpen={showAIReportModal}

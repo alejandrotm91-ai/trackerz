@@ -5,7 +5,7 @@ import { cloudRoutes, docRoutes } from "./cloud";
 import { gestionaRoutes } from "./gestiona";
 import { getDb } from "../db/index.ts";
 import { saveMasterPlanToDb, getMasterPlanFromDb } from "../db/masterCdo.ts";
-import { analyze, equipmentAnalyze, cronoReport, type LegacyRes } from "./ai";
+import { analyze, equipmentAnalyze, cronoReport, periodoReport, type LegacyRes } from "./ai";
 
 const app = new Hono<AppEnv>();
 
@@ -35,6 +35,7 @@ function aiRoute(handler: (req: { body: any }, res: LegacyRes, env: Env) => Prom
 app.post("/api/ai/analyze", requireAuth, aiRoute(analyze));
 app.post("/api/ai/equipment-analyze", requireAuth, aiRoute(equipmentAnalyze));
 app.post("/api/ai/crono-report", requireAdmin, aiRoute(cronoReport));
+app.post("/api/ai/periodo-report", requireAdmin, aiRoute(periodoReport));
 
 // Master CDO Sync API
 app.post("/api/master-cdo/save", requireAdmin, async (c) => {

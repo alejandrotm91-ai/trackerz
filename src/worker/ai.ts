@@ -240,3 +240,94 @@ Escribe el análisis del reporte estándar con estos datos.`;
     res.status(500).json({ error: errorCode, message: errorMessage });
   }
 }
+
+/** Esquema del reporte de avance por período: siempre las mismas secciones. */
+const ESQUEMA_PERIODO = objeto({
+  estadoGeneral: { type: "string", enum: ["En control", "Requiere atención", "Crítico"] },
+  titular: texto,
+  resumenEjecutivo: texto,
+  puntosClave: lista(texto),
+  componentes: lista(objeto({
+    componente: texto,
+    estado: { type: "string", enum: ["Adelantado", "Según plan", "Atrasado", "Sin actividad"] },
+    analisis: texto,
+  })),
+  tendencia: texto,
+  frentes: texto,
+  atrasos: texto,
+  recomendaciones: lista(objeto({
+    prioridad: { type: "string", enum: ["Alta", "Media", "Baja"] },
+    accion: texto,
+    area: texto,
+    plazo: texto,
+  })),
+});
+
+const SISTEMA_PERIODO = `Eres el Director de Control de Proyectos de una obra industrial y civil (planta de tratamiento de aguas residuales). Escribes el informe ejecutivo de avance de obra de un período (una o varias semanas) para la gerencia.
+
+La aplicación ya calculó todas las cifras con la tabla Control de Ejecución: V. Plan (planificado del PG-004 en las semanas del período), V. Ejec (ejecutado del CDO en esas semanas), variación (V. Ejec − V. Plan), cumplimiento (V. Ejec / V. Plan) y el avance acumulado al cierre del período sobre el V. Contrato. Tu trabajo es explicar, de forma macro, cómo avanzó la obra en ese período y por qué, componente por componente. Devuelves solo el análisis, con la estructura indicada.
+
+Reglas:
+- Usa únicamente los datos recibidos. No inventes cifras, partidas, CAPs, componentes ni fechas.
+- Montos sin el símbolo $, en millones con dos decimales (p. ej. 2.35M) o con separador de miles (p. ej. 845,120). Porcentajes con un decimal.
+- Variación negativa = se ejecutó menos de lo planificado en el período (atraso). Cumplimiento sobre 100 % = se ejecutó más de lo planificado.
+- titular: una sola frase corta que resuma el período (p. ej. "Semana con cumplimiento del 82 % impulsada por obra civil").
+- resumenEjecutivo de 3 a 5 frases: lo ejecutado frente a lo planificado en el período, el cumplimiento, cuánto sumó al avance acumulado y qué componentes explican el resultado.
+- puntosClave de 3 a 5, cada uno con su cifra.
+- componentes: uno por cada componente recibido, con su nombre exacto. estado: "Adelantado" si el cumplimiento supera el 105 %, "Según plan" entre 95 % y 105 %, "Atrasado" por debajo del 95 %, "Sin actividad" si no tuvo plan ni ejecución en el período. analisis de 2 a 3 frases: qué avanzó (CAPs que más avanzaron), dónde está el atraso (CAPs más atrasados) y su avance acumulado.
+- tendencia: 2 a 3 frases sobre la evolución semana a semana dentro del período (si es una sola semana, compárala con el avance acumulado planificado).
+- frentes: 2 a 3 frases sobre las partidas que más avanzaron.
+- atrasos: 2 a 3 frases sobre las partidas más atrasadas y su efecto.
+- recomendaciones de 3 a 5, ordenadas de mayor a menor prioridad, concretas y verificables, con área (nombre exacto del componente o "General") y plazo (p. ej. "2 semanas").
+- estadoGeneral: "En control" si el cumplimiento total es de 95 % o más; "Requiere atención" entre 80 % y 95 %; "Crítico" por debajo de 80 % o si el atraso compromete componentes clave.
+- Español, tono profesional y directo, sin relleno. Prosa sin Markdown, sin viñetas dentro de los textos y sin emojis.`;
+
+/** Reporte de avance de obra por período: la app manda las cifras del período y Claude escribe el informe. */
+export async function periodoReport(req: LegacyReq, res: LegacyRes, env: Env) {
+  try {
+    const { datos, password } = req.body || {};
+    if (!env.ADMIN_PASSWORD || !(await safeEqual(String(password ?? ""), env.ADMIN_PASSWORD))) {
+      res.status(403).json({ error: "BAD_PASSWORD", message: "Contraseña incorrecta." });
+      return;
+    }
+    if (!datos?.periodo || !datos?.total || !Array.isArray(datos?.componentes)) {
+      res.status(400).json({ error: "BAD_REQUEST", message: "Faltan las cifras del período. Recarga la página e intenta de nuevo." });
+      return;
+    }
+
+    const prompt = `PERÍODO: semanas del ${datos.periodo.desde} al ${datos.periodo.hasta} (${datos.periodo.semanas} semana(s)). Última semana con ejecución registrada en el CDO: ${datos.periodo.ultimaSemanaEjecutada || "sin dato"}.
+
+CIFRAS DEL PERÍODO (calculadas por la aplicación, se muestran tal cual en el informe):
+${JSON.stringify(datos)}
+
+Escribe el informe ejecutivo de avance de obra de este período.`;
+
+    const text = await generateText(env, {
+      system: SISTEMA_PERIODO,
+      prompt,
+      model: MODEL_REPORTE,
+      effort: "high",
+      esquema: ESQUEMA_PERIODO,
+    });
+
+    res.json({ analisis: JSON.parse(text), modelo: MODEL_REPORTE, generatedAt: new Date().toISOString() });
+  } catch (error: any) {
+    console.error("Error generando el reporte por período:", error);
+    let errorCode = "AI_ERROR";
+    let errorMessage = error?.message || "Error interno al comunicarse con la Inteligencia Artificial.";
+    if (error instanceof Anthropic.AuthenticationError) {
+      errorCode = "AI_AUTH";
+      errorMessage = "La clave de la API de Anthropic no es válida. Revisa el secreto ANTHROPIC_API_KEY en Cloudflare.";
+    } else if (error instanceof Anthropic.RateLimitError) {
+      errorCode = "AI_RATE_LIMIT";
+      errorMessage = "Se alcanzó el límite de consultas de la IA. Intenta de nuevo en unos minutos.";
+    } else if (error instanceof Anthropic.APIError && /credit|billing|balance/i.test(error.message)) {
+      errorCode = "AI_BILLING";
+      errorMessage = "La cuenta de Anthropic no tiene saldo. Carga crédito en console.anthropic.com → Billing.";
+    } else if (error instanceof Anthropic.APIError && (error.status ?? 0) >= 500) {
+      errorCode = "AI_HIGH_DEMAND";
+      errorMessage = "El servicio de IA está con alta demanda. Intenta de nuevo en unos segundos.";
+    }
+    res.status(500).json({ error: errorCode, message: errorMessage });
+  }
+}
