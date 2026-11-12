@@ -6,6 +6,7 @@ export interface Stage {
   qty: number;           // Cantidad
   venta: number;         // Venta
   vex: number;           // Venta Ex
+  vplan?: number | null; // Venta_Plan (planificado a la fecha de corte); null si el Master no la trae
   pex: number | null;    // % Ex
   ex: number;            // Cantidad ejecutada
   done: boolean;         // true si terminada
@@ -80,6 +81,8 @@ export interface RawSnapshot {
     master: string;
     masterWeek: string | null;
     built?: string;
+    /** Momento exacto de la carga (ISO), para elegir la versión más reciente */
+    cargado?: string;
   };
   m: any[][];
 }

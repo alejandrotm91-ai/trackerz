@@ -21,7 +21,7 @@ export const GRMAP: Record<string, StageKey> = {
   '04': 'F'
 };
 
-export const LS_KEY = 'eqStatusMerinos.raw.v5';
+export const LS_KEY = 'eqStatusMerinos.raw.v6';
 export const UI_LS_KEY = 'eqStatusMerinos.ui';
 
 const nf1 = new Intl.NumberFormat('es-EC', { maximumFractionDigits: 1 });
@@ -254,13 +254,16 @@ export const isValvulaScap = (scap: string | null | undefined): boolean => {
 };
 
 /* ------------------- (new v32) Válvulas sin desglose .p6 ------------------- */
+/** Reparto del monto de los paquetes de válvulas entre etapas. */
+export const VALV_PARTE: Record<StageKey, number> = { D: 0.6, E: 0.2, F: 0.2 };
+
 export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
-  const par = new Map<string, { r: any[]; q: number; ex: number; v: number; vx: number; n: number; sub: Map<string, number> }>();
+  const par = new Map<string, { r: any[]; q: number; ex: number; v: number; vx: number; vp: number; hayPlan: boolean; n: number; sub: Map<string, number> }>();
   const T = (v: any) => v == null ? '' : String(v).trim();
 
   for (const r of raw.m) {
     if (r[14] === 'VP') {
-      par.set(T(r[0]), { r, q: 0, ex: 0, v: 0, vx: 0, n: 0, sub: new Map() });
+      par.set(T(r[0]), { r, q: 0, ex: 0, v: 0, vx: 0, vp: 0, hayPlan: false, n: 0, sub: new Map() });
     }
   }
 
@@ -278,6 +281,7 @@ export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
     P.ex += ex;
     P.v += isN(r[4]) ? r[4] : 0;
     P.vx += isN(r[17]) ? r[17] : 0;
+    if (isN(r[24])) { P.vp += r[24]; P.hayPlan = true; }
     P.n++;
     const sc = T(r[5]) || '(sin proveedor)';
     P.sub.set(sc, (P.sub.get(sc) || 0) + q);
@@ -297,6 +301,7 @@ export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
       qty: q,
       venta: isN(venta) && venta > 0 ? venta : P.v,
       vex: isN(vex) && vex > 0 ? vex : P.vx,
+      vplan: isN(r[24]) && r[24] > 0 ? r[24] : P.hayPlan ? P.vp : null,
       pex: isN(pex) ? pex : null,
       ex,
       done,
@@ -312,7 +317,20 @@ export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
     const subs = [...P.sub.entries()].sort((a, b) => b[1] - a[1]);
     const it: Equipo = {
       base: pid,
-      s: { D: { ...S }, E: { ...S }, F: { ...S } },
+      // El avance de las válvulas es suministro (compra y fabricación + flete): las que se fletean ya
+      // están fabricadas. A la fecha ninguna está instalada, así que la instalación queda sin avance
+      // (mantiene sus fechas planificadas). Revisar cuando empiece el montaje de válvulas.
+      // El monto del paquete (suministro e instalación) se reparte 60 % compra y fabricación,
+      // 20 % flete y 20 % instalación, en Venta y V. Plan. Lo ejecutado se reparte igual
+      // pero sin instalación, porque a la fecha no hay válvulas instaladas.
+      s: {
+        D: { ...S, venta: S.venta * VALV_PARTE.D, vex: S.vex * VALV_PARTE.D, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.D },
+        E: { ...S, venta: S.venta * VALV_PARTE.E, vex: S.vex * VALV_PARTE.E, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.E },
+        F: {
+          ...S, venta: S.venta * VALV_PARTE.F, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.F,
+          ex: 0, pex: 0, vex: 0, done: false, status: null, startA: false, finA: false
+        }
+      },
       valv: pid,
       nv: P.n,
       proc: T(proc) || '(sin proceso)',
@@ -385,6 +403,7 @@ export function build(raw: RawSnapshot): Equipo[] {
       qty: q,
       venta: isN(venta) ? venta : 0,
       vex: isN(vex) ? vex : 0,
+      vplan: isN(r[24]) ? r[24] : null,
       pex: pexN,
       ex,
       done,
@@ -425,6 +444,7 @@ export function build(raw: RawSnapshot): Equipo[] {
           qty: it.qty,
           venta: 0,
           vex: 0,
+          vplan: 0,
           pex: 0,
           done: false,
           status: null,
@@ -583,7 +603,15 @@ export async function readMaster(file: File): Promise<{ rows: any[][]; wk: strin
     cellText: false,
     cellStyles: false
   });
-  const ws = wb.Sheets.cdo || wb.Sheets.CDO || wb.Sheets[wb.SheetNames[0]];
+  return leerEquiposDeLibro(wb, file.name);
+}
+
+/**
+ * Extrae las partidas de equipos (02.Procura_Eq., 03.Flete_Eq., 04.Precom_Eq. y válvulas) de un
+ * libro del Master ya leído. Lo usan el botón de carga de Proceso y la carga general del Master.
+ */
+export function leerEquiposDeLibro(wb: XLSX.WorkBook, name: string): { rows: any[][]; wk: string | null; name: string } {
+  const ws = wb.Sheets.cdo || wb.Sheets.CDO || wb.Sheets[wb.SheetNames.find(n => n.toLowerCase() === 'cdo') || wb.SheetNames[0]];
   if (!ws) throw new Error('No se encontró la pestaña cdo en el archivo.');
 
   const need = [
@@ -599,6 +627,7 @@ export async function readMaster(file: File): Promise<{ rows: any[][]; wk: strin
 
   const C = need.map(n => h.map[n]);
   const gi = h.map['Grupos'];
+  const cPlan = h.map['Venta_Plan']; // opcional: los Master antiguos no la traen
   const wi = h.map['WBS'];
 
   const vcols = Object.entries(h.map)
@@ -659,7 +688,8 @@ export async function readMaster(file: File): Promise<{ rows: any[][]; wk: strin
       num(v[21]),
       v[22] == null ? null : String(v[22]).trim()
     ];
-    if (gk === 'V') row.push(wbs);
+    row.push(gk === 'V' ? wbs : null); // [23] paquete de la válvula
+    row.push(cPlan == null ? null : num(cellV(ws, r, cPlan))); // [24] Venta_Plan
     rows.push(row);
   }
 
@@ -672,5 +702,14 @@ export async function readMaster(file: File): Promise<{ rows: any[][]; wk: strin
     if (vs[i] > 1000) wk = k.slice(2);
   });
 
-  return { rows, wk, name: file.name };
+  return { rows, wk, name };
+}
+
+/** Snapshot de equipos listo para Proceso a partir de un libro del Master. */
+export function snapshotDeLibro(wb: XLSX.WorkBook, name: string): RawSnapshot {
+  const { rows, wk } = leerEquiposDeLibro(wb, name);
+  return {
+    meta: { master: name, masterWeek: wk || 'S/F', built: new Date().toISOString().slice(0, 10), cargado: new Date().toISOString() },
+    m: rows
+  } as RawSnapshot;
 }

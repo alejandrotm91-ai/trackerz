@@ -32,28 +32,44 @@ import {
   kfPass,
   kfAny,
   isCable,
+  VALV_PARTE,
   eqU,
   compLab,
   isValvulaScap
 } from '../utils/estadoEquiposDomain';
+import { masReciente, leerLocal, leerDeNube, EVENTO_EQUIPOS } from '../utils/equiposVivo';
 import { Equipo, RawSnapshot, StageKey } from '../types/estadoEquipos';
+
+/** Monto compacto: millones con 2 decimales y miles sin decimales (formato es-ES, como el resto de la pestaña). */
+const fM = (v: number): string => {
+  const a = Math.abs(v);
+  if (a >= 1e6) return (v / 1e6).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' M';
+  if (a >= 1e3) return (v / 1e3).toLocaleString('es-ES', { maximumFractionDigits: 0 }) + ' K';
+  return v.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+};
+
+/** Números de montos con la misma letra que las cifras grandes de equipos. */
+const NUM = "font-['Barlow_Condensed'] font-semibold text-[15px] leading-tight tabular-nums";
 
 export const ProcesoTab: React.FC = () => {
   // Raw snapshot data state (loads from localStorage or embedded SNAP)
-  const [raw, setRaw] = useState<RawSnapshot>(() => {
-    try {
-      const saved = localStorage.getItem(LS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed.m) && parsed.m.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.warn('Error reading raw snapshot from localStorage', e);
-    }
-    return snapData as unknown as RawSnapshot;
-  });
+  // Estado de equipos: el más reciente entre este navegador y el incluido en la app; al abrir,
+  // se compara también con el publicado en la nube, y se actualiza al cargar un Master nuevo.
+  const [raw, setRaw] = useState<RawSnapshot>(
+    () => masReciente(leerLocal(), snapData as unknown as RawSnapshot) || (snapData as unknown as RawSnapshot)
+  );
+  useEffect(() => {
+    let vivo = true;
+    leerDeNube().then(nube => {
+      if (vivo && nube) setRaw(prev => masReciente(prev, nube) || prev);
+    });
+    const alCargar = (e: Event) => {
+      const snap = (e as CustomEvent<RawSnapshot>).detail;
+      if (snap && Array.isArray(snap.m) && snap.m.length) setRaw(snap);
+    };
+    window.addEventListener(EVENTO_EQUIPOS, alCargar);
+    return () => { vivo = false; window.removeEventListener(EVENTO_EQUIPOS, alCargar); };
+  }, []);
 
   // Built domain model (869 equipments from Master)
   const model = useMemo(() => build(raw), [raw]);
@@ -193,6 +209,12 @@ export const ProcesoTab: React.FC = () => {
     );
   }, [proc, comp, scap, subc, kf, agua, q, searchInput, prov, pend, mode]);
 
+  // Cuadro de montos de las tarjetas de etapa: colapsado (solo el total) mientras no haya filtros,
+  // abierto con cualquier filtro. Abrirlo o cerrarlo a mano vale hasta el siguiente cambio de filtros.
+  const [montosManual, setMontosManual] = useState<boolean | null>(null);
+  useEffect(() => { setMontosManual(null); }, [anyFilter]);
+  const montosAbiertos = montosManual ?? anyFilter;
+
   // Other filters flag to limit SCAP & SubC buttons to max 7 (v23-v27, v30)
   // Per specification: mode === 'open' does NOT count as a filter for this limit!
   const otherFiltersActive = useMemo(() => {
@@ -264,6 +286,28 @@ export const ProcesoTab: React.FC = () => {
     return it.qty > 0 ? Math.min(U, (U * (s.ex || 0)) / it.qty) : 0;
   };
 
+  // Montos (Venta, Venta_Plan y Venta Ex del Master) de una etapa, por estado de las partidas.
+  // Las válvulas reparten su monto 60 / 20 / 20 entre las etapas (ver VALV_PARTE).
+  type Montos = { v: number; p: number; e: number };
+  const montosPorEstado = (list: Equipo[], k: StageKey) => {
+    const r: Record<'done' | 'cur' | 'none' | 'tot', Montos> = {
+      done: { v: 0, p: 0, e: 0 }, cur: { v: 0, p: 0, e: 0 }, none: { v: 0, p: 0, e: 0 }, tot: { v: 0, p: 0, e: 0 }
+    };
+    let hayPlan = false;
+    for (const it of list) {
+      const s = it.s[k];
+      if (!s || s.missing) continue;
+      if (s.vplan != null) hayPlan = true;
+      const m = r[stSt(it, k)];
+      for (const x of [m, r.tot]) {
+        x.v += s.venta || 0;
+        x.p += s.vplan || 0;
+        x.e += s.vex || 0;
+      }
+    }
+    return { ...r, hayPlan };
+  };
+
   // Data for stage cards (each skips its own filter per spec!)
   const stageCardData = useMemo(() => {
     return STG.map(k => {
@@ -278,7 +322,8 @@ export const ProcesoTab: React.FC = () => {
         cnt[stSt(it, k)] += eqU(it);
       }
       const sel = kf[k] || [];
-      return { k, a, N, ex, diff, cnt, sel };
+      const dinero = montosPorEstado(list, k);
+      return { k, a, N, ex, diff, cnt, sel, dinero };
     });
   }, [baseFiltered, kf, mode]);
 
@@ -290,7 +335,15 @@ export const ProcesoTab: React.FC = () => {
     const materialPartidas = finalFiltered.length - eqF.length;
     const critList = baseFiltered.filter(it => kfPass(it, kf, 'crit') && isCrit(it));
     const isCritActive = Boolean(kf.crit && kf.crit.length > 0);
-    return { a, NF, materialPartidas, critCount: critList.length, isCritActive };
+    // Montos de la selección: las tres etapas
+    const tot = { v: 0, p: 0, e: 0 };
+    let hayPlan = false;
+    for (const k of STG) {
+      const m = montosPorEstado(finalFiltered, k);
+      tot.v += m.tot.v; tot.p += m.tot.p; tot.e += m.tot.e;
+      hayPlan = hayPlan || m.hayPlan;
+    }
+    return { a, NF, materialPartidas, critCount: critList.length, isCritActive, dinero: { ...tot, hayPlan } };
   }, [baseFiltered, finalFiltered, kf]);
 
   // Handle toggling filter chips in the 4 KPI cards (v22)
@@ -482,7 +535,8 @@ export const ProcesoTab: React.FC = () => {
         meta: {
           master: name,
           masterWeek: wk || 'S/F',
-          built: new Date().toISOString().slice(0, 10)
+          built: new Date().toISOString().slice(0, 10),
+          cargado: new Date().toISOString()
         },
         m: rows
       };
@@ -506,11 +560,15 @@ export const ProcesoTab: React.FC = () => {
     try {
       localStorage.removeItem(LS_KEY);
     } catch (e) {}
-    const orig = snapData as unknown as RawSnapshot;
-    setRaw(orig);
-    setUploadMsg({
-      text: `Se restauró la carga original (${orig.meta.master}, ${orig.meta.masterWeek}).`,
-      type: 'ok'
+    const incluido = snapData as unknown as RawSnapshot;
+    setRaw(incluido);
+    leerDeNube().then(nube => {
+      const orig = masReciente(nube, incluido) || incluido;
+      setRaw(orig);
+      setUploadMsg({
+        text: `Se restauró la versión publicada (${orig.meta.master}, ${orig.meta.masterWeek}).`,
+        type: 'ok'
+      });
     });
     showToast('Carga original restaurada');
   };
@@ -518,15 +576,12 @@ export const ProcesoTab: React.FC = () => {
   return (
     <div className="w-full bg-[#EEF2F3] text-[#14212A] min-h-[calc(100vh-140px)] rounded-2xl pb-16 font-['IBM_Plex_Sans',system-ui,sans-serif]">
       {/* 1. Header Bar */}
-      <header className="sticky top-0 z-30 bg-white border-b border-[#D5DEE2] rounded-t-2xl shadow-xs">
-        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap gap-3 items-center justify-between">
+      <header className="sticky top-0 z-30 bg-[#F5F8F9] border border-[#D5DEE2] rounded-t-2xl">
+        <div className="max-w-[1360px] mx-auto px-4 py-2 flex flex-wrap gap-3 items-center justify-between">
           <div>
-            <h1 className="font-['Barlow_Condensed'] font-bold text-2xl sm:text-[26px] tracking-tight leading-none text-[#14212A]">
-              Estado de Equipos PTAR Merinos
+            <h1 className="text-[11px] font-['Barlow_Condensed'] font-semibold text-[#14212A] uppercase tracking-wider">
+              Estado de Equipos PTAR Merinos · <span className="text-[#5A6A74] font-mono normal-case font-normal">Compra y fabricación · Flete · Instalación — por proceso y estructura (CAP)</span>
             </h1>
-            <small className="block text-xs text-[#5A6A74] mt-0.5">
-              Compra y fabricación · Flete · Instalación — por proceso y estructura (CAP)
-            </small>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -534,7 +589,7 @@ export const ProcesoTab: React.FC = () => {
             <button
               type="button"
               onClick={handleToggleExpandAll}
-              className="px-3 py-1.5 text-xs font-semibold rounded-md border border-[#442dd7] text-[#442dd7] hover:bg-[#EEECFB]/50 transition-colors cursor-pointer"
+              className="px-2 py-0.5 text-xs font-normal rounded-lg border border-[#D5DEE2] bg-white text-[#14212A] hover:bg-[#EEF2F3] transition-colors cursor-pointer"
             >
               {isAnyExpanded ? 'Colapsar tarjetas' : 'Expandir tarjetas'}
             </button>
@@ -545,7 +600,7 @@ export const ProcesoTab: React.FC = () => {
               id="bClr"
               onClick={handleClearFilters}
               disabled={!anyFilter}
-              className="px-3 py-1.5 text-xs font-semibold rounded-md border border-[#442dd7] text-[#442dd7] hover:bg-[#EEECFB]/50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-2 py-0.5 text-xs font-normal rounded-lg border border-[#D5DEE2] bg-white text-[#14212A] hover:bg-[#EEF2F3] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               title="Quita proceso, tipo de equipo, subtipo, subcontratista, filtro de tarjetas, Agua, búsqueda, proveedor, pendientes y modo terminadas"
             >
               Limpiar filtros
@@ -563,7 +618,7 @@ export const ProcesoTab: React.FC = () => {
               Cargar y procesar 2. Master.xlsx
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <label className="flex flex-col gap-1.5 text-xs text-[#5A6A74] border border-dashed border-[#D5DEE2] rounded-lg p-3 bg-[#F5F8F9] cursor-pointer hover:border-[#442dd7]">
+              <label className="flex flex-col gap-1.5 text-xs text-[#5A6A74] border border-dashed border-[#D5DEE2] rounded-lg p-3 bg-[#F5F8F9] cursor-pointer hover:border-[#CD0000]">
                 <span className="font-bold text-[#14212A] text-sm">2. Master.xlsx</span>
                 <span>
                   Pestaña cdo: Proceso, CAP, SubC, Cantidad, % Ex, Cantidad Ex, p6, Start, Finish, blFinish, Float, Componente
@@ -601,7 +656,7 @@ export const ProcesoTab: React.FC = () => {
                     type="button"
                     disabled={isProcessing}
                     onClick={handleProcessMaster}
-                    className="px-4 py-2 bg-[#442dd7] hover:bg-[#3722b5] text-white font-semibold text-xs rounded-md shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2 bg-[#CD0000] hover:bg-[#A80000] text-white font-semibold text-xs rounded-md shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                   >
                     {isProcessing ? 'Procesando…' : 'Procesar'}
                   </button>
@@ -633,7 +688,7 @@ export const ProcesoTab: React.FC = () => {
                 }}
                 className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-[#EEECFB] border-[#442dd7] shadow-xs ring-1 ring-[#442dd7]'
+                    ? 'bg-[#FBE9E9] border-[#CD0000] shadow-xs ring-1 ring-[#CD0000]'
                     : 'bg-white border-[#D5DEE2] hover:border-slate-400'
                 }`}
               >
@@ -673,7 +728,7 @@ export const ProcesoTab: React.FC = () => {
                 }}
                 className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-[#EEECFB] border-[#442dd7] shadow-xs ring-1 ring-[#442dd7]'
+                    ? 'bg-[#FBE9E9] border-[#CD0000] shadow-xs ring-1 ring-[#CD0000]'
                     : 'bg-white border-[#D5DEE2] hover:border-slate-400'
                 }`}
               >
@@ -737,8 +792,8 @@ export const ProcesoTab: React.FC = () => {
                 onClick={() => handleCompClick('*', false)}
                 className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer ${
                   comp.length === 0
-                    ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                    ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                 }`}
               >
                 <span>Todos</span>
@@ -754,8 +809,8 @@ export const ProcesoTab: React.FC = () => {
                     onClick={e => handleCompClick(c, e.ctrlKey || e.metaKey)}
                     className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer ${
                       isPressed
-                        ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                        ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                     }`}
                     title={`${o.p} partidas · ${fq(o.e)} equipos. Ctrl + clic (⌘ en Mac) para combinar tipos.`}
                   >
@@ -812,8 +867,8 @@ export const ProcesoTab: React.FC = () => {
                 onClick={() => handleScapClick('*', false)}
                 className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer shrink-0 ${
                   scap.length === 0
-                    ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                    ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                 }`}
               >
                 <span>Todos</span>
@@ -829,8 +884,8 @@ export const ProcesoTab: React.FC = () => {
                     onClick={e => handleScapClick(c, e.ctrlKey || e.metaKey)}
                     className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer shrink-0 ${
                       isPressed
-                        ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                        ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                     }`}
                     title={`${o.p} partidas · ${fq(o.e)} equipos. Ctrl + clic (⌘ en Mac) para combinar subtipos.`}
                   >
@@ -843,7 +898,7 @@ export const ProcesoTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setScapAll(true)}
-                  className="px-2.5 py-1 rounded-md border border-dashed border-[#442dd7] text-[#442dd7] font-semibold text-xs hover:bg-[#EEECFB]/60 transition-colors cursor-pointer shrink-0"
+                  className="px-2.5 py-1 rounded-md border border-dashed border-[#CD0000] text-[#CD0000] font-semibold text-xs hover:bg-[#FBE9E9]/60 transition-colors cursor-pointer shrink-0"
                 >
                   +{ks.length - SLIM} más
                 </button>
@@ -852,7 +907,7 @@ export const ProcesoTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setScapAll(false)}
-                  className="px-2.5 py-1 rounded-md border border-dashed border-[#442dd7] text-[#442dd7] font-semibold text-xs hover:bg-[#EEECFB]/60 transition-colors cursor-pointer shrink-0"
+                  className="px-2.5 py-1 rounded-md border border-dashed border-[#CD0000] text-[#CD0000] font-semibold text-xs hover:bg-[#FBE9E9]/60 transition-colors cursor-pointer shrink-0"
                 >
                   Ver menos
                 </button>
@@ -904,8 +959,8 @@ export const ProcesoTab: React.FC = () => {
                 onClick={() => handleSubcClick('*', false)}
                 className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer shrink-0 ${
                   subc.length === 0
-                    ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                    ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                    : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                 }`}
               >
                 <span>Todos</span>
@@ -921,8 +976,8 @@ export const ProcesoTab: React.FC = () => {
                     onClick={e => handleSubcClick(c, e.ctrlKey || e.metaKey)}
                     className={`inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md border font-sans text-xs transition-colors cursor-pointer shrink-0 ${
                       isPressed
-                        ? 'bg-[#442dd7] border-[#442dd7] text-white font-bold'
-                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#442dd7]'
+                        ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold'
+                        : 'bg-white border-[#D5DEE2] text-[#14212A] hover:border-[#CD0000]'
                     }`}
                     title={`${o.p} partidas · ${fq(o.e)} equipos. Ctrl + clic (⌘ en Mac) para combinar subcontratistas.`}
                   >
@@ -935,7 +990,7 @@ export const ProcesoTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSubcAll(true)}
-                  className="px-2.5 py-1 rounded-md border border-dashed border-[#442dd7] text-[#442dd7] font-semibold text-xs hover:bg-[#EEECFB]/60 transition-colors cursor-pointer shrink-0"
+                  className="px-2.5 py-1 rounded-md border border-dashed border-[#CD0000] text-[#CD0000] font-semibold text-xs hover:bg-[#FBE9E9]/60 transition-colors cursor-pointer shrink-0"
                 >
                   +{ks.length - SLIM} más
                 </button>
@@ -944,7 +999,7 @@ export const ProcesoTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSubcAll(false)}
-                  className="px-2.5 py-1 rounded-md border border-dashed border-[#442dd7] text-[#442dd7] font-semibold text-xs hover:bg-[#EEECFB]/60 transition-colors cursor-pointer shrink-0"
+                  className="px-2.5 py-1 rounded-md border border-dashed border-[#CD0000] text-[#CD0000] font-semibold text-xs hover:bg-[#FBE9E9]/60 transition-colors cursor-pointer shrink-0"
                 >
                   Ver menos
                 </button>
@@ -955,14 +1010,14 @@ export const ProcesoTab: React.FC = () => {
 
         {/* 4. KPI Cards Grid (4 cards) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {stageCardData.map(({ k, a, N, ex, diff, cnt, sel }) => {
+          {stageCardData.map(({ k, a, N, ex, diff, cnt, sel, dinero }) => {
             const isStageOn = sel.length > 0;
             const stageColor = k === 'D' ? '#A86B12' : k === 'E' ? '#2C67A6' : '#2B7F52';
             return (
               <div
                 key={k}
                 className={`bg-white border rounded-xl p-3.5 flex flex-col justify-between shadow-xs transition-all ${
-                  isStageOn ? 'border-[#442dd7] ring-1 ring-[#442dd7]' : 'border-[#D5DEE2]'
+                  isStageOn ? 'border-[#CD0000] ring-1 ring-[#CD0000]' : 'border-[#D5DEE2]'
                 }`}
               >
                 <div>
@@ -1012,8 +1067,8 @@ export const ProcesoTab: React.FC = () => {
                           onClick={e => handleToggleKf(k, sv, e.ctrlKey || e.metaKey)}
                           className={`inline-flex items-baseline gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
                             isPressed
-                              ? 'bg-[#442dd7] border-[#442dd7] text-white font-semibold'
-                              : 'bg-[#F5F8F9] border-[#D5DEE2] text-[#5A6A74] hover:border-[#442dd7] hover:text-[#14212A]'
+                              ? 'bg-[#CD0000] border-[#CD0000] text-white font-semibold'
+                              : 'bg-[#F5F8F9] border-[#D5DEE2] text-[#5A6A74] hover:border-[#CD0000] hover:text-[#14212A]'
                           }`}
                           title={`${STN[k]} ${lab.toLowerCase()}: filtra las tarjetas de abajo y las otras tarjetas. Ctrl + clic (⌘ en Mac) para combinar con otros botones.`}
                         >
@@ -1025,6 +1080,34 @@ export const ProcesoTab: React.FC = () => {
                       );
                     })}
                   </div>
+
+                  {/* Montos por estado: Venta (col I), V. Plan (col AO) y V. Ejec (col AR) del Master */}
+                  <div
+                    className="grid grid-cols-[auto_1fr_1fr_1fr] gap-x-2 gap-y-0.5 items-baseline pt-2 mt-1 border-t border-[#EEF2F3] text-[11px]"
+                    title={`Montos de ${STN[k].toLowerCase()} según el estado de cada partida (columnas Venta, Venta_Plan y Venta Ex del Master). Las válvulas aportan el ${Math.round(VALV_PARTE[k] * 100)} % del monto de su paquete.`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setMontosManual(!montosAbiertos)}
+                      className="text-left text-[#5A6A74] hover:text-[#14212A] cursor-pointer whitespace-nowrap"
+                      title={montosAbiertos ? 'Ocultar el detalle por estado' : 'Ver los montos por estado (Terminados, En curso, Sin iniciar)'}
+                    >
+                      Montos {montosAbiertos ? '▾' : '▸'}
+                    </button>
+                    <span className="text-right text-[#5A6A74]">Venta</span>
+                    <span className="text-right text-[#5A6A74]">V. Plan</span>
+                    <span className="text-right text-[#5A6A74]">V. Ejec</span>
+                    {([['done', 'Terminados'], ['cur', 'En curso'], ['none', 'Sin iniciar'], ['tot', 'Total']] as const)
+                      .filter(([key]) => montosAbiertos || key === 'tot')
+                      .map(([key, lab]) => (
+                      <React.Fragment key={key}>
+                        <span className={key === 'tot' ? 'font-semibold text-[#14212A]' : 'text-[#5A6A74]'}>{lab}</span>
+                        <span className={`text-right ${NUM} ${key === 'tot' ? 'text-[16px] font-bold' : ''} text-[#14212A]`}>{fM(dinero[key].v)}</span>
+                        <span className={`text-right ${NUM} ${key === 'tot' ? 'text-[16px] font-bold' : ''} text-[#14212A]`}>{dinero.hayPlan ? fM(dinero[key].p) : '—'}</span>
+                        <span className={`text-right ${NUM} ${key === 'tot' ? 'text-[16px] font-bold' : ''} text-[#2B7F52]`}>{fM(dinero[key].e)}</span>
+                      </React.Fragment>
+                    ))}
+                  </div>
                 </div>
               </div>
             );
@@ -1033,14 +1116,14 @@ export const ProcesoTab: React.FC = () => {
           {/* Card 4: Equipos en la Selección */}
           <div
             className={`bg-white border rounded-xl p-3.5 flex flex-col justify-between shadow-xs transition-all ${
-              fourthCardData.isCritActive ? 'border-[#442dd7] ring-1 ring-[#442dd7]' : 'border-[#D5DEE2]'
+              fourthCardData.isCritActive ? 'border-[#CD0000] ring-1 ring-[#CD0000]' : 'border-[#D5DEE2]'
             }`}
           >
             <div>
               <div className="text-[11px] font-bold text-[#5A6A74] tracking-wider uppercase">
                 Equipos en la Selección
               </div>
-              <div className="font-['Barlow_Condensed'] font-semibold text-3xl sm:text-[32px] text-[#442dd7] leading-tight mt-1">
+              <div className="font-['Barlow_Condensed'] font-semibold text-3xl sm:text-[32px] text-[#CD0000] leading-tight mt-1">
                 {fq(fourthCardData.NF)} <small className="text-lg text-[#5A6A74] font-medium">equipos</small>
               </div>
             </div>
@@ -1056,6 +1139,19 @@ export const ProcesoTab: React.FC = () => {
                     No incluye {fourthCardData.materialPartidas} partidas de material (m, kg, ton, m²)
                   </div>
                 )}
+              </div>
+
+              {/* Montos de la selección (las tres etapas; válvulas una sola vez) */}
+              <div
+                className="grid grid-cols-3 gap-x-2 items-baseline pt-2 border-t border-[#EEF2F3] text-[11px]"
+                title="Suma de las tres etapas de las partidas seleccionadas (columnas Venta, Venta_Plan y Venta Ex del Master). Las válvulas reparten su monto 60 % fabricación, 20 % flete y 20 % instalación."
+              >
+                <span className="text-[#5A6A74]">Venta</span>
+                <span className="text-[#5A6A74]">V. Plan</span>
+                <span className="text-[#5A6A74]">V. Ejec</span>
+                <b className={`${NUM} text-[18px] font-bold text-[#14212A]`}>{fM(fourthCardData.dinero.v)}</b>
+                <b className={`${NUM} text-[18px] font-bold text-[#14212A]`}>{fourthCardData.dinero.hayPlan ? fM(fourthCardData.dinero.p) : '—'}</b>
+                <b className={`${NUM} text-[18px] font-bold text-[#2B7F52]`}>{fM(fourthCardData.dinero.e)}</b>
               </div>
 
               {/* Botón Total Float <= 0 */}
@@ -1120,7 +1216,7 @@ export const ProcesoTab: React.FC = () => {
                   setOpenRows(new Set());
                 }}
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
-                  group === 'cap' ? 'bg-[#442dd7] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                  group === 'cap' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
               >
                 Estructura
@@ -1132,7 +1228,7 @@ export const ProcesoTab: React.FC = () => {
                   setOpenRows(new Set());
                 }}
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
-                  group === 'prov' ? 'bg-[#442dd7] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                  group === 'prov' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
               >
                 Proveedor
@@ -1148,7 +1244,7 @@ export const ProcesoTab: React.FC = () => {
                 type="button"
                 onClick={() => setMode('ex')}
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
-                  mode === 'ex' ? 'bg-[#442dd7] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                  mode === 'ex' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
               >
                 Cantidad Ex
@@ -1157,7 +1253,7 @@ export const ProcesoTab: React.FC = () => {
                 type="button"
                 onClick={() => setMode('done')}
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
-                  mode === 'done' ? 'bg-[#442dd7] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                  mode === 'done' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
               >
                 Partidas terminadas
@@ -1166,7 +1262,7 @@ export const ProcesoTab: React.FC = () => {
                 type="button"
                 onClick={() => setMode('open')}
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
-                  mode === 'open' ? 'bg-[#442dd7] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                  mode === 'open' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
                 title="Partidas con alguna etapa en curso o sin iniciar; las cantidades se muestran con Cantidad Ex"
               >
@@ -1202,7 +1298,7 @@ export const ProcesoTab: React.FC = () => {
                 }
               }}
               placeholder="Buscar actividad, equipo, proveedor o ID (Enter ↵)"
-              className="w-full text-xs pl-8 pr-18 py-1.5 rounded-md border border-[#D5DEE2] bg-[#F5F8F9] focus:outline-none focus:ring-1 focus:ring-[#442dd7] focus:bg-white text-[#14212A] transition-colors"
+              className="w-full text-xs pl-8 pr-18 py-1.5 rounded-md border border-[#D5DEE2] bg-[#F5F8F9] focus:outline-none focus:ring-1 focus:ring-[#CD0000] focus:bg-white text-[#14212A] transition-colors"
             />
             <div className="absolute right-1.5 flex items-center gap-1">
               {searchInput && (
@@ -1225,7 +1321,7 @@ export const ProcesoTab: React.FC = () => {
                 onClick={() => setQ(searchInput.trim())}
                 className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-colors cursor-pointer ${
                   searchInput.trim() !== q && searchInput.trim().length > 0
-                    ? 'bg-[#442dd7] text-white hover:bg-[#3722b5] shadow-xs'
+                    ? 'bg-[#CD0000] text-white hover:bg-[#A80000] shadow-xs'
                     : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
                 }`}
                 title="Presione Enter o haga clic para buscar"
@@ -1239,7 +1335,7 @@ export const ProcesoTab: React.FC = () => {
           <select
             value={prov}
             onChange={e => setProv(e.target.value)}
-            className="text-xs px-2.5 py-1.5 rounded-md border border-[#D5DEE2] bg-[#F5F8F9] text-[#14212A] focus:outline-none focus:ring-1 focus:ring-[#442dd7] cursor-pointer max-w-[200px]"
+            className="text-xs px-2.5 py-1.5 rounded-md border border-[#D5DEE2] bg-[#F5F8F9] text-[#14212A] focus:outline-none focus:ring-1 focus:ring-[#CD0000] cursor-pointer max-w-[200px]"
           >
             <option value="">Todos los proveedores</option>
             {availableProviders.map(p => (
@@ -1255,7 +1351,7 @@ export const ProcesoTab: React.FC = () => {
               type="checkbox"
               checked={pend}
               onChange={e => setPend(e.target.checked)}
-              className="rounded text-[#442dd7] focus:ring-[#442dd7] cursor-pointer"
+              className="rounded text-[#CD0000] focus:ring-[#CD0000] cursor-pointer"
             />
             <span>Incluir pendientes de regularizar (WBS D)</span>
           </label>
@@ -1322,7 +1418,7 @@ export const ProcesoTab: React.FC = () => {
                   type="checkbox"
                   checked={aCCM}
                   onChange={e => setACCM(e.target.checked)}
-                  className="rounded text-[#442dd7] focus:ring-[#442dd7]"
+                  className="rounded text-[#CD0000] focus:ring-[#CD0000]"
                 />
                 <span>
                   Excluir los CCM y tableros de las áreas de lodos (CCM 8, 12, 13; PD-GAS, PD-FoG, PD-UTB)
@@ -1345,7 +1441,7 @@ export const ProcesoTab: React.FC = () => {
 
         {/* 6b. Active Card Filter Banner (kfb) */}
         {kfbLabel && (
-          <div className="bg-[#EEECFB] border border-[#442dd7] rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-[#14212A] shadow-xs animate-fadeIn">
+          <div className="bg-[#FBE9E9] border border-[#CD0000] rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-[#14212A] shadow-xs animate-fadeIn">
             <div className="flex items-center gap-2 flex-wrap">
               <span>
                 Filtro de tarjetas: <strong>{kfbLabel}</strong> · {finalFiltered.length} de {baseFiltered.length} partidas
@@ -1355,7 +1451,7 @@ export const ProcesoTab: React.FC = () => {
             <button
               type="button"
               onClick={() => setKf({})}
-              className="px-2.5 py-1 text-xs font-semibold rounded border border-[#442dd7] text-[#442dd7] hover:bg-[#442dd7] hover:text-white transition-colors cursor-pointer"
+              className="px-2.5 py-1 text-xs font-semibold rounded border border-[#CD0000] text-[#CD0000] hover:bg-[#CD0000] hover:text-white transition-colors cursor-pointer"
             >
               Quitar filtro
             </button>
@@ -1389,21 +1485,21 @@ export const ProcesoTab: React.FC = () => {
                       <div
                         key={`band-${sk}`}
                         onClick={() => handleToggleBand(sk)}
-                        className="bg-[#EEECFB] border border-[#442dd7] rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-[#EEECFB]/90 transition-colors shadow-2xs mt-4 first:mt-0 select-none"
+                        className="bg-[#F8DCDC] border border-[#F2BFBF] rounded-xl px-4 py-2 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-[#F4CFCF] transition-colors mt-3 first:mt-0 select-none"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <button
                             type="button"
-                            className="w-7 h-7 rounded border border-[#442dd7] bg-white flex items-center justify-center text-[#442dd7] text-xs font-bold shrink-0"
+                            className="w-5 h-5 rounded border border-[#F2BFBF] bg-white flex items-center justify-center text-[#5A6A74] text-xs shrink-0"
                           >
                             {isBandOpen ? '▾' : '▸'}
                           </button>
                           <div className="min-w-0">
-                            <h2 className="font-['Barlow_Condensed'] font-bold text-xl sm:text-[22px] text-[#14212A] leading-tight truncate">
+                            <h2 className="font-['Barlow_Condensed'] font-semibold text-[15px] uppercase tracking-wider text-[#14212A] leading-tight truncate">
                               {sk}
                             </h2>
-                            <div className="text-xs text-[#5A6A74]">
-                              {bInfo?.capsCount || 1} estructuras · {bAgg.n} partidas · {fq(gl.reduce((t, it) => t + eqU(it), 0))} equipos
+                            <div className="text-[11px] font-mono text-[#5A6A74]">
+                              {bInfo?.capsCount || 1} estructuras · {bAgg.n} partidas · {fq((bInfo?.items ?? gl).reduce((t, it) => t + eqU(it), 0))} equipos
                             </div>
                           </div>
                         </div>
@@ -1471,28 +1567,28 @@ export const ProcesoTab: React.FC = () => {
                   <div
                     key={`card-${gk}`}
                     className={`bg-white border border-[#D5DEE2] rounded-xl overflow-hidden shadow-xs transition-all ${
-                      supOn ? 'ml-3 sm:ml-4 border-l-2 border-l-[#442dd7]' : ''
+                      supOn ? 'ml-3 sm:ml-4 border-l-2 border-l-[#CD0000]' : ''
                     }`}
                   >
                     {/* Card Header (clickable) */}
                     <div
                       onClick={() => handleToggleCard(gk)}
-                      className={`p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 transition-colors select-none ${
+                      className={`px-4 py-2 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 transition-colors select-none ${
                         isCardOpen ? 'border-b border-[#D5DEE2]' : ''
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <button
                           type="button"
-                          className="w-7 h-7 rounded border border-[#D5DEE2] bg-white flex items-center justify-center text-[#5A6A74] text-xs font-bold shrink-0"
+                          className="w-5 h-5 rounded border border-[#D5DEE2] bg-white flex items-center justify-center text-[#5A6A74] text-xs shrink-0"
                         >
                           {isCardOpen ? '▾' : '▸'}
                         </button>
                         <div className="min-w-0">
-                          <h2 className="font-['Barlow_Condensed'] font-semibold text-lg sm:text-xl text-[#14212A] leading-tight truncate">
+                          <h2 className="font-['Barlow_Condensed'] font-semibold text-[15px] tracking-wide text-[#14212A] leading-tight truncate">
                             {cardTitle}
                           </h2>
-                          <div className="text-xs text-[#5A6A74] mt-0.5">
+                          <div className="text-[11px] font-mono text-[#5A6A74]">
                             {group === 'cap' && !supOn && `${Array.from(new Set(gl.map(i => i.proc))).join(' · ')} · `}
                             {cAgg.n} partidas ·{' '}
                             {group === 'cap'
@@ -1542,7 +1638,7 @@ export const ProcesoTab: React.FC = () => {
                             e.stopPropagation();
                             handleCopySummary(cardTitle, innerRows);
                           }}
-                          className="px-2.5 py-1 text-xs border border-[#D5DEE2] rounded hover:border-[#442dd7] hover:text-[#442dd7] text-[#5A6A74] transition-colors cursor-pointer shrink-0"
+                          className="px-2 py-0.5 text-[11px] border border-[#D5DEE2] rounded hover:border-[#CD0000] hover:text-[#CD0000] text-[#5A6A74] transition-colors cursor-pointer shrink-0"
                         >
                           Copiar resumen
                         </button>
@@ -1699,7 +1795,7 @@ export const ProcesoTab: React.FC = () => {
 
                                                 return (
                                                   <tr key={it.base} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="py-2 px-3 font-['IBM_Plex_Mono'] text-[11.5px] text-[#442dd7] font-semibold">
+                                                    <td className="py-2 px-3 font-['IBM_Plex_Mono'] text-[11.5px] text-[#CD0000] font-semibold">
                                                       {it.base}
                                                     </td>
                                                     <td className="py-2 px-3 max-w-[260px]">
@@ -1812,89 +1908,6 @@ export const ProcesoTab: React.FC = () => {
           </div>
         )}
 
-        {/* 8. (new) Desplegable Cambios Recientes */}
-        <details className="bg-white border border-[#D5DEE2] rounded-xl p-3.5 text-xs text-[#14212A] shadow-xs">
-          <summary className="font-bold cursor-pointer flex items-center gap-1.5 select-none text-sm text-[#14212A]">
-            <span>Cambios recientes</span>
-            <span className="font-['IBM_Plex_Mono'] text-[11px] font-bold text-[#C9701E] bg-[#F6E9D3] px-1.5 py-0.2 rounded">
-              (new)
-            </span>
-          </summary>
-          <ul className="mt-2.5 pl-4 list-disc space-y-1 text-[#5A6A74] text-xs">
-            <li>
-              <strong className="text-[#C9701E] font-['IBM_Plex_Mono']">(new) v18</strong>: Sin cables ni conductores: las partidas de cable, conductor, fibra óptica, patch cord y pigtail quedan fuera, estén en m o en u.
-            </li>
-            <li>
-              <strong className="text-[#C9701E] font-['IBM_Plex_Mono']">(new) v19</strong>: Filtro Tipo de equipo (columna Componente) entre las pestañas y las tarjetas; Ctrl + clic combina.
-            </li>
-            <li>
-              <strong className="text-[#C9701E] font-['IBM_Plex_Mono']">(new) v20</strong>: Botón Limpiar filtros junto a Actualizar Master.
-            </li>
-            <li>
-              <strong className="text-[#C9701E] font-['IBM_Plex_Mono']">(new) v21</strong>: Modo Partidas no terminadas, lo opuesto a Partidas terminadas.
-            </li>
-            <li>
-              <strong className="text-[#C9701E] font-['IBM_Plex_Mono']">(new) v22</strong>: Los botones de las 4 tarjetas también filtran los conteos de Tipo de equipo, Subtipo y Subcontratista.
-            </li>
-            <li>
-              <strong className="text-[#C9701E] font-['IBM_Plex_Mono']">(new) v23–v27</strong>: Fila Subtipo (SCAP) debajo de Tipo de equipo, con el mismo formato: máximo 7 botones sin filtros y en una sola línea, "+N más" pegado al último visible, y Partidas no terminadas no cuenta como filtro para ese límite.
-            </li>
-            <li>
-              <strong className="text-[#C9701E] font-['IBM_Plex_Mono']">(new) v32</strong>: Válvulas: solo entran los rubros con &quot;.p6&quot; en el Activity ID y SCAP Válvulas (40 rubros con cantidad). Cada rubro es una partida; sus equipos = Cantidad del rubro o, si viene vacía, la suma de las partidas en u con SCAP Válvulas cuyo WBS (columna A) es ese .p6 (por ejemplo 3.2.8.p6 = 146). Estado, fechas y Float del rubro; el avance se aplica igual a las 3 etapas. Reemplaza a v31, que listaba cada partida de válvula.
-            </li>
-            <li>
-              <strong className="text-[#C9701E] font-['IBM_Plex_Mono']">(new) v30</strong>: Fila Subcontratista (SubC, columna SubC del Master) debajo de Subtipo (SCAP), con el mismo formato (máx. 7, una línea, "+N más") y filtro cruzado con las demás filas y tarjetas.
-            </li>
-            <li>
-              <strong className="text-[#C9701E] font-['IBM_Plex_Mono']">(new) v28–v29</strong>: Diferencia en positivo junto al total de equipos en las 3 tarjetas de etapa (por ejemplo 1.543,9 / 3.291 equipos 1.747,1).
-            </li>
-          </ul>
-        </details>
-
-        {/* 9. Desplegable Cómo se calcula */}
-        <details className="bg-white border border-[#D5DEE2] rounded-xl p-3.5 text-xs text-[#14212A] shadow-xs">
-          <summary className="font-bold cursor-pointer text-sm text-[#14212A] select-none">
-            Cómo se calcula
-          </summary>
-          <ul className="mt-2.5 pl-4 list-disc space-y-1.5 text-[#5A6A74] text-xs">
-            <li>
-              <strong>Universo:</strong> partidas del Master (pestaña cdo) con Grupos 02.Procura_Eq., 03.Flete_Eq. y 04.Precom_Eq.; cada paquete/equipo es un Activity ID base con sus tres actividades .D (compra y fabricación), .E (flete a obra) y .F (instalación y pruebas).
-            </li>
-            <li>
-              <strong>Total =</strong> columna Cantidad. Ejecutado por etapa = Cantidad Ex (si falta, % Ex × Cantidad). En compra y fabricación la Cantidad Ex refleja el avance por hitos de pago: 3 u al 90 % se leen como 2,7 u. El modo "Partidas terminadas" muestra solo los paquetes con al menos una etapa terminada (Completed en P6 o % Ex de 100 %) y cuenta únicamente la cantidad de las etapas terminadas.
-            </li>
-            <li>
-              Todo sale del Master (pestaña cdo): estado = columna p6; fechas = Start y Finish (reales si el estado es Completed, o el inicio si es In Progress); línea base = blFinish; holgura = Float.
-            </li>
-            <li>
-              <strong>Válvulas sin desglose (v32):</strong> además de los equipos .D/.E/.F, se incluyen los rubros con &quot;.p6&quot; en el Activity ID y SCAP Válvulas (suministro e instalación en una sola actividad). Equipos del rubro = su Cantidad o, si está vacía, la suma de las partidas en u con SCAP Válvulas cuyo WBS (columna A) es ese .p6; lo mismo para Cantidad Ex. El estado (columna p6), las fechas y el Float son los del rubro, y su avance cuenta igual en las 3 etapas. El proveedor es el SubC con más unidades dentro del rubro.
-            </li>
-            <li>
-              <strong>Cables y conductores</strong> no son equipos y quedan fuera de todo el aplicativo, estén en m o en u: conductores aislados, cables de cobre, alimentadores, fibra óptica, patch cords, pigtails y puntos de cableado.
-            </li>
-            <li>
-              <strong>Tipo de equipo:</strong> los botones bajo las pestañas filtran por la columna Componente del Master (Civil, Tuberías, Mecánico, Eléctrico, I&amp;C). Se toma el de la actividad .D. Un clic deja un solo tipo y Ctrl + clic combina varios. El filtro afecta a las tarjetas y a la lista, no a las pestañas.
-            </li>
-            <li>
-              <strong>Modo "Partidas no terminadas":</strong> es lo opuesto a "Partidas terminadas". Muestra solo las partidas con alguna etapa en curso o sin iniciar (no Completed y % Ex menor a 100 %) y deja fuera los paquetes ya terminados en las tres etapas. Las cantidades se muestran con Cantidad Ex, igual que en el modo Cantidad Ex.
-            </li>
-            <li>
-              <strong>Subtipo (SCAP):</strong> debajo de Tipo de equipo, un botón por valor de la columna SCAP (el de la actividad .D), ordenados por número de equipos. Sin otros filtros activos se ven como máximo 7 botones, con "+N más" para ver el resto.
-            </li>
-            <li>
-              <strong>Tarjetas superiores:</strong> cuentan equipos físicos. Una partida en u aporta su Cantidad (6 partidas de compuertas = 18 compuertas); una en glb aporta 1 conjunto; las partidas de material en m, kg, ton o m² no se cuentan.
-            </li>
-            <li>
-              <strong>Filtro de tarjetas:</strong> los botones Terminados, En curso y Sin iniciar de cada etapa, y Total Float ≤ 0, filtran las tarjetas de abajo y también las otras tarjetas superiores. Cada tarjeta se calcula con los filtros de las demás, así que sus propios botones siguen mostrando su distribución completa.
-            </li>
-            <li>
-              <strong>Riesgo por Total Float</strong> de la etapa pendiente más próxima: ≤ 0 Crítico, 1 a 20 Alto, 21 a 30 Moderado, más de 30 Moderado-Bajo. Retraso = fin esperado − fin de línea base de la instalación.
-            </li>
-            <li>
-              <strong>Botón Agua:</strong> filtra las estructuras de la ruta hidráulica (afluente e ingreso, pretratamiento, tratamiento primario) y la energía que las alimenta, sin las áreas de lodos.
-            </li>
-          </ul>
-        </details>
       </main>
 
       {/* Toast Notification */}

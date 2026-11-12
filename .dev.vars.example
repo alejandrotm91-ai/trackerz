@@ -1,0 +1,6 @@
+# Copiar como .dev.vars para desarrollo local (npm run dev). Nunca subir .dev.vars al repositorio.
+# En Cloudflare se guardan como secretos: npx wrangler secret put NOMBRE
+ANTHROPIC_API_KEY="sk-ant-..."
+ADMIN_PASSWORD="contraseña-del-admin"
+APP_PASSWORD="contraseña-de-consultores"
+SESSION_SECRET="texto-largo-y-aleatorio"

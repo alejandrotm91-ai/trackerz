@@ -9,7 +9,12 @@ const DB_NAME = 'master_cdo_local_db';
 const STORE_NAME = 'drafts';
 const DB_VERSION = 1;
 
+// Versión de la estructura del Master. La 2 cuelga las partidas P6 de su actividad
+// (parentActivityId); los borradores anteriores se descartan y el Master se reconstruye.
+export const MASTER_DRAFT_SCHEMA_VERSION = 2;
+
 export interface LocalMasterDraft {
+  schemaVersion?: number;
   planId: string;
   fileName: string;
   items: MasterCdoItem[];
@@ -47,6 +52,7 @@ export async function saveLocalMasterDraft(
   isSyncedWithCloud: boolean = false
 ): Promise<LocalMasterDraft> {
   const draft: LocalMasterDraft = {
+    schemaVersion: MASTER_DRAFT_SCHEMA_VERSION,
     planId: planId || 'master_cdo_default',
     fileName,
     items,
@@ -97,7 +103,13 @@ export async function loadLocalMasterDraft(planId: string = 'master_cdo_default'
       const store = tx.objectStore(STORE_NAME);
       const req = store.get(planId);
       req.onsuccess = () => {
-        resolve(req.result || null);
+        const draft: LocalMasterDraft | null = req.result || null;
+        if (draft && draft.schemaVersion !== MASTER_DRAFT_SCHEMA_VERSION) {
+          console.info('Borrador del Master con estructura anterior: se ignora y se reconstruye.');
+          resolve(null);
+          return;
+        }
+        resolve(draft);
       };
       req.onerror = () => resolve(null);
     });

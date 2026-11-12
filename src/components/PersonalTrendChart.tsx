@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useId } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -181,6 +181,9 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
   // Visible lines toggles
   const [showDirecto, setShowDirecto] = useState<boolean>(true);
   const [showIndirecto, setShowIndirecto] = useState<boolean>(true);
+  // Ids propios del SVG: Resumen y Personal muestran este gráfico a la vez y, con ids repetidos,
+  // el gráfico visible tomaba el brillo y los rellenos del oculto y no dibujaba la línea del total.
+  const svgId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const [showTotal, setShowTotal] = useState<boolean>(true);
   // Hovered Point index for Tooltip
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -809,22 +812,22 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => Math.round(maxY * f));
 
   return (
-    <div className="bg-white border border-[#D5DEE2] rounded-xl p-5 sm:p-6 shadow-xs space-y-5" id="personal-trend-chart-card">
+    <div className="ht-card bg-white border border-[#D5DEE2] rounded-xl p-5 sm:p-6 shadow-xs space-y-5" id="personal-trend-chart-card">
       {/* Header Bar: Title, Context Badges & Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#D5DEE2] pb-4">
+      <div className="ht-card-title flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#D5DEE2] pb-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#EEECFB] border border-[#C5BDF7] flex items-center justify-center text-[#442dd7] shadow-xs">
+            <div className="hidden w-9 h-9 rounded-xl bg-[#FBE9E9] border border-[#C5BDF7] items-center justify-center text-[#CD0000] shadow-xs">
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-bold text-[#14212A] tracking-tight flex items-center gap-2">
-                <span className="font-['Barlow_Condensed'] text-lg">Curva de Tendencia de Personal</span>
-                <span className="text-[10px] bg-[#EEECFB] text-[#442dd7] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="ht-title">Curva de Tendencia de Personal</span>
+                <span className="text-[10px] bg-[#FBE9E9] text-[#CD0000] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">
                   Directo vs Indirecto
                 </span>
               </h3>
-              <p className="text-xs text-[#5A6A74] font-medium">
+              <p className="ht-sub">
                 Comportamiento y evolución mensual o semanal de la dotación en obra.
               </p>
             </div>
@@ -842,7 +845,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
               }}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 granularity === 'mensual'
-                  ? 'bg-white text-[#442dd7] shadow-xs font-bold'
+                  ? 'bg-white text-[#CD0000] shadow-xs font-bold'
                   : 'text-[#5A6A74] hover:text-[#14212A]'
               }`}
               title="Ver tendencia mensual (Mes a mes)"
@@ -857,7 +860,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
               }}
               className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 granularity === 'semanal'
-                  ? 'bg-white text-[#442dd7] shadow-xs font-bold'
+                  ? 'bg-white text-[#CD0000] shadow-xs font-bold'
                   : 'text-[#5A6A74] hover:text-[#14212A]'
               }`}
               title="Ver tendencia semanal (Semana a semana)"
@@ -872,7 +875,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
               onClick={() => setMetricMode('promedio')}
               className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
                 metricMode === 'promedio'
-                  ? 'bg-white text-[#442dd7] shadow-xs font-bold'
+                  ? 'bg-white text-[#CD0000] shadow-xs font-bold'
                   : 'text-[#5A6A74] hover:text-[#14212A]'
               }`}
               title="Promedio de personas por día activo en el periodo (Métrica recomendada)"
@@ -883,7 +886,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
               onClick={() => setMetricMode('acumulado')}
               className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
                 metricMode === 'acumulado'
-                  ? 'bg-white text-[#442dd7] shadow-xs font-bold'
+                  ? 'bg-white text-[#CD0000] shadow-xs font-bold'
                   : 'text-[#5A6A74] hover:text-[#14212A]'
               }`}
               title="Suma total acumulada de asistencias en el periodo"
@@ -899,7 +902,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
         <div className="bg-[#F5F8F9] border border-[#D5DEE2] rounded-xl px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-bold text-[#14212A] flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5 text-[#442dd7]" />
+              <Filter className="w-3.5 h-3.5 text-[#CD0000]" />
               <span>Curva ajustada por:</span>
             </span>
 
@@ -909,7 +912,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
               </span>
             )}
             {empresaFilter !== 'all' && (
-              <span className="bg-[#EEECFB] border border-[#C5BDF7] text-[#442dd7] px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1">
+              <span className="bg-[#FBE9E9] border border-[#C5BDF7] text-[#CD0000] px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1">
                 <Building2 className="w-3 h-3" />
                 <span>{empresaFilter}</span>
               </span>
@@ -937,7 +940,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
               </span>
             )}
             {hasMesFilterActive && (
-              <span className="bg-[#442dd7] text-white px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shadow-xs">
+              <span className="bg-[#CD0000] text-white px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shadow-xs">
                 <Calendar className="w-3 h-3" />
                 <span>
                   Mes: {
@@ -949,7 +952,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
               </span>
             )}
             {hasSemanaFilterActive && (
-              <span className="bg-[#3722b5] text-white px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shadow-xs">
+              <span className="bg-[#A80000] text-white px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shadow-xs">
                 <span>
                   Semana: {
                     semanaFilter instanceof Set
@@ -980,7 +983,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
             </div>
           </div>
           <div className="text-right shrink-0">
-            <span className="text-base font-semibold font-['Barlow_Condensed'] text-[#442dd7]">
+            <span className="text-base font-semibold font-['Barlow_Condensed'] text-[#CD0000]">
               {summaryKpis.picoValor ? summaryKpis.picoValor.toFixed(1) : '-'}
             </span>
             <span className="text-[10px] text-[#5A6A74] block font-medium leading-none">pers./d</span>
@@ -1064,12 +1067,12 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
             onClick={() => setShowTotal(!showTotal)}
             className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border transition-all cursor-pointer font-semibold ${
               showTotal
-                ? 'bg-[#EEECFB] border-[#C5BDF7] text-[#442dd7] shadow-2xs'
+                ? 'bg-[#FBE9E9] border-[#C5BDF7] text-[#CD0000] shadow-2xs'
                 : 'bg-[#F5F8F9] border-[#D5DEE2] text-[#5A6A74] opacity-60'
             }`}
             title="Activar / Desactivar línea de Personal Total"
           >
-            <div className="w-3 h-3 rounded-full bg-[#442dd7] flex items-center justify-center">
+            <div className="w-3 h-3 rounded-full bg-[#CD0000] flex items-center justify-center">
               {showTotal && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
             </div>
             <span>Personal Total</span>
@@ -1137,20 +1140,20 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
         >
           <defs>
             {/* Gradients */}
-            <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#442dd7" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#442dd7" stopOpacity="0.00" />
+            <linearGradient id={`gradTotal-${svgId}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#CD0000" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#CD0000" stopOpacity="0.00" />
             </linearGradient>
-            <linearGradient id="gradDirecto" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={`gradDirecto-${svgId}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#10b981" stopOpacity="0.30" />
               <stop offset="100%" stopColor="#10b981" stopOpacity="0.00" />
             </linearGradient>
-            <linearGradient id="gradIndirecto" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={`gradIndirecto-${svgId}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.25" />
               <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.00" />
             </linearGradient>
             {/* Drop Shadow for Lines */}
-            <filter id="shadowGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <filter id={`shadowGlow-${svgId}`} x="-20%" y="-20%" width="140%" height="140%">
               <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15" />
             </filter>
           </defs>
@@ -1246,7 +1249,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
                     y={padding.top}
                     width={graphWidth / Math.max(1, activeSeries.length)}
                     height={graphHeight}
-                    fill={isSelected ? '#442dd7' : '#F5F8F9'}
+                    fill={isSelected ? '#CD0000' : '#F5F8F9'}
                     fillOpacity={isSelected ? '0.10' : '0.6'}
                     rx="6"
                   />
@@ -1258,7 +1261,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
                   y1={padding.top}
                   x2={xPos}
                   y2={padding.top + graphHeight}
-                  stroke={isSelected ? '#442dd7' : isHovered ? '#8E9FA8' : '#D5DEE2'}
+                  stroke={isSelected ? '#CD0000' : isHovered ? '#8E9FA8' : '#D5DEE2'}
                   strokeWidth={isSelected || isHovered ? '1.5' : '1'}
                   strokeDasharray={isSelected ? '0' : '3,3'}
                 />
@@ -1268,7 +1271,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
                   x={xPos}
                   y={padding.top + graphHeight + 18}
                   fontSize="11"
-                  fill={isSelected ? '#442dd7' : isHovered ? '#14212A' : '#5A6A74'}
+                  fill={isSelected ? '#CD0000' : isHovered ? '#14212A' : '#5A6A74'}
                   fontWeight={isSelected || isHovered ? '700' : '500'}
                   textAnchor="middle"
                 >
@@ -1281,7 +1284,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
                     x={xPos}
                     y={padding.top + graphHeight + 32}
                     fontSize="9"
-                    fill={isSelected ? '#442dd7' : '#8E9FA8'}
+                    fill={isSelected ? '#CD0000' : '#8E9FA8'}
                     fontWeight="500"
                     textAnchor="middle"
                   >
@@ -1294,13 +1297,13 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
 
           {/* Area Gradients */}
           {showTotal && tipoFilter === 'all' && (
-            <path d={buildAreaPath(totalPoints)} fill="url(#gradTotal)" />
+            <path d={buildAreaPath(totalPoints)} fill={`url(#gradTotal-${svgId})`} />
           )}
           {showDirecto && tipoFilter !== 'Indirecto' && (
-            <path d={buildAreaPath(directPoints)} fill="url(#gradDirecto)" />
+            <path d={buildAreaPath(directPoints)} fill={`url(#gradDirecto-${svgId})`} />
           )}
           {showIndirecto && tipoFilter !== 'Directo' && (
-            <path d={buildAreaPath(indirectPoints)} fill="url(#gradIndirecto)" />
+            <path d={buildAreaPath(indirectPoints)} fill={`url(#gradIndirecto-${svgId})`} />
           )}
 
           {/* Lines */}
@@ -1309,11 +1312,11 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
             <path
               d={buildLinePath(totalPoints)}
               fill="none"
-              stroke="#442dd7"
+              stroke="#CD0000"
               strokeWidth="3.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              filter="url(#shadowGlow)"
+              filter={`url(#shadowGlow-${svgId})`}
             />
           )}
 
@@ -1378,7 +1381,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
                     cx={pTot.x}
                     cy={pTot.y}
                     r={isHovered ? 6.5 : isSelected ? 5.5 : 4}
-                    fill="#442dd7"
+                    fill="#CD0000"
                     stroke="#ffffff"
                     strokeWidth="2.5"
                     className="transition-all"
@@ -1421,7 +1424,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
                       height="18"
                       rx="6"
                       fill="#14212A"
-                      stroke="#442dd7"
+                      stroke="#CD0000"
                       strokeWidth="1"
                     />
                     <text
@@ -1540,7 +1543,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
       {!hideBottomSelectors && granularity === 'mensual' && monthlyTrendData.length > 1 && (
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#D5DEE2]">
           <div className="flex items-center gap-1.5 text-xs text-[#5A6A74] font-medium">
-            <Calendar className="w-3.5 h-3.5 text-[#442dd7]" />
+            <Calendar className="w-3.5 h-3.5 text-[#CD0000]" />
             <span>Meses en tendencia:</span>
           </div>
 
@@ -1549,8 +1552,8 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
               onClick={() => setMesFilter('all')}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 mesFilter === 'all' || (mesFilter instanceof Set && mesFilter.size === 0)
-                  ? 'bg-[#442dd7] text-white shadow-xs'
-                  : 'bg-[#EEF2F3] text-[#5A6A74] hover:bg-[#EEECFB] hover:text-[#442dd7]'
+                  ? 'bg-[#CD0000] text-white shadow-xs'
+                  : 'bg-[#EEF2F3] text-[#5A6A74] hover:bg-[#FBE9E9] hover:text-[#CD0000]'
               }`}
             >
               Todos los Meses
@@ -1564,13 +1567,13 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
                   onClick={() => setMesFilter(m.mesKey)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                     isSelected
-                      ? 'bg-[#442dd7] text-white shadow-xs'
-                      : 'bg-[#EEF2F3] text-[#5A6A74] hover:bg-[#EEECFB] hover:text-[#442dd7]'
+                      ? 'bg-[#CD0000] text-white shadow-xs'
+                      : 'bg-[#EEF2F3] text-[#5A6A74] hover:bg-[#FBE9E9] hover:text-[#CD0000]'
                   }`}
                   title={`Filtrar por ${m.mesLabel} (${m.promTotal.toFixed(1)} pers/día)`}
                 >
                   <span>{m.mesLabel.split(' ')[0]}</span>
-                  <span className={`text-[10px] font-mono ${isSelected ? 'text-[#EEECFB]' : 'text-[#8E9FA8]'}`}>
+                  <span className={`text-[10px] font-mono ${isSelected ? 'text-[#FBE9E9]' : 'text-[#8E9FA8]'}`}>
                     ({m.promTotal.toFixed(0)})
                   </span>
                 </button>
@@ -1584,7 +1587,7 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
       {!hideBottomSelectors && !hideQuickWeekSelector && granularity === 'semanal' && weeklyTrendData.length > 1 && (
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#D5DEE2]">
           <div className="flex items-center gap-1.5 text-xs text-[#5A6A74] font-medium">
-            <Calendar className="w-3.5 h-3.5 text-[#442dd7]" />
+            <Calendar className="w-3.5 h-3.5 text-[#CD0000]" />
             <span>Semanas en tendencia:</span>
           </div>
 
@@ -1595,8 +1598,8 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
               }}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 semanaFilter === 'all' || (semanaFilter instanceof Set && semanaFilter.size === 0)
-                  ? 'bg-[#442dd7] text-white shadow-xs'
-                  : 'bg-[#EEF2F3] text-[#5A6A74] hover:bg-[#EEECFB] hover:text-[#442dd7]'
+                  ? 'bg-[#CD0000] text-white shadow-xs'
+                  : 'bg-[#EEF2F3] text-[#5A6A74] hover:bg-[#FBE9E9] hover:text-[#CD0000]'
               }`}
             >
               Todas las Semanas
@@ -1615,13 +1618,13 @@ export const PersonalTrendChart: React.FC<PersonalTrendChartProps> = ({
                   }}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                     isSelected
-                      ? 'bg-[#442dd7] text-white shadow-xs'
-                      : 'bg-[#EEF2F3] text-[#5A6A74] hover:bg-[#EEECFB] hover:text-[#442dd7]'
+                      ? 'bg-[#CD0000] text-white shadow-xs'
+                      : 'bg-[#EEF2F3] text-[#5A6A74] hover:bg-[#FBE9E9] hover:text-[#CD0000]'
                   }`}
                   title={`${w.semanaLabel} (${w.promTotal.toFixed(1)} pers/día)`}
                 >
                   <span>{semName}</span>
-                  <span className={`text-[10px] font-mono ${isSelected ? 'text-[#EEECFB]' : 'text-[#8E9FA8]'}`}>
+                  <span className={`text-[10px] font-mono ${isSelected ? 'text-[#FBE9E9]' : 'text-[#8E9FA8]'}`}>
                     ({w.promTotal.toFixed(0)})
                   </span>
                 </button>
