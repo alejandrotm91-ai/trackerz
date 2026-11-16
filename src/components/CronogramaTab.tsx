@@ -14,6 +14,7 @@ import { AnalisisProyectoCard } from './AnalisisProyectoCard';
 import { isIgnoredFinishDate } from '../utils/helpers';
 import { exportGanttToPdfA3 } from '../utils/exportGanttPdf';
 import { compareWbs, parseWbsAndDescription, DEFAULT_CHAPTER_DESCRIPTIONS, hasDirectoOrDSegment } from '../utils/masterCdoHierarchy';
+import { LEVEL_STYLES } from '../utils/nivelesJerarquia';
 
 interface CronogramaTabProps {
   actividades: any[];
@@ -5814,824 +5815,197 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                         </p>
                       </div>
                     ) : (
-                      Object.entries(filteredGrouped).map(([subC, items]) => {
-                        const isPorContratar = subC === 'Por Contratar';
-                        const isContratados = subC === 'Contratados';
-                        const groupMetrics = computeAggregatedMetrics(items);
+                      (() => {
+                        // Tabla compacta con el formato de Control de Ejecución: un color por nivel con barra
+                        // a la izquierda, filas bajas y sangría leve. Niveles: Por Contratar / Contratados
+                        // → (SubC) → Paquete → WBS → partidas.
+                        const fmtFecha = (dt: Date | null | undefined) => {
+                          if (!dt) return '';
+                          const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+                          return `${String(dt.getDate()).padStart(2, '0')}.${meses[dt.getMonth()]}.${String(dt.getFullYear()).slice(2)}`;
+                        };
+                        const dias = (a: any, b: any) => {
+                          if (!a || !b) return '';
+                          const s = new Date(a), f = new Date(b);
+                          if (isNaN(s.getTime()) || isNaN(f.getTime())) return '';
+                          return `${Math.round((f.getTime() - s.getTime()) / 86400000)} d`;
+                        };
+                        const nPaquetes = (lista: any[]) => new Set(lista.map(it => cleanWbs(it.wbs).toLowerCase())).size;
+                        const minBl = (lista: any[]) => {
+                          let m = Infinity;
+                          lista.forEach(it => { const f = it.blFinish || it.finish; if (f instanceof Date && !isNaN(f.getTime()) && f.getTime() < m) m = f.getTime(); });
+                          return m;
+                        };
+                        const agrupar = (lista: any[], clave: (it: any) => string) => {
+                          const g: Record<string, any[]> = {};
+                          lista.forEach(it => { const k = clave(it); (g[k] = g[k] || []).push(it); });
+                          return g;
+                        };
+                        const estadoCls = (st: string) => {
+                          const s = st.toLowerCase();
+                          if (s.includes('complet')) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                          if (s === 'in progress' || s.includes('curso') || s.includes('progreso')) return 'bg-sky-50 text-sky-700 border-sky-200';
+                          return 'bg-slate-100 text-slate-600 border-slate-200';
+                        };
 
-                        if (isContratados) {
-                          // Group contratistas first
-                          const subCGroups: Record<string, any[]> = {};
-                          items.forEach(it => {
-                            const subName = (it.subcontratista || '').trim() || 'General / Sin Contratista';
-                            if (!subCGroups[subName]) {
-                              subCGroups[subName] = [];
-                            }
-                            subCGroups[subName].push(it);
-                          });
+                        const filas: React.ReactNode[] = [];
 
-                          return (
-                            <div key={subC} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-left font-sans">
-                              {/* Group Header for Contratados */}
-                              <div 
-                                onClick={() => {
-                                  setCollapsedGroups(prev => ({
-                                    ...prev,
-                                    [subC]: !prev[subC]
-                                  }));
-                                }}
-                                className="px-4 py-3 flex items-center justify-between border-b bg-emerald-500/10 border-emerald-250 text-emerald-950 bg-emerald-50/45 cursor-pointer hover:bg-emerald-500/15 transition-colors select-none"
-                              >
-                                <div className="flex flex-col gap-0.5 text-left min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    {collapsedGroups[subC] ? (
-                                      <ChevronRight className="w-4 h-4 text-emerald-700 shrink-0" />
-                                    ) : (
-                                      <ChevronDown className="w-4 h-4 text-emerald-700 shrink-0" />
-                                    )}
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                                    <span className="font-extrabold text-[12px] uppercase tracking-wider">{subC}</span>
-                                    <span className="px-1.5 py-0.5 bg-white/75 rounded-full text-[9px] font-black border uppercase shrink-0">
-                                      {(() => {
-                                        const uCount = Array.from(new Set(items.map(it => cleanWbs(it.wbs).toLowerCase()))).length;
-                                        return `${uCount} ${uCount === 1 ? 'paquete' : 'paquetes'}`;
-                                      })()}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-3 text-[9.5px] mt-1 ml-6 flex-wrap">
-                                    {groupMetrics.cantText && (
-                                      <span className="text-emerald-900 font-mono">
-                                        Cant. Total: <span className="font-bold">{groupMetrics.cantText}</span>
-                                      </span>
-                                    )}
-                                    {groupMetrics.rangeText && (
-                                      <span className="text-emerald-950 border-emerald-250 bg-white/80 font-mono px-1.5 py-0.5 rounded border">
-                                        Programación: <span className="font-bold">{groupMetrics.rangeText}</span>
-                                      </span>
-                                    )}
-                                  </div>
+                        /** Fila de grupo (cualquier nivel). */
+                        const filaGrupo = (key: string, nivel: number, abierto: boolean, alternar: () => void, nombre: React.ReactNode, titulo: string, lista: any[], extra?: { ids?: string[]; insignia?: React.ReactNode }) => {
+                          const st = LEVEL_STYLES[Math.min(nivel, LEVEL_STYLES.length - 1)];
+                          const m = computeAggregatedMetrics(lista);
+                          const n = nPaquetes(lista);
+                          filas.push(
+                            <tr key={key} onClick={alternar} className={`${st.bg} cursor-pointer transition-colors whitespace-nowrap`}>
+                              <td className={`px-1 py-1.5 whitespace-nowrap overflow-hidden ${st.accent}`} style={{ paddingLeft: `${nivel * 2 + 5}px` }}>
+                                <div className="flex items-center gap-1 min-w-0">
+                                  {abierto ? <ChevronDown className={`w-3.5 h-3.5 ${st.chevron} shrink-0`} /> : <ChevronRight className={`w-3.5 h-3.5 ${st.chevron} shrink-0`} />}
+                                  <span className={`text-[11px] tracking-wide font-bold truncate min-w-0 ${st.text}`} title={titulo}>{nombre}</span>
+                                  <span className={`text-[10px] font-mono ${st.subText} shrink-0`}>({n} paq.)</span>
+                                  {extra?.insignia}
                                 </div>
-                                <span className="text-[9.5px] bg-emerald-500/20 border border-emerald-300 text-emerald-800 font-black px-2.5 py-0.5 rounded-full uppercase shrink-0">
-                                  ✅ ADJUDICADO / CONTRATADO
-                                </span>
-                              </div>
+                              </td>
+                              <td className={`px-2 py-1.5 font-mono text-[10px] ${st.subText}`}>
+                                {extra?.ids && <span className="truncate block" title={extra.ids.join(', ')}>{extra.ids.join(', ')}</span>}
+                              </td>
+                              <td></td>
+                              <td className={`px-2 py-1.5 text-right font-mono text-[10.5px] ${st.text}`}>
+                                <span className="truncate block" title={m.cantText}>{m.cantText || '—'}</span>
+                              </td>
+                              <td></td>
+                              <td></td>
+                              <td className={`px-2 py-1.5 text-center font-mono text-[10px] truncate ${st.dateText}`}>{m.rangeText || '—'}</td>
+                              <td className={`px-2 py-1.5 text-right font-mono text-[10px] ${st.dateText}`}>{dias(m.minStart, m.maxFinish)}</td>
+                            </tr>
+                          );
+                        };
 
-                              {/* List of Subcontractors */}
-                              {!collapsedGroups[subC] && (
-                                <div className="divide-y-2 divide-slate-150 animate-fade-in">
-                                  {Object.entries(subCGroups).map(([subName, subItems]) => {
-                                  // Group by Paquete (scap)
-                                  const scapGroups: Record<string, any[]> = {};
-                                  subItems.forEach(it => {
-                                    const sc = it.scap || 'General / Sin SCAP';
-                                    if (!scapGroups[sc]) {
-                                      scapGroups[sc] = [];
-                                    }
-                                    scapGroups[sc].push(it);
-                                  });
+                        /** Filas de partidas (hojas). */
+                        const filasPartidas = (key: string, nivel: number, lista: any[]) => {
+                          lista.forEach((it, i) => {
+                            const st = String(it.p6Status || 'Not Started');
+                            const sStr = fmtFecha(it.start ? new Date(it.start) : null);
+                            const fStr = fmtFecha(it.finish ? new Date(it.finish) : null);
+                            filas.push(
+                              <tr key={`${key}__${it.id || i}`} className="bg-white hover:bg-slate-50 transition-colors text-[11px] text-slate-700 border-b border-slate-100 border-l-2 border-l-slate-300 whitespace-nowrap">
+                                <td className="px-1 py-1 overflow-hidden" style={{ paddingLeft: `${nivel * 2 + 7}px` }}>
+                                  <div className="truncate text-slate-800 font-medium" title={it.descripcion}>{it.descripcion}</div>
+                                </td>
+                                <td className="px-2 py-1 font-mono text-[10px] text-slate-600 truncate" title={it.idOrig || ''}>{it.idOrig || '—'}</td>
+                                <td className="px-2 py-1 font-mono text-[10px] text-slate-500 truncate" title={it.activityId || ''}>{it.activityId || '—'}</td>
+                                <td className="px-2 py-1 text-right font-mono text-[10.5px] text-slate-700 truncate">
+                                  {it.cantidadCdo !== undefined && it.cantidadCdo !== null ? `${it.cantidadCdo.toLocaleString('es-ES')} ${it.unidad || it.unit || ''}`.trim() : '—'}
+                                </td>
+                                <td className="px-2 py-1 text-[10.5px] text-slate-700"><span className="truncate block" title={it.subcontratista || ''}>{it.subcontratista || '—'}</span></td>
+                                <td className="px-2 py-1">
+                                  <span className={`inline-block max-w-full truncate align-middle px-1.5 py-0.5 rounded-full border text-[9px] font-semibold ${estadoCls(st)}`} title={st}>{st}</span>
+                                </td>
+                                <td className="px-2 py-1 text-center font-mono text-[10px] text-slate-600 truncate">{(sStr || fStr) ? `${sStr} a ${fStr}` : '—'}</td>
+                                <td className="px-2 py-1 text-right font-mono text-[10px] text-slate-500">{dias(it.start, it.finish)}</td>
+                              </tr>
+                            );
+                          });
+                        };
 
-                                  const subcCollapseKey = `${subC}_${subName}`;
-                                  const isSubcCollapsed = !expandedReportSubc[subcCollapseKey];
-                                  const toggleSubcCollapse = () => {
-                                    setExpandedReportSubc(prev => ({
-                                      ...prev,
-                                      [subcCollapseKey]: !prev[subcCollapseKey]
-                                    }));
-                                  };
+                        /** Paquetes (SCAP) → WBS → partidas, debajo de un grupo o de un subcontratista. */
+                        const bloquePaquetes = (prefijo: string, nivel: number, lista: any[]) => {
+                          const porScap = agrupar(lista, it => it.scap || 'General / Sin SCAP');
+                          Object.entries(porScap).sort(([, a], [, b]) => minBl(a) - minBl(b)).forEach(([scName, scapItems]) => {
+                            const kScap = `${prefijo}_${scName}`;
+                            const abiertoScap = !!expandedReportScap[kScap];
+                            filaGrupo(`scap_${kScap}`, nivel, abiertoScap, () => setExpandedReportScap(prev => ({ ...prev, [kScap]: !prev[kScap] })),
+                              <>Paquete: {scName}</>, `Paquete: ${scName}`, scapItems);
+                            if (!abiertoScap) return;
+                            const porWbs: Record<string, { wbsName: string; items: any[] }> = {};
+                            scapItems.forEach(it => {
+                              const cw = cleanWbs(it.wbs);
+                              if (!porWbs[cw]) porWbs[cw] = { wbsName: getWbsName(it.wbs), items: [] };
+                              porWbs[cw].items.push(it);
+                            });
+                            Object.entries(porWbs).forEach(([cw, val]) => {
+                              const kWbs = `${kScap}_${cw}`;
+                              const abiertoWbs = !!expandedReportWbs[kWbs];
+                              const ids = Array.from(new Set(val.items.map(it => it.idOrig).filter(Boolean))).map(String);
+                              filaGrupo(`wbs_${kWbs}`, nivel + 1, abiertoWbs, () => setExpandedReportWbs(prev => ({ ...prev, [kWbs]: !prev[kWbs] })),
+                                val.wbsName, val.wbsName, val.items, { ids: ids.length ? ids : [cw] });
+                              if (abiertoWbs) filasPartidas(`it_${kWbs}`, nivel + 2, val.items);
+                            });
+                          });
+                        };
 
-                                  const subcMetrics = computeAggregatedMetrics(subItems);
+                        Object.entries(filteredGrouped).forEach(([subC, items]) => {
+                          const isPorContratar = subC === 'Por Contratar';
+                          const isContratados = subC === 'Contratados';
+                          const abierto = !collapsedGroups[subC];
+                          const insignia = isPorContratar
+                            ? <span className="ml-1 px-1.5 py-0.5 rounded-full border text-[9px] font-semibold bg-amber-50 text-amber-800 border-amber-200 shrink-0">• FRENTE DE RIESGO</span>
+                            : isContratados
+                              ? <span className="ml-1 px-1.5 py-0.5 rounded-full border text-[9px] font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">• ADJUDICADO</span>
+                              : undefined;
+                          filaGrupo(`grp_${subC}`, 0, abierto, () => setCollapsedGroups(prev => ({ ...prev, [subC]: !prev[subC] })),
+                            <span className="uppercase">{subC}</span>, subC, items, { insignia });
+                          if (!abierto) return;
+                          if (isContratados) {
+                            const porSubc = agrupar(items, it => (it.subcontratista || '').trim() || 'General / Sin Contratista');
+                            Object.entries(porSubc).forEach(([subName, subItems]) => {
+                              const kSub = `${subC}_${subName}`;
+                              const abiertoSub = !!expandedReportSubc[kSub];
+                              filaGrupo(`sub_${kSub}`, 1, abiertoSub, () => setExpandedReportSubc(prev => ({ ...prev, [kSub]: !prev[kSub] })),
+                                <>SubC: {subName}</>, `SubC: ${subName}`, subItems);
+                              if (abiertoSub) bloquePaquetes(kSub, 2, subItems);
+                            });
+                          } else {
+                            bloquePaquetes(subC, 1, items);
+                          }
+                        });
 
-                                  return (
-                                    <div key={subName} className="bg-slate-50/10">
-                                      {/* SubC level superior hierarchy header */}
-                                      <div 
-                                        onClick={toggleSubcCollapse}
-                                        className="px-4 py-2.5 border-b border-indigo-200/50 flex items-center justify-between hover:opacity-90 transition-opacity cursor-pointer select-none"
-                                        style={{ backgroundColor: '#FBE5E5' }}
-                                      >
-                                        <div className="flex flex-col gap-0.5 text-left min-w-0">
-                                          <div className="flex items-center gap-2">
-                                            {isSubcCollapsed ? (
-                                              <ChevronRight className="w-4 h-4 text-indigo-700 shrink-0" />
-                                            ) : (
-                                              <ChevronDown className="w-4 h-4 text-indigo-700 shrink-0" />
-                                            )}
-                                            <div className="w-4 h-4 rounded bg-indigo-650 text-white flex items-center justify-center text-[9px] font-black">
-                                              🏗️
-                                            </div>
-                                            <span className="text-[11px] font-extrabold text-indigo-950 uppercase tracking-tight">
-                                              SubC: {subName}
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center gap-3 text-[9.5px] mt-1 ml-6 flex-wrap">
-                                            {subcMetrics.cantText && (
-                                              <span className="text-indigo-800 font-mono">
-                                                Cant. Total: <span className="font-bold">{subcMetrics.cantText}</span>
-                                              </span>
-                                            )}
-                                            {subcMetrics.rangeText && (
-                                              <span className="text-indigo-900 font-mono bg-white/75 px-1.5 py-0.5 rounded border border-indigo-150">
-                                                Programación: <span className="font-bold">{subcMetrics.rangeText}</span>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                        <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-150 text-indigo-700 rounded-lg text-[9px] font-black uppercase shrink-0">
-                                          {(() => {
-                                            const uCount = Array.from(new Set(subItems.map(it => cleanWbs(it.wbs).toLowerCase()))).length;
-                                            return `${uCount} ${uCount === 1 ? 'paquete' : 'paquetes'}`;
-                                          })()}
-                                        </span>
-                                      </div>
+                        const todos = Object.values(filteredGrouped).flat();
+                        const mTot = computeAggregatedMetrics(todos);
 
-                                      {/* Secciones de Paquete de este Subcontractor */}
-                                      {!isSubcCollapsed && (
-                                        <div className="divide-y divide-slate-100">
-                                          {Object.entries(scapGroups).sort(([, aItems], [, bItems]) => {
-                                            const getMinBlFinish = (items: any[]) => {
-                                              let minT = Infinity;
-                                              items.forEach(it => {
-                                                const f = it.blFinish || it.finish;
-                                                if (f instanceof Date && !isNaN(f.getTime())) {
-                                                  if (f.getTime() < minT) minT = f.getTime();
-                                                }
-                                              });
-                                              return minT;
-                                            };
-                                            const diff = getMinBlFinish(aItems) - getMinBlFinish(bItems);
-                                            if (diff !== 0) return diff;
-                                            return 0;
-                                          }).map(([scName, scapItems]) => {
-                                          // Group by WBS
-                                          const wbsGroups: Record<string, { wbsName: string; items: any[] }> = {};
-                                          scapItems.forEach(it => {
-                                            const cw = cleanWbs(it.wbs);
-                                            const wName = getWbsName(it.wbs);
-                                            if (!wbsGroups[cw]) {
-                                              wbsGroups[cw] = { wbsName: wName, items: [] };
-                                            }
-                                            wbsGroups[cw].items.push(it);
-                                          });
-
-                                          const scapCollapseKey = `${subC}_${subName}_${scName}`;
-                                          const isScapCollapsed = !expandedReportScap[scapCollapseKey];
-                                          const toggleScapCollapse = () => {
-                                            setExpandedReportScap(prev => ({
-                                              ...prev,
-                                              [scapCollapseKey]: !prev[scapCollapseKey]
-                                            }));
-                                          };
-
-                                          const scapMetrics = computeAggregatedMetrics(scapItems);
-
-                                          return (
-                                            <div key={scName} className="bg-slate-50/20 mr-2 ml-4 my-2 border border-slate-200 rounded-xl overflow-hidden shadow-mini">
-                                              {/* Paquete Header inside SubC */}
-                                              <div 
-                                                onClick={toggleScapCollapse}
-                                                className="px-4 py-2.5 border-b border-amber-200/50 flex items-center justify-between cursor-pointer transition-colors hover:opacity-95"
-                                                style={{ backgroundColor: '#fef3c7' }}
-                                              >
-                                                <div className="flex flex-col gap-0.5 text-left min-w-0">
-                                                  <div className="flex items-center gap-2">
-                                                    {isScapCollapsed ? (
-                                                      <ChevronRight className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                                    ) : (
-                                                      <ChevronDown className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                                    )}
-                                                    <span className="text-[10.5px] font-black text-indigo-850 uppercase tracking-wide">
-                                                      🔷 Paquete: {scName}
-                                                    </span>
-                                                  </div>
-                                                  <div className="flex items-center gap-3 text-[9.5px] mt-1 ml-5 flex-wrap">
-                                                    {scapMetrics.cantText && (
-                                                      <span className="text-indigo-850 font-mono">
-                                                        Cant. Total: <span className="font-bold">{scapMetrics.cantText}</span>
-                                                      </span>
-                                                    )}
-                                                    {scapMetrics.rangeText && (
-                                                      <span className="text-amber-950 font-mono bg-white/75 px-1.5 py-0.5 rounded border border-amber-200">
-                                                        Programación: <span className="font-bold">{scapMetrics.rangeText}</span>
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                  <span className="px-2 py-0.5 bg-indigo-100/60 border border-indigo-200/50 text-indigo-700 rounded-lg text-[9px] font-bold">
-                                                    {(() => {
-                                                      const uCount = Array.from(new Set(scapItems.map(it => cleanWbs(it.wbs).toLowerCase()))).length;
-                                                      return `${uCount} ${uCount === 1 ? 'paquete' : 'paquetes'}`;
-                                                    })()}
-                                                  </span>
-                                                </div>
-                                              </div>
-
-                                              {/* Secciones de WBS de este Paquete */}
-                                              {!isScapCollapsed && (
-                                                <div className="divide-y divide-slate-100 bg-white animate-fade-in">
-                                                  {Object.entries(wbsGroups).map(([cwKey, val]) => {
-                                                    const collapseKey = `${subC}_${subName}_${scName}_${cwKey}`;
-                                                    const isCollapsed = !expandedReportWbs[collapseKey];
-                                                    const toggleCollapse = () => {
-                                                      setExpandedReportWbs(prev => ({
-                                                        ...prev,
-                                                        [collapseKey]: !prev[collapseKey]
-                                                      }));
-                                                    };
-
-                                                    const uniqueIdOrigs = Array.from(new Set(val.items.map(it => it.idOrig).filter(Boolean)));
-                                                    const idDisplay = uniqueIdOrigs.length > 0 ? uniqueIdOrigs : [cwKey];
-
-                                                    const wbsMetrics = (() => {
-                                                      let totalCant = 0;
-                                                      const units = new Set<string>();
-                                                      let minStart: Date | null = null;
-                                                      let maxFinish: Date | null = null;
-
-                                                      // Group by idOrig to avoid duplicate summation of the same equipment phases
-                                                      const qtyByIdOrig = new Map<string, number>();
-                                                      let noIdOrigCounter = 0;
-
-                                                      val.items.forEach(it => {
-                                                        const key = it.idOrig ? String(it.idOrig).trim() : `__no_id_${noIdOrigCounter++}`;
-                                                        const qty = (it.cantidadCdo !== undefined && it.cantidadCdo !== null) ? it.cantidadCdo : 0;
-                                                        
-                                                        // Keep the maximum quantity among items with the same idOrig
-                                                        const existing = qtyByIdOrig.get(key) || 0;
-                                                        if (qty > existing) {
-                                                          qtyByIdOrig.set(key, qty);
-                                                        }
-
-                                                        const u = it.unidad || it.unit;
-                                                        if (u) {
-                                                          units.add(String(u).trim());
-                                                        }
-                                                        if (it.start) {
-                                                          const s = new Date(it.start);
-                                                          if (!isNaN(s.getTime())) {
-                                                            if (!minStart || s < minStart) minStart = s;
-                                                          }
-                                                        }
-                                                        if (it.finish) {
-                                                          const f = new Date(it.finish);
-                                                          if (!isNaN(f.getTime())) {
-                                                            if (!maxFinish || f > maxFinish) maxFinish = f;
-                                                          }
-                                                        }
-                                                      });
-
-                                                      qtyByIdOrig.forEach(qty => {
-                                                        totalCant += qty;
-                                                      });
-
-                                                      const formatSpanishResumenDate = (dt: Date | null) => {
-                                                        if (!dt) return '';
-                                                        const day = String(dt.getDate()).padStart(2, '0');
-                                                        const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-                                                        const month = months[dt.getMonth()];
-                                                        const year = String(dt.getFullYear()).slice(2);
-                                                        return `${day}.${month}.${year}`;
-                                                      };
-
-                                                      const rangeText = (minStart && maxFinish) ? `${formatSpanishResumenDate(minStart)} a ${formatSpanishResumenDate(maxFinish)}` : '';
-                                                      const unitStr = units.size > 0 ? Array.from(units).join(', ') : '';
-                                                      const cantText = totalCant > 0 ? `${totalCant.toLocaleString('es-ES')} ${unitStr}`.trim() : '';
-
-                                                      return { cantText, rangeText };
-                                                    })();
-
-                                                    return (
-                                                      <div key={cwKey} className="bg-white">
-                                                        {/* WBS Subheader */}
-                                                        <div 
-                                                          onClick={toggleCollapse}
-                                                          className="px-4 py-2 hover:bg-slate-100 flex items-center justify-between cursor-pointer border-b border-slate-200 transition-colors"
-                                                          style={{ backgroundColor: '#f1f5f9' }}
-                                                        >
-                                                          <div className="flex items-center gap-3 text-slate-700 min-w-0 flex-1">
-                                                            {isCollapsed ? (
-                                                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                            ) : (
-                                                              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                            )}
-                                                            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                                              <div className="flex items-center gap-2 flex-nowrap min-w-0">
-                                                                <div className="flex items-center gap-1 flex-nowrap shrink-0">
-                                                                  {idDisplay.map((id, idIdx) => (
-                                                                    <span key={idIdx} className="text-[9px] font-mono font-black text-indigo-600 bg-indigo-50/70 border border-indigo-150 px-1.5 py-0.25 rounded shrink-0">
-                                                                      {id}
-                                                                    </span>
-                                                                  ))}
-                                                                </div>
-                                                                <span className="text-[10.5px] font-bold text-indigo-950 font-sans tracking-tight uppercase truncate" title={val.wbsName}>
-                                                                  {val.wbsName}
-                                                                </span>
-                                                              </div>
-                                                              <div className="flex items-center gap-3 mt-0.5 text-[9.5px] flex-wrap">
-                                                                {wbsMetrics.cantText && (
-                                                                  <span className="text-slate-600 font-mono">
-                                                                    Cant. Total: <span className="font-bold text-slate-800">{wbsMetrics.cantText}</span>
-                                                                  </span>
-                                                                )}
-                                                                {wbsMetrics.rangeText && (
-                                                                  <span className="text-slate-500 font-mono">
-                                                                    Programación: <span className="font-bold text-indigo-950 bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/50">{wbsMetrics.rangeText}</span>
-                                                                  </span>
-                                                                )}
-                                                              </div>
-                                                            </div>
-                                                          </div>
-                                                          <div className="flex items-center gap-2">
-                                                            <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-indigo-650 rounded-lg text-[9px] font-bold">
-                                                              {(() => {
-                                                                const uCount = Array.from(new Set(val.items.map(it => cleanWbs(it.wbs).toLowerCase()))).length;
-                                                                return `${uCount} ${uCount === 1 ? 'paquete' : 'paquetes'}`;
-                                                              })()}
-                                                            </span>
-                                                          </div>
-                                                        </div>
-
-                                                        {/* Subgroup Items Table */}
-                                                        {!isCollapsed && (
-                                                          <div className="overflow-x-auto animate-fade-in">
-                                                            <table className="w-full text-left border-collapse min-w-[700px]">
-                                                              <thead>
-                                                                <tr className="bg-slate-50/20 border-b border-slate-150 text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">
-                                                                  <th className="px-3 py-1.5">id.Orig</th>
-                                                                  <th className="px-4 py-1.5">Activity id</th>
-                                                                  <th className="px-3 py-1.5 text-right">Cant.</th>
-                                                                  <th className="px-4 py-1.5">Descripcion</th>
-                                                                  <th className="px-3 py-1.5">Contratista</th>
-                                                                  <th className="px-3 py-1.5">Status</th>
-                                                                  <th className="px-4 py-1.5">Duracion</th>
-                                                                </tr>
-                                                              </thead>
-                                                              <tbody className="divide-y divide-slate-100 text-[10.5px]">
-                                                                {val.items.map((it) => {
-                                                                  const s_dt = it.start;
-                                                                  const f_dt = it.finish;
-                                                                  const { phase, percent, colorClass, phaseKey } = getExpectedPhaseText(s_dt, f_dt);
-                                                                  const cleanTipo = (it.tipo || '').replace(/^\d+\./, '');
-                                                                  const formatShortDate = (d: any) => {
-                                                                    if (!d) return '';
-                                                                    const dt = new Date(d);
-                                                                    if (isNaN(dt.getTime())) return '';
-                                                                    const day = String(dt.getDate()).padStart(2, '0');
-                                                                     const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-                                                                     const month = months[dt.getMonth()];
-                                                                     const year = String(dt.getFullYear()).slice(2);
-                                                                     return `${day}.${month}.${year}`;
-                                                                  };
-                                                                  const sStr = formatShortDate(s_dt);
-                                                                  const fStr = formatShortDate(f_dt);
-                                                                  const rangeStr = (sStr || fStr) ? `${sStr} - ${fStr}` : '';
-
-                                                                  let statusBadge = "bg-slate-100 text-slate-500";
-                                                                  const stat = (it.p6Status || it.status || '').toLowerCase();
-                                                                  if (stat === 'in progress' || stat.includes('curso') || stat.includes('progreso')) {
-                                                                    statusBadge = "bg-blue-105 text-blue-700 border border-blue-200 font-semibold";
-                                                                  } else if (stat === 'not started' || stat.includes('iniciado') || stat.includes('inicio')) {
-                                                                    statusBadge = "bg-slate-100 text-slate-600 border border-slate-200";
-                                                                  }
-
-                                                                  return (
-                                                                    <tr key={it.id} className="hover:bg-slate-50/40 transition-colors">
-                                                                      <td className="px-3 py-1.5 text-slate-500 font-medium font-mono text-[9.5px]">{it.idOrig || '—'}</td>
-                                                                      <td className="px-4 py-1.5 font-mono text-[9px] text-slate-400 whitespace-nowrap">{it.activityId || '—'}</td>
-                                                                      <td className="px-3 py-1.5 font-mono text-[9.5px] text-slate-600 text-right whitespace-nowrap">
-                                                                        {it.cantidadCdo !== undefined && it.cantidadCdo !== null ? `${it.cantidadCdo.toLocaleString('es-ES')} ${it.unidad || it.unit || ''}`.trim() : '—'}
-                                                                      </td>
-                                                                      <td className="px-4 py-1.5 max-w-[280px] sm:max-w-xs md:max-w-sm lg:max-w-md">
-                                                                        <div className="font-bold text-slate-750 font-sans tracking-tight truncate" title={it.descripcion}>
-                                                                          {it.descripcion}
-                                                                        </div>
-                                                                      </td>
-                                                                      <td className="px-3 py-1.5 whitespace-nowrap">
-                                                                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-[9px] font-bold border border-emerald-150 shadow-mini">
-                                                                          {it.subcontratista || '—'}
-                                                                        </span>
-                                                                      </td>
-                                                                      <td className="px-3 py-1.5 whitespace-nowrap">
-                                                                        <span className={`px-2 py-0.5 rounded-md text-[8.5px] ${statusBadge}`}>
-                                                                          {it.p6Status || 'Not Started'}
-                                                                        </span>
-                                                                      </td>
-                                                                      <td className="px-4 py-1.5 max-w-xs whitespace-nowrap">
-                                                                         <div className="flex flex-col gap-0.5">
-                                                                           <div className="text-[10px] font-bold text-slate-700 whitespace-nowrap">{rangeStr}</div>
-                                                                           {s_dt && f_dt && (
-                                                                             <div className="text-[9px] font-medium text-slate-500 font-mono">
-                                                                               {Math.round((new Date(f_dt).getTime() - new Date(s_dt).getTime()) / (1000 * 60 * 60 * 24))} días
-                                                                             </div>
-                                                                           )}
-                                                                         </div>
-                                                                       </td>
-                                                                    </tr>
-                                                                  );
-                                                                })}
-                                                              </tbody>
-                                                            </table>
-                                                          </div>
-                                                        )}
-                                                      </div>
-                                                    );
-                                                  })}
-                                                </div>
-                                              )}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }
-
-                      const scapGroups: Record<string, any[]> = {};
-                      items.forEach(it => {
-                        const sc = it.scap || 'General / Sin SCAP';
-                        if (!scapGroups[sc]) {
-                          scapGroups[sc] = [];
-                        }
-                        scapGroups[sc].push(it);
-                      });
-
-                      return (
-                        <div key={subC} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-left font-sans">
-                          {/* Group Header */}
-                          <div 
-                            onClick={() => {
-                              setCollapsedGroups(prev => ({
-                                ...prev,
-                                [subC]: !prev[subC]
-                              }));
-                            }}
-                            className={`px-4 py-3 flex items-center justify-between border-b cursor-pointer select-none transition-colors ${
-                              isPorContratar 
-                                ? 'bg-amber-500/10 hover:bg-amber-500/15 border-amber-200 text-amber-900 bg-amber-50/50' 
-                                : isContratados
-                                  ? 'bg-emerald-500/10 hover:bg-emerald-500/15 border-emerald-250 text-emerald-950 bg-emerald-50/45'
-                                  : 'bg-slate-100 hover:bg-slate-155 border-slate-200 text-slate-800'
-                            }`}
-                          >
-                            <div className="flex flex-col gap-0.5 text-left min-w-0">
-                              <div className="flex items-center gap-2">
-                                {collapsedGroups[subC] ? (
-                                  <ChevronRight className={`w-4 h-4 shrink-0 ${isPorContratar ? 'text-amber-700' : 'text-slate-500'}`} />
-                                ) : (
-                                  <ChevronDown className={`w-4 h-4 shrink-0 ${isPorContratar ? 'text-amber-700' : 'text-slate-500'}`} />
-                                )}
-                                <span className={`w-2 h-2 rounded-full ${
-                                  isPorContratar 
-                                    ? 'bg-amber-500 animate-pulse' 
-                                    : isContratados 
-                                      ? 'bg-emerald-500' 
-                                      : 'bg-indigo-500'
-                                }`} />
-                                <span className="font-extrabold text-[12px] uppercase tracking-wider">{subC}</span>
-                                <span className="px-1.5 py-0.5 bg-white/75 rounded-full text-[9px] font-black border uppercase shrink-0">
-                                  {(() => {
-                                    const uCount = Array.from(new Set(items.map(it => cleanWbs(it.wbs).toLowerCase()))).length;
-                                    return `${uCount} ${uCount === 1 ? 'paquete' : 'paquetes'}`;
-                                  })()}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-3 text-[9.5px] mt-1 ml-6 flex-wrap">
-                                {groupMetrics.cantText && (
-                                  <span className={`${isPorContratar ? 'text-amber-900 font-bold' : 'text-slate-600'} font-mono`}>
-                                    Cant. Total: <span className={isPorContratar ? 'text-amber-950 font-extrabold' : 'font-bold text-slate-800'}>{groupMetrics.cantText}</span>
-                                  </span>
-                                )}
-                                {groupMetrics.rangeText && (
-                                  <span className={`${isPorContratar ? 'text-amber-950 border-amber-250 bg-white/80' : 'text-slate-700 border-slate-200 bg-white/80'} font-mono px-1.5 py-0.5 rounded border`}>
-                                    Programación: <span className="font-bold">{groupMetrics.rangeText}</span>
-                                  </span>
-                                )}
-                              </div>
+                        return (
+                          <div className="ht-theme bg-white border border-[#D5DEE2] rounded-xl overflow-hidden">
+                            <div className="overflow-x-auto">
+                              <table className="w-full min-w-[900px] table-fixed text-xs border-collapse text-left">
+                                <colgroup>
+                                  <col style={{ width: '30%' }} />
+                                  <col style={{ width: '10%' }} />
+                                  <col style={{ width: '9%' }} />
+                                  <col style={{ width: '11%' }} />
+                                  <col style={{ width: '9%' }} />
+                                  <col style={{ width: '8%' }} />
+                                  <col style={{ width: '15%' }} />
+                                  <col style={{ width: '8%' }} />
+                                </colgroup>
+                                <thead>
+                                  <tr className="whitespace-nowrap">
+                                    <th className="px-2 py-2 text-left text-[10px]">Paquete / Nivel jerárquico</th>
+                                    <th className="px-2 py-2 text-left text-[10px]">id.Orig</th>
+                                    <th className="px-2 py-2 text-left text-[10px]">Activity ID</th>
+                                    <th className="px-2 py-2 text-right text-[10px]">Cant.</th>
+                                    <th className="px-2 py-2 text-left text-[10px]">Contratista</th>
+                                    <th className="px-2 py-2 text-left text-[10px]">Status</th>
+                                    <th className="px-2 py-2 text-center text-[10px]">Programación</th>
+                                    <th className="px-2 py-2 text-right text-[10px]">Duración</th>
+                                  </tr>
+                                </thead>
+                                <tbody>{filas}</tbody>
+                                <tfoot>
+                                  <tr className="ht-g lv0">
+                                    <td className="px-2 py-2 text-[11px]">TOTAL ({nPaquetes(todos).toLocaleString('es-ES')} paquetes)</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td className="px-2 py-2 text-right font-mono text-[10.5px]"><span className="truncate block" title={mTot.cantText}>{mTot.cantText}</span></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td className="px-2 py-2 text-center font-mono text-[10px]">{mTot.rangeText}</td>
+                                    <td className="px-2 py-2 text-right font-mono text-[10px]">{dias(mTot.minStart, mTot.maxFinish)}</td>
+                                  </tr>
+                                </tfoot>
+                              </table>
                             </div>
-                            {isPorContratar && (
-                              <span className="text-[9.5px] bg-amber-500/25 border border-amber-300 text-amber-800 font-black px-2.5 py-0.5 rounded-full uppercase shrink-0">
-                                ⚠️ FRENTE DE RIESGO
-                              </span>
-                            )}
-                            {isContratados && (
-                              <span className="text-[9.5px] bg-emerald-500/20 border border-emerald-300 text-emerald-800 font-black px-2.5 py-0.5 rounded-full uppercase shrink-0">
-                                ✅ ADJUDICADO / CONTRATADO
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Secciones de SCAP (now Paquete) */}
-                          {!collapsedGroups[subC] && (
-                            <div className="divide-y divide-slate-150">
-                                {Object.entries(scapGroups).sort(([, aItems], [, bItems]) => {
-                                  const getMinBlFinish = (items: any[]) => {
-                                    let minT = Infinity;
-                                    items.forEach(it => {
-                                      const f = it.blFinish || it.finish;
-                                      if (f instanceof Date && !isNaN(f.getTime())) {
-                                        if (f.getTime() < minT) minT = f.getTime();
-                                      }
-                                    });
-                                    return minT;
-                                  };
-                                  const diff = getMinBlFinish(aItems) - getMinBlFinish(bItems);
-                                  if (diff !== 0) return diff;
-                                  return 0;
-                                }).map(([scName, scapItems]) => {
-                                // Agrupar items de este SCAP por WBS limpia
-                                const wbsGroups: Record<string, { wbsName: string; items: any[] }> = {};
-                                scapItems.forEach(it => {
-                                  const cw = cleanWbs(it.wbs);
-                                  const wName = getWbsName(it.wbs);
-                                  if (!wbsGroups[cw]) {
-                                    wbsGroups[cw] = { wbsName: wName, items: [] };
-                                  }
-                                  wbsGroups[cw].items.push(it);
-                                });
-
-                                const scapCollapseKey = `${subC}_${scName}`;
-                                const isScapCollapsed = !expandedReportScap[scapCollapseKey];
-                                const toggleScapCollapse = () => {
-                                  setExpandedReportScap(prev => ({
-                                    ...prev,
-                                    [scapCollapseKey]: !prev[scapCollapseKey]
-                                  }));
-                                };
-
-                                const scapMetrics = computeAggregatedMetrics(scapItems);
-
-                                return (
-                                  <div key={scName} className="bg-slate-50/20 mr-2 ml-4 my-2 border border-slate-200 rounded-xl overflow-hidden shadow-mini">
-                                    {/* SCAP Header inside Subcontractor (now Paquete) */}
-                                    <div 
-                                      onClick={toggleScapCollapse}
-                                      className="px-4 py-2.5 border-b border-amber-200/50 flex items-center justify-between cursor-pointer transition-colors hover:opacity-95"
-                                      style={{ backgroundColor: '#fef3c7' }}
-                                    >
-                                      <div className="flex flex-col gap-0.5 text-left min-w-0">
-                                        <div className="flex items-center gap-2">
-                                          {isScapCollapsed ? (
-                                            <ChevronRight className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                          ) : (
-                                            <ChevronDown className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                          )}
-                                          <span className="text-[10.5px] font-black text-indigo-850 uppercase tracking-wide">
-                                            🔷 Paquete: {scName}
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-[9.5px] mt-1 ml-5 flex-wrap">
-                                          {scapMetrics.cantText && (
-                                            <span className="text-indigo-850 font-mono">
-                                              Cant. Total: <span className="font-bold">{scapMetrics.cantText}</span>
-                                            </span>
-                                          )}
-                                          {scapMetrics.rangeText && (
-                                            <span className="text-amber-950 font-mono bg-white/75 px-1.5 py-0.5 rounded border border-amber-250">
-                                              Programación: <span className="font-bold">{scapMetrics.rangeText}</span>
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2 shrink-0">
-                                        <span className="px-2 py-0.5 bg-indigo-100/60 border border-indigo-200/50 text-indigo-700 rounded-lg text-[9px] font-bold">
-                                          {(() => {
-                                            const uCount = Array.from(new Set(scapItems.map(it => cleanWbs(it.wbs).toLowerCase()))).length;
-                                            return `${uCount} ${uCount === 1 ? 'paquete' : 'paquetes'}`;
-                                          })()}
-                                        </span>
-                                      </div>
-                                    </div>
-
-                                    {/* Secciones de WBS individuales colapsables dentro del SCAP */}
-                                    {!isScapCollapsed && (
-                                      <div className="divide-y divide-slate-150 bg-white animate-fade-in">
-                                        {Object.entries(wbsGroups).map(([cwKey, val]) => {
-                                          const collapseKey = `${subC}_${scName}_${cwKey}`;
-                                          const isCollapsed = !expandedReportWbs[collapseKey];
-                                          const toggleCollapse = () => {
-                                            setExpandedReportWbs(prev => ({
-                                              ...prev,
-                                              [collapseKey]: !prev[collapseKey]
-                                            }));
-                                          };
-
-                                          const uniqueIdOrigs = Array.from(new Set(val.items.map(it => it.idOrig).filter(Boolean)));
-                                          const idDisplay = uniqueIdOrigs.length > 0 ? uniqueIdOrigs : [cwKey];
-
-                                          const wbsMetrics = (() => {
-                                            let totalCant = 0;
-                                            const units = new Set<string>();
-                                            let minStart: Date | null = null;
-                                            let maxFinish: Date | null = null;
-
-                                            // Group by idOrig to avoid duplicate summation of the same equipment phases
-                                            const qtyByIdOrig = new Map<string, number>();
-                                            let noIdOrigCounter = 0;
-
-                                            val.items.forEach(it => {
-                                              const key = it.idOrig ? String(it.idOrig).trim() : `__no_id_${noIdOrigCounter++}`;
-                                              const qty = (it.cantidadCdo !== undefined && it.cantidadCdo !== null) ? it.cantidadCdo : 0;
-                                              
-                                              // Keep the maximum quantity among items with the same idOrig
-                                              const existing = qtyByIdOrig.get(key) || 0;
-                                              if (qty > existing) {
-                                                qtyByIdOrig.set(key, qty);
-                                              }
-
-                                              const u = it.unidad || it.unit;
-                                              if (u) {
-                                                units.add(String(u).trim());
-                                              }
-                                              if (it.start) {
-                                                const s = new Date(it.start);
-                                                if (!isNaN(s.getTime())) {
-                                                  if (!minStart || s < minStart) minStart = s;
-                                                }
-                                              }
-                                              if (it.finish) {
-                                                const f = new Date(it.finish);
-                                                if (!isNaN(f.getTime())) {
-                                                  if (!maxFinish || f > maxFinish) maxFinish = f;
-                                                }
-                                              }
-                                            });
-
-                                            qtyByIdOrig.forEach(qty => {
-                                              totalCant += qty;
-                                            });
-
-                                            const formatSpanishResumenDate = (dt: Date | null) => {
-                                              if (!dt) return '';
-                                              const day = String(dt.getDate()).padStart(2, '0');
-                                              const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-                                              const month = months[dt.getMonth()];
-                                              const year = String(dt.getFullYear()).slice(2);
-                                              return `${day}.${month}.${year}`;
-                                            };
-
-                                            const rangeText = (minStart && maxFinish) ? `${formatSpanishResumenDate(minStart)} a ${formatSpanishResumenDate(maxFinish)}` : '';
-                                            const unitStr = units.size > 0 ? Array.from(units).join(', ') : '';
-                                            const cantText = totalCant > 0 ? `${totalCant.toLocaleString('es-ES')} ${unitStr}`.trim() : '';
-
-                                            return { cantText, rangeText };
-                                          })();
-
-                                          return (
-                                            <div key={cwKey} className="bg-white">
-                                              {/* WBS Subheader */}
-                                              <div 
-                                                onClick={toggleCollapse}
-                                                className="px-4 py-2 hover:bg-slate-100 flex items-center justify-between cursor-pointer border-b border-slate-200 transition-colors"
-                                                style={{ backgroundColor: '#f1f5f9' }}
-                                              >
-                                                <div className="flex items-center gap-3 text-slate-700 min-w-0 flex-1">
-                                                  {isCollapsed ? (
-                                                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                  ) : (
-                                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                  )}
-                                                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                                    <div className="flex items-center gap-2 flex-nowrap min-w-0">
-                                                      <div className="flex items-center gap-1 flex-nowrap shrink-0">
-                                                        {idDisplay.map((id, idIdx) => (
-                                                          <span key={idIdx} className="text-[9px] font-mono font-black text-indigo-600 bg-indigo-50/70 border border-indigo-150 px-1.5 py-0.25 rounded shrink-0">
-                                                            {id}
-                                                          </span>
-                                                        ))}
-                                                      </div>
-                                                      <span className="text-[11px] font-extrabold text-indigo-950 font-sans tracking-tight uppercase truncate" title={val.wbsName}>
-                                                        {val.wbsName}
-                                                      </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-3 mt-0.5 text-[9.5px] flex-wrap">
-                                                      {wbsMetrics.cantText && (
-                                                        <span className="text-slate-600 font-mono">
-                                                          Cant. Total: <span className="font-bold text-slate-800">{wbsMetrics.cantText}</span>
-                                                        </span>
-                                                      )}
-                                                      {wbsMetrics.rangeText && (
-                                                        <span className="text-slate-500 font-mono">
-                                                          Programación: <span className="font-bold text-indigo-950 bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/50">{wbsMetrics.rangeText}</span>
-                                                        </span>
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  <span className="px-2 py-0.5 bg-slate-50 border border-slate-200 text-indigo-650 rounded-lg text-[9px] font-bold">
-                                                    {(() => {
-                                                      const uCount = Array.from(new Set(val.items.map(it => cleanWbs(it.wbs).toLowerCase()))).length;
-                                                      return `${uCount} ${uCount === 1 ? 'paquete' : 'paquetes'}`;
-                                                    })()}
-                                                  </span>
-                                                </div>
-                                              </div>
-
-                                              {/* Subgroup Items Table */}
-                                              {!isCollapsed && (
-                                                <div className="overflow-x-auto animate-fade-in">
-                                                  <table className="w-full text-left border-collapse min-w-[700px]">
-                                                    <thead>
-                                                      <tr className="bg-slate-50/30 border-b border-slate-150 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                                                        <th className="px-3 py-2">id.Orig</th>
-                                                         <th className="px-4 py-2">Activity id</th>
-                                                         <th className="px-3 py-2 text-right">Cant.</th>
-                                                        <th className="px-4 py-2">Descripcion</th>
-                                                        {isContratados && (
-                                                          <th className="px-3 py-2">Contratista</th>
-                                                        )}
-                                                        <th className="px-3 py-2">Status</th>
-                                                        <th className="px-4 py-2">Duracion</th>
-                                                      </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-100 text-[11px]">
-                                                      {val.items.map((it) => {
-                                                        const s_dt = it.start;
-                                                        const f_dt = it.finish;
-                                                        const { phase, percent, colorClass, phaseKey } = getExpectedPhaseText(s_dt, f_dt);
-                                                        const cleanTipo = (it.tipo || '').replace(/^\d+\./, '');
-
-                                                        let statusBadge = "bg-slate-100 text-slate-500";
-                                                        const stat = (it.p6Status || it.status || '').toLowerCase();
-                                                        if (stat === 'in progress' || stat.includes('curso') || stat.includes('progreso')) {
-                                                          statusBadge = "bg-blue-105 text-blue-700 border border-blue-200 font-semibold";
-                                                        } else if (stat === 'not started' || stat.includes('iniciado') || stat.includes('inicio')) {
-                                                          statusBadge = "bg-slate-100 text-slate-600 border border-slate-200";
-                                                        }
-
-                                                        return (
-                                                          <tr key={it.id} className="hover:bg-slate-50/40 transition-colors">
-                                                            <td className="px-3 py-2 text-slate-500 font-medium font-mono text-[10px]">{it.idOrig || '—'}</td>
-                                                             <td className="px-4 py-2 font-mono text-[9px] text-slate-400 whitespace-nowrap">{it.activityId || '—'}</td>
-                                                             <td className="px-3 py-2 font-mono text-[10px] text-slate-600 text-right whitespace-nowrap">{it.cantidadCdo !== undefined && it.cantidadCdo !== null ? `${it.cantidadCdo.toLocaleString('es-ES')} ${it.unidad || it.unit || ''}`.trim() : '—'}</td>
-                                                            <td className="px-4 py-2">
-                                                              <div className="font-bold text-slate-750 font-sans tracking-tight truncate max-w-[280px] sm:max-w-xs md:max-w-sm lg:max-w-md" title={it.descripcion}>{it.descripcion}</div>
-                                                            </td>
-                                                            {isContratados && (
-                                                              <td className="px-3 py-2 whitespace-nowrap">
-                                                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-[10px] font-bold border border-emerald-150 shadow-mini">
-                                                                  {it.subcontratista || '—'}
-                                                                </span>
-                                                              </td>
-                                                            )}
-                                                            
-                                                            <td className="px-3 py-2 whitespace-nowrap">
-                                                              <span className={`px-2 py-0.5 rounded-md text-[9px] ${statusBadge}`}>
-                                                                {it.p6Status || 'Not Started'}
-                                                              </span>
-                                                            </td>
-                                                            <td className="px-4 py-2 max-w-xs whitespace-nowrap">
-                                                               <div className="flex flex-col gap-0.5">
-                                                                 <div className="text-[10.5px] font-bold text-slate-700 whitespace-nowrap">
-                                                                    {(() => {
-                                                                      const format = (d: any) => {
-                                                                          if (!d) return '';
-                                                                          const dt = new Date(d);
-                                                                          if (isNaN(dt.getTime())) return '';
-                                                                          const day = String(dt.getDate()).padStart(2, '0');
-                                                                          const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-                                                                          const month = months[dt.getMonth()];
-                                                                          const year = String(dt.getFullYear()).slice(2);
-                                                                          return `${day}.${month}.${year}`;
-                                                                        };
-                                                                      const s = format(s_dt);
-                                                                      const f = format(f_dt);
-                                                                      return (s || f) ? `${s} - ${f}` : '';
-                                                                    })()}
-                                                                  </div>
-                                                                 {s_dt && f_dt && (
-                                                                   <div className="text-[9px] font-medium text-slate-500 font-mono">
-                                                                     {Math.round((new Date(f_dt).getTime() - new Date(s_dt).getTime()) / (1000 * 60 * 60 * 24))} días
-                                                                   </div>
-                                                                 )}
-                                                               </div>
-                                                             </td>
-                                                          </tr>
-                                                        );
-                                                      })}
-                                                    </tbody>
-                                                  </table>
-                                                </div>
-                                              )}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              </div>
-                            )}
                           </div>
                         );
-                      })
+                      })()
                     )}
                   </div>
                 </div>
