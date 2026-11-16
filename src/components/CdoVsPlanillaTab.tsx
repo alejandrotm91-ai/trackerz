@@ -478,14 +478,13 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
               <div className="text-slate-500">Ninguna fila del Master tiene este id.orig{l.sugerencia ? ` · ¿será ${l.sugerencia}?` : ''}.</div>
             ) : (
               <table className="!text-[11px]">
-                <thead><tr><th>Activity ID</th><th>WBS</th><th>Und</th><th className="text-right">Q</th><th className="text-right">Precio</th><th className="text-right">Step</th><th className="text-right">Venta</th><th className="text-right">Q ejec.</th><th className="text-right">Ejecutado</th><th className="text-right">Asignado</th></tr></thead>
+                <thead><tr><th>Activity ID</th><th>WBS</th><th>Und</th><th className="text-right">Q</th><th className="text-right">Precio</th><th className="text-right">Step</th><th className="text-right">Venta</th><th className="text-right">Q ejec.</th><th className="text-right">Ejecutado</th></tr></thead>
                 <tbody>
                   {l.master.map((m, i) => (
                     <tr key={i} title={m.descripcion}>
                       <td>{m.activityId || '—'}</td><td>{m.wbs}</td><td>{m.unidad}</td>
                       <td className="text-right">{fmtQ(m.cantidad)}</td><td className="text-right">{fmt2(m.precio)}</td><td className="text-right">{m.step}</td>
                       <td className="text-right">{fmt0(m.venta)}</td><td className="text-right">{fmtQ(m.cantEjec)}</td><td className="text-right">{fmt0(m.ventaEjec)}</td>
-                      <td className="text-right">{m.peso === 1 ? '100%' : `${(m.peso * 100).toFixed(1)}%`}</td>
                     </tr>
                   ))}
                 </tbody>
