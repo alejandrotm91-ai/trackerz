@@ -6,6 +6,7 @@
 import React, { useMemo, useState } from 'react';
 import { Actividad } from '../types';
 import { GraficoCantidadesProgramadasScap } from './GraficoCantidadesProgramadasScap';
+import { LEVEL_STYLES } from '../utils/nivelesJerarquia';
 import { 
   Layers, 
   Calendar, 
@@ -1635,566 +1636,237 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
   };
 
   // Reusable CAP and SCAP Table Renderer
-  const renderCapAccordion = (cap: CapGroup, groupKeyPrefix: string) => {
-    const capKey = `${groupKeyPrefix}:::${cap.capName}`;
-    const isCapExpanded = expandedCaps.has(capKey);
-
-    // Fechas BL Programadas del CAP: tomar de sus SCAPs la fecha de inicio más early y la de fin más late
-    let capEarlyStart: Date | null = null;
-    let capLateFinish: Date | null = null;
-    cap.packages.forEach(pkg => {
-      if (pkg.minDate) {
-        if (!capEarlyStart || pkg.minDate.getTime() < capEarlyStart.getTime()) {
-          capEarlyStart = pkg.minDate;
-        }
-      }
-      if (pkg.maxDate) {
-        if (!capLateFinish || pkg.maxDate.getTime() > capLateFinish.getTime()) {
-          capLateFinish = pkg.maxDate;
-        }
-      }
+  // ── Tabla jerárquica con el formato de Control de Ejecución ──
+  // Un color por nivel con barra a la izquierda, filas bajas y sangría leve.
+  // Niveles: Componente / Proceso → (Proceso) → CAP → Paquete SCAP → actividades.
+  const sumarCantidades = (acts: ActivityExecutionDetail[]) => {
+    let total = 0, hay = false, prog = 0, hayProg = false;
+    const unidades = new Map<string, number>();
+    acts.forEach(act => {
+      if (act.cantidad !== null && act.cantidad !== undefined && !isNaN(act.cantidad)) { total += act.cantidad; hay = true; }
+      if (act.unidad && act.unidad.trim()) { const u = act.unidad.trim(); unidades.set(u, (unidades.get(u) || 0) + 1); }
+      const { cantObraProg } = getCantObraProgramadaInfo(act, fourWeeks, selectedWeekFilter);
+      if (cantObraProg !== null && cantObraProg !== undefined && !isNaN(cantObraProg)) { prog += cantObraProg; hayProg = true; }
     });
-    if (!capEarlyStart && cap.minDate) capEarlyStart = cap.minDate;
-    if (!capLateFinish && cap.maxDate) capLateFinish = cap.maxDate;
+    let unidad = '';
+    let max = 0;
+    unidades.forEach((n, u) => { if (n > max) { max = n; unidad = u; } });
+    const todas = Array.from(unidades.keys()).join(', ');
+    return { total, hay, prog, hayProg, unidad, todas, varias: unidades.size > 1 };
+  };
+  const fmtCant = (v: number) => v.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const rangoPaquetes = (pkgs: ScapPackageGroup[]) => {
+    let ini: Date | null = null, fin: Date | null = null;
+    pkgs.forEach(p => {
+      if (p.minDate && (!ini || p.minDate.getTime() < ini.getTime())) ini = p.minDate;
+      if (p.maxDate && (!fin || p.maxDate.getTime() > fin.getTime())) fin = p.maxDate;
+    });
+    return { ini: ini as Date | null, fin: fin as Date | null };
+  };
+  const pildorasSemana = (inWeeks: boolean[]) => (
+    <span className="inline-flex items-center gap-0.5 font-mono text-[9px]">
+      {fourWeeks.map((w, i) => (
+        <span key={w.weekNum} title={`${w.label}: ${inWeeks[i] ? 'activo' : 'sin trabajo programado'}`}
+          className={`px-1 rounded font-bold ${inWeeks[i] ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-300'}`}>
+          S{w.weekNum}
+        </span>
+      ))}
+    </span>
+  );
+  const estadoPaquete = (s: ScapPackageGroup['statusSummary']) =>
+    s.conAtraso > 0
+      ? <span className="inline-block px-1.5 py-0.5 rounded-full border text-[9px] font-semibold bg-red-50 text-red-700 border-red-200">• RETRASO ({s.conAtraso})</span>
+      : s.enEjecucion > 0
+        ? <span className="inline-block px-1.5 py-0.5 rounded-full border text-[9px] font-semibold bg-sky-50 text-sky-700 border-sky-200">• EN CURSO ({s.enEjecucion})</span>
+        : <span className="inline-block px-1.5 py-0.5 rounded-full border text-[9px] font-semibold bg-slate-100 text-slate-600 border-slate-200">• PROGRAMADO</span>;
 
-    // Cálculo de la suma de Cantidad de Obra y Cantidad de Obra Programada a nivel CAP
-    let capTotalCantObra = 0;
-    let capHasCantObra = false;
-    let capTotalCantObraProg = 0;
-    let capHasCantObraProg = false;
-    const capUnitsMap = new Map<string, number>();
+  const renderTablaJerarquica = () => {
+    const filas: React.ReactNode[] = [];
 
-    cap.packages.forEach(pkg => {
-      pkg.activities.forEach(act => {
-        if (act.cantidad !== null && act.cantidad !== undefined && !isNaN(act.cantidad)) {
-          capTotalCantObra += act.cantidad;
-          capHasCantObra = true;
-        }
-        if (act.unidad && act.unidad.trim()) {
-          const u = act.unidad.trim();
-          capUnitsMap.set(u, (capUnitsMap.get(u) || 0) + 1);
-        }
-        const { cantObraProg } = getCantObraProgramadaInfo(act, fourWeeks, selectedWeekFilter);
-        if (cantObraProg !== null && cantObraProg !== undefined && !isNaN(cantObraProg)) {
-          capTotalCantObraProg += cantObraProg;
-          capHasCantObraProg = true;
-        }
+    /** Fila de grupo con el estilo del nivel. */
+    const filaGrupo = (o: {
+      key: string; nivel: number; abierto: boolean; alternar: () => void; etiqueta: string; nombre: string;
+      resumen: string; nAct: number; ini: Date | null; fin: Date | null; inWeeks: boolean[];
+      subc?: string; cant?: ReturnType<typeof sumarCantidades>; estado?: React.ReactNode;
+    }) => {
+      const st = LEVEL_STYLES[Math.min(o.nivel, LEVEL_STYLES.length - 1)];
+      filas.push(
+        <tr key={o.key} onClick={o.alternar} className={`${st.bg} cursor-pointer transition-colors whitespace-nowrap`}>
+          <td className={`px-1 py-1.5 overflow-hidden ${st.accent}`} style={{ paddingLeft: `${o.nivel * 2 + 5}px` }}>
+            <div className="flex items-center gap-1 min-w-0">
+              {o.abierto ? <ChevronDown className={`w-3.5 h-3.5 ${st.chevron} shrink-0`} /> : <ChevronRight className={`w-3.5 h-3.5 ${st.chevron} shrink-0`} />}
+              <span className={`text-[10px] font-mono ${st.subText} shrink-0`}>{o.etiqueta}</span>
+              <span className={`text-[11px] tracking-wide font-bold truncate min-w-0 ${st.text}`} title={`${o.etiqueta} ${o.nombre}`}>{o.nombre}</span>
+              <span className={`text-[10px] font-mono ${st.subText} shrink-0`}>({o.resumen})</span>
+            </div>
+          </td>
+          <td className={`px-2 py-1.5 text-center font-mono text-[10.5px] ${st.text}`}>{o.nAct}</td>
+          <td className={`px-2 py-1.5 text-center font-mono text-[10px] truncate ${st.dateText}`}>
+            {o.ini || o.fin ? `${formatDateShort(o.ini)} → ${formatDateShort(o.fin)}` : '—'}
+          </td>
+          <td className="px-2 py-1.5 text-center">{pildorasSemana(o.inWeeks)}</td>
+          <td className={`px-2 py-1.5 text-[10.5px] ${st.subText}`}><span className="truncate block" title={o.subc || ''}>{o.subc || ''}</span></td>
+          <td className={`px-2 py-1.5 text-right font-mono text-[10.5px] truncate ${st.text}`}
+            title={o.cant ? (o.cant.hay ? `Suma de Cant. Obra: ${fmtCant(o.cant.total)} ${o.cant.unidad}${o.cant.varias ? ` (Unidades: ${o.cant.todas})` : ''}` : 'Sin cantidad de obra registrada') : undefined}>
+            {o.cant ? (o.cant.hay ? `${fmtCant(o.cant.total)} ${o.cant.unidad}`.trim() : '—') : ''}
+          </td>
+          <td className={`px-2 py-1.5 text-right font-mono text-[10.5px] truncate ${o.cant && o.cant.prog > 0 ? 'text-[#312E81] font-semibold' : st.subText}`}
+            title={o.cant ? (o.cant.hayProg ? `Suma de Cant. Obra Prog.: ${fmtCant(o.cant.prog)} ${o.cant.unidad}${o.cant.varias ? ` (Unidades: ${o.cant.todas})` : ''}` : 'Sin cantidad de obra programada para las semanas activas') : undefined}>
+            {o.cant ? (o.cant.hayProg ? `${fmtCant(o.cant.prog)} ${o.cant.unidad}`.trim() : '—') : ''}
+          </td>
+          <td className="px-2 py-1.5 text-center truncate">{o.estado}</td>
+        </tr>
+      );
+    };
+
+    /** Actividades de un paquete SCAP (filas blancas, como las partidas de Control de Ejecución). */
+    const filasActividades = (key: string, nivel: number, acts: ActivityExecutionDetail[]) => {
+      acts.forEach(act => {
+        const { cantObraProg, valorEconomico, precio, step, semanasActivasLabels } = getCantObraProgramadaInfo(act, fourWeeks, selectedWeekFilter);
+        const tipProg = cantObraProg !== null
+          ? `Previsión económica PG-004 (${semanasActivasLabels.join(', ')}): ${valorEconomico.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / Precio Col. G CDO: ${precio?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${step !== null ? ` / Step Col. H CDO: ${step.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}` : ''} = ${fmtCant(cantObraProg)} ${act.unidad || ''}`
+          : (valorEconomico > 0 && (!precio || precio <= 0))
+            ? `Previsión económica PG-004: ${valorEconomico.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Sin precio unitario en Columna G de CDO para calcular la cantidad.`
+            : `Sin previsión económica en PG-004 para las semanas activas (${semanasActivasLabels.join(', ') || 'sin semanas'})`;
+        const detalle = [act.descripcion, act.activityId ? `Activity ID: ${act.activityId}` : '', act.ubicacion ? `Ubicación: ${act.ubicacion}` : '', act.proceso ? `Proceso: ${act.proceso}` : ''].filter(Boolean).join('\n');
+        filas.push(
+          <tr key={`${key}__${act.id}`} className="bg-white hover:bg-slate-50 transition-colors text-[11px] text-slate-700 border-b border-slate-100 border-l-2 border-l-slate-300 whitespace-nowrap">
+            <td className="px-1 py-1 overflow-hidden" style={{ paddingLeft: `${nivel * 2 + 7}px` }}>
+              <div className="flex items-baseline gap-1.5 min-w-0" title={detalle}>
+                <span className="font-mono text-[10px] text-slate-500 shrink-0">{act.activityId || act.wbs}</span>
+                <span className="truncate text-slate-800 font-medium min-w-0">{act.descripcion}</span>
+              </div>
+            </td>
+            <td className="px-2 py-1 text-center font-mono text-[10px]" title="Total Float (días)">
+              {act.floatDays === null ? <span className="text-slate-300">—</span> : act.floatDays < 0 ? <span className="text-red-600 font-semibold">({Math.abs(act.floatDays)})</span> : <span className="text-slate-600">{act.floatDays}</span>}
+            </td>
+            <td className="px-2 py-1 text-center font-mono text-[10px] text-slate-600 truncate">{formatDateShort(act.blStart)} → {formatDateShort(act.blFinish)}</td>
+            <td className="px-2 py-1 text-center">{pildorasSemana(act.inWeeks)}</td>
+            <td className="px-2 py-1 text-[10.5px] text-slate-600"><span className="truncate block" title={act.subcontratista || ''}>{act.subcontratista || ''}</span></td>
+            <td className="px-2 py-1 text-right font-mono text-[10.5px] text-slate-700 truncate">
+              {act.cantidad !== null && act.cantidad !== undefined ? `${fmtCant(act.cantidad)} ${act.unidad || ''}`.trim() : '—'}
+            </td>
+            <td className={`px-2 py-1 text-right font-mono text-[10.5px] truncate ${cantObraProg && cantObraProg > 0 ? 'text-[#312E81] font-semibold' : 'text-slate-400'}`} title={tipProg}>
+              {cantObraProg !== null && cantObraProg !== undefined ? `${fmtCant(cantObraProg)} ${act.unidad || ''}`.trim() : '—'}
+            </td>
+            <td className="px-2 py-1 text-center">
+              <span className="inline-block max-w-full truncate align-middle px-1.5 py-0.5 rounded-full border text-[9px] font-semibold bg-slate-100 text-slate-600 border-slate-200" title={act.status}>{act.status}</span>
+            </td>
+          </tr>
+        );
       });
-    });
+    };
 
-    let capDisplayUnit = '';
-    if (capUnitsMap.size === 1) {
-      capDisplayUnit = Array.from(capUnitsMap.keys())[0];
-    } else if (capUnitsMap.size > 1) {
-      let maxCount = 0;
-      capUnitsMap.forEach((cnt, u) => {
-        if (cnt > maxCount) {
-          maxCount = cnt;
-          capDisplayUnit = u;
-        }
+    /** CAP → paquetes SCAP → actividades. */
+    const bloqueCap = (cap: CapGroup, prefijo: string, nivel: number) => {
+      const capKey = `${prefijo}:::${cap.capName}`;
+      const abierto = expandedCaps.has(capKey);
+      const r = rangoPaquetes(cap.packages);
+      filaGrupo({
+        key: `cap_${capKey}`, nivel, abierto, alternar: () => toggleCap(capKey), etiqueta: 'CAP:', nombre: cap.capName,
+        resumen: `${cap.packages.length} paq.`, nAct: cap.totalActivitiesCount, ini: r.ini || cap.minDate, fin: r.fin || cap.maxDate,
+        inWeeks: cap.inWeeks, cant: sumarCantidades(cap.packages.flatMap(p => p.activities)),
+      });
+      if (!abierto) return;
+      cap.packages.forEach(pkg => {
+        const scapKey = `${prefijo}:::${cap.capName}:::${pkg.scapName}`;
+        const abiertoScap = expandedScaps.has(scapKey);
+        const extra = hierarchyMode === 'proceso' && pkg.componente ? ` · ${pkg.componente}` : hierarchyMode === 'componente' && pkg.proceso ? ` · ${pkg.proceso}` : '';
+        filaGrupo({
+          key: `scap_${scapKey}`, nivel: nivel + 1, abierto: abiertoScap, alternar: () => toggleScap(scapKey), etiqueta: 'SCAP:',
+          nombre: `${pkg.scapName}${extra}`, resumen: `${pkg.activitiesCount} act.`, nAct: pkg.activitiesCount, ini: pkg.minDate, fin: pkg.maxDate,
+          inWeeks: pkg.inWeeks, subc: pkg.subcontratistas.length ? pkg.subcontratistas.join(', ') : 'Propio / Sin asignar',
+          cant: sumarCantidades(pkg.activities), estado: estadoPaquete(pkg.statusSummary),
+        });
+        if (abiertoScap) filasActividades(`act_${scapKey}`, nivel + 2, pkg.activities);
+      });
+    };
+
+    const rangoCaps = (caps: CapGroup[]) => rangoPaquetes(caps.flatMap(c => c.packages));
+    let totPaq = 0, totAct = 0;
+
+    if (hierarchyMode === 'componente') {
+      filteredComponents.forEach(cg => {
+        totPaq += cg.totalPackagesCount; totAct += cg.totalActivitiesCount;
+        const abierto = expandedComponents.has(cg.componente);
+        const r = rangoCaps(cg.caps);
+        filaGrupo({
+          key: `comp_${cg.componente}`, nivel: 0, abierto, alternar: () => toggleComponent(cg.componente), etiqueta: 'Componente:', nombre: cg.componente,
+          resumen: `${cg.caps.length} CAP · ${cg.totalPackagesCount} paq.`, nAct: cg.totalActivitiesCount, ini: r.ini, fin: r.fin, inWeeks: cg.inWeeks,
+        });
+        if (abierto) cg.caps.forEach(cap => bloqueCap(cap, cg.componente, 1));
+      });
+    } else if (hierarchyMode === 'proceso') {
+      filteredProcesos.forEach(pg => {
+        totPaq += pg.totalPackagesCount; totAct += pg.totalActivitiesCount;
+        const abierto = expandedProcesos.has(pg.proceso);
+        const r = rangoCaps(pg.caps);
+        filaGrupo({
+          key: `proc_${pg.proceso}`, nivel: 0, abierto, alternar: () => toggleProceso(pg.proceso), etiqueta: 'Proceso:', nombre: pg.proceso,
+          resumen: `${pg.caps.length} CAP · ${pg.totalPackagesCount} paq.`, nAct: pg.totalActivitiesCount, ini: r.ini, fin: r.fin, inWeeks: pg.inWeeks,
+        });
+        if (abierto) pg.caps.forEach(cap => bloqueCap(cap, `proceso:::${pg.proceso}`, 1));
+      });
+    } else {
+      filteredCompProcesos.forEach(cg => {
+        totPaq += cg.totalPackagesCount; totAct += cg.totalActivitiesCount;
+        const abierto = expandedComponents.has(cg.componente);
+        const r = rangoCaps(cg.procesos.flatMap(p => p.caps));
+        filaGrupo({
+          key: `comp_${cg.componente}`, nivel: 0, abierto, alternar: () => toggleComponent(cg.componente), etiqueta: 'Componente:', nombre: cg.componente,
+          resumen: `${cg.procesos.length} proc. · ${cg.totalPackagesCount} paq.`, nAct: cg.totalActivitiesCount, ini: r.ini, fin: r.fin, inWeeks: cg.inWeeks,
+        });
+        if (!abierto) return;
+        cg.procesos.forEach(pg => {
+          const procKey = `${cg.componente}:::${pg.proceso}`;
+          const abiertoProc = expandedProcesos.has(procKey);
+          const rp = rangoCaps(pg.caps);
+          filaGrupo({
+            key: `proc_${procKey}`, nivel: 1, abierto: abiertoProc, alternar: () => toggleProceso(procKey), etiqueta: 'Proceso:', nombre: pg.proceso,
+            resumen: `${pg.caps.length} CAP · ${pg.totalPackagesCount} paq.`, nAct: pg.totalActivitiesCount, ini: rp.ini, fin: rp.fin, inWeeks: pg.inWeeks,
+          });
+          if (abiertoProc) pg.caps.forEach(cap => bloqueCap(cap, procKey, 2));
+        });
       });
     }
 
-    const capAllUnitsStr = Array.from(capUnitsMap.keys()).join(', ');
-    const tooltipCapCantObra = capHasCantObra
-      ? `Suma de Cantidad de Obra del Capítulo (${cap.totalActivitiesCount} actividades en ${cap.packages.length} paquetes): ${capTotalCantObra.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${capDisplayUnit}${capUnitsMap.size > 1 ? ` (Unidades: ${capAllUnitsStr})` : ''}`
-      : 'Sin cantidad de obra registrada en este capítulo';
-
-    const tooltipCapCantProg = capHasCantObraProg
-      ? `Suma de Cantidad de Obra Programada del Capítulo (${cap.totalActivitiesCount} actividades en ${cap.packages.length} paquetes): ${capTotalCantObraProg.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${capDisplayUnit}${capUnitsMap.size > 1 ? ` (Unidades: ${capAllUnitsStr})` : ''}`
-      : 'Sin cantidad de obra programada para las semanas activas';
-
     return (
-      <div key={capKey} className="bg-white">
-        {/* CAP Accordion Header Bar */}
-        <div
-          onClick={() => toggleCap(capKey)}
-          className="bg-slate-100/95 hover:bg-slate-200/90 text-slate-800 px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 cursor-pointer transition-colors select-none border-b border-slate-200"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="p-1 bg-indigo-100 text-indigo-700 rounded-md border border-indigo-200 shrink-0">
-              <FolderKanban className="w-3.5 h-3.5" />
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                CAP:
-              </span>
-              <h5 className="font-extrabold text-xs tracking-tight text-slate-900">
-                {cap.capName}
-              </h5>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                {cap.packages.length} {cap.packages.length === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-slate-700 border border-slate-200">
-                {cap.totalActivitiesCount} act.
-              </span>
-
-              {/* Fechas BL Programadas (Early Inicio → Late Fin de SCAPs) */}
-              {(capEarlyStart || capLateFinish) && (
-                <span
-                  className="inline-flex items-center gap-1.5 text-[10.5px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-white text-slate-700 border border-slate-200 shadow-2xs"
-                  title="Fechas BL Programadas del Capítulo (Inicio más temprano y fin más tardío de sus paquetes SCAP)"
-                >
-                  <Calendar className="w-3 h-3 text-indigo-600 shrink-0" />
-                  <span className="text-slate-400 font-medium">BL:</span>
-                  <span className="text-indigo-700 font-bold">{formatDateShort(capEarlyStart)}</span>
-                  <span className="text-slate-400">→</span>
-                  <span className="text-indigo-700 font-bold">{formatDateShort(capLateFinish)}</span>
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Cant. Obra y Cant. Obra Prog. a nivel CAP (Ubicado entre las fechas y S1-S2-S3-S4) */}
-            <div className="flex items-center gap-1.5 font-mono text-[11px]">
-              {/* Cant. Obra CAP */}
-              <div
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-800 shadow-2xs"
-                title={tooltipCapCantObra}
-              >
-                <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider font-sans">Cant. Obra:</span>
-                <span className="font-extrabold text-slate-900">
-                  {capHasCantObra
-                    ? capTotalCantObra.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-                    : '-'}
-                </span>
-                {capDisplayUnit && capHasCantObra && (
-                  <span className="text-slate-500 font-semibold text-[9.5px]">
-                    {capDisplayUnit}
-                  </span>
-                )}
-              </div>
-
-              {/* Cant. Obra Prog. CAP */}
-              <div
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50/80 border border-indigo-200 text-indigo-900 shadow-2xs"
-                title={tooltipCapCantProg}
-              >
-                <span className="text-[9.5px] font-bold text-indigo-500 uppercase tracking-wider font-sans">Prog:</span>
-                <span className={`font-extrabold ${capTotalCantObraProg > 0 ? 'text-indigo-700' : 'text-slate-400'}`}>
-                  {capHasCantObraProg
-                    ? capTotalCantObraProg.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-                    : '-'}
-                </span>
-                {capDisplayUnit && capHasCantObraProg && (
-                  <span className="text-indigo-600 font-semibold text-[9.5px]">
-                    {capDisplayUnit}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* 4-week active presence mini pills for CAP */}
-            <div className="hidden sm:flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 text-[9.5px] font-mono">
-              {fourWeeks.map((w, idx) => (
-                <span
-                  key={w.weekNum}
-                  className={`px-1.5 py-0.5 rounded font-bold ${
-                    cap.inWeeks[idx]
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                      : 'text-slate-300'
-                  }`}
-                  title={cap.inWeeks[idx] ? `Activo en ${w.label}` : `Sin actividad en ${w.label}`}
-                >
-                  S{w.weekNum}
-                </span>
-              ))}
-            </div>
-
-            <div className="text-slate-500">
-              <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isCapExpanded ? 'rotate-90' : ''}`} />
-            </div>
-          </div>
+      <div className="ht-theme bg-white border border-[#D5DEE2] rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1000px] table-fixed text-xs border-collapse text-left">
+            <colgroup>
+              <col style={{ width: '31%' }} />
+              <col style={{ width: '5%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '10%' }} />
+            </colgroup>
+            <thead>
+              <tr className="whitespace-nowrap">
+                <th className="px-2 py-2 text-left text-[10px]">Nivel jerárquico / Actividad</th>
+                <th className="px-2 py-2 text-center text-[10px]" title="Actividades del grupo; en cada actividad, su Total Float (días)">Act. / TF</th>
+                <th className="px-2 py-2 text-center text-[10px]">Fechas BL</th>
+                <th className="px-2 py-2 text-center text-[10px]">Semanas</th>
+                <th className="px-2 py-2 text-left text-[10px]">Subcontratista</th>
+                <th className="px-2 py-2 text-right text-[10px]" title="Suma de Cantidad de Obra (Columnas F y E de CDO)">Cant. Obra</th>
+                <th className="px-2 py-2 text-right text-[10px]" title="Cantidad de Obra Programada (Previsión PG-004 / Precio CDO / Step CDO)">Cant. Prog.</th>
+                <th className="px-2 py-2 text-center text-[10px]">Estado</th>
+              </tr>
+            </thead>
+            <tbody>{filas}</tbody>
+            <tfoot>
+              <tr className="ht-g lv0">
+                <td className="px-2 py-2 text-[11px]">TOTAL ({totPaq.toLocaleString('es-ES')} paquetes SCAP)</td>
+                <td className="px-2 py-2 text-center font-mono text-[10.5px]">{totAct.toLocaleString('es-ES')}</td>
+                <td className="px-2 py-2 text-center font-mono text-[10px] whitespace-nowrap truncate">{formatDateShort(windowStartDate)} → {formatDateShort(windowEndDate)}</td>
+                <td></td><td></td><td></td><td></td><td></td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-
-        {/* Table of SCAPs within this CAP */}
-        {isCapExpanded && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-600 font-extrabold text-[10.5px] uppercase tracking-wider border-b border-slate-200">
-                  <th className="py-2.5 px-3 w-8">#</th>
-                  <th className="py-2.5 px-3 min-w-[200px]">Paquete SCAP</th>
-                  <th className="py-2.5 px-3 text-center w-24">Actividades</th>
-                  <th className="py-2.5 px-3 text-center min-w-[130px]">Fechas BL Programadas</th>
-                  <th className="py-2.5 px-3 text-center min-w-[140px]">Ejecución en 4 Semanas</th>
-                  <th className="py-2.5 px-3 min-w-[140px]">Subcontratista</th>
-                  <th className="py-2.5 px-3 text-right min-w-[110px]" title="Suma de Cantidad de Obra de las actividades del SCAP (Columnas F y E de CDO)">Cant. Obra</th>
-                  <th className="py-2.5 px-3 text-right min-w-[120px]" title="Suma de Cantidad de Obra Programada de las actividades del SCAP (Previsión PG-004 / Precio CDO / Step CDO)">Cant. Obra Prog.</th>
-                  <th className="py-2.5 px-3 text-center min-w-[110px]">Estado Paquete</th>
-                  <th className="py-2.5 px-3 text-center w-20">Detalle</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {cap.packages.map((pkg, pIdx) => {
-                  const scapKey = `${groupKeyPrefix}:::${cap.capName}:::${pkg.scapName}`;
-                  const isScapExpanded = expandedScaps.has(scapKey);
-
-                  // Cálculo de la suma de Cantidad de Obra y Cantidad de Obra Programada a nivel SCAP
-                  let totalCantObra = 0;
-                  let hasCantObra = false;
-                  let totalCantObraProg = 0;
-                  let hasCantObraProg = false;
-                  const unitsMap = new Map<string, number>();
-
-                  pkg.activities.forEach(act => {
-                    if (act.cantidad !== null && act.cantidad !== undefined && !isNaN(act.cantidad)) {
-                      totalCantObra += act.cantidad;
-                      hasCantObra = true;
-                    }
-                    if (act.unidad && act.unidad.trim()) {
-                      const u = act.unidad.trim();
-                      unitsMap.set(u, (unitsMap.get(u) || 0) + 1);
-                    }
-                    const { cantObraProg } = getCantObraProgramadaInfo(act, fourWeeks, selectedWeekFilter);
-                    if (cantObraProg !== null && cantObraProg !== undefined && !isNaN(cantObraProg)) {
-                      totalCantObraProg += cantObraProg;
-                      hasCantObraProg = true;
-                    }
-                  });
-
-                  let displayUnit = '';
-                  if (unitsMap.size === 1) {
-                    displayUnit = Array.from(unitsMap.keys())[0];
-                  } else if (unitsMap.size > 1) {
-                    let maxCount = 0;
-                    unitsMap.forEach((cnt, u) => {
-                      if (cnt > maxCount) {
-                        maxCount = cnt;
-                        displayUnit = u;
-                      }
-                    });
-                  }
-
-                  const allUnitsStr = Array.from(unitsMap.keys()).join(', ');
-                  const tooltipCantObraScap = hasCantObra
-                    ? `Suma de Cant. Obra (${pkg.activities.length} partidas): ${totalCantObra.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${displayUnit}${unitsMap.size > 1 ? ` (Unidades: ${allUnitsStr})` : ''}`
-                    : 'Sin cantidad de obra registrada en este SCAP';
-
-                  const tooltipCantProgScap = hasCantObraProg
-                    ? `Suma de Cant. Obra Prog. (${pkg.activities.length} partidas): ${totalCantObraProg.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${displayUnit}${unitsMap.size > 1 ? ` (Unidades: ${allUnitsStr})` : ''}`
-                    : 'Sin cantidad de obra programada para las semanas activas';
-
-                  return (
-                    <React.Fragment key={scapKey}>
-                      <tr
-                        onClick={() => toggleScap(scapKey)}
-                        className={`transition-colors cursor-pointer select-none ${
-                          isScapExpanded ? 'bg-indigo-50/70' : 'hover:bg-indigo-50/40'
-                        }`}
-                        title={isScapExpanded ? 'Hacer clic para contraer actividades' : 'Hacer clic para desplegar actividades'}
-                      >
-                        <td className="py-2.5 px-3 text-slate-400 font-mono text-[10px]">
-                          {pIdx + 1}
-                        </td>
-
-                        {/* SCAP Name */}
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0" />
-                            <div>
-                              <div className="font-extrabold text-slate-900 text-xs hover:text-indigo-700 transition-colors">
-                                {pkg.scapName}
-                              </div>
-                              {hierarchyMode === 'proceso' && pkg.componente && (
-                                <span className="text-[9.5px] font-bold text-slate-500">
-                                  Comp: {pkg.componente}
-                                </span>
-                              )}
-                              {hierarchyMode === 'componente' && pkg.proceso && (
-                                <span className="text-[9.5px] font-bold text-slate-700 bg-slate-100 px-1 rounded border border-slate-300">
-                                  {pkg.proceso}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Activities Count */}
-                        <td className="py-2.5 px-3 text-center font-bold text-slate-700 font-mono">
-                          <span className="px-2 py-0.5 bg-slate-100 rounded-md border border-slate-200">
-                            {pkg.activitiesCount}
-                          </span>
-                        </td>
-
-                        {/* BL Dates Range */}
-                        <td className="py-2.5 px-3 text-center font-mono text-slate-600 text-[11px]">
-                          {pkg.minDate && pkg.maxDate ? (
-                            <div className="flex items-center justify-center gap-1 font-semibold">
-                              <span className="text-indigo-700">{formatDateShort(pkg.minDate)}</span>
-                              <span className="text-slate-400">→</span>
-                              <span className="text-indigo-700">{formatDateShort(pkg.maxDate)}</span>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">-</span>
-                          )}
-                        </td>
-
-                        {/* 4-Weeks Active Pills */}
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="inline-flex items-center gap-1 font-mono text-[10px]">
-                            {fourWeeks.map((w, wIdx) => {
-                              const isActive = pkg.inWeeks[wIdx];
-                              return (
-                                <span
-                                  key={w.weekNum}
-                                  className={`px-1.5 py-0.5 rounded font-bold ${
-                                    isActive
-                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs'
-                                      : 'bg-slate-100 text-slate-400 border border-slate-200'
-                                  }`}
-                                  title={`${w.label}: ${isActive ? 'Activo' : 'Sin trabajo programado'}`}
-                                >
-                                  S{w.weekNum}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </td>
-
-                        {/* Subcontratista */}
-                        <td className="py-2.5 px-3 text-slate-600 text-xs">
-                          {pkg.subcontratistas.length > 0 ? (
-                            <div className="truncate max-w-[180px]" title={pkg.subcontratistas.join(', ')}>
-                              {pkg.subcontratistas.join(', ')}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 text-[11px] italic">Propio / Sin asignar</span>
-                          )}
-                        </td>
-
-                        {/* Suma Cant. Obra SCAP */}
-                        <td
-                          className="py-2.5 px-3 text-right font-mono font-bold text-slate-800 whitespace-nowrap"
-                          title={tooltipCantObraScap}
-                        >
-                          {hasCantObra ? (
-                            <span>
-                              {totalCantObra.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                              {displayUnit && (
-                                <span className="text-slate-500 font-semibold text-[10px] ml-1">
-                                  {displayUnit}
-                                </span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300 font-normal">-</span>
-                          )}
-                        </td>
-
-                        {/* Suma Cant. Obra Prog. SCAP */}
-                        <td
-                          className="py-2.5 px-3 text-right font-mono whitespace-nowrap"
-                          title={tooltipCantProgScap}
-                        >
-                          {hasCantObraProg ? (
-                            <span className="inline-flex items-baseline justify-end gap-1">
-                              <span className={`font-bold ${totalCantObraProg > 0 ? 'text-indigo-700' : 'text-slate-400'}`}>
-                                {totalCantObraProg.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                              </span>
-                              {displayUnit && (
-                                <span className="text-slate-500 font-semibold text-[9.5px]">
-                                  {displayUnit}
-                                </span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300 font-normal">-</span>
-                          )}
-                        </td>
-
-                        {/* Status summary */}
-                        <td className="py-2.5 px-3 text-center">
-                          {pkg.statusSummary.conAtraso > 0 ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-50 text-red-700 border border-red-200">
-                              <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />
-                              Retraso ({pkg.statusSummary.conAtraso})
-                            </span>
-                          ) : pkg.statusSummary.enEjecucion > 0 ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
-                              <Clock className="w-3 h-3 text-blue-500 shrink-0" />
-                              En Curso ({pkg.statusSummary.enEjecucion})
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
-                              Programado
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Expand Activities toggle */}
-                        <td className="py-2.5 px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleScap(scapKey);
-                            }}
-                            className="p-1 hover:bg-indigo-100 rounded-lg text-indigo-600 transition-colors cursor-pointer"
-                            title={isScapExpanded ? 'Ocultar actividades' : 'Ver actividades'}
-                          >
-                            <ChevronDown className={`w-4 h-4 transition-transform ${isScapExpanded ? 'rotate-180' : ''}`} />
-                          </button>
-                        </td>
-                      </tr>
-
-                      {/* Sub-row: Specific Leaf Activities within SCAP */}
-                      {isScapExpanded && (
-                        <tr className="bg-slate-50/90 border-b border-slate-200">
-                          <td colSpan={10} className="p-3 pl-8">
-                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-                              <div className="px-3 py-2 bg-[#F5F8F9] border-b border-[#D5DEE2] text-[#14212A] font-semibold text-[11px] flex items-center justify-between">
-                                <span>Actividades detalladas en {pkg.scapName} (CAP: {cap.capName})</span>
-                                <span className="text-[10px] text-[#5A6A74] font-mono font-normal">
-                                  {pkg.activities.length} partidas registradas
-                                </span>
-                              </div>
-                              <table className="w-full text-left text-[11px]">
-                                <thead>
-                                  <tr className="bg-slate-100/80 text-slate-600 font-bold border-b border-slate-200 text-[10px] uppercase">
-                                    <th className="py-2 px-3">Código WBS</th>
-                                    <th className="py-2 px-3">ID Actividad</th>
-                                    <th className="py-2 px-3">Descripción (Activity Name)</th>
-                                    <th className="py-2 px-3 text-right" title="Cantidad de obra y unidad de medida (Columnas F y E de CDO)">Cant. Obra</th>
-                                    <th className="py-2 px-3 text-right" title="Cantidad de obra programada: Previsión económica de PG-004 / Precio unitario (Columna G de CDO) / Step (Columna H de CDO)">Cant. Obra Prog.</th>
-                                    <th className="py-2 px-3 text-center">BL Inicio</th>
-                                    <th className="py-2 px-3 text-center">BL Fin</th>
-                                    <th className="py-2 px-3 text-center">Float</th>
-                                    <th className="py-2 px-3 text-center">Semanas</th>
-                                    <th className="py-2 px-3 text-center">Estado P6</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 font-sans">
-                                  {pkg.activities.map(act => {
-                                    const { cantObraProg, valorEconomico, precio, step, semanasActivasLabels } = getCantObraProgramadaInfo(
-                                      act,
-                                      fourWeeks,
-                                      selectedWeekFilter
-                                    );
-
-                                    const tooltipCantProg = cantObraProg !== null
-                                      ? `Previsión económica PG-004 (${semanasActivasLabels.join(', ')}): ${valorEconomico.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / Precio Col. G CDO: ${precio?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${step !== null ? ` / Step Col. H CDO: ${step.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}` : ''} = ${cantObraProg.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${act.unidad || ''}`
-                                      : (valorEconomico > 0 && (!precio || precio <= 0))
-                                      ? `Previsión económica PG-004: ${valorEconomico.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Sin precio unitario en Columna G de CDO para calcular la cantidad.`
-                                      : `Sin previsión económica en PG-004 para las semanas activas (${semanasActivasLabels.join(', ') || 'sin semanas'})`;
-
-                                    return (
-                                      <tr key={act.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="py-1.5 px-3 font-mono text-slate-500 font-semibold">{act.wbs}</td>
-                                        <td className="py-1.5 px-3 font-mono text-indigo-700 font-bold">{act.activityId || '-'}</td>
-                                        <td className="py-1.5 px-3 text-slate-800 font-medium max-w-sm">
-                                          <div className="flex items-center gap-1.5 flex-wrap">
-                                            {act.ubicacion && (
-                                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0 inline-flex items-center gap-0.5">
-                                                <MapPin className="w-2.5 h-2.5 text-emerald-600" />
-                                                {act.ubicacion}
-                                              </span>
-                                            )}
-                                            {act.proceso && (
-                                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-700 border border-slate-300 shrink-0">
-                                                {act.proceso}
-                                              </span>
-                                            )}
-                                            {isMontajeFilter && (
-                                              <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
-                                                Montaje
-                                              </span>
-                                            )}
-                                            {isProcuraFilter && (
-                                              <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-100 text-blue-800 border border-blue-300 shrink-0">
-                                                Procura
-                                              </span>
-                                            )}
-                                            {isFleteFilter && (
-                                              <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300 shrink-0">
-                                                Flete
-                                              </span>
-                                            )}
-                                            <span>{act.descripcion}</span>
-                                          </div>
-                                        </td>
-                                        <td className="py-1.5 px-3 text-right font-mono font-bold text-slate-800 whitespace-nowrap">
-                                          {act.cantidad !== null && act.cantidad !== undefined ? (
-                                            <span>
-                                              {act.cantidad.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                                              {act.unidad && (
-                                                <span className="text-slate-600 font-semibold text-[10px] ml-1">
-                                                  {act.unidad}
-                                                </span>
-                                              )}
-                                            </span>
-                                          ) : (
-                                            <span className="text-slate-300 font-normal">-</span>
-                                          )}
-                                        </td>
-                                        <td
-                                          className="py-1.5 px-3 text-right font-mono whitespace-nowrap"
-                                          title={tooltipCantProg}
-                                        >
-                                          {cantObraProg !== null && cantObraProg !== undefined ? (
-                                            <span className="inline-flex items-baseline justify-end gap-1">
-                                              <span className={`font-bold ${cantObraProg > 0 ? 'text-indigo-700' : 'text-slate-400'}`}>
-                                                {cantObraProg.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
-                                              </span>
-                                              {act.unidad && (
-                                                <span className="text-slate-500 font-semibold text-[9.5px]">
-                                                  {act.unidad}
-                                                </span>
-                                              )}
-                                            </span>
-                                          ) : (
-                                            <span className="text-slate-300 font-normal">-</span>
-                                          )}
-                                        </td>
-                                      <td className="py-1.5 px-3 text-center font-mono text-slate-600">{formatDateShort(act.blStart)}</td>
-                                      <td className="py-1.5 px-3 text-center font-mono text-slate-600">{formatDateShort(act.blFinish)}</td>
-                                      <td className="py-1.5 px-3 text-center font-mono font-bold">
-                                        {act.floatDays === null ? (
-                                          <span className="text-slate-400">-</span>
-                                        ) : act.floatDays < 0 ? (
-                                          <span className="text-red-600">({Math.abs(act.floatDays)})</span>
-                                        ) : (
-                                          <span className="text-slate-700">{act.floatDays}</span>
-                                        )}
-                                      </td>
-                                      <td className="py-1.5 px-3 text-center font-mono text-[9px]">
-                                        <div className="flex items-center justify-center gap-0.5">
-                                          {act.inWeeks.map((inW, idx) => (
-                                            <span
-                                              key={idx}
-                                              className={`w-4 h-4 rounded flex items-center justify-center font-bold ${
-                                                inW
-                                                  ? 'bg-emerald-500 text-white'
-                                                  : 'bg-slate-100 text-slate-400'
-                                              }`}
-                                            >
-                                              {idx + 1}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </td>
-                                      <td className="py-1.5 px-3 text-center">
-                                        <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-semibold">
-                                          {act.status}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     );
   };
@@ -2917,271 +2589,8 @@ export const AnalisisProyectoCard: React.FC<AnalisisProyectoCardProps> = ({
                 </button>
               </div>
             </div>
-          ) : hierarchyMode === 'componente' ? (
-            /* Mode 1: Grouped by Componente -> CAP -> SCAP (with #4f39f6 component bar) */
-            <div className="space-y-4">
-              {filteredComponents.map(compGroup => {
-                const isExpanded = expandedComponents.has(compGroup.componente);
-
-                return (
-                  <div
-                    key={compGroup.componente}
-                    className="bg-white rounded-xl border border-[#D5DEE2] shadow-xs overflow-hidden transition-all"
-                  >
-                    {/* Component Header Accordion Bar styled in #4f39f6 */}
-                    <div
-                      onClick={() => toggleComponent(compGroup.componente)}
-                      className="bg-[#F8DCDC] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#F4CFCF] transition-colors select-none"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-1 bg-white text-[#CD0000] rounded-lg border border-[#F2BFBF] shrink-0">
-                          <Building2 className="w-4 h-4 text-[#CD0000]" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-['Barlow_Condensed'] font-semibold text-[13px] tracking-wider text-[#14212A] uppercase">
-                              Componente: {compGroup.componente}
-                            </h4>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                              {compGroup.caps.length} {compGroup.caps.length === 1 ? 'Capítulo CAP' : 'Capítulos CAP'}
-                            </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                              {compGroup.totalPackagesCount} {compGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
-                            </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                              {compGroup.totalActivitiesCount} actividades
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        {/* 4-week active presence mini pills */}
-                        <div className="hidden sm:flex items-center gap-1 bg-white p-1 rounded-lg border border-[#F2BFBF] text-[10px] font-mono">
-                          {fourWeeks.map((w, idx) => (
-                            <span
-                              key={w.weekNum}
-                              className={`px-1.5 py-0.5 rounded font-bold ${
-                                compGroup.inWeeks[idx]
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : 'text-[#a3aab0]'
-                              }`}
-                              title={compGroup.inWeeks[idx] ? `Activo en ${w.label}` : `Sin actividad en ${w.label}`}
-                            >
-                              S{w.weekNum}
-                            </span>
-                          ))}
-                        </div>
-
-                        <div className="text-[#5A6A74]">
-                          <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* List of CAPs within Component */}
-                    {isExpanded && (
-                      <div className="divide-y divide-slate-200/90 bg-slate-50/40">
-                        {compGroup.caps.map(cap => renderCapAccordion(cap, compGroup.componente))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : hierarchyMode === 'proceso' ? (
-            /* Mode 2: Grouped by Proceso (Columna AF del master) -> CAP -> SCAP */
-            <div className="space-y-4">
-              {filteredProcesos.map(procesoGroup => {
-                const isExpanded = expandedProcesos.has(procesoGroup.proceso);
-
-                return (
-                  <div
-                    key={procesoGroup.proceso}
-                    className="bg-white rounded-xl border border-[#D5DEE2] shadow-xs overflow-hidden transition-all"
-                  >
-                    {/* Proceso Header Accordion Bar */}
-                    <div
-                      onClick={() => toggleProceso(procesoGroup.proceso)}
-                      className="bg-[#FBE9E9] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#e4e1f9] transition-colors select-none"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-1 bg-white text-[#CD0000] rounded-lg border border-[#F2BFBF] shrink-0">
-                          <FolderKanban className="w-4 h-4 text-[#CD0000]" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-['Barlow_Condensed'] font-semibold text-[13px] tracking-wider text-[#14212A] uppercase flex items-center gap-1.5">
-                              <span>Proceso (Col. AF):</span>
-                              <span className="text-[#CD0000]">{procesoGroup.proceso}</span>
-                            </h4>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                              {procesoGroup.caps.length} {procesoGroup.caps.length === 1 ? 'Capítulo CAP' : 'Capítulos CAP'}
-                            </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                              {procesoGroup.totalPackagesCount} {procesoGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
-                            </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                              {procesoGroup.totalActivitiesCount} actividades
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        {/* 4-week active presence mini pills */}
-                        <div className="hidden sm:flex items-center gap-1 bg-black/30 p-1 rounded-lg border border-white/15 text-[10px] font-mono">
-                          {fourWeeks.map((w, idx) => (
-                            <span
-                              key={w.weekNum}
-                              className={`px-1.5 py-0.5 rounded font-bold ${
-                                procesoGroup.inWeeks[idx]
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : 'text-[#a3aab0]'
-                              }`}
-                              title={procesoGroup.inWeeks[idx] ? `Activo en ${w.label}` : `Sin actividad en ${w.label}`}
-                            >
-                              S{w.weekNum}
-                            </span>
-                          ))}
-                        </div>
-
-                        <div className="text-[#5A6A74]">
-                          <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* List of CAPs within Proceso */}
-                    {isExpanded && (
-                      <div className="divide-y divide-slate-200/90 bg-slate-50/40">
-                        {procesoGroup.caps.map(cap => renderCapAccordion(cap, `proceso:::${procesoGroup.proceso}`))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           ) : (
-            /* Mode 3: Grouped by Componente (#4f39f6) -> Proceso (Columna AF) -> CAP -> SCAP */
-            <div className="space-y-4">
-              {filteredCompProcesos.map(compGroup => {
-                const isExpanded = expandedComponents.has(compGroup.componente);
-
-                return (
-                  <div
-                    key={compGroup.componente}
-                    className="bg-white rounded-xl border border-[#D5DEE2] shadow-xs overflow-hidden transition-all"
-                  >
-                    {/* Component Header Accordion Bar styled in #4f39f6 */}
-                    <div
-                      onClick={() => toggleComponent(compGroup.componente)}
-                      className="bg-[#F8DCDC] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2.5 cursor-pointer hover:bg-[#F4CFCF] transition-colors select-none"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-1 bg-white text-[#CD0000] rounded-lg border border-[#F2BFBF] shrink-0">
-                          <Building2 className="w-4 h-4 text-[#CD0000]" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-['Barlow_Condensed'] font-semibold text-[13px] tracking-wider text-[#14212A] uppercase">
-                              Componente: {compGroup.componente}
-                            </h4>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                              {compGroup.procesos.length} {compGroup.procesos.length === 1 ? 'Proceso' : 'Procesos'}
-                            </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                              {compGroup.totalPackagesCount} {compGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
-                            </span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                              {compGroup.totalActivitiesCount} actividades
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="hidden sm:flex items-center gap-1 bg-white p-1 rounded-lg border border-[#F2BFBF] text-[10px] font-mono">
-                          {fourWeeks.map((w, idx) => (
-                            <span
-                              key={w.weekNum}
-                              className={`px-1.5 py-0.5 rounded font-bold ${
-                                compGroup.inWeeks[idx]
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : 'text-[#a3aab0]'
-                              }`}
-                              title={compGroup.inWeeks[idx] ? `Activo en ${w.label}` : `Sin actividad en ${w.label}`}
-                            >
-                              S{w.weekNum}
-                            </span>
-                          ))}
-                        </div>
-
-                        <div className="text-[#5A6A74]">
-                          <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* List of Procesos within this Component */}
-                    {isExpanded && (
-                      <div className="divide-y divide-slate-200 bg-slate-50/40">
-                        {compGroup.procesos.map(pGroup => {
-                          const procKey = `${compGroup.componente}:::${pGroup.proceso}`;
-                          const isProcExpanded = expandedProcesos.has(procKey);
-
-                          return (
-                            <div key={procKey} className="bg-white">
-                              {/* Sub-header for Proceso within Component */}
-                              <div
-                                onClick={() => toggleProceso(procKey)}
-                                className="bg-[#FBE9E9] hover:bg-[#e4e1f9] text-[#14212A] px-4 py-2 flex items-center justify-between flex-wrap gap-2 cursor-pointer transition-colors select-none border-b border-[#F8DCDC]"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <div className="p-1 bg-white text-[#CD0000] rounded-md border border-[#F2BFBF] shrink-0">
-                                    <FolderKanban className="w-3.5 h-3.5" />
-                                  </div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-mono text-[10px] text-[#5A6A74] font-bold uppercase tracking-wider">
-                                      Proceso (Col. AF):
-                                    </span>
-                                    <h5 className="font-semibold text-xs tracking-tight text-[#14212A]">
-                                      {pGroup.proceso}
-                                    </h5>
-                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                                      {pGroup.caps.length} {pGroup.caps.length === 1 ? 'Capítulo CAP' : 'Capítulos CAP'}
-                                    </span>
-                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                                      {pGroup.totalPackagesCount} {pGroup.totalPackagesCount === 1 ? 'Paquete SCAP' : 'Paquetes SCAP'}
-                                    </span>
-                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white text-[#5A6A74] border border-[#F2BFBF]">
-                                      {pGroup.totalActivitiesCount} act.
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                  <div className="text-[#5A6A74]">
-                                    <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isProcExpanded ? 'rotate-90' : ''}`} />
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* List of CAPs within Proceso */}
-                              {isProcExpanded && (
-                                <div className="divide-y divide-slate-200/90 bg-slate-50/40">
-                                  {pGroup.caps.map(cap => renderCapAccordion(cap, procKey))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            renderTablaJerarquica()
           )}
 
           {/* Footer note */}
