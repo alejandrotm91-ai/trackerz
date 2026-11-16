@@ -76,6 +76,8 @@ export interface CvsLeaf {
   codsUnidos?: string[];
   /** CAP de la fila de la Sabana (Col E). */
   capSabana?: string;
+  /** Fila del Master de una estructura (CAP) que no está en la Sabana para esta partida. */
+  capNoPlanilla?: string;
 }
 
 export interface CvsResultado {
@@ -324,16 +326,64 @@ export function construirComparacion(
     }
 
     let destino = candidatas;
+    let exacta = false;
     if (candidatas.length > 1) {
       const act = ref.activityId.toLowerCase();
       const exactas = act ? candidatas.filter(l => l.cod.toLowerCase() === act) : [];
-      if (exactas.length > 0) destino = exactas;
+      if (exactas.length > 0) { destino = exactas; exacta = true; }
     }
-    // Si la partida está en varios CAP de la Sabana, el Master va solo a las filas de su mismo CAP
-    if (destino.length > 1 && it.cap) {
-      const capM = normalizar(it.cap);
-      const mismoCap = destino.filter(l => l.capSabana && normalizar(l.capSabana) === capM);
-      if (mismoCap.length > 0) destino = mismoCap;
+    // El Master va a la fila de la Sabana de su misma estructura: mismo CAP, misma cantidad o código
+    // de planeamiento parecido a su WBS. Si no hay ninguna, no se reparte: va a una fila propia
+    // "CAP no planillado".
+    const capM = it.cap ? normalizar(it.cap) : '';
+    // Solo partidas del contrato (numéricas): los precios nuevos (CP-, VS-…) van en capítulos
+    // propios de la Sabana con un CAP genérico, así que para ellos el CAP no sirve.
+    if (!exacta && esNumerico(idOrig) && destino.some(l => l.capSabana)) {
+      // 1) mismo nombre de CAP
+      let elegidas = capM ? destino.filter(l => l.capSabana && normalizar(l.capSabana) === capM) : [];
+      // 2) misma cantidad (una sola fila): contrato del Master = contrato de la Sabana,
+      //    o ejecutado del Master = contrato o planillado de la Sabana
+      const igual = (a: number, b: number) => a > 0 && b > 0 && Math.abs(a - b) <= Math.max(0.01, b * 0.005);
+      if (!elegidas.length) {
+        const qC = ref.cantidad * ref.step;
+        const porQ = destino.filter(l => igual(l.qC, qC));
+        if (porQ.length === 1) elegidas = porQ;
+      }
+      if (!elegidas.length) {
+        const qE = ref.cantEjec * ref.step;
+        const porQ = destino.filter(l => igual(l.qP, qE) || igual(l.qC, qE));
+        if (porQ.length === 1) elegidas = porQ;
+      }
+      // 3) código de planeamiento más parecido al WBS del Master (al menos 2 niveles en común)
+      if (!elegidas.length) {
+        const w = codDeItem(it).toLowerCase().split('.');
+        const comun = (c: string) => {
+          const a = c.toLowerCase().split('.');
+          let n = 0;
+          while (n < a.length && n < w.length && a[n] === w[n]) n++;
+          return n;
+        };
+        const max = destino.reduce((m, l) => Math.max(m, comun(l.cod)), 0);
+        if (max >= 2) elegidas = destino.filter(l => comun(l.cod) === max);
+      }
+      if (elegidas.length > 0) {
+        destino = elegidas;
+      } else {
+        const base = destino[0];
+        const vk = `c:${k}::${capM}`;
+        let v = virtuales.get(vk);
+        if (!v) {
+          v = {
+            key: vk, cod: base.cod, grupo: base.grupo, partida, desc: it.descripcion || base.desc, unidad: it.unidad || base.unidad,
+            tipo: '', cruce: 'soloMaster', tarifa: 0, precioM: 0,
+            qC: 0, vC: 0, qP: 0, vP: 0, qM: 0, vM: 0, qE: 0, vE: 0,
+            master: [], planilla: [], capNoPlanilla: String(it.cap).trim(),
+          };
+          virtuales.set(vk, v);
+        }
+        sumar(v, it, ref, 1);
+        continue;
+      }
     }
     if (porCodigo) destino.forEach(l => { l.porCodigoPlan = true; });
     if (destino.length === 1) {

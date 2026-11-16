@@ -452,7 +452,11 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
           <div>
             <div className="font-semibold text-slate-700 mb-1">Planilla (Sabana) · {l.planilla.length} fila(s)</div>
             {l.planilla.length === 0 ? (
-              <div className="text-slate-500">La partida no está en la Planilla{l.sugerencia ? ` · ¿será ${l.sugerencia}?` : ''}.</div>
+              <div className="text-slate-500">
+                {l.capNoPlanilla
+                  ? <>La estructura <b>{l.capNoPlanilla}</b> no está en la Planilla para la partida {l.partida}: esta obra del Master no tiene fila donde planillarse.</>
+                  : <>La partida no está en la Planilla{l.sugerencia ? ` · ¿será ${l.sugerencia}?` : ''}.</>}
+              </div>
             ) : (
               <table className="!text-[11px]">
                 <thead><tr><th>Cód. plan</th><th>Partida</th><th className="text-right">Q contrato</th><th className="text-right">Tarifa</th><th className="text-right">Monto</th><th className="text-right">Q planillada</th><th className="text-right">Planillado</th></tr></thead>
@@ -509,6 +513,12 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
             {vista === 'jerarquica' && l.planilla.length > 0 && /^[\d.]+$/.test(l.partida) && l.partida !== l.cod && (
               <span className="ml-1 text-[9px] text-gray-400">(plan {l.cod})</span>
             )}
+            {l.capNoPlanilla && (
+              <span className="ml-1 text-[9px] px-1 rounded bg-amber-50 text-amber-800 border border-amber-200"
+                title={`Obra del Master en la estructura «${l.capNoPlanilla}», que no está en la Sabana para la partida ${l.partida}. No se reparte entre las filas de la Planilla.`}>
+                CAP no planillado
+              </span>
+            )}
             {l.codsUnidos && l.codsUnidos.length > 1 && (
               <span className="ml-1 text-[9px] px-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200"
                 title={`Partida repetida en la Sabana con Reajuste C1: une los códigos de planeamiento ${l.codsUnidos.join(', ')} y compara con el total del Master`}>
@@ -516,7 +526,8 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
               </span>
             )}
           </td>
-          <td className="max-w-[205px] truncate" title={l.desc}>
+          <td className="max-w-[205px] truncate" title={l.capNoPlanilla ? `${l.capNoPlanilla} · ${l.desc}` : l.desc}>
+            {l.capNoPlanilla && <span className="text-amber-800 font-semibold">{l.capNoPlanilla} · </span>}
             {l.desc}
             {l.unidadDistinta && <span className="ml-1 text-[9px] px-1 rounded bg-rose-50 text-rose-700 border border-rose-200" title="La unidad del contrato y la del Master no coinciden: no se puede separar cantidad y precio">Und ≠</span>}
             {l.porCodigoPlan && <span className="ml-1 text-[9px] px-1 rounded bg-sky-50 text-sky-700 border border-sky-200" title="El id.orig del Master coincide con el código de planeamiento de la Sabana, no con su partida">Cód. plan</span>}
