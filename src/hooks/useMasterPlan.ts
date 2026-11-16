@@ -3073,7 +3073,8 @@ export function useMasterPlan(isLoggedIn = false) {
                 acum: ctPf(r[CT_COL.S_MONTO]), anterior: ctPf(r[CT_COL.U_MONTO]),
                 cert: ctPf(r[CT_COL.W_MONTO]), exc: ctPf(r[CT_COL.Z_MONTO]), excE6: ctPf(r[CT_COL.AC_MONTO]),
                 // Para cruzar con el Master (comparación CDO vs Planilla)
-                partida, qContrato: ctPf(r[CT_COL.Q_CONTRATO]), qAcum: ctPf(r[CT_COL.Q_ACUM])
+                partida, qContrato: ctPf(r[CT_COL.Q_CONTRATO]), qAcum: ctPf(r[CT_COL.Q_ACUM]),
+                reajuste: String(r[CT_COL.REAJUSTE] ?? '').trim()
               };
               if (esHoja) _hojas.push(item);
               else _partidas.push(item);

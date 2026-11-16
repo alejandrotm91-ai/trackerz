@@ -85,6 +85,8 @@ export interface PlanillaItem {
   excE6: number;
   /** Partida (Col H de la Sabana): se cruza con el id.orig del Master. */
   partida?: string;
+  /** Reajuste de precios (Col B de la Sabana: C1, E3, E6…). */
+  reajuste?: string;
   /** Cantidad del contrato (Col L) y cantidad planillada acumulada (Col R). */
   qContrato?: number;
   qAcum?: number;

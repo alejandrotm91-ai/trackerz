@@ -110,7 +110,8 @@ const SIN_TIPO = '__sin_tipo__';
 
 export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupos, actividades, mapaColumnasMes, codigosPlanilla, filtroEtiqueta }) => {
   const [open, setOpen] = React.useState(false);
-  const [modo, setModo] = React.useState<ModoComparacion>('presupuesto');
+  const [modo, setModo] = React.useState<ModoComparacion>('avance');
+  const [filtroReajuste, setFiltroReajuste] = React.useState('');
   const [vista, setVista] = React.useState<Vista>('jerarquica');
   const [filtroEstado, setFiltroEstado] = React.useState<FiltroEstado>('todas');
   const [filtroTipo, setFiltroTipo] = React.useState('');
@@ -135,11 +136,33 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
     return construirComparacion(master.items, hojas, grupos);
   }, [tieneCruce, master.items, hojas, grupos]);
 
+  // Reajuste (Col B de la Sabana) de cada código de planeamiento
+  const reajustePorCod = React.useMemo(() => {
+    const m = new Map<string, string>();
+    hojas.forEach(h => { if (h.reajuste) m.set(String(h.cod).trim(), h.reajuste); });
+    return m;
+  }, [hojas]);
+
   // Filtro por tipología de contrato (viene de la tarjeta "Resumen por Tipología")
-  const resultado = React.useMemo(() => {
+  const resultadoTipo = React.useMemo(() => {
     if (!resultadoTodo || !codigosPlanilla) return resultadoTodo;
     return { ...resultadoTodo, leaves: resultadoTodo.leaves.filter(l => l.planilla.some(p => codigosPlanilla.has(p.cod))) };
   }, [resultadoTodo, codigosPlanilla]);
+
+  // Opciones del desplegable de Reajuste, con su número de partidas
+  const opcionesReajuste = React.useMemo(() => {
+    const c = new Map<string, number>();
+    (resultadoTipo?.leaves || []).forEach(l => {
+      new Set(l.planilla.map(p => reajustePorCod.get(p.cod)).filter(Boolean) as string[]).forEach(v => c.set(v, (c.get(v) || 0) + 1));
+    });
+    return [...c.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es', { numeric: true }));
+  }, [resultadoTipo, reajustePorCod]);
+
+  // Filtro por Reajuste: deja las partidas de la Planilla con ese código (las que solo están en el Master no tienen reajuste)
+  const resultado = React.useMemo(() => {
+    if (!resultadoTipo || !filtroReajuste) return resultadoTipo;
+    return { ...resultadoTipo, leaves: resultadoTipo.leaves.filter(l => l.planilla.some(p => reajustePorCod.get(p.cod) === filtroReajuste)) };
+  }, [resultadoTipo, filtroReajuste, reajustePorCod]);
 
   const txt = MODO_TXT[modo];
 
@@ -317,7 +340,9 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
       const p = calcularDeltas(l, 'presupuesto');
       const a = calcularDeltas(l, 'avance');
       return {
-        'Partida': l.partida, 'Cód. planeamiento': l.cod, 'Descripción': l.desc, 'Unidad': l.unidad, 'Tipo': l.tipo,
+        'Partida': l.partida, 'Cód. planeamiento': l.cod,
+        'Reajuste': [...new Set(l.planilla.map(p => reajustePorCod.get(p.cod)).filter(Boolean))].join(', '),
+        'Descripción': l.desc, 'Unidad': l.unidad, 'Tipo': l.tipo,
         'Estado (presupuesto)': ESTADO_LABEL[estadoDe(l, 'presupuesto')],
         'Q contrato': l.qC, 'Tarifa': l.tarifa, 'Monto contrato': l.vC,
         'Q Master': l.qM, 'Precio Master': l.precioM, 'Venta Master': l.vM,
@@ -589,8 +614,20 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
                 <span className="text-[11px] text-gray-500">
                   Fuente: {master.fuente ? FUENTE_LABEL[master.fuente] : '—'}
                 </span>
+                <select
+                  value={filtroReajuste}
+                  onChange={e => setFiltroReajuste(e.target.value)}
+                  disabled={opcionesReajuste.length === 0}
+                  className={`ml-auto text-[12px] border rounded-lg px-2 py-1.5 bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${filtroReajuste ? 'border-[#312E81] text-[#312E81] font-semibold' : 'border-gray-200 text-gray-700'}`}
+                  title={opcionesReajuste.length === 0
+                    ? 'Para filtrar por Reajuste vuelve a cargar el Master y pulsa Sincronizar Nube (la Planilla guardada aún no trae la columna B de la Sabana).'
+                    : 'Reajuste (columna B de la pestaña Sabana del Master)'}
+                >
+                  <option value="">Reajuste: Todos</option>
+                  {opcionesReajuste.map(([v, n]) => <option key={v} value={v}>Reajuste {v} · {n.toLocaleString('en-US')} partidas</option>)}
+                </select>
                 <button type="button" onClick={exportar}
-                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-700 hover:bg-gray-50 cursor-pointer">
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-700 hover:bg-gray-50 cursor-pointer">
                   <Download className="w-3.5 h-3.5" /> Exportar Excel
                 </button>
               </div>
