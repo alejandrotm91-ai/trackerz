@@ -767,155 +767,76 @@ export default function App() {
     
     // Mismos colores de jerarquía que la tabla de Control de Ejecución
     const nivelStyle = LEVEL_STYLES[Math.min(Math.max(level - 1, 0), LEVEL_STYLES.length - 1)];
-    const rowBg = isLeaf ? 'bg-white hover:bg-[#F9FBFB] border-b border-[#EEF2F3]' : nivelStyle.bg;
     const leftAccent = isLeaf ? '' : nivelStyle.accent;
-    const textStyle = isLeaf ? 'text-[#14212A] text-[11.5px] font-normal' : `${nivelStyle.text} text-[11.5px] font-bold`;
-    const badgeStyle = isLeaf ? '' : `${nivelStyle.badge} font-bold text-[9.5px]`;
+    const textStyle = isLeaf ? 'text-slate-800 text-[11px] font-medium' : `${nivelStyle.text} text-[11px] font-bold tracking-wide`;
     const chevronStyle = isLeaf ? '' : nivelStyle.chevron;
     const barColor = isLeaf ? '#2B7F52' : nivelStyle.bar;
 
-    const indentPadding = 6 + (level - 1) * 3; // sangría leve: 3 px por nivel (hasta 9 niveles)
+    // Sangría leve como en Control de Ejecución: 2 px por nivel
+    const indentPadding = isLeaf ? (level - 1) * 2 + 7 : (level - 1) * 2 + 5;
     const isDirectMatch = wbsSearchResults.isActive && wbsSearchResults.matchingItemIds.has(item.id);
+    const titulo = [item.descripcion, item.idOrig ? `id.Orig: ${item.idOrig}` : '', item.subcontratista ? `SubC: ${item.subcontratista}` : '', item.componente ? `Componente: ${item.componente}` : ''].filter(Boolean).join(' | ');
 
     return (
-      <div key={item.id} className={`transition-colors group ${isDirectMatch && isLeaf ? 'ring-1 ring-inset ring-[#312E81]/30 bg-[#EEF0FB]/40' : ''}`}>
-        <div
-          className={`flex items-center py-[3px] px-3 cursor-pointer transition-colors ${rowBg} ${leftAccent}`}
-          style={{ paddingLeft: `${indentPadding}px` }}
-          onClick={() => {
-            if (hasChildren) pc.toggleExpand(item.id);
-          }}
+      <React.Fragment key={item.id}>
+        <tr
+          className={`whitespace-nowrap transition-colors ${hasChildren ? 'cursor-pointer' : ''} ${isLeaf ? 'bg-white hover:bg-slate-50 text-[11px] text-slate-700 border-b border-slate-100 border-l-2 border-l-slate-300' : nivelStyle.bg} ${isDirectMatch && isLeaf ? '!bg-[#EEF0FB]' : ''}`}
+          onClick={() => { if (hasChildren) pc.toggleExpand(item.id); }}
         >
-          {/* Expander Chevron or Leaf Bullet */}
-          <div className="flex-shrink-0 w-6 h-[18px] flex justify-center items-center">
-            {hasChildren ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  pc.toggleExpand(item.id);
-                }}
-                className={`w-5 h-[18px] flex items-center justify-center cursor-pointer ${chevronStyle}`}
-                title={isExpanded ? 'Colapsar partida' : 'Expandir partida'}
-              >
-                <ChevronRight
-                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isExpanded ? 'rotate-90' : ''
-                  }`}
-                />
-              </button>
-            ) : isLeaf ? (
-              <div className="w-5 h-[18px] flex items-center justify-center">
-                <span className={`w-1.5 h-1.5 rounded-full transition-colors ${isDirectMatch ? 'bg-[#312E81] scale-125' : 'bg-[#C5CFD4] group-hover:bg-[#5A6A74]'}`} />
-              </div>
-            ) : (
-              <div className="w-5 h-[18px]" />
-            )}
-          </div>
-          
-          <div className="flex-1 grid gap-2 items-center" style={{ gridTemplateColumns: '85px minmax(240px, 2fr) 1.2fr 1.2fr 1.2fr 1.4fr 1.2fr 80px' }}>
-            {/* Código / ID */}
-            <div className="text-center font-mono text-[10.5px]">
-              {isLeaf ? (
-                <span className="bg-[#F5F8F9] text-[#5A6A74] font-mono font-semibold px-1.5 py-0 leading-[16px] rounded border border-[#D5DEE2] text-[10px]">
-                  {item.activityId || '-'}
-                </span>
+          {/* WBS / Nivel jerárquico */}
+          <td className={`px-1 py-1 overflow-hidden ${leftAccent}`} style={{ paddingLeft: `${indentPadding}px` }}>
+            <div className="flex items-center gap-1 min-w-0">
+              {hasChildren ? (
+                isExpanded
+                  ? <ChevronDown className={`w-3.5 h-3.5 shrink-0 ${chevronStyle}`} />
+                  : <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${chevronStyle}`} />
+              ) : isLeaf ? (
+                <span className={`w-1.5 h-1.5 mx-1 rounded-full shrink-0 ${isDirectMatch ? 'bg-[#312E81]' : 'bg-[#C5CFD4]'}`} />
               ) : (
-                <span className="text-[#5A6A74] font-medium font-mono text-[10px]">{item.wbs || '-'}</span>
+                <span className="w-3.5 shrink-0" />
               )}
-            </div>
-
-            {/* Descripción WBS / Partida */}
-            <div className="min-w-0 pr-2">
-              <div className="flex items-center gap-1.5 overflow-hidden">
-                {!isLeaf && (
-                  <span className={`font-mono px-1.5 py-0 leading-[16px] rounded shrink-0 ${badgeStyle}`}>
-                    {item.wbs}
-                  </span>
-                )}
-                <span 
-                  className={`truncate ${textStyle}`} 
-                  title={[item.descripcion, item.idOrig ? `id.Orig: ${item.idOrig}` : '', item.subcontratista ? `SubC: ${item.subcontratista}` : '', item.componente ? `Componente: ${item.componente}` : ''].filter(Boolean).join(' | ')}
-                >
-                  {item.descripcion}
-                </span>
-                {!isLeaf && wbsSearchResults.isActive && descendantMatchCountMap.has(item.id) && (
-                  <span className="text-[9px] font-bold text-[#312E81] bg-[#EEF0FB] border border-[#C7CBEF] px-1.5 py-0.2 rounded-full shrink-0">
-                    {descendantMatchCountMap.get(item.id)} {descendantMatchCountMap.get(item.id) === 1 ? 'partida' : 'partidas'}
-                  </span>
-                )}
-                {isDirectMatch && isLeaf && (
-                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-full shrink-0 shadow-2xs">
-                    Coincidencia
-                  </span>
-                )}
-              </div>
-            </div>
-            
-            {/* V. Contrato */}
-            <div className="text-right font-mono text-[11.5px] text-[#14212A] font-semibold">
-              {formattedMoney(values.venta)}
-            </div>
-
-            {/* V. Plan */}
-            <div className="text-right font-mono text-[11.5px] text-slate-700">
-              {formattedMoney(values.ventaPlan)}
-            </div>
-
-            {/* V. Ejecutada */}
-            <div className="text-right font-mono text-[11.5px] text-green-700 font-semibold">
-              {formattedMoney(values.ventaEjecutada)}
-            </div>
-            
-            {/* % Avance */}
-            <div className="text-right">
-              <div className="flex items-center justify-end gap-1.5">
-                <span className={`font-mono font-bold text-[11px] w-12 text-right ${
-                  avance >= 100 ? 'text-green-700' : avance > 0 ? 'text-[#14212A]' : 'text-slate-400'
-                }`}>
-                  {avance.toFixed(2)}%
-                </span>
-                <div className="w-12 sm:w-14 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0 border border-slate-200/60">
-                  <div
-                    className="h-full rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min(avance, 100)}%`, backgroundColor: avance >= 100 ? '#2B7F52' : barColor }}
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Saldo / Excedente */}
-            <div className="text-right font-mono text-[11.5px]">
-              {values.saldo < 0 ? (
-                <span className="text-red-600 font-semibold">
-                  ({formattedMoney(Math.abs(values.saldo))})
-                </span>
-              ) : (
-                <span className="text-[#14212A] font-semibold">
-                  {formattedMoney(values.saldo)}
+              {!isLeaf && <span className={`text-[10px] font-mono shrink-0 ${nivelStyle.subText}`}>{item.wbs}</span>}
+              <span className={`truncate min-w-0 ${textStyle}`} title={titulo}>{item.descripcion}</span>
+              {!isLeaf && wbsSearchResults.isActive && descendantMatchCountMap.has(item.id) && (
+                <span className="text-[9px] font-bold text-[#312E81] bg-[#EEF0FB] border border-[#C7CBEF] px-1.5 rounded-full shrink-0">
+                  {descendantMatchCountMap.get(item.id)} {descendantMatchCountMap.get(item.id) === 1 ? 'partida' : 'partidas'}
                 </span>
               )}
-            </div>
-
-            {/* % Var */}
-            <div className="text-right font-mono text-[11px]">
-              {pctVar < 0 ? (
-                <span className="text-red-600 font-semibold" title={`Variación negativa: ${pctVar.toFixed(2)}%`}>
-                  ({Math.abs(pctVar).toFixed(2)}%)
-                </span>
-              ) : pctVar > 0 ? (
-                <span className="text-green-700 font-semibold" title={`Variación positiva: +${pctVar.toFixed(2)}%`}>
-                  +{pctVar.toFixed(2)}%
-                </span>
-              ) : (
-                <span className="text-slate-400 font-medium">0.00%</span>
+              {isDirectMatch && isLeaf && (
+                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 rounded-full shrink-0">Coincidencia</span>
               )}
             </div>
-          </div>
-        </div>
+          </td>
+          {/* Activity ID */}
+          <td className="px-1.5 py-1 font-mono text-[10px] text-slate-500 truncate" title={isLeaf ? (item.activityId || '') : ''}>{isLeaf ? (item.activityId || '—') : ''}</td>
+          {/* V. Contrato */}
+          <td className={`px-2 py-1 text-right font-mono ${isLeaf ? 'text-[#14212A]' : nivelStyle.vContrato}`}>{formattedMoney(values.venta)}</td>
+          {/* V. Plan */}
+          <td className={`px-2 py-1 text-right font-mono ${isLeaf ? 'text-slate-700' : nivelStyle.vPlan}`}>{formattedMoney(values.ventaPlan)}</td>
+          {/* V. Ejecutada */}
+          <td className={`px-2 py-1 text-right font-mono ${isLeaf ? 'text-green-700' : nivelStyle.vEjec}`}>{formattedMoney(values.ventaEjecutada)}</td>
+          {/* % Avance */}
+          <td className="px-2 py-1 text-right">
+            <div className="flex items-center justify-end gap-1.5">
+              <span className={`font-mono font-semibold ${avance >= 100 ? 'text-green-700' : avance > 0 ? 'text-[#14212A]' : 'text-slate-400'}`}>{avance.toFixed(2)}%</span>
+              <div className="w-10 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0 border border-slate-200/60">
+                <div className="h-full rounded-full" style={{ width: `${Math.min(avance, 100)}%`, backgroundColor: avance >= 100 ? '#2B7F52' : barColor }} />
+              </div>
+            </div>
+          </td>
+          {/* Saldo / Excedente */}
+          <td className={`px-2 py-1 text-right font-mono font-semibold ${values.saldo < 0 ? 'text-red-600' : 'text-[#14212A]'}`}>
+            {values.saldo < 0 ? `(${formattedMoney(Math.abs(values.saldo))})` : formattedMoney(values.saldo)}
+          </td>
+          {/* % Var */}
+          <td className={`px-2 py-1 text-right font-mono font-semibold ${pctVar < 0 ? 'text-red-600' : pctVar > 0 ? 'text-green-700' : 'text-slate-400'}`}
+            title={pctVar !== 0 ? `Variación: ${pctVar > 0 ? '+' : ''}${pctVar.toFixed(2)}%` : undefined}>
+            {pctVar < 0 ? `(${Math.abs(pctVar).toFixed(2)}%)` : pctVar > 0 ? `+${pctVar.toFixed(2)}%` : '0.00%'}
+          </td>
+        </tr>
 
         {hasChildren && isExpanded && (
-          <div>
+          <>
             {(wbsHierarchyMaps.leafChildrenMap.get(item.id) || [])
               .filter(a => (!pc.tipologiaSeleccionada || a.tipo === pc.tipologiaSeleccionada) &&
                            (!pc.componenteSeleccionado || ((a.componente || '').trim() || 'Sin Componente') === pc.componenteSeleccionado) &&
@@ -925,9 +846,9 @@ export default function App() {
             {(wbsHierarchyMaps.nonLeafChildrenMap.get(item.id) || [])
               .filter(child => !wbsSearchResults.isActive || wbsSearchResults.visibleItemIds.has(child.id))
               .map(child => renderAvancePartidaRow(child))}
-          </div>
+          </>
         )}
-      </div>
+      </React.Fragment>
     );
   };
 
@@ -1404,28 +1325,32 @@ export default function App() {
           </div>
         </div>
 
-        {/* Table Container with Horizontal Scroll */}
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white shadow-2xs">
-          <div className="min-w-[940px]">
-            {/* Table headers */}
-            <div className="bg-slate-50/90 border-b border-slate-200 px-3 py-2.5">
-              <div className="flex items-center text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
-                <div className="w-6 flex-shrink-0"></div>
-                <div className="flex-1 grid gap-2 items-center" style={{ gridTemplateColumns: '85px minmax(240px, 2fr) 1.2fr 1.2fr 1.2fr 1.4fr 1.2fr 80px' }}>
-                  <div className="text-center font-bold">Código</div>
-                  <div className="text-left font-bold">Descripción WBS / Partida</div>
-                  <div className="text-right font-bold">V. Contrato</div>
-                  <div className="text-right font-bold">V. Plan</div>
-                  <div className="text-right font-bold">V. Ejecutada</div>
-                  <div className="text-right font-bold">% Avance</div>
-                  <div className="text-right font-bold">Saldo</div>
-                  <div className="text-right font-bold">% Var</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Table rows list */}
-            <div className="divide-y divide-slate-100/80">
+        {/* Tabla con el formato de Control de Ejecución */}
+        <div className="ht-theme overflow-x-auto rounded-xl border border-[#D5DEE2] bg-white">
+          <table className="w-full min-w-[940px] table-fixed text-xs border-collapse text-left">
+            <colgroup>
+              <col style={{ width: '34%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '7%' }} />
+            </colgroup>
+            <thead>
+              <tr className="whitespace-nowrap">
+                <th className="px-2 py-2 text-left text-[10px]">WBS / Nivel Jerárquico</th>
+                <th className="px-1.5 py-2 text-left text-[10px]">Activity ID</th>
+                <th className="px-2 py-2 text-right text-[10px]">V. Contrato</th>
+                <th className="px-2 py-2 text-right text-[10px]">V. Plan</th>
+                <th className="px-2 py-2 text-right text-[10px]">V. Ejecutada</th>
+                <th className="px-2 py-2 text-right text-[10px]">% Avance</th>
+                <th className="px-2 py-2 text-right text-[10px]">Saldo</th>
+                <th className="px-2 py-2 text-right text-[10px]">% Var</th>
+              </tr>
+            </thead>
+            <tbody>
               {(() => {
                 let roots: any[] = [];
                 if (pc.filterLevel !== 'all') {
@@ -1441,7 +1366,7 @@ export default function App() {
 
                 if (roots.length === 0) {
                   return (
-                    <div className="py-12 px-4 text-center text-slate-500">
+                    <tr><td colSpan={8} className="!p-0"><div className="py-12 px-4 text-center text-slate-500 whitespace-normal">
                       <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                         <Search className="w-5 h-5" />
                       </div>
@@ -1461,19 +1386,16 @@ export default function App() {
                         <X className="w-3.5 h-3.5" />
                         <span>Limpiar búsqueda</span>
                       </button>
-                    </div>
+                    </div></td></tr>
                   );
                 }
 
                 return roots.map(item => renderAvancePartidaRow(item));
               })()}
-            </div>
-
-            {/* Sticky Table Footer (Total General) */}
+            </tbody>
             {(() => {
               const stats = pc.stats;
               if (!stats) return null;
-
               const contratoTotal = pc.actividades.filter(a => a.esItemHoja).reduce((sum, a) => sum + (a.ventaM || 0), 0);
               const totalVenta = stats.totalVenta;
               const totalVentaPlan = stats.totalVentaPlanPeriodo;
@@ -1482,67 +1404,24 @@ export default function App() {
               const totalAvance = totalVenta > 0 ? Number(((totalVentaEjecutada / totalVenta) * 100).toFixed(2)) : 0;
               const baseTotalVar = totalVentaPlan > 0 ? totalVentaPlan : (totalVenta > 0 ? totalVenta : contratoTotal);
               const totalPctVar = baseTotalVar > 0 ? Number(((totalSaldo / baseTotalVar) * 100).toFixed(2)) : 0;
-
               return (
-                <div className="border-t-2 border-slate-300 bg-slate-900 text-white font-bold sticky bottom-0 z-10 shadow-lg">
-                  <div className="flex items-center py-2.5 px-3">
-                    <div className="flex-shrink-0 font-black text-indigo-400 uppercase text-[10px] tracking-wider w-6 text-center">
-                      Σ
-                    </div>
-                    
-                    <div className="flex-1 grid gap-2 items-center" style={{ gridTemplateColumns: '85px minmax(240px, 2fr) 1.2fr 1.2fr 1.2fr 1.4fr 1.2fr 80px' }}>
-                      <div className="text-center font-mono text-slate-400 text-xs">-</div>
-                      <div>
-                        <div className="font-extrabold text-white text-[12px] tracking-tight">Total Consolidado</div>
-                        <div className="text-[10px] text-slate-400 font-normal">{pc.actividades.length.toLocaleString('es-ES')} líneas en catálogo</div>
-                      </div>
-                      
-                      <div className="text-right font-mono font-bold text-slate-200 text-[11.5px]">
-                        {totalVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-right font-mono font-bold text-indigo-300 text-[11.5px]">
-                        {totalVentaPlan.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-right font-mono font-black text-emerald-400 text-[11.5px]">
-                        {totalVentaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      
-                      <div className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="font-mono font-black text-white text-[11.5px] w-12 text-right">{totalAvance.toFixed(2)}%</span>
-                          <div className="w-12 sm:w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden shrink-0 border border-slate-700">
-                            <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${Math.min(totalAvance, 100)}%` }} />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="text-right font-mono font-bold text-[11.5px]">
-                        {totalSaldo < 0 ? (
-                          <span className="text-rose-400">
-                            ({Math.abs(totalSaldo).toLocaleString('en-US', { minimumFractionDigits: 2 })})
-                          </span>
-                        ) : (
-                          <span className="text-emerald-300">
-                            {totalSaldo.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                          </span>
-                        )}
-                      </div>
-                      
-                      <div className="text-right font-mono font-bold text-[11.5px]">
-                        {totalPctVar < 0 ? (
-                          <span className="text-rose-400">({Math.abs(totalPctVar).toFixed(2)}%)</span>
-                        ) : totalPctVar > 0 ? (
-                          <span className="text-emerald-300">+{totalPctVar.toFixed(2)}%</span>
-                        ) : (
-                          <span className="text-slate-400">0.00%</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <tfoot className="sticky bottom-0 z-10">
+                  <tr className="ht-g lv0 whitespace-nowrap">
+                    <td className="px-2 py-2 text-[11px] truncate" title={`${pc.actividades.length.toLocaleString('es-ES')} líneas en catálogo`}>
+                      TOTAL CONSOLIDADO ({pc.actividades.length.toLocaleString('es-ES')} líneas)
+                    </td>
+                    <td></td>
+                    <td className="px-2 py-2 text-right font-mono">{formattedMoney(totalVenta)}</td>
+                    <td className="px-2 py-2 text-right font-mono">{formattedMoney(totalVentaPlan)}</td>
+                    <td className="px-2 py-2 text-right font-mono">{formattedMoney(totalVentaEjecutada)}</td>
+                    <td className="px-2 py-2 text-right font-mono">{totalAvance.toFixed(2)}%</td>
+                    <td className="px-2 py-2 text-right font-mono">{totalSaldo < 0 ? `(${formattedMoney(Math.abs(totalSaldo))})` : formattedMoney(totalSaldo)}</td>
+                    <td className="px-2 py-2 text-right font-mono">{totalPctVar < 0 ? `(${Math.abs(totalPctVar).toFixed(2)}%)` : totalPctVar > 0 ? `+${totalPctVar.toFixed(2)}%` : '0.00%'}</td>
+                  </tr>
+                </tfoot>
               );
             })()}
-          </div>
+          </table>
         </div>
       </div>
     </div>
