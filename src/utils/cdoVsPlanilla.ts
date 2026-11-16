@@ -74,6 +74,8 @@ export interface CvsLeaf {
   porCodigoPlan?: boolean;
   /** Códigos de planeamiento de la Sabana unidos en esta fila (partida repetida con Reajuste C1). */
   codsUnidos?: string[];
+  /** CAP de la fila de la Sabana (Col E). */
+  capSabana?: string;
 }
 
 export interface CvsResultado {
@@ -216,6 +218,7 @@ export function construirComparacion(
       qM: 0, vM: 0, qE: 0, vE: 0,
       master: [],
       planilla: [{ cod, partida, cantidad: h.qContrato || 0, tarifa: h.tarifa || 0, monto: h.contrato || 0, cantPlan: h.qAcum || 0, montoPlan: h.acum || 0 }],
+      capSabana: String(h.cap || '').trim(),
     };
     leaves.push(leaf);
     const k = partida.toLowerCase();
@@ -325,6 +328,12 @@ export function construirComparacion(
       const act = ref.activityId.toLowerCase();
       const exactas = act ? candidatas.filter(l => l.cod.toLowerCase() === act) : [];
       if (exactas.length > 0) destino = exactas;
+    }
+    // Si la partida está en varios CAP de la Sabana, el Master va solo a las filas de su mismo CAP
+    if (destino.length > 1 && it.cap) {
+      const capM = normalizar(it.cap);
+      const mismoCap = destino.filter(l => l.capSabana && normalizar(l.capSabana) === capM);
+      if (mismoCap.length > 0) destino = mismoCap;
     }
     if (porCodigo) destino.forEach(l => { l.porCodigoPlan = true; });
     if (destino.length === 1) {

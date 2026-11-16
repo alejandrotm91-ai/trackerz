@@ -96,15 +96,16 @@ function unirPorPartida(leaves: CvsLeaf[]): CvsLeaf[] {
 }
 
 /**
- * Partidas repetidas en la Sabana (misma Partida, Col H, en varias filas) con Reajuste C1 en
- * todas sus filas: se muestran en una sola fila con el total del Master, en lugar de repartirlo
+ * Partidas repetidas en la Sabana (misma Partida, Col H, y mismo CAP, Col E, en varias filas) con
+ * Reajuste C1 en todas sus filas: se muestran en una sola fila con el total del Master, en lugar de repartirlo
  * entre las filas según el contrato. La fila unida queda donde estaba la primera.
  */
 function unirRepetidasC1(leaves: CvsLeaf[], reajustePorCod: Map<string, string>): CvsLeaf[] {
   const grupos = new Map<string, CvsLeaf[]>();
   for (const l of leaves) {
     if (!l.planilla.length || l.cruce === 'capitulo' || !l.partida) continue;
-    const k = l.partida.toLowerCase();
+    // Misma partida y mismo CAP: la misma partida en otra estructura no se une
+    const k = `${l.partida.toLowerCase()}|${(l.capSabana || '').trim().toLowerCase()}`;
     (grupos.get(k) || grupos.set(k, []).get(k)!).push(l);
   }
   const unidas = new Map<CvsLeaf, CvsLeaf | null>(); // hoja original → fila unida (null = se omite)

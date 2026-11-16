@@ -8,6 +8,8 @@
 export interface ColumnasSabana {
   /** Columna B: código de reajuste de precios (C1, E3, E6…). */
   REAJUSTE: number;
+  /** Columna E: CAP (estructura) de la partida. */
+  CAP: number;
   COD_PLAN: number; CODIGO: number; PARTIDA: number; DESC: number; UNIDAD: number;
   Q_CONTRATO: number; TARIFA: number; N_MONTO: number;
   Q_MONTO: number; Q_ACUM: number; S_MONTO: number; U_MONTO: number; W_MONTO: number;
@@ -19,6 +21,7 @@ export interface ColumnasSabana {
 /** Posiciones del Master con columnas de "Cantidad (Enmienda 6)" (hasta oct-2026). */
 export const COLUMNAS_SABANA_HISTORICAS: ColumnasSabana = {
   REAJUSTE: 1,
+  CAP: 4,
   COD_PLAN: 5, CODIGO: 6, PARTIDA: 7, DESC: 8, UNIDAD: 9,
   Q_CONTRATO: 11, TARIFA: 12, N_MONTO: 13,
   Q_MONTO: 16, Q_ACUM: 17, S_MONTO: 18, U_MONTO: 20, W_MONTO: 22,
@@ -76,8 +79,10 @@ export function columnasSabana(raw: any[][]): ColumnasSabana {
   const excE6 = tramo(t => t.startsWith('excedentes no considerados'));
 
   const reajuste = enFila(g, t => t === 'reajuste');
+  const capCol = enFila(g, t => t === 'cap');
   const col: ColumnasSabana = {
     REAJUSTE: reajuste >= 0 ? reajuste : 1,
+    CAP: capCol >= 0 ? capCol : 4,
     COD_PLAN: enFila(g, t => t.startsWith('cod. planeamiento')),
     CODIGO: enFila(g, t => t === 'codigo'),
     PARTIDA: enFila(g, t => t === 'partida'),

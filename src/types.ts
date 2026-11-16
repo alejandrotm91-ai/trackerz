@@ -87,6 +87,8 @@ export interface PlanillaItem {
   partida?: string;
   /** Reajuste de precios (Col B de la Sabana: C1, E3, E6…). */
   reajuste?: string;
+  /** CAP / estructura (Col E de la Sabana). */
+  cap?: string;
   /** Cantidad del contrato (Col L) y cantidad planillada acumulada (Col R). */
   qContrato?: number;
   qAcum?: number;
