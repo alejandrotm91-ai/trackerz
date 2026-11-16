@@ -72,6 +72,8 @@ export interface CvsLeaf {
   unidadDistinta?: boolean;
   /** El id.orig del Master coincidió con el código de planeamiento (no con la partida). */
   porCodigoPlan?: boolean;
+  /** Códigos de planeamiento de la Sabana unidos en esta fila (partida repetida con Reajuste C1). */
+  codsUnidos?: string[];
 }
 
 export interface CvsResultado {

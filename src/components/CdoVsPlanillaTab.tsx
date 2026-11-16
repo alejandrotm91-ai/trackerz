@@ -65,16 +65,8 @@ const compararCodigo = (a: string, b: string) => a.localeCompare(b, undefined, {
 
 const esPrecioNuevo = (partida: string) => /^c[pn]-/i.test(partida);
 
-/** Une las hojas de una misma partida en una sola fila (vista plana, como la hoja e.14). */
-function unirPorPartida(leaves: CvsLeaf[]): CvsLeaf[] {
-  const mapa = new Map<string, CvsLeaf>();
-  for (const l of leaves) {
-    const k = l.partida.toLowerCase();
-    const u = mapa.get(k);
-    if (!u) {
-      mapa.set(k, { ...l, key: `p:${k}`, master: [...l.master], planilla: [...l.planilla] });
-      continue;
-    }
+/** Suma la hoja `l` en la hoja unida `u` (misma partida). */
+function fusionar(u: CvsLeaf, l: CvsLeaf) {
     u.qC += l.qC; u.vC += l.vC; u.qP += l.qP; u.vP += l.vP;
     u.qM += l.qM; u.vM += l.vM; u.qE += l.qE; u.vE += l.vE;
     u.master.push(...l.master);
@@ -89,8 +81,63 @@ function unirPorPartida(leaves: CvsLeaf[]): CvsLeaf[] {
       u.cruce = u.master.length > 0 && tieneP ? 'ambos' : u.master.length > 0 ? 'soloMaster' : 'soloPlanilla';
     }
     if (u.cruce !== 'ambos' && u.cruce !== 'capitulo' && u.master.length > 0 && u.vC + u.vP > 0) u.cruce = 'ambos';
+}
+
+/** Une las hojas de una misma partida en una sola fila (vista plana, como la hoja e.14). */
+function unirPorPartida(leaves: CvsLeaf[]): CvsLeaf[] {
+  const mapa = new Map<string, CvsLeaf>();
+  for (const l of leaves) {
+    const k = l.partida.toLowerCase();
+    const u = mapa.get(k);
+    if (!u) mapa.set(k, { ...l, key: `p:${k}`, master: [...l.master], planilla: [...l.planilla] });
+    else fusionar(u, l);
   }
   return [...mapa.values()];
+}
+
+/**
+ * Partidas repetidas en la Sabana (misma Partida, Col H, en varias filas) con Reajuste C1 en
+ * todas sus filas: se muestran en una sola fila con el total del Master, en lugar de repartirlo
+ * entre las filas según el contrato. La fila unida queda donde estaba la primera.
+ */
+function unirRepetidasC1(leaves: CvsLeaf[], reajustePorCod: Map<string, string>): CvsLeaf[] {
+  const grupos = new Map<string, CvsLeaf[]>();
+  for (const l of leaves) {
+    if (!l.planilla.length || l.cruce === 'capitulo' || !l.partida) continue;
+    const k = l.partida.toLowerCase();
+    (grupos.get(k) || grupos.set(k, []).get(k)!).push(l);
+  }
+  const unidas = new Map<CvsLeaf, CvsLeaf | null>(); // hoja original → fila unida (null = se omite)
+  for (const g of grupos.values()) {
+    if (g.length < 2) continue;
+    if (!g.every(l => l.planilla.every(p => reajustePorCod.get(p.cod) === 'C1'))) continue;
+    const orden = [...g].sort((a, b) => compararCodigo(a.cod, b.cod));
+    const u: CvsLeaf = { ...orden[0], master: [], planilla: [...orden[0].planilla], codsUnidos: orden.map(l => l.cod) };
+    // El Master se suma una sola vez y completo (sin el reparto por contrato)
+    const vistos = new Map<string, CvsLeaf['master'][number]>();
+    for (const l of orden) for (const m of l.master) {
+      const k = `${m.activityId}|${m.wbs}`;
+      const prev = vistos.get(k);
+      if (prev) prev.peso += m.peso; else vistos.set(k, { ...m });
+    }
+    u.master = [...vistos.values()];
+    u.qM = 0; u.vM = 0; u.qE = 0; u.vE = 0;
+    for (const l of orden) { u.qM += l.qM; u.vM += l.vM; u.qE += l.qE; u.vE += l.vE; }
+    for (const l of orden.slice(1)) {
+      u.qC += l.qC; u.vC += l.vC; u.qP += l.qP; u.vP += l.vP;
+      u.planilla.push(...l.planilla);
+      u.unidadDistinta = u.unidadDistinta || l.unidadDistinta;
+    }
+    unidas.set(orden[0], u);
+    orden.slice(1).forEach(l => unidas.set(l, null));
+  }
+  if (!unidas.size) return leaves;
+  const out: CvsLeaf[] = [];
+  for (const l of leaves) {
+    if (!unidas.has(l)) out.push(l);
+    else { const u = unidas.get(l); if (u) out.push(u); }
+  }
+  return out;
 }
 
 
@@ -131,17 +178,19 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
   const tieneCruce = React.useMemo(() => planillaTieneCruce(hojas), [hojas]);
   const master = useMasterVivo(actividades, mapaColumnasMes, open && tieneCruce);
 
-  const resultadoTodo = React.useMemo(() => {
-    if (!tieneCruce || master.items.length === 0) return null;
-    return construirComparacion(master.items, hojas, grupos);
-  }, [tieneCruce, master.items, hojas, grupos]);
-
   // Reajuste (Col B de la Sabana) de cada código de planeamiento
   const reajustePorCod = React.useMemo(() => {
     const m = new Map<string, string>();
     hojas.forEach(h => { if (h.reajuste) m.set(String(h.cod).trim(), h.reajuste); });
     return m;
   }, [hojas]);
+
+  const resultadoTodo = React.useMemo(() => {
+    if (!tieneCruce || master.items.length === 0) return null;
+    const r = construirComparacion(master.items, hojas, grupos);
+    // Partidas repetidas en la Sabana con Reajuste C1: una sola fila con el total del Master
+    return { ...r, leaves: unirRepetidasC1(r.leaves, reajustePorCod) };
+  }, [tieneCruce, master.items, hojas, grupos, reajustePorCod]);
 
   // Filtro por tipología de contrato (viene de la tarjeta "Resumen por Tipología")
   const resultadoTipo = React.useMemo(() => {
@@ -458,6 +507,12 @@ export const CdoVsPlanillaTab: React.FC<CdoVsPlanillaTabProps> = ({ hojas, grupo
             {codigo}
             {vista === 'jerarquica' && l.planilla.length > 0 && /^[\d.]+$/.test(l.partida) && l.partida !== l.cod && (
               <span className="ml-1 text-[9px] text-gray-400">(plan {l.cod})</span>
+            )}
+            {l.codsUnidos && l.codsUnidos.length > 1 && (
+              <span className="ml-1 text-[9px] px-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200"
+                title={`Partida repetida en la Sabana con Reajuste C1: une los códigos de planeamiento ${l.codsUnidos.join(', ')} y compara con el total del Master`}>
+                C1 · {l.codsUnidos.length} filas
+              </span>
             )}
           </td>
           <td className="max-w-[205px] truncate" title={l.desc}>
