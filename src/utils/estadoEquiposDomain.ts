@@ -127,6 +127,13 @@ export const isCable = (it: Equipo): boolean => /^conductor aislado$/i.test(it.f
 export const EQUIPOS_EXCLUIDOS = new Set<string>([
   '12.7.4.2', // Iluminación exterior
   '3.13.3.4',
+  '16.3.3.3.3.1',
+  '16.3.3.3.3.2',
+  '16.3.3.3.3.3',
+  '16.3.3.3.3.4',
+  '16.3.3.3.3.5',
+  '16.3.3.3.3.6',
+  '16.3.3.3.3.7',
 ]);
 
 export const eqU = (it: Equipo): number => it.und === 'u' ? it.qty : it.und === 'glb' ? 1 : 0;
