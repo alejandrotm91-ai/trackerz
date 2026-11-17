@@ -76,7 +76,7 @@ export const ProcesoTab: React.FC = () => {
 
   // UI state (Default to 'Todos los procesos' upon entering the tab)
   const [proc, setProc] = useState<string>('*');
-  const [group, setGroup] = useState<'cap' | 'prov'>('cap');
+  const [group, setGroup] = useState<'cap' | 'prov' | 'scap'>('cap');
   const [mode, setMode] = useState<'ex' | 'done' | 'open'>('ex');
   const [q, setQ] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
@@ -413,7 +413,10 @@ export const ProcesoTab: React.FC = () => {
   const getOrd = (g: Equipo[]) => Math.min(...g.map(i => AORDER.get(akey(i.proc, i.cap)) ?? 9999));
 
   const groupedCards = useMemo(() => {
-    const outerKeyFn = group === 'cap' ? (i: Equipo) => `${i.proc}¦${i.cap}` : (i: Equipo) => i.prov;
+    const outerKeyFn =
+      group === 'cap' ? (i: Equipo) => `${i.proc}¦${i.cap}`
+      : group === 'scap' ? (i: Equipo) => i.scap || 'Sin SCAP'
+      : (i: Equipo) => i.prov;
     const map = new Map<string, Equipo[]>();
     for (const it of finalFiltered) {
       const k = outerKeyFn(it);
@@ -434,7 +437,7 @@ export const ProcesoTab: React.FC = () => {
         }
         return natCmp(x[1][0].base, y[1][0].base);
       }
-      return x[0].localeCompare(y[0], 'es');
+      return x[0].localeCompare(y[0], 'es', { numeric: true });
     });
 
     return entries;
@@ -1233,6 +1236,19 @@ export const ProcesoTab: React.FC = () => {
               >
                 Proveedor
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGroup('scap');
+                  setOpenRows(new Set());
+                }}
+                className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
+                  group === 'scap' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
+                }`}
+                title="Una tarjeta por SCAP (tipo de paquete); dentro, sus paquetes por estructura y proveedor"
+              >
+                SCAP
+              </button>
             </div>
           </div>
 
@@ -1551,6 +1567,8 @@ export const ProcesoTab: React.FC = () => {
                 const innerKeyFn =
                   group === 'cap'
                     ? (i: Equipo) => `${i.prov}¦${i.fam}¦${i.und}`
+                    : group === 'scap'
+                    ? (i: Equipo) => `${i.cap}¦${i.prov}¦${i.und}`
                     : (i: Equipo) => `${i.cap}¦${i.fam}¦${i.und}`;
 
                 // group inner rows
@@ -1593,6 +1611,8 @@ export const ProcesoTab: React.FC = () => {
                             {cAgg.n} partidas ·{' '}
                             {group === 'cap'
                               ? `${new Set(gl.map(i => i.prov)).size} proveedores`
+                              : group === 'scap'
+                              ? `${new Set(gl.map(i => i.cap)).size} estructuras · ${new Set(gl.map(i => i.prov)).size} proveedores`
                               : `${new Set(gl.map(i => i.cap)).size} estructuras`} ·{' '}
                             {fq(gl.reduce((t, it) => t + eqU(it), 0))} equipos
                           </div>
@@ -1652,7 +1672,7 @@ export const ProcesoTab: React.FC = () => {
                           <thead className="bg-[#F5F8F9] text-[#5A6A74] uppercase text-[10.5px] font-semibold border-b border-[#D5DEE2]">
                             <tr>
                               <th className="py-2.5 px-3 pl-8">
-                                {group === 'cap' ? 'Proveedor · paquete / equipo' : 'Estructura · paquete / equipo'}
+                                {group === 'cap' ? 'Proveedor · paquete / equipo' : group === 'scap' ? 'Estructura · proveedor / equipo' : 'Estructura · paquete / equipo'}
                               </th>
                               <th className="py-2.5 px-3 text-right">Partidas</th>
                               <th className="py-2.5 px-3 min-w-[115px]">{STN.D}</th>
@@ -1693,7 +1713,7 @@ export const ProcesoTab: React.FC = () => {
                                         {p1} <span className="font-normal text-[#5A6A74]">·</span> {fam}
                                       </div>
                                       <small className="block text-[#5A6A74] text-[11px] font-normal">
-                                        {subInst || Array.from(new Set(rl.map(i => i.scap))).join(', ')}
+                                        {subInst || Array.from(new Set(rl.map(i => (group === 'scap' ? i.fam : i.scap)))).join(', ')}
                                       </small>
                                     </td>
 
