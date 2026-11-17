@@ -339,15 +339,33 @@ export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
       tf: isN(mtf) ? mtf : null
     };
     const subs = [...P.sub.entries()].sort((a, b) => b[1] - a[1]);
+    // Con avance de ejecución (cantidad, % o monto) la válvula ya está fabricada
+    const conAvance = ex > 0 || (isN(pex) && pex > 0) || S.vex > 0;
+    const ventaD = S.venta * VALV_PARTE.D;
+    const vexD = Math.min(S.vex, ventaD);
     const it: Equipo = {
       base: pid,
-      // El avance de las válvulas es suministro (compra y fabricación + flete): las que se fletean ya
-      // están fabricadas. A la fecha ninguna está instalada, así que la instalación queda sin avance
-      // (mantiene sus fechas planificadas). Revisar cuando empiece el montaje de válvulas.
       // El monto del paquete (suministro e instalación) se reparte 60 % compra y fabricación,
-      // 20 % flete y 20 % instalación, en Venta y V. Plan. Lo ejecutado se reparte igual
-      // pero sin instalación, porque a la fecha no hay válvulas instaladas.
-      s: {
+      // 20 % flete y 20 % instalación, en Venta y V. Plan. A la fecha ninguna válvula está
+      // instalada: la instalación queda sin avance (mantiene sus fechas planificadas).
+      // Revisar cuando empiece el montaje de válvulas.
+      s: conAvance ? {
+        // Válvulas con avance: ya fabricadas y esperando embarque. Compra y fabricación terminada;
+        // flete en curso (aún sin unidades en obra). Lo ejecutado va a fabricación y, si lo supera,
+        // el resto a flete.
+        D: {
+          ...S, venta: ventaD, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.D,
+          ex: q, pex: 1, vex: vexD, done: true, status: 'Completed', startA: true, finA: true
+        },
+        E: {
+          ...S, venta: S.venta * VALV_PARTE.E, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.E,
+          ex: 0, pex: 0, vex: S.vex - vexD, done: false, status: 'In Progress', startA: true, finA: false
+        },
+        F: {
+          ...S, venta: S.venta * VALV_PARTE.F, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.F,
+          ex: 0, pex: 0, vex: 0, done: false, status: null, startA: false, finA: false
+        }
+      } : {
         D: { ...S, venta: S.venta * VALV_PARTE.D, vex: S.vex * VALV_PARTE.D, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.D },
         E: { ...S, venta: S.venta * VALV_PARTE.E, vex: S.vex * VALV_PARTE.E, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.E },
         F: {
