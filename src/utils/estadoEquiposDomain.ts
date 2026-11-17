@@ -137,6 +137,13 @@ export const EQUIPOS_EXCLUIDOS = new Set<string>([
   '16.3.3.3.3.7',
   '11.1.4.16.p6', // Válvulas de purga y control
   '11.6.3.12.p6', // Válvulas de purga y control
+  '11.12.3.2.7.p6',
+  '11.3.3.6.p6',
+  '11.4.3.9.p6',
+  '11.2.3.15.p6',
+  '11.12.1.4.5.p6',
+  '11.13.4.1.p6',
+  '15.3.4.p6',
 ]);
 
 export const eqU = (it: Equipo): number => it.und === 'u' ? it.qty : it.und === 'glb' ? 1 : 0;
