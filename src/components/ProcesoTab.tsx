@@ -408,16 +408,15 @@ export const ProcesoTab: React.FC = () => {
   };
 
   // Grouping of finalFiltered list
-  // Franjas: por proceso (vista Estructura con todos los procesos) o por SCAP (vista SCAP)
-  const supOn = (group === 'cap' && proc === '*') || group === 'scap';
-  const getSupKey = (gl: Equipo[]) =>
-    group === 'scap' ? (gl[0].scap || 'Sin SCAP') : agua ? (ATRAMO.get(akey(gl[0].proc, gl[0].cap)) || 'Otras') : gl[0].proc;
+  // Franjas por proceso (o tramo, con Agua) en las vistas Estructura y SCAP con todos los procesos
+  const supOn = (group === 'cap' || group === 'scap') && proc === '*';
+  const getSupKey = (gl: Equipo[]) => (agua ? (ATRAMO.get(akey(gl[0].proc, gl[0].cap)) || 'Otras') : gl[0].proc);
   const getOrd = (g: Equipo[]) => Math.min(...g.map(i => AORDER.get(akey(i.proc, i.cap)) ?? 9999));
 
   const groupedCards = useMemo(() => {
     const outerKeyFn =
       group === 'cap' ? (i: Equipo) => `${i.proc}¦${i.cap}`
-      : group === 'scap' ? (i: Equipo) => `${i.scap || 'Sin SCAP'}¦${i.cap}`
+      : group === 'scap' ? (i: Equipo) => `${i.proc}¦${i.scap || 'Sin SCAP'}`
       : (i: Equipo) => i.prov;
     const map = new Map<string, Equipo[]>();
     for (const it of finalFiltered) {
@@ -430,9 +429,14 @@ export const ProcesoTab: React.FC = () => {
     const entries = Array.from(map.entries());
     entries.sort((x, y) => {
       if (group === 'scap') {
-        const sDiff = (x[1][0].scap || '').localeCompare(y[1][0].scap || '', 'es', { numeric: true });
-        if (sDiff !== 0) return sDiff;
-        return natCmp(x[1][0].base, y[1][0].base);
+        if (agua) {
+          const diff = getOrd(x[1]) - getOrd(y[1]);
+          if (diff !== 0) return diff;
+        } else if (supOn) {
+          const pDiff = x[1][0].proc.localeCompare(y[1][0].proc, 'es');
+          if (pDiff !== 0) return pDiff;
+        }
+        return (x[1][0].scap || '').localeCompare(y[1][0].scap || '', 'es', { numeric: true });
       }
       if (group === 'cap') {
         if (agua) {
@@ -1252,7 +1256,7 @@ export const ProcesoTab: React.FC = () => {
                 className={`px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
                   group === 'scap' ? 'bg-[#CD0000] text-white font-semibold' : 'text-[#5A6A74] hover:text-[#14212A]'
                 }`}
-                title="Una franja por SCAP (tipo de paquete) y, dentro, una tarjeta por estructura con sus proveedores"
+                title="Una franja por proceso y, dentro, una tarjeta por SCAP con sus estructuras y proveedores"
               >
                 SCAP
               </button>
@@ -1522,7 +1526,7 @@ export const ProcesoTab: React.FC = () => {
                               {sk}
                             </h2>
                             <div className="text-[11px] font-mono text-[#5A6A74]">
-                              {bInfo?.capsCount || 1} estructuras · {bAgg.n} partidas · {fq((bInfo?.items ?? gl).reduce((t, it) => t + eqU(it), 0))} equipos
+                              {bInfo?.capsCount || 1} {group === 'scap' ? 'SCAP' : 'estructuras'} · {group === 'scap' ? `${new Set((bInfo?.items ?? gl).map(i => i.cap)).size} estructuras · ` : ''}{bAgg.n} partidas · {fq((bInfo?.items ?? gl).reduce((t, it) => t + eqU(it), 0))} equipos
                             </div>
                           </div>
                         </div>
@@ -1570,10 +1574,12 @@ export const ProcesoTab: React.FC = () => {
                 // Render Card
                 const isCardOpen = secCards.has(gk);
                 const cAgg = agg(gl);
-                const cardTitle = group === 'cap' || group === 'scap' ? gl[0].cap : gk;
+                const cardTitle = group === 'cap' ? gl[0].cap : group === 'scap' ? gl[0].scap || 'Sin SCAP' : gk;
                 const innerKeyFn =
-                  group === 'cap' || group === 'scap'
+                  group === 'cap'
                     ? (i: Equipo) => `${i.prov}¦${i.fam}¦${i.und}`
+                    : group === 'scap'
+                    ? (i: Equipo) => `${i.cap}¦${i.prov}¦${i.und}`
                     : (i: Equipo) => `${i.cap}¦${i.fam}¦${i.und}`;
 
                 // group inner rows
@@ -1612,10 +1618,12 @@ export const ProcesoTab: React.FC = () => {
                             {cardTitle}
                           </h2>
                           <div className="text-[11px] font-mono text-[#5A6A74]">
-                            {group === 'cap' && !supOn && `${Array.from(new Set(gl.map(i => i.proc))).join(' · ')} · `}
+                            {(group === 'cap' || group === 'scap') && !supOn && `${Array.from(new Set(gl.map(i => i.proc))).join(' · ')} · `}
                             {cAgg.n} partidas ·{' '}
-                            {group === 'cap' || group === 'scap'
+                            {group === 'cap'
                               ? `${new Set(gl.map(i => i.prov)).size} proveedores`
+                              : group === 'scap'
+                              ? `${new Set(gl.map(i => i.cap)).size} estructuras · ${new Set(gl.map(i => i.prov)).size} proveedores`
                               : `${new Set(gl.map(i => i.cap)).size} estructuras`} ·{' '}
                             {fq(gl.reduce((t, it) => t + eqU(it), 0))} equipos
                           </div>
@@ -1675,7 +1683,7 @@ export const ProcesoTab: React.FC = () => {
                           <thead className="bg-[#F5F8F9] text-[#5A6A74] uppercase text-[10.5px] font-semibold border-b border-[#D5DEE2]">
                             <tr>
                               <th className="py-2.5 px-3 pl-8">
-                                {group === 'cap' || group === 'scap' ? 'Proveedor · paquete / equipo' : 'Estructura · paquete / equipo'}
+                                {group === 'cap' ? 'Proveedor · paquete / equipo' : group === 'scap' ? 'Estructura · proveedor / equipo' : 'Estructura · paquete / equipo'}
                               </th>
                               <th className="py-2.5 px-3 text-right">Partidas</th>
                               <th className="py-2.5 px-3 min-w-[115px]">{STN.D}</th>
@@ -1716,7 +1724,7 @@ export const ProcesoTab: React.FC = () => {
                                         {p1} <span className="font-normal text-[#5A6A74]">·</span> {fam}
                                       </div>
                                       <small className="block text-[#5A6A74] text-[11px] font-normal">
-                                        {subInst || Array.from(new Set(rl.map(i => i.scap))).join(', ')}
+                                        {subInst || Array.from(new Set(rl.map(i => (group === 'scap' ? i.fam : i.scap)))).join(', ')}
                                       </small>
                                     </td>
 
