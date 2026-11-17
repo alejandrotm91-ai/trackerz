@@ -123,6 +123,12 @@ export function kfAny(kf: Record<string, string[]>): boolean {
 export const CABLE_RE = /^\s*(?:conductor|cables?\b|alimentador de cable|enlace de fibra|fibra [oó]ptica|punto de (?:datos cable|fibra)|patch cord|pigtail|fusi[oó]n de pigtail)/i;
 export const isCable = (it: Equipo): boolean => /^conductor aislado$/i.test(it.fam) || CABLE_RE.test(it.desc || '');
 
+/** Activity ID (base, sin .D/.E/.F) que no se cuentan como equipos en la pestaña Proceso. */
+export const EQUIPOS_EXCLUIDOS = new Set<string>([
+  '12.7.4.2', // Iluminación exterior
+  '3.13.3.4',
+]);
+
 export const eqU = (it: Equipo): number => it.und === 'u' ? it.qty : it.und === 'glb' ? 1 : 0;
 
 export const COMPN: Record<string, string> = {
@@ -368,6 +374,7 @@ export function build(raw: RawSnapshot): Equipo[] {
 
     const st = (GRMAP[String(gr).slice(0, 2)] || m[2].toUpperCase()) as StageKey;
     const base = m[1];
+    if (EQUIPOS_EXCLUIDOS.has(base.trim())) continue;
 
     let it = items.get(base);
     if (!it) {
