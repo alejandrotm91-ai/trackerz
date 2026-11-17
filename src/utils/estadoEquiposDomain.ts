@@ -123,7 +123,8 @@ export function kfAny(kf: Record<string, string[]>): boolean {
 export const CABLE_RE = /^\s*(?:conductor|cables?\b|alimentador de cable|enlace de fibra|fibra [oó]ptica|punto de (?:datos cable|fibra)|patch cord|pigtail|fusi[oó]n de pigtail)/i;
 export const isCable = (it: Equipo): boolean => /^conductor aislado$/i.test(it.fam) || CABLE_RE.test(it.desc || '');
 
-/** Activity ID (base, sin .D/.E/.F) que no se cuentan como equipos en la pestaña Proceso. */
+/** Activity ID que no se cuentan como equipos en la pestaña Proceso: base sin .D/.E/.F, o el
+ *  rubro .p6 completo en las válvulas. */
 export const EQUIPOS_EXCLUIDOS = new Set<string>([
   '12.7.4.2', // Iluminación exterior
   '3.13.3.4',
@@ -134,6 +135,8 @@ export const EQUIPOS_EXCLUIDOS = new Set<string>([
   '16.3.3.3.3.5',
   '16.3.3.3.3.6',
   '16.3.3.3.3.7',
+  '11.1.4.16.p6', // Válvulas de purga y control
+  '11.6.3.12.p6', // Válvulas de purga y control
 ]);
 
 export const eqU = (it: Equipo): number => it.und === 'u' ? it.qty : it.und === 'glb' ? 1 : 0;
@@ -301,6 +304,7 @@ export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
   }
 
   for (const [pid, P] of par) {
+    if (EQUIPOS_EXCLUIDOS.has(String(pid).trim())) continue;
     const r = P.r;
     let [id, name, und, qty, venta, subc, contrato, p6m, ubic, proc, cap, scap, unit, obs, gr, pex, cex, vex, ms, mf, mbl, mtf, comp] = r;
     const status = p6m && p6m !== 'p6' ? T(p6m) : null;
