@@ -296,8 +296,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (wbsExcluidos.has(v.wbs)) { excluidas++; continue; }
       const a = idxMaster.get(v.cod);
       const udf = clasifXer.get(v.cod);
+      // Las actividades del XER sin datos en el Master (hitos, LOE…) no se muestran en esta vista
+      if (!a) { sinMaster++; continue; }
       if (!enAmbito(a, ambito, udf)) continue;
-      const nodo = a ? (enMaster++, nodoDe(rutaDe(a, niveles, udf))) : (sinMaster++, nodoDe([SIN_MASTER]));
+      enMaster++;
+      const nodo = nodoDe(rutaDe(a, niveles, udf));
       nodo.tareas.push(v);
       grupoDeAct.set(v.i, nodo.id);
     }
@@ -589,7 +592,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     let grupo: string | undefined = v.wbs;
     if (enEjecucion) {
       grupo = arbolEjec.grupoDeAct.get(i);
-      if (!grupo) { setAgrupacion('wbs'); grupo = v.wbs; mostrar(`${v.cod} no está en la vista de ejecución (WBS «.D» o fuera del ámbito): se muestra en la WBS de P6.`); }
+      if (!grupo) { setAgrupacion('wbs'); grupo = v.wbs; mostrar(`${v.cod} no está en la vista de ejecución (sin datos en el Master, WBS «.D» o fuera del ámbito): se muestra en la WBS de P6.`); }
     }
     const arb = enEjecucion && arbolEjec.grupoDeAct.has(i) ? arbolEjec : arbolWbs;
     const cadena: string[] = [];
@@ -999,7 +1002,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               <button onClick={() => setNiveles(NIVELES_POR_DEFECTO)} className="text-[#312E81] underline cursor-pointer ml-1">Restablecer</button>
               <span className="ml-auto text-[#5A6A74]">
                 {arbolEjec.enMaster.toLocaleString('es-ES')} actividades enlazadas por Activity ID
-                {arbolEjec.sinMaster ? ` · ${arbolEjec.sinMaster.toLocaleString('es-ES')} del XER sin datos en el Master` : ''}
+                {arbolEjec.sinMaster ? ` · ${arbolEjec.sinMaster.toLocaleString('es-ES')} del XER sin datos en el Master (ocultas)` : ''}
                 {arbolEjec.soloMaster ? ` · ${arbolEjec.soloMaster.toLocaleString('es-ES')} rubros solo en el Master (aún no en P6)` : ''}
                 {arbolEjec.excluidas ? ` · ${arbolEjec.excluidas.toLocaleString('es-ES')} del WBS «Pendientes de confirmar» (.D) excluidas` : ''}
               </span>
