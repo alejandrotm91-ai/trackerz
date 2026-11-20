@@ -7,6 +7,8 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
+import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, etiquetaCampo, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
+import type { Actividad } from '../../types';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, type ModeloP6 } from '../../utils/p6/modelo';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
@@ -63,10 +65,12 @@ interface Nodo {
   id: string; padre: string; cod: string; codCompleto: string; nombre: string; seq: number;
   hijos: Nodo[]; tareas: Vt[]; nivel: number;
   ini: number | null; fin: number | null; n: number; criticas: number;
+  /** Vista de ejecución: rubros del Master que aún no existen en el XER. */
+  soloMaster?: Actividad[];
 }
-type Fila = { tipo: 'wbs'; nodo: Nodo; nivel: number } | { tipo: 'act'; vt: Vt; nivel: number };
+type Fila = { tipo: 'wbs'; nodo: Nodo; nivel: number } | { tipo: 'act'; vt: Vt; nivel: number } | { tipo: 'master'; a: Actividad; nivel: number };
 
-export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClose: () => void }> = ({ isAdmin, username, onClose }) => {
+export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; actividadesMaster?: Actividad[]; onClose: () => void }> = ({ isAdmin, username, actividadesMaster, onClose }) => {
   const modelo = React.useRef<ModeloP6 | null>(null);
   const [version, setVersion] = React.useState(0);
   const [estadoCarga, setEstadoCarga] = React.useState<'cargando' | 'vacio' | 'listo' | 'error'>('cargando');
@@ -101,6 +105,13 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   const [fuenteLB, setFuenteLB] = React.useState<'udf' | 'guardada' | 'planificada'>('udf');
   const lbFileRef = React.useRef<HTMLInputElement>(null);
   React.useEffect(() => { leerLineaBase().then(lb => setLbGuardada(lb)); }, []);
+  // Agrupación: WBS de P6 o vista de ejecución (clasificación del Master)
+  const leerLS = <T,>(k: string, def: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : def; } catch { return def; } };
+  const [agrupacion, setAgrupacion] = React.useState<'wbs' | 'ejecucion'>(() => leerLS('p6.agrupacion', 'wbs'));
+  const [niveles, setNiveles] = React.useState<CampoAgrupacion[]>(() => leerLS('p6.niveles', NIVELES_POR_DEFECTO));
+  React.useEffect(() => { try { localStorage.setItem('p6.agrupacion', JSON.stringify(agrupacion)); localStorage.setItem('p6.niveles', JSON.stringify(niveles)); } catch { /* sin almacenamiento */ } }, [agrupacion, niveles]);
+  const idxMaster = React.useMemo(() => indiceMaster(actividadesMaster), [actividadesMaster]);
+  const hayMaster = idxMaster.size > 0;
   const [scrollTop, setScrollTop] = React.useState(0);
   const [altoVista, setAltoVista] = React.useState(600);
   const scroller = React.useRef<HTMLDivElement>(null);
@@ -202,7 +213,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     });
   }, [m, version]);
 
-  const arbol = React.useMemo(() => {
+  const arbolWbs = React.useMemo(() => {
     const nodos = new Map<string, Nodo>();
     if (!m) return { raices: [] as Nodo[], nodos };
     const w = m.xer.tablas.get('PROJWBS');
@@ -216,26 +227,53 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
       if (p) p.hijos.push(n); else raices.push(n);
     }
     for (const v of vts) nodos.get(v.wbs)?.tareas.push(v);
-    const natural = (a: string, b: string) => a.localeCompare(b, 'es', { numeric: true });
-    const resumir = (n: Nodo, nivel: number, padre?: Nodo) => {
-      n.nivel = nivel;
-      n.codCompleto = padre ? `${padre.codCompleto}.${n.cod}` : n.cod;
-      n.hijos.sort((a, b) => a.seq - b.seq || natural(a.cod, b.cod));
-      n.tareas.sort((a, b) => (a.ini ?? 0) - (b.ini ?? 0) || natural(a.cod, b.cod));
-      let ini: number | null = null, fin: number | null = null, cnt = 0, crit = 0;
-      const sumar = (i2: number | null, f2: number | null, c: number, k: number) => {
-        if (i2 != null && (ini == null || i2 < ini)) ini = i2;
-        if (f2 != null && (fin == null || f2 > fin)) fin = f2;
-        cnt += c; crit += k;
-      };
-      for (const h of n.hijos) { resumir(h, nivel + 1, n); sumar(h.ini, h.fin, h.n, h.criticas); }
-      for (const v of n.tareas) sumar(v.ini, v.fin, 1, v.tf != null && v.tf <= 0 ? 1 : 0);
-      n.ini = ini; n.fin = fin; n.n = cnt; n.criticas = crit;
-    };
     raices.sort((a, b) => a.seq - b.seq);
-    raices.forEach(r => resumir(r, 0));
+    raices.forEach(r => resumirNodo(r, 0, undefined, true));
     return { raices, nodos };
   }, [m, vts]);
+
+  // Vista de ejecución: misma programación, agrupada con la clasificación del Master
+  const arbolEjec = React.useMemo(() => {
+    const nodos = new Map<string, Nodo>();
+    const raices: Nodo[] = [];
+    if (!m || !hayMaster) return { raices, nodos, enMaster: 0, sinMaster: 0, soloMaster: 0 };
+    const nodoDe = (ruta: string[]): Nodo => {
+      let padre: Nodo | undefined;
+      for (let j = 0; j < ruta.length; j++) {
+        const id = `g:${ruta.slice(0, j + 1).join('\u241f')}`;
+        let n = nodos.get(id);
+        if (!n) {
+          n = { id, padre: padre?.id ?? '', cod: '', codCompleto: '', nombre: ruta[j], seq: 0, hijos: [], tareas: [], nivel: j, ini: null, fin: null, n: 0, criticas: 0 };
+          nodos.set(id, n);
+          if (padre) padre.hijos.push(n); else raices.push(n);
+        }
+        padre = n;
+      }
+      return padre!;
+    };
+    let enMaster = 0, sinMaster = 0;
+    const codigos = new Set<string>();
+    for (const v of vts) {
+      codigos.add(v.cod);
+      const a = idxMaster.get(v.cod);
+      if (a) { enMaster++; nodoDe(rutaDe(a, niveles)).tareas.push(v); } else { sinMaster++; nodoDe([SIN_MASTER]).tareas.push(v); }
+    }
+    let soloMaster = 0;
+    for (const [id, a] of idxMaster) {
+      if (codigos.has(id)) continue;
+      soloMaster++;
+      const n = nodoDe(rutaDe(a, niveles));
+      (n.soloMaster ??= []).push(a);
+    }
+    const natural = (a: string, b: string) => a.localeCompare(b, 'es', { numeric: true });
+    const orden = (a: Nodo, b: Nodo) => (a.nombre === SIN_MASTER ? 1 : b.nombre === SIN_MASTER ? -1 : natural(a.nombre, b.nombre));
+    raices.sort(orden);
+    raices.forEach(r => resumirNodo(r, 0, undefined, false, orden));
+    return { raices, nodos, enMaster, sinMaster, soloMaster };
+  }, [m, vts, idxMaster, hayMaster, niveles]);
+
+  const enEjecucion = agrupacion === 'ejecucion' && hayMaster;
+  const arbol: { raices: Nodo[]; nodos: Map<string, Nodo> } = enEjecucion ? arbolEjec : arbolWbs;
 
   const pasa = React.useCallback((v: Vt) => {
     if (filtroEstado === 'pendientes' && v.estado === 'TK_Complete') return false;
@@ -255,7 +293,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     const contiene = new Map<string, boolean>();
     const tiene = (n: Nodo): boolean => {
       if (contiene.has(n.id)) return contiene.get(n.id)!;
-      const r = n.tareas.some(pasa) || n.hijos.some(tiene);
+      const q = filtro.toLowerCase();
+      const r = n.tareas.some(pasa) || n.hijos.some(tiene)
+        || (filtroEstado === 'todas' && !!n.soloMaster?.some(a => String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)));
       contiene.set(n.id, r);
       return r;
     };
@@ -265,6 +305,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
       if (filtrando ? cerradosF.has(n.id) : !abiertos.has(n.id)) return;
       // Primero las actividades propias del WBS y después los sub-WBS.
       for (const v of n.tareas) if (!filtrando || pasa(v)) out.push({ tipo: 'act', vt: v, nivel: n.nivel + 1 });
+      // Rubros del Master que todavía no están en Primavera (sin programación)
+      if (n.soloMaster && filtroEstado === 'todas') {
+        const q = filtro.toLowerCase();
+        for (const a of n.soloMaster) if (!q || String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)) out.push({ tipo: 'master', a, nivel: n.nivel + 1 });
+      }
       for (const h of n.hijos) recorrer(h);
     };
     arbol.raices.forEach(recorrer);
@@ -445,7 +490,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   const abrirRama = (id: string) => {
     const cadena: string[] = [];
     let w: string | undefined = id;
-    while (w && arbol.nodos.has(w)) { cadena.push(w); w = arbol.nodos.get(w)!.padre; }
+    while (w && arbolWbs.nodos.has(w)) { cadena.push(w); w = arbolWbs.nodos.get(w)!.padre; }
     setAbiertos(prev => new Set([...prev, ...cadena]));
     setCerradosF(prev => { const n = new Set(prev); cadena.forEach(c => n.delete(c)); return n; });
   };
@@ -677,6 +722,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
             </div>
             {vista === 'actividades' && (
               <>
+                <select value={enEjecucion ? 'ejecucion' : 'wbs'} onChange={e => { setAgrupacion(e.target.value as 'wbs' | 'ejecucion'); setAbiertos(new Set()); }}
+                  disabled={!hayMaster} title={hayMaster ? 'Cómo se agrupan las actividades' : 'Carga el Master para usar la vista de ejecución'}
+                  className={`border rounded-lg px-2 py-1.5 font-semibold ${enEjecucion ? 'bg-[#312E81] border-[#312E81] text-white' : 'bg-white border-[#D5DEE2]'}`}>
+                  <option value="wbs">Agrupar: WBS de P6</option>
+                  <option value="ejecucion">Agrupar: Ejecución (Master)</option>
+                </select>
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-[#5A6A74]" />
                   <input value={filtroTmp} onChange={e => setFiltroTmp(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') setFiltro(filtroTmp.trim()); }}
@@ -743,6 +794,33 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
             )}
           </div>
 
+          {vista === 'actividades' && enEjecucion && (
+            <div className="px-4 py-1.5 border-b border-[#D5DEE2] bg-[#EEF0FB] flex items-center gap-1.5 flex-wrap text-[11px]">
+              <span className="font-bold text-[#312E81]">Vista de ejecución · niveles:</span>
+              {niveles.map((k, j) => (
+                <React.Fragment key={k}>
+                  {j > 0 && <ChevronRight className="w-3 h-3 text-[#5A6A74]" />}
+                  <span className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-white border border-[#C9CDEB]">
+                    {etiquetaCampo(k)}
+                    {j > 0 && <button title="Subir este nivel" onClick={() => setNiveles(nv => { const c = [...nv]; [c[j - 1], c[j]] = [c[j], c[j - 1]]; return c; })} className="text-[#5A6A74] hover:text-[#312E81] cursor-pointer"><ArrowLeft className="w-3 h-3" /></button>}
+                    {niveles.length > 1 && <button title="Quitar este nivel" onClick={() => setNiveles(nv => nv.filter(x => x !== k))} className="text-[#5A6A74] hover:text-red-600 cursor-pointer"><X className="w-3 h-3" /></button>}
+                  </span>
+                </React.Fragment>
+              ))}
+              {niveles.length < 5 && (
+                <select value="" onChange={e => { const k = e.target.value as CampoAgrupacion; if (k) setNiveles(nv => [...nv, k]); }} className="border border-[#C9CDEB] rounded-full px-2 py-0.5 bg-white cursor-pointer">
+                  <option value="">+ nivel</option>
+                  {CAMPOS_AGRUPACION.filter(c => !niveles.includes(c.k)).map(c => <option key={c.k} value={c.k}>{c.etq}</option>)}
+                </select>
+              )}
+              <button onClick={() => setNiveles(NIVELES_POR_DEFECTO)} className="text-[#312E81] underline cursor-pointer ml-1">Restablecer</button>
+              <span className="ml-auto text-[#5A6A74]">
+                {arbolEjec.enMaster.toLocaleString('es-ES')} actividades enlazadas por Activity ID
+                {arbolEjec.sinMaster ? ` · ${arbolEjec.sinMaster.toLocaleString('es-ES')} del XER sin datos en el Master` : ''}
+                {arbolEjec.soloMaster ? ` · ${arbolEjec.soloMaster.toLocaleString('es-ES')} rubros solo en el Master (aún no en P6)` : ''}
+              </span>
+            </div>
+          )}
           {vista === 'actividades' ? (
             <>
               {/* Tabla + Gantt (virtualizada) */}
@@ -835,12 +913,33 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                                 )}
                                 {!abierto && (
                                   <div className="absolute whitespace-nowrap text-[10.5px] font-normal text-[#14212A] pointer-events-none" style={{ left: xFinBarra + 8, top: 3 }}>
-                                    {fNum(rs.fin)}, {n.codCompleto}&nbsp;&nbsp;{n.nombre}
+                                    {fNum(rs.fin)}, {n.codCompleto ? <>{n.codCompleto}&nbsp;&nbsp;</> : null}{n.nombre}
                                   </div>
                                 )}
                               </>
                             );
                           })()}
+                        </div>
+                      );
+                    }
+                    if (fl.tipo === 'master') {
+                      // Rubro del Master que aún no existe en Primavera: solo informativo
+                      const a = fl.a;
+                      const ini = minutosDeFecha(a.start ?? a.blStart), fin = minutosDeFecha(a.finish ?? a.blFinish);
+                      return (
+                        <div key={`m${a.activityId}`} className="absolute flex text-[11px] border-b border-[#F0F2F4] bg-[#FAFAF7] text-[#7A868D] italic"
+                          style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt }} title="Rubro creado en el Master que todavía no existe en el XER de Primavera">
+                          <div className="sticky left-0 z-[5] flex items-center border-r border-[#D5DEE2] bg-[#FAFAF7]" style={{ width: ANCHO_IZQ }}>
+                            <div className="w-[120px] px-2 font-mono text-[10px] truncate not-italic" style={{ paddingLeft: 4 + fl.nivel * 10 }}>{a.activityId}</div>
+                            <div className="w-[262px] px-1 truncate" title={a.descripcion}>{a.descripcion}</div>
+                            <div className="w-[104px]" />
+                            <div className="w-[78px] text-right px-1">{fCorta(ini)}</div>
+                            <div className="w-[78px] text-right px-1">{fCorta(fin)}</div>
+                            <div className="w-[218px] px-2 text-[10px] not-italic"><span className="px-1.5 py-0.5 rounded bg-[#FFF3C4] text-[#7A5B00] font-semibold">Solo en Master · no está en P6</span></div>
+                          </div>
+                          {ini != null && fin != null && (
+                            <div className="absolute h-2.5 rounded-sm border border-dashed border-[#9AA6AD] bg-[#E6EAEC]/60" style={{ left: ANCHO_IZQ + xDe(ini), width: Math.max(4, xDe(fin) - xDe(ini)), top: 6 }} />
+                          )}
                         </div>
                       );
                     }
@@ -911,7 +1010,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                   }} />
               )}
               {creando && (
-                <NuevaActividadDialog m={m} nodos={arbol.nodos} wbsInicial={wbsSel ?? (sel != null ? vts[sel]?.wbs : null) ?? arbol.raices[0]?.id ?? ''}
+                <NuevaActividadDialog m={m} nodos={arbolWbs.nodos} wbsInicial={(wbsSel && arbolWbs.nodos.has(wbsSel) ? wbsSel : null) ?? (sel != null ? vts[sel]?.wbs : null) ?? arbolWbs.raices[0]?.id ?? ''}
                   codigoBase={sel != null ? vts[sel]?.cod : ''}
                   onCancelar={() => setCreando(false)}
                   onCrear={(datos) => {
@@ -935,11 +1034,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
               )}
             </>
           ) : vista === 'wbs' ? (
-            <VistaWbs m={m} raices={arbol.raices} nodos={arbol.nodos} editable={editable} cambios={cambios} version={version}
+            <VistaWbs m={m} raices={arbolWbs.raices} nodos={arbolWbs.nodos} editable={editable} cambios={cambios} version={version}
               onCambio={marcarCambio} mostrar={mostrar}
               onVerActividades={id => {
                 abrirRama(id);
                 setWbsSel(id);
+                setAgrupacion('wbs');
                 setVista('actividades');
               }} />
           ) : (
@@ -950,6 +1050,25 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     </div>
   );
 };
+
+/** Calcula nivel, código completo, orden y totales (fechas, nº de actividades, críticas) de un nodo y sus hijos. */
+function resumirNodo(n: Nodo, nivel: number, padre: Nodo | undefined, esWbs: boolean, ordenHijos?: (a: Nodo, b: Nodo) => number) {
+  const natural = (a: string, b: string) => a.localeCompare(b, 'es', { numeric: true });
+  n.nivel = nivel;
+  if (esWbs) n.codCompleto = padre ? `${padre.codCompleto}.${n.cod}` : n.cod;
+  n.hijos.sort(ordenHijos ?? ((a, b) => a.seq - b.seq || natural(a.cod, b.cod)));
+  n.tareas.sort((a, b) => (a.ini ?? 0) - (b.ini ?? 0) || natural(a.cod, b.cod));
+  n.soloMaster?.sort((a, b) => natural(String(a.activityId), String(b.activityId)));
+  let ini: number | null = null, fin: number | null = null, cnt = 0, crit = 0;
+  const sumar = (i2: number | null, f2: number | null, c: number, k: number) => {
+    if (i2 != null && (ini == null || i2 < ini)) ini = i2;
+    if (f2 != null && (fin == null || f2 > fin)) fin = f2;
+    cnt += c; crit += k;
+  };
+  for (const h of n.hijos) { resumirNodo(h, nivel + 1, n, esWbs, ordenHijos); sumar(h.ini, h.fin, h.n, h.criticas); }
+  for (const v of n.tareas) sumar(v.ini, v.fin, 1, v.tf != null && v.tf <= 0 ? 1 : 0);
+  n.ini = ini; n.fin = fin; n.n = cnt; n.criticas = crit;
+}
 
 /** Ventana WBS (como la de P6): crear, renombrar, mover y eliminar nodos del WBS. */
 const VistaWbs: React.FC<{
