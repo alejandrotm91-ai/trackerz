@@ -263,7 +263,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const arbolEjec = React.useMemo(() => {
     const nodos = new Map<string, Nodo>();
     const raices: Nodo[] = [];
-    if (!m || !hayMaster) return { raices, nodos, enMaster: 0, sinMaster: 0, soloMaster: 0, excluidas: 0, grupoDeAct: new Map<number, string>() };
+    if (!m || !hayMaster) return { raices, nodos, enMaster: 0, sinMaster: 0, soloMaster: 0, excluidas: 0, grupoDeAct: new Map<number, string>(), hitosUbicados: 0 };
     // Fuera de la vista de ejecución: el WBS «.D» del proyecto (actividades pendientes de confirmar
     // por el Ingeniero, con fechas provisionales) y todo lo que cuelga de él.
     const wbsExcluidos = new Set<string>();
@@ -291,18 +291,52 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     let enMaster = 0, sinMaster = 0;
     const codigos = new Set<string>();
     const grupoDeAct = new Map<number, string>();
+    const hitosSinMaster: Vt[] = [];
     for (const v of vts) {
       codigos.add(v.cod);
       if (wbsExcluidos.has(v.wbs)) { excluidas++; continue; }
       const a = idxMaster.get(v.cod);
       const udf = clasifXer.get(v.cod);
-      // Las actividades del XER sin datos en el Master (hitos, LOE…) no se muestran en esta vista
-      if (!a) { sinMaster++; continue; }
+      // Las actividades del XER sin datos en el Master no tienen grupo propio; los hitos se ubican abajo
+      if (!a) { sinMaster++; if (v.tipo === 'TT_Mile' || v.tipo === 'TT_FinMile') hitosSinMaster.push(v); continue; }
       if (!enAmbito(a, ambito, udf)) continue;
       enMaster++;
       const nodo = nodoDe(rutaDe(a, niveles, udf));
       nodo.tareas.push(v);
       grupoDeAct.set(v.i, nodo.id);
+    }
+    // Hitos sin datos en el Master: se muestran en el grupo de las actividades con que se relacionan
+    // que sí está en la vista. Se repite para cadenas de hitos (hito → hito → actividad).
+    let hitosUbicados = 0;
+    if (hitosSinMaster.length) {
+      const suc = new Map<number, number[]>(), pre = new Map<number, number[]>();
+      for (const fr of m.pred.filas) {
+        const s0 = m.porId.get(celda(m.pred, fr, 'task_id')), p0 = m.porId.get(celda(m.pred, fr, 'pred_task_id'));
+        if (s0 === undefined || p0 === undefined) continue;
+        (suc.get(p0) ?? suc.set(p0, []).get(p0)!).push(s0);
+        (pre.get(s0) ?? pre.set(s0, []).get(s0)!).push(p0);
+      }
+      // El grupo más repetido entre las vecinas ya ubicadas
+      const grupoMasComun = (vecinas: number[] | undefined) => {
+        const cuenta = new Map<string, number>();
+        for (const j of vecinas ?? []) { const g = grupoDeAct.get(j); if (g) cuenta.set(g, (cuenta.get(g) ?? 0) + 1); }
+        let mejor: string | undefined, n = 0;
+        for (const [g, c] of cuenta) if (c > n) { mejor = g; n = c; }
+        return mejor;
+      };
+      let pendientes = hitosSinMaster;
+      for (let vuelta = 0; vuelta < 6 && pendientes.length; vuelta++) {
+        const quedan: Vt[] = [];
+        for (const v of pendientes) {
+          // Hito de inicio → con lo que arranca (sucesoras); hito de fin → con lo que cierra (predecesoras)
+          const g = v.tipo === 'TT_FinMile'
+            ? grupoMasComun(pre.get(v.i)) ?? grupoMasComun(suc.get(v.i))
+            : grupoMasComun(suc.get(v.i)) ?? grupoMasComun(pre.get(v.i));
+          if (g) { grupoDeAct.set(v.i, g); nodos.get(g)!.tareas.push(v); hitosUbicados++; } else quedan.push(v);
+        }
+        if (quedan.length === pendientes.length) break;
+        pendientes = quedan;
+      }
     }
     let soloMaster = 0;
     for (const [id, a] of idxMaster) {
@@ -315,7 +349,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     const orden = (a: Nodo, b: Nodo) => (a.nombre === SIN_MASTER ? 1 : b.nombre === SIN_MASTER ? -1 : natural(a.nombre, b.nombre));
     raices.sort(orden);
     raices.forEach(r => resumirNodo(r, 0, undefined, false, orden));
-    return { raices, nodos, enMaster, sinMaster, soloMaster, excluidas, grupoDeAct };
+    return { raices, nodos, enMaster, sinMaster, soloMaster, excluidas, grupoDeAct, hitosUbicados };
   }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs, ambito, clasifXer]);
 
   const enEjecucion = agrupacion === 'ejecucion' && hayMaster;
@@ -1002,7 +1036,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               <button onClick={() => setNiveles(NIVELES_POR_DEFECTO)} className="text-[#312E81] underline cursor-pointer ml-1">Restablecer</button>
               <span className="ml-auto text-[#5A6A74]">
                 {arbolEjec.enMaster.toLocaleString('es-ES')} actividades enlazadas por Activity ID
-                {arbolEjec.sinMaster ? ` · ${arbolEjec.sinMaster.toLocaleString('es-ES')} del XER sin datos en el Master (ocultas)` : ''}
+                {arbolEjec.sinMaster ? ` · ${arbolEjec.sinMaster.toLocaleString('es-ES')} del XER sin datos en el Master (${arbolEjec.hitosUbicados.toLocaleString('es-ES')} hitos ubicados junto a su sucesora/predecesora; el resto, ocultas)` : ''}
                 {arbolEjec.soloMaster ? ` · ${arbolEjec.soloMaster.toLocaleString('es-ES')} rubros solo en el Master (aún no en P6)` : ''}
                 {arbolEjec.excluidas ? ` · ${arbolEjec.excluidas.toLocaleString('es-ES')} del WBS «Pendientes de confirmar» (.D) excluidas` : ''}
               </span>
