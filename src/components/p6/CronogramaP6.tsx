@@ -114,6 +114,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [lbGuardada, setLbGuardada] = React.useState<LineaBase | null>(null);
   const [fuenteLB, setFuenteLB] = React.useState<'udf' | 'guardada' | 'planificada'>('udf');
   const lbFileRef = React.useRef<HTMLInputElement>(null);
+  const [menuLB, setMenuLB] = React.useState(false);
   React.useEffect(() => { leerLineaBase().then(lb => setLbGuardada(lb)); }, []);
   // Agrupación: WBS de P6 o vista de ejecución (clasificación del Master)
   const leerLS = <T,>(k: string, def: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : def; } catch { return def; } };
@@ -848,11 +849,49 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="2" width="8" height="4" rx="1" fill="#2E9E3A" stroke="#1C6B25" /><rect x="13" y="10" width="8" height="4" rx="1" fill="#2E9E3A" stroke="#1C6B25" /><path d="M9 4 H11 V12 H12.5" fill="none" stroke="#14212A" strokeWidth="1.2" /><path d="M11 10 L13 12 L11 14" fill="#14212A" /></svg>
               <span className="text-[8.5px] leading-none">Relac.</span>
             </button>
-            <button onClick={() => { setVista('actividades'); setVerLB(v => !v); }} title="Línea base: mostrar u ocultar la barra amarilla bajo cada actividad"
-              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verLB ? 'bg-[#FFF3C4] border-[#C99F00] text-[#7A5B00] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
-              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="2" y="3" width="16" height="5" rx="1.5" fill="#2E9E3A" stroke="#1C6B25" /><rect x="2" y="10" width="13" height="3" rx="1" fill="#E3B505" stroke="#9C7C00" /></svg>
-              <span className="text-[8.5px] leading-none">L. base</span>
-            </button>
+            <div className="relative">
+              <button onClick={() => { setVista('actividades'); if (menuLB) setMenuLB(false); else { setVerLB(true); setMenuLB(true); } }} title="Línea base: mostrar y elegir cuál usar"
+                className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verLB ? 'bg-[#FFF3C4] border-[#C99F00] text-[#7A5B00] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+                <svg width="22" height="16" viewBox="0 0 22 16"><rect x="2" y="3" width="16" height="5" rx="1.5" fill="#2E9E3A" stroke="#1C6B25" /><rect x="2" y="10" width="13" height="3" rx="1" fill="#E3B505" stroke="#9C7C00" /></svg>
+                <span className="text-[8.5px] leading-none">L. base</span>
+              </button>
+              {menuLB && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setMenuLB(false)} />
+                  <div className="absolute left-[44px] top-0 z-[61] w-[330px] bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-[#F0F0F0] border-b border-[#D5D5D5] rounded-t-lg">
+                      <b>Línea base</b>
+                      <button onClick={() => setMenuLB(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                    <div className="p-3 flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold">
+                        <input type="checkbox" checked={verLB} onChange={e => setVerLB(e.target.checked)} /> Mostrar barras de línea base en el Gantt
+                      </label>
+                      <div className="text-[10.5px] text-[#5A6A74] mt-1">Cuál usar (también para la columna «Var. fin LB»):</div>
+                      {([
+                        ['udf', lbUdf ? `LB de P6 (blStartP6 / blFinishP6)` : '', lbUdf?.provisionales ? `${lbUdf.provisionales.toLocaleString('es-ES')} rubros con fin 30-abr-27 quedan sin LB` : ''],
+                        ['guardada', lbGuardada ? `Guardada: ${lbGuardada.nombre}` : '', lbGuardada ? `fijada el ${new Date(lbGuardada.creadaEn).toLocaleDateString('es-ES')} por ${lbGuardada.creadaPor}` : ''],
+                        ['planificada', 'Fechas planificadas del XER', 'inicio y fin planificados de cada actividad'],
+                      ] as const).filter(([, etq]) => etq).map(([k, etq, det]) => (
+                        <label key={k} className={`flex items-start gap-2 px-2 py-1.5 rounded border cursor-pointer ${fuenteEf === k ? 'border-[#C99F00] bg-[#FFF8DC]' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
+                          <input type="radio" name="fuenteLB" className="mt-0.5" checked={fuenteEf === k} onChange={() => { setFuenteLB(k); setVerLB(true); }} />
+                          <span><span className="font-semibold">{etq}</span>{det && <span className="block text-[10px] text-[#5A6A74]">{det}</span>}</span>
+                        </label>
+                      ))}
+                      {editable && (
+                        <div className="flex items-center gap-2 pt-2 mt-1 border-t border-[#ECECEC]">
+                          <button onClick={() => { setMenuLB(false); fijarLineaBase(); }} className="px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer" title="Guardar la programación actual como línea base">Fijar actual</button>
+                          <button onClick={() => { setMenuLB(false); lbFileRef.current?.click(); }} className="px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1" title="Usar otro XER (por ejemplo, el programa contractual) como línea base">
+                            <Upload className="w-3.5 h-3.5" /> Desde otro XER
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+              <input ref={lbFileRef} type="file" accept=".xer" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) cargarLineaBase(f); e.target.value = ''; }} />
+            </div>
             <div className="w-7 h-px bg-[#C3C3C3] my-1" />
             {([[true, '+', 'Expandir todo (Ctrl +)'], [false, '−', 'Colapsar todo (Ctrl −)']] as const).map(([abrir, signo, tt]) => (
               <button key={signo} onClick={() => { setVista('actividades'); expandirTodo(abrir); }} title={tt}
@@ -896,25 +935,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   <option value="longest">Longest path (ruta más larga)</option>
                   {enEjecucion && <option value="soloMaster">Solo en Master (aún no en P6)</option>}
                 </select>
-                {verLB && (
-                  <>
-                    <select value={fuenteEf} onChange={e => setFuenteLB(e.target.value as 'udf' | 'guardada' | 'planificada')} className="border border-[#D5DEE2] rounded-lg px-2 py-1.5 bg-white max-w-[260px]"
-                      title="Qué fechas se usan como línea base">
-                      {lbUdf && <option value="udf">LB de P6 (blStartP6 / blFinishP6){lbUdf.provisionales ? ` · ${lbUdf.provisionales.toLocaleString("es-ES")} sin LB (fin 30-abr-27)` : ""}</option>}
-                      {lbGuardada && <option value="guardada">LB: {lbGuardada.nombre} ({new Date(lbGuardada.creadaEn).toLocaleDateString('es-ES')})</option>}
-                      <option value="planificada">Fechas planificadas del XER</option>
-                    </select>
-                    {editable && (
-                      <>
-                        <button onClick={fijarLineaBase} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer" title="Guardar la programación actual como línea base">Fijar actual</button>
-                        <button onClick={() => lbFileRef.current?.click()} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1" title="Usar otro XER (por ejemplo, el programa contractual) como línea base">
-                          <Upload className="w-3.5 h-3.5" /> XER base
-                        </button>
-                        <input ref={lbFileRef} type="file" accept=".xer" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) cargarLineaBase(f); e.target.value = ''; }} />
-                      </>
-                    )}
-                  </>
-                )}
                 {editable && (
                   <button onClick={() => setCreando(true)} className="px-2 py-1.5 rounded-lg bg-[#312E81] text-white font-bold flex items-center gap-1 cursor-pointer" title="Crear una actividad en el WBS seleccionado">
                     <Plus className="w-3.5 h-3.5" /> Nueva actividad
