@@ -67,6 +67,8 @@ interface Nodo {
   ini: number | null; fin: number | null; n: number; criticas: number;
   /** Vista de ejecución: rubros del Master que aún no existen en el XER. */
   soloMaster?: Actividad[];
+  /** Nº de rubros solo del Master en el nodo y sus hijos. */
+  nSolo?: number;
 }
 type Fila = { tipo: 'wbs'; nodo: Nodo; nivel: number } | { tipo: 'act'; vt: Vt; nivel: number } | { tipo: 'master'; a: Actividad; nivel: number };
 
@@ -89,7 +91,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [cerradosF, setCerradosF] = React.useState<Set<string>>(new Set());
   const [filtro, setFiltro] = React.useState('');
   const [filtroTmp, setFiltroTmp] = React.useState('');
-  const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'criticas' | 'longest' | 'encurso'>('todas');
+  const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'criticas' | 'longest' | 'encurso' | 'soloMaster'>('todas');
   const [vista, setVista] = React.useState<'actividades' | 'wbs' | 'recursos'>('actividades');
   const [px, setPx] = React.useState(1);
   const [verRelaciones, setVerRelaciones] = React.useState<boolean>(() => {
@@ -284,6 +286,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs]);
 
   const enEjecucion = agrupacion === 'ejecucion' && hayMaster;
+  React.useEffect(() => { if (!enEjecucion) setFiltroEstado(f => (f === 'soloMaster' ? 'todas' : f)); }, [enEjecucion]);
   const arbol: { raices: Nodo[]; nodos: Map<string, Nodo> } = enEjecucion ? arbolEjec : arbolWbs;
 
   const pasa = React.useCallback((v: Vt) => {
@@ -291,6 +294,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     if (filtroEstado === 'encurso' && v.estado !== 'TK_Active') return false;
     if (filtroEstado === 'criticas' && !(v.tf != null && v.tf <= 0)) return false;
     if (filtroEstado === 'longest' && !v.lp) return false;
+    if (filtroEstado === 'soloMaster') return false; // solo los rubros del Master que aún no están en P6
     if (filtro) {
       const q = filtro.toLowerCase();
       if (!v.cod.toLowerCase().includes(q) && !v.nombre.toLowerCase().includes(q)) return false;
@@ -554,6 +558,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         r.lbIni = mn(r.lbIni, o.lbIni); r.lbFin = mx(r.lbFin, o.lbFin);
       };
       for (const h of n.hijos) juntar(ver(h));
+      // Con el filtro «Solo en Master», el grupo resume las fechas del Master de esos rubros
+      if (filtroEstado === 'soloMaster') for (const a of n.soloMaster ?? []) {
+        r.ini = mn(r.ini, minutosDeFecha(a.start ?? a.blStart)); r.fin = mx(r.fin, minutosDeFecha(a.finish ?? a.blFinish));
+      }
       for (const v of n.tareas) {
         if (filtrandoR && !pasa(v)) continue;
         r.ini = mn(r.ini, v.ini); r.fin = mx(r.fin, v.fin);
@@ -752,6 +760,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   <option value="encurso">En curso</option>
                   <option value="criticas">Críticas (holgura ≤ 0)</option>
                   <option value="longest">Longest path (ruta más larga)</option>
+                  {enEjecucion && <option value="soloMaster">Solo en Master (aún no en P6)</option>}
                 </select>
                 {([['criticas', 'Ruta crítica', 'Solo las actividades críticas (holgura total ≤ 0)'], ['longest', 'Longest path', 'Solo la ruta más larga: la cadena de actividades que fija el fin del proyecto']] as const).map(([k, etq, tt]) => (
                   <button key={k} onClick={() => { setFiltroEstado(f => (f === k ? 'todas' : k)); setVerRelaciones(true); }} title={tt}
@@ -894,13 +903,13 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                             <div className="flex items-center gap-1 min-w-0" style={{ paddingLeft: 4 + fl.nivel * 10, width: 382 }}>
                               {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
                               <span className="truncate" title={`${n.codCompleto} · ${n.nombre}`}><span className={claro ? 'opacity-70' : 'opacity-80'}>{n.codCompleto}</span>&nbsp; {n.nombre}</span>
-                              <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({n.n})</span>
+                              <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({filtroEstado === 'soloMaster' ? `${n.nSolo ?? 0} solo en Master` : n.n})</span>
                             </div>
                             <div className="w-[104px]" />
                             <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.ini ?? n.ini)}</div>
                             <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.fin ?? n.fin)}</div>
                             {(() => { const rs = resumenWbs.get(n.id); const vf = variacionFin(rs?.lbFin, rs?.fin ?? n.fin); return <div className="w-[58px] text-right px-1">{vf == null ? '' : dias(vf, 8)}</div>; })()}
-                            <div className={`w-[160px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas ? `${n.criticas} críticas` : ''}</div>
+                            <div className={`w-[160px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas && filtroEstado !== 'soloMaster' ? `${n.criticas} críticas` : ''}</div>
                           </div>
                           {(() => {
                             const rs = resumenWbs.get(n.id);
@@ -1078,7 +1087,9 @@ function resumirNodo(n: Nodo, nivel: number, padre: Nodo | undefined, esWbs: boo
     if (f2 != null && (fin == null || f2 > fin)) fin = f2;
     cnt += c; crit += k;
   };
-  for (const h of n.hijos) { resumirNodo(h, nivel + 1, n, esWbs, ordenHijos); sumar(h.ini, h.fin, h.n, h.criticas); }
+  let solo = n.soloMaster?.length ?? 0;
+  for (const h of n.hijos) { resumirNodo(h, nivel + 1, n, esWbs, ordenHijos); sumar(h.ini, h.fin, h.n, h.criticas); solo += h.nSolo ?? 0; }
+  n.nSolo = solo;
   for (const v of n.tareas) sumar(v.ini, v.fin, 1, v.tf != null && v.tf <= 0 ? 1 : 0);
   n.ini = ini; n.fin = fin; n.n = cnt; n.criticas = crit;
 }
