@@ -805,16 +805,31 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
 
       {estadoCarga === 'listo' && m && (
         <>
-          {/* Herramientas */}
-          <div className="px-4 py-2 bg-white border-b border-[#D5DEE2] flex items-center gap-2 flex-wrap shrink-0 text-xs">
-            <div className="inline-flex border border-[#D5DEE2] rounded-lg overflow-hidden">
-              {(['actividades', 'wbs', 'recursos'] as const).map(v => (
-                <button key={v} onClick={() => setVista(v)} className={`px-3 py-1.5 flex items-center gap-1 cursor-pointer ${vista === v ? 'bg-[#312E81] text-white font-bold' : 'bg-white text-[#5A6A74] hover:text-[#14212A]'}`}>
-                  {v === 'actividades' ? <Layers className="w-3.5 h-3.5" /> : v === 'wbs' ? <Network className="w-3.5 h-3.5" /> : <BarChart3 className="w-3.5 h-3.5" />}
-                  {v === 'actividades' ? 'Actividades' : v === 'wbs' ? 'WBS' : 'Recursos'}
+        <div className="flex-1 flex min-h-0">
+          {/* Barra lateral vertical (como la de P6): vistas y rutas */}
+          <div className="w-[46px] shrink-0 bg-[#ECECEC] border-r border-[#C3C3C3] flex flex-col items-center py-2 gap-1">
+            {(['actividades', 'wbs', 'recursos'] as const).map(v => {
+              const etq = v === 'actividades' ? 'Actividades' : v === 'wbs' ? 'WBS' : 'Recursos';
+              return (
+                <button key={v} onClick={() => setVista(v)} title={etq}
+                  className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${vista === v ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+                  {v === 'actividades' ? <IconoBarras /> : v === 'wbs' ? <IconoWbsLateral /> : <IconoRecursos />}
+                  <span className="text-[8.5px] leading-none">{v === 'actividades' ? 'Activ.' : etq}</span>
                 </button>
-              ))}
-            </div>
+              );
+            })}
+            <div className="w-7 h-px bg-[#C3C3C3] my-1" />
+            {([['criticas', 'Ruta crítica', 'Crítica', 'Solo las actividades críticas (holgura total ≤ 0)'], ['longest', 'Longest path', 'Longest', 'Solo la ruta más larga: la cadena de actividades que fija el fin del proyecto']] as const).map(([k, etq, corto, tt]) => (
+              <button key={k} onClick={() => { setVista('actividades'); setFiltroEstado(f => (f === k ? 'todas' : k)); setVerRelaciones(true); }} title={`${etq}: ${tt}`}
+                className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroEstado === k && vista === 'actividades' ? 'bg-[#CD0000] border-[#CD0000] text-white shadow-sm' : 'border-transparent text-[#B30000] hover:bg-white/70'}`}>
+                {k === 'criticas' ? <IconoCritica activo={filtroEstado === k && vista === 'actividades'} /> : <IconoLongest activo={filtroEstado === k && vista === 'actividades'} />}
+                <span className="text-[8.5px] leading-none">{corto}</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          {/* Herramientas (solo en la vista de actividades) */}
+          <div className={`px-4 py-2 bg-white border-b border-[#D5DEE2] flex items-center gap-2 flex-wrap shrink-0 text-xs ${vista === 'actividades' ? '' : 'hidden'}`}>
             {vista === 'actividades' && (
               <>
                 <select value={enEjecucion ? 'ejecucion' : 'wbs'} onChange={e => { setAgrupacion(e.target.value as 'wbs' | 'ejecucion'); setAbiertos(new Set()); }}
@@ -846,13 +861,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   <option value="longest">Longest path (ruta más larga)</option>
                   {enEjecucion && <option value="soloMaster">Solo en Master (aún no en P6)</option>}
                 </select>
-                {([['criticas', 'Ruta crítica', 'Solo las actividades críticas (holgura total ≤ 0)'], ['longest', 'Longest path', 'Solo la ruta más larga: la cadena de actividades que fija el fin del proyecto']] as const).map(([k, etq, tt]) => (
-                  <button key={k} onClick={() => { setFiltroEstado(f => (f === k ? 'todas' : k)); setVerRelaciones(true); }} title={tt}
-                    className={`px-2 py-1.5 border rounded-lg cursor-pointer flex items-center gap-1 ${filtroEstado === k ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold' : 'border-[#D5DEE2] hover:bg-[#F5F8F9] text-[#B30000]'}`}>
-                    <span className={`w-2.5 h-2.5 rounded-sm ${filtroEstado === k ? 'bg-white' : 'bg-[#CD0000]'}`} />
-                    {etq}
-                  </button>
-                ))}
                 <button onClick={() => expandirTodo(true)} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer">Expandir todo</button>
                 <button onClick={() => expandirTodo(false)} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer">Colapsar</button>
                 <button onClick={() => setVerRelaciones(v => !v)} title="Mostrar u ocultar las líneas de relación en el Gantt"
@@ -1174,6 +1182,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           ) : (
             <VistaRecursos m={m} version={version} />
           )}
+          </div>
+        </div>
         </>
       )}
     </div>
@@ -1389,6 +1399,23 @@ const VistaWbs: React.FC<{
     </div>
   );
 };
+
+/** Iconos de la barra lateral (al estilo de P6). */
+const IconoBarras = () => (
+  <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="2" width="14" height="4" rx="1.5" fill="#2E9E3A" stroke="#1C6B25" /><rect x="6" y="9" width="15" height="4" rx="1.5" fill="#2E9E3A" stroke="#1C6B25" /></svg>
+);
+const IconoWbsLateral = () => (
+  <svg width="22" height="16" viewBox="0 0 22 16"><rect x="2" y="1" width="11" height="8" fill="#2B5FD9" stroke="#1B3E91" /><rect x="8" y="6" width="11" height="8" fill="#3D7CF0" stroke="#1B3E91" /></svg>
+);
+const IconoRecursos = () => (
+  <svg width="22" height="16" viewBox="0 0 22 16"><circle cx="8" cy="5" r="3.2" fill="#E8A33D" stroke="#9A6516" /><path d="M2 15 C2 10 14 10 14 15 Z" fill="#2E9E3A" stroke="#1C6B25" /><rect x="14" y="7" width="6" height="8" fill="#9FB8D9" stroke="#4A6A94" /></svg>
+);
+const IconoCritica: React.FC<{ activo: boolean }> = ({ activo }) => (
+  <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="2" width="10" height="4" rx="1" fill={activo ? '#FFFFFF' : '#CD0000'} /><rect x="9" y="10" width="12" height="4" rx="1" fill={activo ? '#FFFFFF' : '#CD0000'} /><path d="M11 4 H13 V12 H9" fill="none" stroke={activo ? '#FFFFFF' : '#CD0000'} strokeWidth="1.2" /></svg>
+);
+const IconoLongest: React.FC<{ activo: boolean }> = ({ activo }) => (
+  <svg width="22" height="16" viewBox="0 0 22 16"><path d="M2 8 H20" stroke={activo ? '#FFFFFF' : '#CD0000'} strokeWidth="3" strokeLinecap="round" /><path d="M16 4 L20 8 L16 12" fill="none" stroke={activo ? '#FFFFFF' : '#CD0000'} strokeWidth="2" /><circle cx="3" cy="8" r="2" fill={activo ? '#FFFFFF' : '#CD0000'} /></svg>
+);
 
 /** Icono de nodo WBS como el de P6 (dos carpetas azules superpuestas). */
 const IconoWbs = () => (
