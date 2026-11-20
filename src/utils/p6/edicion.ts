@@ -4,7 +4,7 @@
  */
 import { aMinutos, aTexto } from './calendario';
 import { programarModelo, type ModeloP6 } from './modelo';
-import type { ResultadoCpm } from './cpm';
+import { rutaMasLarga, type ResultadoCpm } from './cpm';
 import { celda, ponerCelda } from './xer';
 
 export interface Cambio {
@@ -143,12 +143,15 @@ export function eliminarRelacion(m: ModeloP6, filaRel: number, log: Cambio[]) {
  * Programa (F9) y escribe los resultados en el XER, como P6: fechas tempranas y tardías,
  * fechas del trabajo restante, holguras, fin del proyecto y fechas de las asignaciones.
  */
-export function programarYEscribir(m: ModeloP6): ResultadoCpm & { criticas: number } {
-  const { acts, res } = programarModelo(m);
+export function programarYEscribir(m: ModeloP6): ResultadoCpm & { criticas: number; rutaLarga: number } {
+  const { acts, rels, res } = programarModelo(m);
   const t = m.task;
   let criticas = 0;
+  // Ruta más larga (Longest Path): se guarda en driving_path_flag, como hace P6
+  const lp = rutaMasLarga(acts, rels, res.finTemprano);
   acts.forEach((a, i) => {
     const f = t.filas[i];
+    ponerCelda(t, f, 'driving_path_flag', lp.has(i) ? 'Y' : 'N');
     const horas = (min: number | null | undefined) => (min == null ? '' : num(min / 60));
     ponerCelda(t, f, 'early_start_date', aTexto(a.ES));
     ponerCelda(t, f, 'early_end_date', aTexto(a.EF));
@@ -158,6 +161,12 @@ export function programarYEscribir(m: ModeloP6): ResultadoCpm & { criticas: numb
       ponerCelda(t, f, 'restart_date', '');
       ponerCelda(t, f, 'reend_date', '');
       return;
+    }
+    if (a.tipo === 'TT_LOE' && a.ES != null && a.EF != null) {
+      // El nivel de esfuerzo dura lo que dicen sus relaciones
+      const d = horas(a.cal.entre(a.ES, a.EF));
+      ponerCelda(t, f, 'remain_drtn_hr_cnt', d);
+      if (a.estado === 'NoIniciada') ponerCelda(t, f, 'target_drtn_hr_cnt', d);
     }
     ponerCelda(t, f, 'late_start_date', aTexto(a.LS));
     ponerCelda(t, f, 'late_end_date', aTexto(a.LF));
@@ -185,7 +194,7 @@ export function programarYEscribir(m: ModeloP6): ResultadoCpm & { criticas: numb
       ponerCelda(tr, fr, 'rem_late_end_date', aTexto(a.LF));
     }
   }
-  return { ...res, criticas };
+  return { ...res, criticas, rutaLarga: lp.size };
 }
 
 /** GUID al estilo de P6: 16 bytes aleatorios en base64 (22 caracteres). */

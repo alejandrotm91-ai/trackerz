@@ -56,6 +56,8 @@ export interface ResultadoCpm {
 
 const esHitoInicio = (a: ActividadCpm) => a.tipo === 'TT_Mile';
 const esHitoFin = (a: ActividadCpm) => a.tipo === 'TT_FinMile';
+/** Nivel de esfuerzo (LOE): sus fechas las fijan sus relaciones; nunca conduce a otras. */
+export const esLoe = (a: ActividadCpm) => a.tipo === 'TT_LOE';
 const durDe = (a: ActividadCpm) => (esHitoInicio(a) || esHitoFin(a) ? 0 : Math.max(0, a.durRest));
 
 /** Orden topológico (Kahn). Las actividades en ciclos se agregan al final. */
@@ -112,7 +114,7 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
     let fin = -Infinity;
     for (const r of preds[i]) {
       const p = acts[r.pred];
-      if (p.EF == null) continue;
+      if (p.EF == null || esLoe(p)) continue;
       const pc = p.cal;
       if (enCurso && (r.tipo === 'SS' || r.tipo === 'SF')) continue; // ya empezó
       if (p.estado === 'Terminada' && enCurso) continue;
@@ -145,6 +147,24 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
     if (EF > finTemprano) finTemprano = EF;
   }
 
+  // ── Nivel de esfuerzo: termina cuando lo piden sus sucesoras ──
+  for (const i of orden) {
+    const a = acts[i];
+    if (!esLoe(a) || a.estado === 'Terminada') continue;
+    let fin = -Infinity;
+    for (const r of succs[i]) {
+      const s = acts[r.succ];
+      if (s.ES == null) continue;
+      const sIni = s.estado !== 'NoIniciada' && s.inicioReal != null ? s.inicioReal : s.ES;
+      if (r.tipo === 'FS') fin = Math.max(fin, a.cal.sumar(sIni, -r.lag, 'fin'));
+      if (r.tipo === 'FF') fin = Math.max(fin, a.cal.sumar(s.EF!, -r.lag, 'fin'));
+    }
+    if (fin !== -Infinity) {
+      a.EF = Math.max(a.ES!, a.cal.aFin(fin));
+      if (a.EF > finTemprano) finTemprano = a.EF;
+    }
+  }
+
   // ── Pasada hacia atrás ──
   const finProy = op.finProyecto ?? finTemprano;
   for (let k = orden.length - 1; k >= 0; k--) {
@@ -157,7 +177,7 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
     let ls = Infinity;
     for (const r of succs[i]) {
       const s = acts[r.succ];
-      if (s.estado === 'Terminada' || s.LF == null) continue;
+      if (s.estado === 'Terminada' || s.LF == null || esLoe(s)) continue;
       if (s.estado === 'EnCurso' && (r.tipo === 'SS' || r.tipo === 'SF')) continue;
       switch (r.tipo) {
         case 'FS': lf = Math.min(lf, cal.sumar(s.LS!, -r.lag, 'fin')); break;
@@ -174,6 +194,7 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
     if (ls !== Infinity) lf = Math.min(lf, dur > 0 ? cal.sumar(ls, dur, 'fin') : ls);
     let LF = esHitoInicio(a) ? lf : cal.aFin(lf);
     let LS = dur > 0 ? cal.sumar(LF, -dur, 'inicio') : LF;
+    if (esLoe(a)) { const d = cal.entre(a.ES!, a.EF!); LS = d > 0 ? cal.sumar(LF, -d, 'inicio') : LF; }
     a.LF = LF;
     a.LS = LS;
     a.TF = cal.entre(a.EF!, LF);
@@ -216,4 +237,62 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
   }
 
   return { orden, ciclos, finTemprano };
+}
+
+/**
+ * Relaciones conductoras: las que fijan las fechas tempranas de la sucesora
+ * (su restricción coincide con el inicio o el fin temprano calculado).
+ * Se llama después de `programar`.
+ */
+export function relacionesConductoras(acts: ActividadCpm[], rels: Rel[]): Set<Rel> {
+  const out = new Set<Rel>();
+  const inicioDe = (p: ActividadCpm) => (p.estado !== 'NoIniciada' && p.inicioReal != null ? p.inicioReal : p.ES!);
+  for (const r of rels) {
+    if (r.pred === r.succ) continue;
+    const p = acts[r.pred], s = acts[r.succ];
+    if (s.estado === 'Terminada' || p.EF == null || s.ES == null || s.EF == null || esLoe(p)) continue;
+    const enCurso = s.estado === 'EnCurso';
+    if (enCurso && (r.tipo === 'SS' || r.tipo === 'SF')) continue;
+    if (enCurso && p.estado === 'Terminada') continue;
+    const pc = p.cal, sc = s.cal;
+    let conduce = false;
+    switch (r.tipo) {
+      case 'FS': case 'SS': {
+        const v = r.tipo === 'FS' ? pc.sumar(p.EF, r.lag, 'fin') : pc.sumar(inicioDe(p), r.lag, 'inicio');
+        conduce = esHitoFin(s) ? sc.aFin(v) >= s.EF : sc.aInicio(v) >= s.ES;
+        break;
+      }
+      case 'FF': case 'SF': {
+        const v = r.tipo === 'FF' ? pc.sumar(p.EF, r.lag, 'fin') : pc.sumar(inicioDe(p), r.lag, 'fin');
+        conduce = esHitoInicio(s) ? v >= s.EF : sc.aFin(v) >= s.EF;
+        break;
+      }
+    }
+    if (conduce) out.add(r);
+  }
+  return out;
+}
+
+/**
+ * Ruta más larga (Longest Path de P6): la cadena de actividades no terminadas que,
+ * por relaciones conductoras, lleva al fin temprano del proyecto.
+ */
+export function rutaMasLarga(acts: ActividadCpm[], rels: Rel[], finTemprano: Minutos): Set<number> {
+  const conductoras = relacionesConductoras(acts, rels);
+  const predsConduc: Rel[][] = acts.map(() => []);
+  for (const r of conductoras) predsConduc[r.succ].push(r);
+  const en = new Set<number>();
+  const pila: number[] = [];
+  acts.forEach((a, i) => { if (a.estado !== 'Terminada' && a.EF === finTemprano) { en.add(i); pila.push(i); } });
+  while (pila.length) {
+    const i = pila.pop()!;
+    for (const r of predsConduc[i]) {
+      if (acts[r.pred].estado === 'Terminada' || en.has(r.pred)) continue;
+      en.add(r.pred);
+      pila.push(r.pred);
+    }
+  }
+  // Los LOE que acaban en una actividad de la ruta también se marcan
+  for (const r of rels) if (en.has(r.succ) && esLoe(acts[r.pred]) && acts[r.pred].estado !== 'Terminada') en.add(r.pred);
+  return en;
 }

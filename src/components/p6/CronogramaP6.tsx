@@ -52,6 +52,8 @@ interface Vt {
   /** Inicio del trabajo restante (en curso) para el Gantt. */
   resto: number | null;
   tf: number | null; avance: number; cstr: string;
+  /** En la ruta más larga (driving_path_flag de P6). */
+  lp: boolean;
 }
 interface Nodo {
   id: string; padre: string; cod: string; codCompleto: string; nombre: string; seq: number;
@@ -77,7 +79,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   const [abiertos, setAbiertos] = React.useState<Set<string>>(new Set());
   const [filtro, setFiltro] = React.useState('');
   const [filtroTmp, setFiltroTmp] = React.useState('');
-  const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'criticas' | 'encurso'>('todas');
+  const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'criticas' | 'longest' | 'encurso'>('todas');
   const [vista, setVista] = React.useState<'actividades' | 'wbs' | 'recursos'>('actividades');
   const [px, setPx] = React.useState(1);
   const [verRelaciones, setVerRelaciones] = React.useState<boolean>(() => {
@@ -156,6 +158,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
         resto: estado === 'TK_Active' ? es : null,
         tf: tf === '' || estado === 'TK_Complete' ? null : Number(tf),
         avance: Number(g('phys_complete_pct')) || 0, cstr: g('cstr_type'),
+        lp: g('driving_path_flag') === 'Y',
       };
     });
   }, [m, version]);
@@ -199,6 +202,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     if (filtroEstado === 'pendientes' && v.estado === 'TK_Complete') return false;
     if (filtroEstado === 'encurso' && v.estado !== 'TK_Active') return false;
     if (filtroEstado === 'criticas' && !(v.tf != null && v.tf <= 0)) return false;
+    if (filtroEstado === 'longest' && !v.lp) return false;
     if (filtro) {
       const q = filtro.toLowerCase();
       if (!v.cod.toLowerCase().includes(q) && !v.nombre.toLowerCase().includes(q)) return false;
@@ -285,7 +289,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     setPendienteF9(false);
     setSinGuardar(true);
     refrescar();
-    mostrar(`Programado en ${Math.round(performance.now() - t0)} ms · fin del proyecto ${fCorta(r.finTemprano)} · ${r.criticas.toLocaleString('es-ES')} actividades críticas${r.ciclos.length ? ` · ${r.ciclos.length} en ciclos lógicos` : ''}`);
+    mostrar(`Programado en ${Math.round(performance.now() - t0)} ms · fin del proyecto ${fCorta(r.finTemprano)} · ${r.criticas.toLocaleString('es-ES')} actividades críticas · ${r.rutaLarga.toLocaleString('es-ES')} en el longest path${r.ciclos.length ? ` · ${r.ciclos.length} en ciclos lógicos` : ''}`);
   }, [editable]);
 
   React.useEffect(() => {
@@ -361,6 +365,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   const hastaFila = Math.min(filas.length, Math.ceil((scrollTop + altoVista) / FILA) + 10);
   const xDatos = m ? xDe(m.fechaDatos) : 0;
   const criticas = vts.filter(v => v.tf != null && v.tf <= 0).length;
+  const rutaLarga = vts.filter(v => v.lp).length;
 
   // ── Relaciones para el Gantt ──
   const relsGantt = React.useMemo(() => {
@@ -383,6 +388,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     filas.forEach((fl, k) => { if (fl.tipo === 'act') mapa.set(fl.vt.i, k); });
     return mapa;
   }, [filas]);
+  const enRojo = React.useCallback((v: Vt) => (filtroEstado === 'longest' ? v.lp && v.estado !== 'TK_Complete' : v.tf != null && v.tf <= 0), [filtroEstado]);
   const lineasRelacion = React.useMemo(() => {
     if (!verRelaciones || vista !== 'actividades') return [] as { d: string; critica: boolean; k: string }[];
     const out: { d: string; critica: boolean; k: string }[] = [];
@@ -410,7 +416,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
         if (x2 - 6 >= xs) d = `M${x1},${y1} H${xs} V${y2} H${x2 - 1}`;
         else d = `M${x1},${y1} H${xs} V${y2 - sube * 6} H${x2 - 6} V${y2} H${x2 - 1}`;
       }
-      const ca = va.tf != null && va.tf <= 0, cb = vb.tf != null && vb.tf <= 0;
+      const ca = enRojo(va), cb = enRojo(vb);
       out.push({ d, critica: ca && cb, k: `${a}-${b}-${tipo}` });
     };
     for (let k = desdeFila; k < hastaFila; k++) {
@@ -426,7 +432,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verRelaciones, vista, desdeFila, hastaFila, filas, filaDeActividad, relsGantt, vts, px, rango]);
+  }, [verRelaciones, enRojo, vista, desdeFila, hastaFila, filas, filaDeActividad, relsGantt, vts, px, rango]);
 
   return (
     <div className="fixed inset-0 z-[120] bg-[#EEF2F3] flex flex-col text-[#14212A]" id="cronograma-p6">
@@ -464,6 +470,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
             <span>Fin: <b className="text-white">{fCorta(finProyecto)}</b></span>
             {finLimite && <span>Límite: <b className="text-white">{fCorta(finLimite)}</b></span>}
             <span>Críticas: <b className="text-red-300">{criticas.toLocaleString('es-ES')}</b></span>
+            <span title="Actividades en la ruta más larga (Longest Path): la cadena que fija el fin del proyecto">Longest path: <b className="text-red-300">{rutaLarga.toLocaleString('es-ES')}</b></span>
             <span>{vts.length.toLocaleString('es-ES')} actividades</span>
           </div>
         )}
@@ -548,7 +555,15 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                   <option value="pendientes">No terminadas</option>
                   <option value="encurso">En curso</option>
                   <option value="criticas">Críticas (holgura ≤ 0)</option>
+                  <option value="longest">Longest path (ruta más larga)</option>
                 </select>
+                {([['criticas', 'Ruta crítica', 'Solo las actividades críticas (holgura total ≤ 0)'], ['longest', 'Longest path', 'Solo la ruta más larga: la cadena de actividades que fija el fin del proyecto']] as const).map(([k, etq, tt]) => (
+                  <button key={k} onClick={() => { setFiltroEstado(f => (f === k ? 'todas' : k)); setVerRelaciones(true); }} title={tt}
+                    className={`px-2 py-1.5 border rounded-lg cursor-pointer flex items-center gap-1 ${filtroEstado === k ? 'bg-[#CD0000] border-[#CD0000] text-white font-bold' : 'border-[#D5DEE2] hover:bg-[#F5F8F9] text-[#B30000]'}`}>
+                    <span className={`w-2.5 h-2.5 rounded-sm ${filtroEstado === k ? 'bg-white' : 'bg-[#CD0000]'}`} />
+                    {etq}
+                  </button>
+                ))}
                 <button onClick={() => expandirTodo(true)} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer">Expandir todo</button>
                 <button onClick={() => expandirTodo(false)} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer">Colapsar</button>
                 <button onClick={() => setVerRelaciones(v => !v)} title="Mostrar u ocultar las líneas de relación en el Gantt"
@@ -643,7 +658,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                       );
                     }
                     const v = fl.vt;
-                    const critica = v.tf != null && v.tf <= 0;
+                    const critica = enRojo(v);
                     const esHito = v.tipo === 'TT_Mile' || v.tipo === 'TT_FinMile';
                     const seleccionada = sel === v.i;
                     return (
