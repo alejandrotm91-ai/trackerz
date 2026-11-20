@@ -78,6 +78,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'criticas' | 'encurso'>('todas');
   const [vista, setVista] = React.useState<'actividades' | 'recursos'>('actividades');
   const [px, setPx] = React.useState(1);
+  const [verRelaciones, setVerRelaciones] = React.useState<boolean>(() => {
+    try { return localStorage.getItem('p6.relaciones') === '1'; } catch { return false; }
+  });
+  React.useEffect(() => { try { localStorage.setItem('p6.relaciones', verRelaciones ? '1' : '0'); } catch { /* sin almacenamiento */ } }, [verRelaciones]);
   const [scrollTop, setScrollTop] = React.useState(0);
   const [altoVista, setAltoVista] = React.useState(600);
   const scroller = React.useRef<HTMLDivElement>(null);
@@ -355,6 +359,72 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   const xDatos = m ? xDe(m.fechaDatos) : 0;
   const criticas = vts.filter(v => v.tf != null && v.tf <= 0).length;
 
+  // ── Relaciones para el Gantt ──
+  const relsGantt = React.useMemo(() => {
+    const preds: { p: number; tipo: string }[][] = vts.map(() => []);
+    const succs: { s: number; tipo: string }[][] = vts.map(() => []);
+    if (!m) return { preds, succs };
+    const pt = m.pred;
+    for (const f of pt.filas) {
+      const a = m.porId.get(celda(pt, f, 'pred_task_id'));
+      const b = m.porId.get(celda(pt, f, 'task_id'));
+      if (a === undefined || b === undefined) continue;
+      const tipo = celda(pt, f, 'pred_type').replace('PR_', '') || 'FS';
+      preds[b].push({ p: a, tipo });
+      succs[a].push({ s: b, tipo });
+    }
+    return { preds, succs };
+  }, [m, vts]);
+  const filaDeActividad = React.useMemo(() => {
+    const mapa = new Map<number, number>();
+    filas.forEach((fl, k) => { if (fl.tipo === 'act') mapa.set(fl.vt.i, k); });
+    return mapa;
+  }, [filas]);
+  const lineasRelacion = React.useMemo(() => {
+    if (!verRelaciones || vista !== 'actividades') return [] as { d: string; critica: boolean; k: string }[];
+    const out: { d: string; critica: boolean; k: string }[] = [];
+    const yDe = (fila: number) => fila * FILA + 11;
+    const xIni = (v: Vt) => xDe(v.ini ?? v.fin ?? 0);
+    const xFin = (v: Vt) => xDe(v.fin ?? v.ini ?? 0);
+    const linea = (a: number, b: number, tipo: string) => {
+      const fa = filaDeActividad.get(a), fb = filaDeActividad.get(b);
+      if (fa === undefined || fb === undefined) return;
+      const va = vts[a], vb = vts[b];
+      if ((va.ini == null && va.fin == null) || (vb.ini == null && vb.fin == null)) return;
+      const desdeInicio = tipo === 'SS' || tipo === 'SF';
+      const haciaFin = tipo === 'FF' || tipo === 'SF';
+      const x1 = desdeInicio ? xIni(va) : xFin(va);
+      const x2 = haciaFin ? xFin(vb) : xIni(vb);
+      const y1 = yDe(fa), y2 = yDe(fb);
+      const sube = y2 < y1 ? -1 : 1;
+      let d: string;
+      if (haciaFin) {
+        // Entra por el final: rodea por la derecha
+        const xr = Math.max(x1, x2) + 6;
+        d = `M${x1},${y1} H${xr} V${y2} H${x2 + 1}`;
+      } else {
+        const xs = desdeInicio ? x1 - 5 : x1 + 5;
+        if (x2 - 6 >= xs) d = `M${x1},${y1} H${xs} V${y2} H${x2 - 1}`;
+        else d = `M${x1},${y1} H${xs} V${y2 - sube * 6} H${x2 - 6} V${y2} H${x2 - 1}`;
+      }
+      const ca = va.tf != null && va.tf <= 0, cb = vb.tf != null && vb.tf <= 0;
+      out.push({ d, critica: ca && cb, k: `${a}-${b}-${tipo}` });
+    };
+    for (let k = desdeFila; k < hastaFila; k++) {
+      const fl = filas[k];
+      if (!fl || fl.tipo !== 'act') continue;
+      const i = fl.vt.i;
+      for (const r of relsGantt.preds[i]) linea(r.p, i, r.tipo);
+      // Sucesoras fuera de la ventana (las de dentro se dibujan desde su propia fila)
+      for (const r of relsGantt.succs[i]) {
+        const fs = filaDeActividad.get(r.s);
+        if (fs !== undefined && (fs < desdeFila || fs >= hastaFila)) linea(i, r.s, r.tipo);
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verRelaciones, vista, desdeFila, hastaFila, filas, filaDeActividad, relsGantt, vts, px, rango]);
+
   return (
     <div className="fixed inset-0 z-[120] bg-[#EEF2F3] flex flex-col text-[#14212A]" id="cronograma-p6">
       {/* Barra superior */}
@@ -478,6 +548,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                 </select>
                 <button onClick={() => expandirTodo(true)} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer">Expandir todo</button>
                 <button onClick={() => expandirTodo(false)} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer">Colapsar</button>
+                <button onClick={() => setVerRelaciones(v => !v)} title="Mostrar u ocultar las líneas de relación en el Gantt"
+                  className={`px-2 py-1.5 border rounded-lg cursor-pointer flex items-center gap-1 ${verRelaciones ? 'bg-[#312E81] border-[#312E81] text-white font-bold' : 'border-[#D5DEE2] hover:bg-[#F5F8F9]'}`}>
+                  <svg width="14" height="10" viewBox="0 0 14 10" className="shrink-0"><path d="M1 2 H5 V8 H12" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M10 6 L13 8 L10 10" fill="currentColor" /></svg>
+                  Relaciones
+                </button>
                 <div className="ml-auto flex items-center gap-1 text-[#5A6A74]">
                   Escala
                   {[[0.4, 'Años'], [1, 'Trimestres'], [3, 'Meses'], [8, 'Semanas']].map(([v, l]) => (
@@ -516,6 +591,19 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                       ))}
                     </div>
                   </div>
+                  {/* Líneas de relación (solo las de las filas visibles) */}
+                  {verRelaciones && lineasRelacion.length > 0 && (
+                    <svg className="absolute pointer-events-none" style={{ left: ANCHO_IZQ, top: 34, width: anchoGantt, height: filas.length * FILA, overflow: 'visible', zIndex: 4 }}>
+                      <defs>
+                        <marker id="p6-flecha" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#5A6A74" /></marker>
+                        <marker id="p6-flecha-r" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#CD0000" /></marker>
+                      </defs>
+                      {lineasRelacion.map(l => (
+                        <path key={l.k} d={l.d} fill="none" stroke={l.critica ? '#CD0000' : '#7A868D'} strokeWidth={l.critica ? 1.1 : 0.9}
+                          markerEnd={`url(#${l.critica ? 'p6-flecha-r' : 'p6-flecha'})`} />
+                      ))}
+                    </svg>
+                  )}
                   {/* Línea de fecha de datos */}
                   <div className="absolute z-10 w-0.5 bg-[#CD0000]/70 pointer-events-none" style={{ left: ANCHO_IZQ + xDatos, top: 34, height: filas.length * FILA }} title="Fecha de datos" />
                   {/* Filas */}
