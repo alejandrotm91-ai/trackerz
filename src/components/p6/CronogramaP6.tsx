@@ -5,11 +5,11 @@
  * Todos consultan; solo el administrador edita, programa y guarda.
  */
 import React from 'react';
-import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2 } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
 import { crearModelo, type ModeloP6 } from '../../utils/p6/modelo';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
-import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
+import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
 
 const FILA = 22;
@@ -72,6 +72,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   const [aviso, setAviso] = React.useState('');
   const [ocupado, setOcupado] = React.useState('');
   const [sel, setSel] = React.useState<number | null>(null);
+  const [wbsSel, setWbsSel] = React.useState<string | null>(null);
+  const [creando, setCreando] = React.useState(false);
   const [abiertos, setAbiertos] = React.useState<Set<string>>(new Set());
   const [filtro, setFiltro] = React.useState('');
   const [filtroTmp, setFiltroTmp] = React.useState('');
@@ -553,6 +555,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                   <svg width="14" height="10" viewBox="0 0 14 10" className="shrink-0"><path d="M1 2 H5 V8 H12" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M10 6 L13 8 L10 10" fill="currentColor" /></svg>
                   Relaciones
                 </button>
+                {editable && (
+                  <button onClick={() => setCreando(true)} className="px-2 py-1.5 rounded-lg bg-[#312E81] text-white font-bold flex items-center gap-1 cursor-pointer" title="Crear una actividad en el WBS seleccionado">
+                    <Plus className="w-3.5 h-3.5" /> Nueva actividad
+                  </button>
+                )}
                 <div className="ml-auto flex items-center gap-1 text-[#5A6A74]">
                   Escala
                   {[[0.4, 'Años'], [1, 'Trimestres'], [3, 'Meses'], [8, 'Semanas']].map(([v, l]) => (
@@ -616,7 +623,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                       const [fondo, texto] = bandaWbs(fl.nivel);
                       const claro = texto !== '#FFFFFF';
                       return (
-                        <div key={`w${n.id}`} className="absolute flex text-[11px] font-bold cursor-pointer bg-white border-b border-[#E6EAEC]" style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt }} onClick={() => alternar(n.id)}>
+                        <div key={`w${n.id}`} className="absolute flex text-[11px] font-bold cursor-pointer bg-white border-b border-[#E6EAEC]" style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt, outline: wbsSel === n.id ? '2px solid #CD0000' : undefined, outlineOffset: -2 }} onClick={() => { alternar(n.id); setWbsSel(n.id); }}>
                           <div className="sticky left-0 z-[5] flex items-center border-r border-[#9AA6AD]" style={{ width: ANCHO_IZQ, background: fondo, color: texto }}>
                             <div className="flex items-center gap-1 min-w-0" style={{ paddingLeft: 4 + fl.nivel * 10, width: 382 }}>
                               {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
@@ -672,7 +679,47 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                   })}
                 </div>
               </div>
-              {sel != null && <PanelActividad m={m} i={sel} editable={editable} cambios={cambios} version={version} onCambio={marcarCambio} onCerrar={() => setSel(null)} />}
+              {sel != null && sel < vts.length && (
+                <PanelActividad m={m} i={sel} editable={editable} cambios={cambios} version={version} onCambio={marcarCambio} onCerrar={() => setSel(null)}
+                  onEliminar={() => {
+                    const t = m.task, f = t.filas[sel];
+                    const cod = celda(t, f, 'task_code');
+                    const id = celda(t, f, 'task_id');
+                    const nRel = m.pred.filas.filter(fr => celda(m.pred, fr, 'task_id') === id || celda(m.pred, fr, 'pred_task_id') === id).length;
+                    if (!window.confirm(`¿Eliminar la actividad ${cod} · ${celda(t, f, 'task_name')}?\n\nTambién se quitan sus ${nRel} relaciones, sus asignaciones de recursos, códigos y campos personalizados.`)) return;
+                    const log = [...cambios];
+                    eliminarActividad(m, sel, log);
+                    setSel(null);
+                    marcarCambio(log);
+                    mostrar(`Actividad ${cod} eliminada. Pulsa «Programar (F9)» para recalcular.`);
+                  }} />
+              )}
+              {creando && (
+                <NuevaActividadDialog m={m} nodos={arbol.nodos} wbsInicial={wbsSel ?? (sel != null ? vts[sel]?.wbs : null) ?? arbol.raices[0]?.id ?? ''}
+                  codigoBase={sel != null ? vts[sel]?.cod : ''}
+                  onCancelar={() => setCreando(false)}
+                  onCrear={(datos) => {
+                    const log = [...cambios];
+                    const r = crearActividad(m, { ...datos, usuario: username }, log);
+                    if (typeof r === 'string') return r;
+                    for (const rel of datos.relaciones) {
+                      const err = rel.rol === 'pred'
+                        ? agregarRelacion(m, rel.codigo, r, rel.tipo, 0, log)
+                        : (() => { const otra = m.task.filas.findIndex(fr => celda(m.task, fr, 'task_code').toLowerCase() === rel.codigo.toLowerCase()); return otra < 0 ? `No existe ${rel.codigo}` : agregarRelacion(m, datos.codigo, otra, rel.tipo, 0, log); })();
+                      if (err) mostrar(`Actividad creada, pero no la relación con ${rel.codigo}: ${err}`);
+                    }
+                    // Abrir el WBS donde quedó
+                    const abrir = new Set(abiertos);
+                    let w: string | undefined = datos.wbsId;
+                    while (w && arbol.nodos.has(w)) { abrir.add(w); w = arbol.nodos.get(w)!.padre; }
+                    setAbiertos(abrir);
+                    setCreando(false);
+                    marcarCambio(log);
+                    setSel(r);
+                    mostrar(`Actividad ${datos.codigo} creada. Pulsa «Programar (F9)» para calcular sus fechas.`);
+                    return null;
+                  }} />
+              )}
             </>
           ) : (
             <VistaRecursos m={m} version={version} />
@@ -683,11 +730,94 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   );
 };
 
+/** Siguiente ID libre a partir de otro (13.1.5 → 13.1.6; ABC → ABC.1). */
+function siguienteCodigo(base: string, existe: (c: string) => boolean): string {
+  if (!base) return '';
+  const m = /^(.*?)(\d+)$/.exec(base);
+  let c = m ? `${m[1]}${Number(m[2]) + 1}` : `${base}.1`;
+  for (let k = 0; k < 500 && existe(c); k++) {
+    const mm = /^(.*?)(\d+)$/.exec(c);
+    c = mm ? `${mm[1]}${Number(mm[2]) + 1}` : `${c}.1`;
+  }
+  return c;
+}
+
+/** Diálogo para crear una actividad. */
+const NuevaActividadDialog: React.FC<{
+  m: ModeloP6; nodos: Map<string, Nodo>; wbsInicial: string; codigoBase: string;
+  onCancelar: () => void;
+  onCrear: (d: { wbsId: string; codigo: string; nombre: string; tipo: string; durHoras: number; relaciones: { rol: 'pred' | 'succ'; codigo: string; tipo: string }[] }) => string | null;
+}> = ({ m, nodos, wbsInicial, codigoBase, onCancelar, onCrear }) => {
+  const t = m.task;
+  const codigos = React.useMemo(() => new Set(t.filas.map(f => celda(t, f, 'task_code').toLowerCase())), [t]);
+  const [wbsId, setWbsId] = React.useState(wbsInicial);
+  const [codigo, setCodigo] = React.useState(() => siguienteCodigo(codigoBase, c => codigos.has(c.toLowerCase())));
+  const [nombre, setNombre] = React.useState('');
+  const [tipo, setTipo] = React.useState('TT_Task');
+  const [diasDur, setDiasDur] = React.useState('5');
+  const [pred, setPred] = React.useState(codigoBase || '');
+  const [succ, setSucc] = React.useState('');
+  const [error, setError] = React.useState('');
+  const opciones = React.useMemo(() => [...nodos.values()].sort((a, b) => a.codCompleto.localeCompare(b.codCompleto, 'es', { numeric: true })), [nodos]);
+  const hd = 8;
+  const inp = 'border border-[#D5DEE2] rounded-lg px-2 py-1.5 text-xs w-full';
+  return (
+    <div className="fixed inset-0 z-[130] bg-slate-900/40 flex items-center justify-center p-4" onMouseDown={onCancelar}>
+      <form onMouseDown={e => e.stopPropagation()} onSubmit={e => {
+        e.preventDefault();
+        const rels: { rol: 'pred' | 'succ'; codigo: string; tipo: string }[] = [];
+        if (pred.trim()) rels.push({ rol: 'pred', codigo: pred.trim(), tipo: 'FS' });
+        if (succ.trim()) rels.push({ rol: 'succ', codigo: succ.trim(), tipo: 'FS' });
+        const err = onCrear({ wbsId, codigo: codigo.trim(), nombre: nombre.trim(), tipo, durHoras: (Number(diasDur) || 0) * hd, relaciones: rels });
+        if (err) setError(err);
+      }} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-3 text-xs">
+        <div className="flex items-center gap-2"><Plus className="w-4 h-4 text-[#312E81]" /><h3 className="text-sm font-bold">Nueva actividad</h3></div>
+        <label className="block space-y-1"><span className="text-[#5A6A74]">WBS</span>
+          <select value={wbsId} onChange={e => setWbsId(e.target.value)} className={inp}>
+            {opciones.map(n => <option key={n.id} value={n.id}>{n.codCompleto} · {n.nombre}</option>)}
+          </select>
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <label className="block space-y-1 col-span-1"><span className="text-[#5A6A74]">ID de actividad</span>
+            <input value={codigo} onChange={e => setCodigo(e.target.value)} className={inp} autoFocus required />
+          </label>
+          <label className="block space-y-1 col-span-2"><span className="text-[#5A6A74]">Nombre</span>
+            <input value={nombre} onChange={e => setNombre(e.target.value)} className={inp} required />
+          </label>
+          <label className="block space-y-1"><span className="text-[#5A6A74]">Tipo</span>
+            <select value={tipo} onChange={e => setTipo(e.target.value)} className={inp}>
+              <option value="TT_Task">Tarea</option>
+              <option value="TT_Mile">Hito de inicio</option>
+              <option value="TT_FinMile">Hito de fin</option>
+            </select>
+          </label>
+          <label className="block space-y-1"><span className="text-[#5A6A74]">Duración (días)</span>
+            <input type="number" min="0" step="0.5" value={tipo === 'TT_Task' ? diasDur : '0'} disabled={tipo !== 'TT_Task'} onChange={e => setDiasDur(e.target.value)} className={inp} />
+          </label>
+          <div />
+          <label className="block space-y-1 col-span-3 sm:col-span-1"><span className="text-[#5A6A74]">Predecesora (FS, opcional)</span>
+            <input value={pred} onChange={e => setPred(e.target.value)} placeholder="ID" className={inp} />
+          </label>
+          <label className="block space-y-1 col-span-3 sm:col-span-1"><span className="text-[#5A6A74]">Sucesora (FS, opcional)</span>
+            <input value={succ} onChange={e => setSucc(e.target.value)} placeholder="ID" className={inp} />
+          </label>
+        </div>
+        <p className="text-[11px] text-[#5A6A74]">Nace como «No iniciada» con el calendario de su WBS. Las fechas se calculan al pulsar «Programar (F9)». Las relaciones se pueden ajustar luego en su pestaña.</p>
+        {error && <p className="text-[11.5px] text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onCancelar} className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancelar</button>
+          <button type="submit" className="px-3 py-1.5 rounded-lg bg-[#312E81] text-white font-bold cursor-pointer">Crear actividad</button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
 /** Panel inferior con los detalles de la actividad (como el de P6). */
 const PanelActividad: React.FC<{
   m: ModeloP6; i: number; editable: boolean; cambios: Cambio[]; version: number;
-  onCambio: (log: Cambio[]) => void; onCerrar: () => void;
-}> = ({ m, i, editable, cambios, version, onCambio, onCerrar }) => {
+  onCambio: (log: Cambio[]) => void; onCerrar: () => void; onEliminar: () => void;
+}> = ({ m, i, editable, cambios, version, onCambio, onCerrar, onEliminar }) => {
   const [pest, setPest] = React.useState<'estado' | 'relaciones' | 'recursos' | 'cambios'>('estado');
   const [nuevoCod, setNuevoCod] = React.useState('');
   const [nuevoTipo, setNuevoTipo] = React.useState('FS');
@@ -741,7 +871,12 @@ const PanelActividad: React.FC<{
             {p === 'estado' ? 'General y avance' : p === 'relaciones' ? `Relaciones (${rels.length})` : p === 'recursos' ? `Recursos (${asignaciones.length})` : `Cambios (${cambios.length})`}
           </button>
         ))}
-        <button onClick={onCerrar} className="ml-auto p-1 hover:bg-[#F5F8F9] rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+        {editable && (
+          <button onClick={onEliminar} className="ml-auto px-2 py-1 rounded text-red-700 hover:bg-red-50 flex items-center gap-1 cursor-pointer" title="Eliminar esta actividad">
+            <Trash2 className="w-3.5 h-3.5" /> Eliminar
+          </button>
+        )}
+        <button onClick={onCerrar} className={`${editable ? '' : 'ml-auto '}p-1 hover:bg-[#F5F8F9] rounded cursor-pointer`}><X className="w-3.5 h-3.5" /></button>
       </div>
       <div className="flex-1 overflow-auto p-3">
         {pest === 'estado' && (

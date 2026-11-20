@@ -187,3 +187,104 @@ export function programarYEscribir(m: ModeloP6): ResultadoCpm & { criticas: numb
   }
   return { ...res, criticas };
 }
+
+/** GUID al estilo de P6: 16 bytes aleatorios en base64 (22 caracteres). */
+function nuevoGuid(): string {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return btoa(String.fromCharCode(...b)).replace(/=+$/, '');
+}
+
+/** Vuelve a indexar task_id → fila tras agregar o quitar actividades. */
+export function reindexar(m: ModeloP6) {
+  m.porId.clear();
+  m.task.filas.forEach((f, i) => m.porId.set(celda(m.task, f, 'task_id'), i));
+}
+
+export interface NuevaActividad {
+  wbsId: string;
+  codigo: string;
+  nombre: string;
+  /** TT_Task, TT_Mile (hito de inicio) o TT_FinMile (hito de fin). */
+  tipo: string;
+  durHoras: number;
+  usuario?: string;
+}
+
+/** Crea una actividad no iniciada. Devuelve su índice o un mensaje de error. */
+export function crearActividad(m: ModeloP6, n: NuevaActividad, log: Cambio[]): number | string {
+  const t = m.task;
+  const codigo = n.codigo.trim();
+  if (!codigo) return 'Falta el ID de la actividad.';
+  if (!n.nombre.trim()) return 'Falta el nombre.';
+  if (t.filas.some(f => celda(t, f, 'task_code').toLowerCase() === codigo.toLowerCase())) return `Ya existe una actividad con el ID ${codigo}.`;
+  const w = m.xer.tablas.get('PROJWBS');
+  if (!w?.filas.some(f => celda(w, f, 'wbs_id') === n.wbsId)) return 'Elige un WBS válido.';
+  // Plantilla: una actividad del mismo WBS (o cualquiera del proyecto)
+  const plantilla = t.filas.find(f => celda(t, f, 'wbs_id') === n.wbsId && celda(t, f, 'task_type') === 'TT_Task') || t.filas.find(f => celda(t, f, 'task_type') === 'TT_Task') || t.filas[0];
+  const fila = plantilla ? [...plantilla] : t.campos.map(() => '');
+  const put = (c: string, v: string) => ponerCelda(t, fila, c, v);
+  // Todo lo calculado o propio de la otra actividad se limpia
+  for (const c of t.campos) {
+    if (/(_date|_date2)$/.test(c) || /float|_qty$|qty_|cnt$/.test(c) || ['cstr_type', 'cstr_type2', 'rsrc_id', 'float_path', 'float_path_order', 'tmpl_guid', 'location_id', 'crt_path_num'].includes(c)) put(c, '');
+  }
+  const maxId = t.filas.reduce((mx, f) => Math.max(mx, Number(celda(t, f, 'task_id')) || 0), 0);
+  const ahora = aTexto(Math.floor(Date.now() / 60000) - new Date().getTimezoneOffset());
+  const esHito = n.tipo === 'TT_Mile' || n.tipo === 'TT_FinMile';
+  const dur = esHito ? 0 : Math.max(0, n.durHoras);
+  put('task_id', String(maxId + 1));
+  put('wbs_id', n.wbsId);
+  put('task_code', codigo);
+  put('task_name', n.nombre.trim());
+  put('task_type', n.tipo);
+  put('status_code', 'TK_NotStart');
+  put('phys_complete_pct', '0');
+  put('target_drtn_hr_cnt', num(dur));
+  put('remain_drtn_hr_cnt', num(dur));
+  for (const c of ['act_work_qty', 'remain_work_qty', 'target_work_qty', 'target_equip_qty', 'act_equip_qty', 'remain_equip_qty', 'act_this_per_work_qty', 'act_this_per_equip_qty']) put(c, '0');
+  put('driving_path_flag', 'N');
+  put('lock_plan_flag', 'N');
+  put('rev_fdbk_flag', 'N');
+  put('guid', nuevoGuid());
+  put('create_date', ahora);
+  put('update_date', ahora);
+  put('create_user', n.usuario || 'Trakciona');
+  put('update_user', n.usuario || 'Trakciona');
+  // Fechas planificadas en la fecha de datos (se recalculan al programar)
+  const cal = m.calendarios.get(celda(t, fila, 'clndr_id'));
+  const ini = cal ? cal.aInicio(m.fechaDatos) : m.fechaDatos;
+  const fin = cal && dur > 0 ? cal.sumar(ini, dur * 60, 'fin') : ini;
+  for (const c of ['target_start_date', 'early_start_date', 'restart_date']) put(c, aTexto(ini));
+  for (const c of ['target_end_date', 'early_end_date', 'reend_date']) put(c, aTexto(fin));
+  t.filas.push(fila);
+  reindexar(m);
+  registrar(log, codigo, 'Actividad creada', '', `${n.nombre.trim()} · ${esHito ? 'hito' : `${num(dur)} h`}`);
+  return t.filas.length - 1;
+}
+
+/** Elimina una actividad y todo lo que depende de ella (relaciones, recursos, códigos, notas, UDF). */
+export function eliminarActividad(m: ModeloP6, i: number, log: Cambio[]) {
+  const t = m.task;
+  const f = t.filas[i];
+  const id = celda(t, f, 'task_id');
+  const cod = celda(t, f, 'task_code');
+  let rels = 0;
+  const quitar = (nombre: string, pred: (tb: NonNullable<ReturnType<typeof m.xer.tablas.get>>, fila: string[]) => boolean) => {
+    const tb = m.xer.tablas.get(nombre);
+    if (!tb) return 0;
+    const antes = tb.filas.length;
+    tb.filas = tb.filas.filter(fila => !pred(tb, fila));
+    return antes - tb.filas.length;
+  };
+  rels = quitar('TASKPRED', (tb, fila) => celda(tb, fila, 'task_id') === id || celda(tb, fila, 'pred_task_id') === id);
+  const recursos = quitar('TASKRSRC', (tb, fila) => celda(tb, fila, 'task_id') === id);
+  quitar('TASKACTV', (tb, fila) => celda(tb, fila, 'task_id') === id);
+  quitar('TASKMEMO', (tb, fila) => celda(tb, fila, 'task_id') === id);
+  // Campos personalizados de actividades
+  const udfTipos = m.xer.tablas.get('UDFTYPE');
+  const deTask = new Set((udfTipos?.filas || []).filter(fu => celda(udfTipos!, fu, 'table_name') === 'TASK').map(fu => celda(udfTipos!, fu, 'udf_type_id')));
+  quitar('UDFVALUE', (tb, fila) => celda(tb, fila, 'fk_id') === id && deTask.has(celda(tb, fila, 'udf_type_id')));
+  t.filas.splice(i, 1);
+  reindexar(m);
+  registrar(log, cod, 'Actividad eliminada', `${celda(t, f, 'task_name')} · ${rels} relaciones · ${recursos} asignaciones`, '');
+}
