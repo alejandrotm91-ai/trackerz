@@ -18,6 +18,14 @@ import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xe
 const FILA = 22;
 const ANCHO_IZQ = 870;
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const FILTROS_ESTADO = [
+  ['todas', 'Todas las actividades'],
+  ['pendientes', 'No terminadas'],
+  ['encurso', 'En curso'],
+  ['criticas', 'Críticas (holgura ≤ 0)'],
+  ['longest', 'Longest path (ruta más larga)'],
+  ['soloMaster', 'Solo en Master (aún no en P6)'],
+] as const;
 const TIPOS_UDF: Record<string, string> = {
   FT_TEXT: 'Texto', FT_START_DATE: 'Fecha de inicio', FT_END_DATE: 'Fecha de fin', FT_FLOAT_2_DECIMALS: 'Número',
   FT_INT: 'Entero', FT_MONEY: 'Moneda', FT_STATICTYPE: 'Indicador',
@@ -115,6 +123,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [fuenteLB, setFuenteLB] = React.useState<'udf' | 'guardada' | 'planificada'>('udf');
   const lbFileRef = React.useRef<HTMLInputElement>(null);
   const [menuLB, setMenuLB] = React.useState(false);
+  const [menuFiltro, setMenuFiltro] = React.useState(false);
   React.useEffect(() => { leerLineaBase().then(lb => setLbGuardada(lb)); }, []);
   // Agrupación: WBS de P6 o vista de ejecución (clasificación del Master)
   const leerLS = <T,>(k: string, def: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : def; } catch { return def; } };
@@ -836,6 +845,32 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               );
             })}
             <div className="w-7 h-px bg-[#C3C3C3] my-1" />
+            <div className="relative">
+              <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Filtro de estado: ${FILTROS_ESTADO.find(([k]) => k === filtroEstado)?.[1] ?? ''}`}
+                className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroEstado !== 'todas' ? 'bg-[#E4E6F7] border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+                <svg width="22" height="16" viewBox="0 0 22 16"><path d="M3 2 H19 L13 8.5 V14 L9 12.5 V8.5 Z" fill={filtroEstado !== 'todas' ? '#312E81' : '#9AA6AD'} stroke="#3A3A3A" strokeWidth="0.8" /></svg>
+                <span className="text-[8.5px] leading-none">Filtro</span>
+              </button>
+              {menuFiltro && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setMenuFiltro(false)} />
+                  <div className="absolute left-[44px] top-0 z-[61] w-[250px] bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-[#F0F0F0] border-b border-[#D5D5D5] rounded-t-lg">
+                      <b>Filtro de estado</b>
+                      <button onClick={() => setMenuFiltro(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                    <div className="p-2 flex flex-col gap-0.5">
+                      {FILTROS_ESTADO.filter(([k]) => k !== 'soloMaster' || enEjecucion).map(([k, etq]) => (
+                        <label key={k} className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer ${filtroEstado === k ? 'border-[#8A8FC9] bg-[#EEF0FB] font-semibold' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
+                          <input type="radio" name="filtroEstado" checked={filtroEstado === k} onChange={() => { setFiltroEstado(k); if (k === 'criticas' || k === 'longest') setVerRelaciones(true); setMenuFiltro(false); }} />
+                          {etq}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             {([['criticas', 'Ruta crítica', 'Crítica', 'Solo las actividades críticas (holgura total ≤ 0)'], ['longest', 'Longest path', 'Longest', 'Solo la ruta más larga: la cadena de actividades que fija el fin del proyecto']] as const).map(([k, etq, corto, tt]) => (
               <button key={k} onClick={() => { setVista('actividades'); setFiltroEstado(f => (f === k ? 'todas' : k)); setVerRelaciones(true); }} title={`${etq}: ${tt}`}
                 className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroEstado === k && vista === 'actividades' ? 'bg-[#CD0000] border-[#CD0000] text-white shadow-sm' : 'border-transparent text-[#B30000] hover:bg-white/70'}`}>
@@ -927,14 +962,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     placeholder="Buscar ID o nombre (Enter)" className="pl-7 pr-2 py-1.5 border border-[#D5DEE2] rounded-lg w-56 outline-none focus:border-[#312E81]" />
                 </div>
                 {filtro && <button onClick={() => { setFiltro(''); setFiltroTmp(''); }} className="text-[#5A6A74] hover:text-red-600 cursor-pointer">Quitar búsqueda ✕</button>}
-                <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value as any)} className="border border-[#D5DEE2] rounded-lg px-2 py-1.5 bg-white">
-                  <option value="todas">Todas las actividades</option>
-                  <option value="pendientes">No terminadas</option>
-                  <option value="encurso">En curso</option>
-                  <option value="criticas">Críticas (holgura ≤ 0)</option>
-                  <option value="longest">Longest path (ruta más larga)</option>
-                  {enEjecucion && <option value="soloMaster">Solo en Master (aún no en P6)</option>}
-                </select>
                 {editable && (
                   <button onClick={() => setCreando(true)} className="px-2 py-1.5 rounded-lg bg-[#312E81] text-white font-bold flex items-center gap-1 cursor-pointer" title="Crear una actividad en el WBS seleccionado">
                     <Plus className="w-3.5 h-3.5" /> Nueva actividad
