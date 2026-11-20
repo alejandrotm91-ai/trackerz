@@ -243,7 +243,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const arbolEjec = React.useMemo(() => {
     const nodos = new Map<string, Nodo>();
     const raices: Nodo[] = [];
-    if (!m || !hayMaster) return { raices, nodos, enMaster: 0, sinMaster: 0, soloMaster: 0, excluidas: 0 };
+    if (!m || !hayMaster) return { raices, nodos, enMaster: 0, sinMaster: 0, soloMaster: 0, excluidas: 0, grupoDeAct: new Map<number, string>() };
     // Fuera de la vista de ejecución: el WBS «.D» del proyecto (actividades pendientes de confirmar
     // por el Ingeniero, con fechas provisionales) y todo lo que cuelga de él.
     const wbsExcluidos = new Set<string>();
@@ -270,12 +270,15 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     };
     let enMaster = 0, sinMaster = 0;
     const codigos = new Set<string>();
+    const grupoDeAct = new Map<number, string>();
     for (const v of vts) {
       codigos.add(v.cod);
       if (wbsExcluidos.has(v.wbs)) { excluidas++; continue; }
       const a = idxMaster.get(v.cod);
       if (!enAmbito(a, ambito)) continue;
-      if (a) { enMaster++; nodoDe(rutaDe(a, niveles)).tareas.push(v); } else { sinMaster++; nodoDe([SIN_MASTER]).tareas.push(v); }
+      const nodo = a ? (enMaster++, nodoDe(rutaDe(a, niveles))) : (sinMaster++, nodoDe([SIN_MASTER]));
+      nodo.tareas.push(v);
+      grupoDeAct.set(v.i, nodo.id);
     }
     let soloMaster = 0;
     for (const [id, a] of idxMaster) {
@@ -288,7 +291,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     const orden = (a: Nodo, b: Nodo) => (a.nombre === SIN_MASTER ? 1 : b.nombre === SIN_MASTER ? -1 : natural(a.nombre, b.nombre));
     raices.sort(orden);
     raices.forEach(r => resumirNodo(r, 0, undefined, false, orden));
-    return { raices, nodos, enMaster, sinMaster, soloMaster, excluidas };
+    return { raices, nodos, enMaster, sinMaster, soloMaster, excluidas, grupoDeAct };
   }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs, ambito]);
 
   const enEjecucion = agrupacion === 'ejecucion' && hayMaster;
@@ -536,6 +539,30 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     setCerradosF(prev => { const n = new Set(prev); cadena.forEach(c => n.delete(c)); return n; });
   };
 
+  // «Ir a» una actividad (desde sus relaciones): la selecciona, abre su grupo y la deja a la vista.
+  const [irPendiente, setIrPendiente] = React.useState<number | null>(null);
+  const irAActividad = (i: number) => {
+    const v = vts[i];
+    if (!v) return;
+    // Si el filtro la oculta, se quita el filtro
+    if ((filtro || filtroEstado !== 'todas') && !pasa(v)) {
+      setFiltro(''); setFiltroTmp(''); setFiltroEstado('todas');
+      mostrar(`Se quitó el filtro para mostrar ${v.cod}.`);
+    }
+    let grupo: string | undefined = v.wbs;
+    if (enEjecucion) {
+      grupo = arbolEjec.grupoDeAct.get(i);
+      if (!grupo) { setAgrupacion('wbs'); grupo = v.wbs; mostrar(`${v.cod} no está en la vista de ejecución (WBS «.D» o fuera del ámbito): se muestra en la WBS de P6.`); }
+    }
+    const arb = enEjecucion && arbolEjec.grupoDeAct.has(i) ? arbolEjec : arbolWbs;
+    const cadena: string[] = [];
+    for (let w: string | undefined = grupo; w && arb.nodos.has(w); w = arb.nodos.get(w)!.padre) cadena.push(w);
+    setAbiertos(prev => new Set([...prev, ...cadena]));
+    setCerradosF(prev => { const n = new Set(prev); cadena.forEach(c => n.delete(c)); return n; });
+    setSel(i);
+    setIrPendiente(i);
+  };
+
   // ── Filas visibles (virtualización) ──
   const desdeFila = Math.max(0, Math.floor(scrollTop / FILA) - 10);
   const hastaFila = Math.min(filas.length, Math.ceil((scrollTop + altoVista) / FILA) + 10);
@@ -564,6 +591,18 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     filas.forEach((fl, k) => { if (fl.tipo === 'act') mapa.set(fl.vt.i, k); });
     return mapa;
   }, [filas]);
+  // Tras «Ir a», cuando ya está la fila, centrarla en la tabla
+  React.useEffect(() => {
+    if (irPendiente == null) return;
+    const k = filaDeActividad.get(irPendiente);
+    const sc = scroller.current;
+    if (k === undefined || !sc) return;
+    sc.scrollTop = Math.max(0, 34 + k * FILA - sc.clientHeight / 2);
+    const v = vts[irPendiente];
+    if (v) verFecha(v.resto ?? v.ini);
+    setIrPendiente(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [irPendiente, filaDeActividad]);
   const enRojo = React.useCallback((v: Vt) => (filtroEstado === 'longest' ? v.lp && v.estado !== 'TK_Complete' : v.tf != null && v.tf <= 0), [filtroEstado]);
   // Resumen de cada WBS para su barra (solo las actividades que pasan el filtro)
   const resumenWbs = React.useMemo(() => {
@@ -1057,6 +1096,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               {sel != null && sel < vts.length && (
                 <PanelActividad m={m} i={sel} editable={editable} cambios={cambios} version={version} onCambio={marcarCambio} onCerrar={() => setSel(null)}
                   nombreWbs={(() => { const n = arbolWbs.nodos.get(vts[sel]?.wbs ?? ''); return n ? `${n.codCompleto} · ${n.nombre}` : ''; })()}
+                  onIr={irAActividad}
                   onNavegar={dir => {
                     // ▲▼ como en P6: pasa a la actividad anterior/siguiente de la tabla y la deja a la vista
                     const k0 = filaDeActividad.get(sel);
@@ -1441,8 +1481,8 @@ const NuevaActividadDialog: React.FC<{
 const PanelActividad: React.FC<{
   m: ModeloP6; i: number; editable: boolean; cambios: Cambio[]; version: number;
   onCambio: (log: Cambio[]) => void; onCerrar: () => void; onEliminar: () => void; onNavegar: (dir: 1 | -1) => void;
-  nombreWbs: string;
-}> = ({ m, i, editable, cambios, version, onCambio, onCerrar, onEliminar, onNavegar, nombreWbs }) => {
+  nombreWbs: string; onIr: (i: number) => void;
+}> = ({ m, i, editable, cambios, version, onCambio, onCerrar, onEliminar, onNavegar, nombreWbs, onIr }) => {
   const [pest, setPest] = React.useState<'general' | 'estado' | 'recursos' | 'relaciones' | 'notas' | 'cambios'>('estado');
   const [nuevoCod, setNuevoCod] = React.useState('');
   const [nuevoTipo, setNuevoTipo] = React.useState('FS');
@@ -1667,7 +1707,13 @@ const PanelActividad: React.FC<{
                   <tbody>
                     {rels.filter(r => r.rol === rol).map(r => (
                       <tr key={`${r.fila}-${version}`} className="border-t border-[#F0F2F4]">
-                        <td className="font-mono text-[10px] pr-2">{celda(t, t.filas[r.otra], 'task_code')}</td>
+                        <td className="font-mono text-[10px] pr-2 whitespace-nowrap">
+                          <button onClick={() => onIr(r.otra)} title={`Ir a ${celda(t, t.filas[r.otra], 'task_code')}`}
+                            className="inline-flex items-center justify-center w-4 h-4 mr-1 rounded border border-[#C9CDEB] text-[#312E81] hover:bg-[#312E81] hover:text-white cursor-pointer align-middle">
+                            <ArrowRight className="w-2.5 h-2.5" />
+                          </button>
+                          {celda(t, t.filas[r.otra], 'task_code')}
+                        </td>
                         <td className="truncate max-w-[220px] pr-2" title={celda(t, t.filas[r.otra], 'task_name')}>{celda(t, t.filas[r.otra], 'task_name')}</td>
                         <td>
                           <select disabled={!editable} defaultValue={r.tipo} className="border border-[#D5DEE2] rounded px-1 text-[11px]"
