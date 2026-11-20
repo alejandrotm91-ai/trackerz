@@ -1036,6 +1036,24 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               </div>
               {sel != null && sel < vts.length && (
                 <PanelActividad m={m} i={sel} editable={editable} cambios={cambios} version={version} onCambio={marcarCambio} onCerrar={() => setSel(null)}
+                  nombreWbs={(() => { const n = arbolWbs.nodos.get(vts[sel]?.wbs ?? ''); return n ? `${n.codCompleto} · ${n.nombre}` : ''; })()}
+                  onNavegar={dir => {
+                    // ▲▼ como en P6: pasa a la actividad anterior/siguiente de la tabla y la deja a la vista
+                    const k0 = filaDeActividad.get(sel);
+                    if (k0 === undefined) return;
+                    for (let k = k0 + dir; k >= 0 && k < filas.length; k += dir) {
+                      const fl = filas[k];
+                      if (fl.tipo !== 'act') continue;
+                      setSel(fl.vt.i);
+                      const sc = scroller.current;
+                      if (sc) {
+                        const y = 34 + k * FILA;
+                        if (y < sc.scrollTop + 34) sc.scrollTop = y - 34;
+                        else if (y + FILA > sc.scrollTop + sc.clientHeight) sc.scrollTop = y + FILA - sc.clientHeight;
+                      }
+                      break;
+                    }
+                  }}
                   onEliminar={() => {
                     const t = m.task, f = t.filas[sel];
                     const cod = celda(t, f, 'task_code');
@@ -1402,9 +1420,10 @@ const NuevaActividadDialog: React.FC<{
 /** Panel inferior con los detalles de la actividad (como el de P6). */
 const PanelActividad: React.FC<{
   m: ModeloP6; i: number; editable: boolean; cambios: Cambio[]; version: number;
-  onCambio: (log: Cambio[]) => void; onCerrar: () => void; onEliminar: () => void;
-}> = ({ m, i, editable, cambios, version, onCambio, onCerrar, onEliminar }) => {
-  const [pest, setPest] = React.useState<'estado' | 'relaciones' | 'recursos' | 'cambios'>('estado');
+  onCambio: (log: Cambio[]) => void; onCerrar: () => void; onEliminar: () => void; onNavegar: (dir: 1 | -1) => void;
+  nombreWbs: string;
+}> = ({ m, i, editable, cambios, version, onCambio, onCerrar, onEliminar, onNavegar, nombreWbs }) => {
+  const [pest, setPest] = React.useState<'general' | 'estado' | 'recursos' | 'relaciones' | 'notas' | 'cambios'>('estado');
   const [nuevoCod, setNuevoCod] = React.useState('');
   const [nuevoTipo, setNuevoTipo] = React.useState('FS');
   const [nuevoLag, setNuevoLag] = React.useState('0');
@@ -1448,63 +1467,174 @@ const PanelActividad: React.FC<{
   );
   const inp = 'border border-[#D5DEE2] rounded px-1.5 py-1 text-[11.5px] text-[#14212A] bg-white disabled:bg-[#F5F8F9] disabled:text-[#5A6A74]';
 
+  // Valores al estilo de la pestaña «Status» de P6
+  const num = (c: string) => Number(g(c)) || 0;
+  const d = (h: number) => dias(h, hd);
+  const actIni = aMinutos(g('act_start_date')), actFin = aMinutos(g('act_end_date'));
+  const durReal = actIni != null && cal ? cal.entre(actIni, estado === 'TK_Complete' && actFin != null ? actFin : Math.max(actIni, m.fechaDatos)) / 60 : 0;
+  const durRest = estado === 'TK_Complete' ? 0 : num('remain_drtn_hr_cnt');
+  const proyecto = (() => { const pj = m.xer.tablas.get('PROJECT'); return pj?.filas[0] ? celda(pj, pj.filas[0], 'proj_short_name') : ''; })();
+  const memos = React.useMemo(() => {
+    const tm = m.xer.tablas.get('TASKMEMO');
+    const mt = m.xer.tablas.get('MEMOTYPE');
+    const tipos = new Map((mt?.filas || []).map(fr => [celda(mt!, fr, 'memo_type_id'), celda(mt!, fr, 'memo_type')]));
+    const limpiar = (h: string) => h.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\x7f\x7f/g, '\n').trim();
+    return (tm?.filas || []).filter(fr => celda(tm!, fr, 'task_id') === g('task_id')).map(fr => ({ tipo: tipos.get(celda(tm!, fr, 'memo_type_id')) || 'Nota', texto: limpiar(celda(tm!, fr, 'task_memo')) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m, i, version]);
+  const fechaPorDefecto = (campoTemprano: string, hora: string) => {
+    // Al marcar «Comenzada/Terminada», P6 propone la fecha temprana (sin pasar de la fecha de datos)
+    const t0 = aMinutos(g(campoTemprano));
+    const v = t0 != null && t0 <= m.fechaDatos ? t0 : m.fechaDatos;
+    return `${aTexto(v).slice(0, 10)} ${hora}`;
+  };
+
+  // Estilo P6: cajas grises con título y campos blancos
+  const Caja: React.FC<{ titulo: string; children: React.ReactNode; className?: string }> = ({ titulo, children, className }) => (
+    <div className={`border border-[#C3C3C3] bg-[#F4F4F4] ${className ?? ''}`}>
+      <div className="px-2 py-[3px] text-[11px] text-[#1A1A1A] border-b border-[#C3C3C3] bg-[#EAEAEA]">{titulo}</div>
+      <div className="px-3 py-1.5 grid gap-[5px]">{children}</div>
+    </div>
+  );
+  const Fila: React.FC<{ etq: React.ReactNode; children: React.ReactNode }> = ({ etq, children }) => (
+    <div className="grid grid-cols-[112px_1fr] items-center gap-2 text-[11px] text-[#1A1A1A]"><span>{etq}</span>{children}</div>
+  );
+  const caja = 'h-[22px] w-full border border-[#A9A9A9] bg-white px-1.5 text-[11px] text-[#1A1A1A] outline-none focus:border-[#3C7DE0] disabled:bg-[#F3F3F3] disabled:text-[#6B6B6B]';
+  const soloLectura = 'h-[22px] w-full border border-[#BDBDBD] bg-[#EFEFEF] px-1.5 text-[11px] text-[#1A1A1A] flex items-center truncate';
+  const tabsP6: [typeof pest, string][] = [['general', 'General'], ['estado', 'Estado'], ['recursos', `Recursos (${asignaciones.length})`], ['relaciones', `Relaciones (${rels.length})`], ['notas', `Notas (${memos.length})`], ['cambios', `Cambios (${cambios.length})`]];
+
   return (
-    <div className="h-[260px] shrink-0 bg-white border-t-2 border-[#312E81] flex flex-col">
-      <div className="flex items-center gap-1 px-3 pt-1.5 border-b border-[#D5DEE2] text-[11.5px]">
-        <span className="font-bold mr-2 truncate max-w-[420px]" title={g('task_name')}><span className="font-mono text-[#5A6A74]">{g('task_code')}</span> · {g('task_name')}</span>
-        {(['estado', 'relaciones', 'recursos', 'cambios'] as const).map(p => (
-          <button key={p} onClick={() => setPest(p)} className={`px-2.5 py-1 rounded-t cursor-pointer ${pest === p ? 'bg-[#312E81] text-white font-bold' : 'text-[#5A6A74] hover:text-[#14212A]'}`}>
-            {p === 'estado' ? 'General y avance' : p === 'relaciones' ? `Relaciones (${rels.length})` : p === 'recursos' ? `Recursos (${asignaciones.length})` : `Cambios (${cambios.length})`}
-          </button>
+    <div className="h-[318px] shrink-0 bg-[#F0F0F0] border-t-2 border-[#9A9A9A] flex flex-col">
+      {/* Pestañas como en P6 */}
+      <div className="flex items-end gap-0 px-1 pt-1 border-b border-[#B5B5B5] bg-[#E1E1E1] text-[11px]">
+        {tabsP6.map(([k, etq]) => (
+          <button key={k} onClick={() => setPest(k)}
+            className={`px-2.5 py-[3px] border border-b-0 -mb-px cursor-pointer ${pest === k ? 'bg-[#F0F0F0] border-[#B5B5B5] text-[#1A1A1A] font-semibold' : 'bg-[#E1E1E1] border-transparent text-[#3A3A3A] hover:bg-[#EBEBEB]'}`}>{etq}</button>
         ))}
-        {editable && (
-          <button onClick={onEliminar} className="ml-auto px-2 py-1 rounded text-red-700 hover:bg-red-50 flex items-center gap-1 cursor-pointer" title="Eliminar esta actividad">
-            <Trash2 className="w-3.5 h-3.5" /> Eliminar
-          </button>
-        )}
-        <button onClick={onCerrar} className={`${editable ? '' : 'ml-auto '}p-1 hover:bg-[#F5F8F9] rounded cursor-pointer`}><X className="w-3.5 h-3.5" /></button>
+        <div className="ml-auto flex items-center gap-1 pb-0.5">
+          {editable && (
+            <button onClick={onEliminar} className="px-2 py-0.5 rounded text-red-700 hover:bg-red-50 flex items-center gap-1 cursor-pointer" title="Eliminar esta actividad">
+              <Trash2 className="w-3.5 h-3.5" /> Eliminar
+            </button>
+          )}
+          <button onClick={onCerrar} className="p-1 hover:bg-white rounded cursor-pointer" title="Cerrar"><X className="w-3.5 h-3.5" /></button>
+        </div>
       </div>
-      <div className="flex-1 overflow-auto p-3">
+      {/* Cabecera: actividad, nombre y proyecto */}
+      <div className="flex items-center gap-3 px-2 py-1.5 text-[11px] text-[#1A1A1A]" key={`cab-${i}-${version}`}>
+        <div className="flex flex-col border border-[#A9A9A9] bg-[#F7F7F7]">
+          <button onClick={() => onNavegar(-1)} title="Actividad anterior" className="px-3 leading-[10px] text-[9px] hover:bg-white cursor-pointer">▲</button>
+          <button onClick={() => onNavegar(1)} title="Actividad siguiente" className="px-3 leading-[10px] text-[9px] hover:bg-white cursor-pointer border-t border-[#D0D0D0]">▼</button>
+        </div>
+        <span>Actividad</span>
+        <div className={`${soloLectura} !w-[230px] font-mono`}>{g('task_code')}</div>
+        <input className={`${caja} !w-auto flex-1 min-w-[200px]`} disabled={!editable} defaultValue={g('task_name')} title="Nombre de la actividad"
+          onBlur={e => e.target.value !== g('task_name') && editar({ nombre: e.target.value })}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+        <span className="ml-4">Proyecto</span>
+        <div className={`${soloLectura} !w-[260px]`}>{proyecto}</div>
+      </div>
+      <div className="flex-1 overflow-auto px-2 pb-2">
         {pest === 'estado' && (
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3" key={`${i}-${version}`}>
-            <Campo etq="Nombre">
-              <input className={inp} disabled={!editable} defaultValue={g('task_name')} onBlur={e => e.target.value !== g('task_name') && editar({ nombre: e.target.value })} />
-            </Campo>
-            <Campo etq="Estado"><div className="py-1 text-[11.5px] text-[#14212A] font-semibold">{ESTADO_TXT[estado] || estado}</div></Campo>
-            <Campo etq={`Duración original (días de ${hd} h)`}>
-              <input type="number" step="0.5" min="0" className={inp} disabled={!editable || estado === 'TK_Complete'} defaultValue={(Number(g('target_drtn_hr_cnt')) || 0) / hd}
-                onBlur={e => { const v = Number(e.target.value) * hd; if (v !== Number(g('target_drtn_hr_cnt'))) editar({ durOriginal: v }); }} />
-            </Campo>
-            <Campo etq="Duración restante (días)">
-              <input type="number" step="0.5" min="0" className={inp} disabled={!editable || estado === 'TK_Complete'} defaultValue={(Number(g('remain_drtn_hr_cnt')) || 0) / hd}
-                onBlur={e => { const v = Number(e.target.value) * hd; if (v !== Number(g('remain_drtn_hr_cnt'))) editar({ durRestante: v }); }} />
-            </Campo>
-            <Campo etq="% de avance físico">
-              <input type="number" min="0" max="100" step="1" className={inp} disabled={!editable} defaultValue={Math.round((Number(g('phys_complete_pct')) || 0) * 10) / 10}
-                onBlur={e => { const v = Number(e.target.value); if (v !== Number(g('phys_complete_pct'))) editar({ avance: v }); }} />
-            </Campo>
-            <Campo etq="Calendario"><div className="py-1 text-[11.5px] text-[#14212A] truncate">{cal?.nombre || '—'}</div></Campo>
-            <Campo etq="Inicio real">
-              <input type="date" className={inp} disabled={!editable} defaultValue={fechaInput(g('act_start_date'))}
-                onChange={e => editar({ inicioReal: e.target.value ? `${e.target.value} 08:00` : null })} />
-            </Campo>
-            <Campo etq="Fin real">
-              <input type="date" className={inp} disabled={!editable || estado === 'TK_NotStart' && !g('act_start_date')} defaultValue={fechaInput(g('act_end_date'))}
-                onChange={e => editar({ finReal: e.target.value ? `${e.target.value} 16:00` : null })} />
-            </Campo>
-            <Campo etq="Restricción">
-              <select className={inp} disabled={!editable} defaultValue={g('cstr_type')}
-                onChange={e => editar({ restriccion: e.target.value ? { tipo: e.target.value, fecha: g('cstr_date') || aTexto(m.fechaDatos) } : null })}>
-                {RESTRICCIONES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-            </Campo>
-            <Campo etq="Fecha de restricción">
-              <input type="date" className={inp} disabled={!editable || !g('cstr_type') || g('cstr_type') === 'CS_ALAP'} defaultValue={fechaInput(g('cstr_date'))}
-                onChange={e => e.target.value && editar({ restriccion: { tipo: g('cstr_type'), fecha: `${e.target.value} ${g('cstr_type').startsWith('CS_ME') ? '16:00' : '08:00'}` } })} />
-            </Campo>
-            <Campo etq="Inicio / fin temprano"><div className="py-1 text-[11.5px] text-[#14212A]">{fCorta(aMinutos(g('early_start_date')))} → {fCorta(aMinutos(g('early_end_date')))}</div></Campo>
-            <Campo etq="Inicio / fin tardío"><div className="py-1 text-[11.5px] text-[#14212A]">{fCorta(aMinutos(g('late_start_date')))} → {fCorta(aMinutos(g('late_end_date')))}</div></Campo>
-            <Campo etq="Holgura total / libre (días)"><div className="py-1 text-[11.5px] text-[#14212A]">{g('total_float_hr_cnt') === '' ? '—' : dias(Number(g('total_float_hr_cnt')), hd)} / {g('free_float_hr_cnt') === '' ? '—' : dias(Number(g('free_float_hr_cnt')), hd)}</div></Campo>
+          <div className="grid grid-cols-[minmax(260px,1fr)_minmax(560px,2.2fr)_minmax(260px,1fr)] gap-2 h-full" key={`${i}-${version}`}>
+            <div className="flex flex-col gap-2">
+              <Caja titulo={`Duración (días de ${hd} h)`}>
+                <Fila etq="Original">
+                  <input type="number" step="0.5" min="0" className={`${caja} text-right`} disabled={!editable || estado === 'TK_Complete'} defaultValue={num('target_drtn_hr_cnt') / hd}
+                    onBlur={e => { const v = Number(e.target.value) * hd; if (v !== num('target_drtn_hr_cnt')) editar({ durOriginal: v }); }} />
+                </Fila>
+                <Fila etq="Real"><div className={`${soloLectura} justify-end`}>{d(durReal)}</div></Fila>
+                <Fila etq="Restante">
+                  <input type="number" step="0.5" min="0" className={`${caja} text-right`} disabled={!editable || estado === 'TK_Complete'} defaultValue={durRest / hd}
+                    onBlur={e => { const v = Number(e.target.value) * hd; if (v !== num('remain_drtn_hr_cnt')) editar({ durRestante: v }); }} />
+                </Fila>
+                <Fila etq="Al completar"><div className={`${soloLectura} justify-end`}>{d(durReal + durRest)}</div></Fila>
+              </Caja>
+              <Caja titulo="Holguras (días)">
+                <Fila etq="Holgura total"><div className={`${soloLectura} justify-end`}>{g('total_float_hr_cnt') === '' || estado === 'TK_Complete' ? '' : d(num('total_float_hr_cnt'))}</div></Fila>
+                <Fila etq="Holgura libre"><div className={`${soloLectura} justify-end`}>{g('free_float_hr_cnt') === '' || estado === 'TK_Complete' ? '' : d(num('free_float_hr_cnt'))}</div></Fila>
+              </Caja>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Caja titulo={`Estado · ${ESTADO_TXT[estado] || estado}`}>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-[5px]">
+                  <Fila etq={<label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" disabled={!editable} checked={!!g('act_start_date')}
+                    onChange={e => editar({ inicioReal: e.target.checked ? fechaPorDefecto('early_start_date', '08:00') : null, ...(e.target.checked ? {} : { finReal: null }) })} /> Comenzada</label>}>
+                    <input type="date" className={caja} disabled={!editable || !g('act_start_date')} defaultValue={fechaInput(g('act_start_date'))}
+                      onChange={e => e.target.value && editar({ inicioReal: `${e.target.value} 08:00` })} />
+                  </Fila>
+                  <Fila etq="% físico">
+                    <input type="number" min="0" max="100" step="1" className={`${caja} text-right`} disabled={!editable} defaultValue={Math.round(num('phys_complete_pct') * 10) / 10}
+                      onBlur={e => { const v = Number(e.target.value); if (v !== num('phys_complete_pct')) editar({ avance: v }); }} />
+                  </Fila>
+                  <Fila etq={<label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" disabled={!editable || !g('act_start_date')} checked={!!g('act_end_date')}
+                    onChange={e => editar({ finReal: e.target.checked ? fechaPorDefecto('early_end_date', '16:00') : null })} /> Terminada</label>}>
+                    <input type="date" className={caja} disabled={!editable || !g('act_end_date')} defaultValue={fechaInput(g('act_end_date'))}
+                      onChange={e => e.target.value && editar({ finReal: `${e.target.value} 16:00` })} />
+                  </Fila>
+                  <Fila etq="Suspender"><div className={soloLectura}>{fNum(aMinutos(g('suspend_date')))}</div></Fila>
+                  <Fila etq="Fin esperado"><div className={soloLectura}>{fNum(aMinutos(g('expect_end_date')))}</div></Fila>
+                  <Fila etq="Reanudar"><div className={soloLectura}>{fNum(aMinutos(g('resume_date')))}</div></Fila>
+                </div>
+              </Caja>
+              <Caja titulo="Restricciones">
+                <div className="grid grid-cols-2 gap-x-6 gap-y-[5px]">
+                  <Fila etq="Primaria">
+                    <select className={caja} disabled={!editable} defaultValue={g('cstr_type')}
+                      onChange={e => editar({ restriccion: e.target.value ? { tipo: e.target.value, fecha: g('cstr_date') || aTexto(m.fechaDatos) } : null })}>
+                      {RESTRICCIONES.map(([v, l]) => <option key={v} value={v}>{v ? l : '< Ninguna >'}</option>)}
+                    </select>
+                  </Fila>
+                  <Fila etq="Secundaria">
+                    <select className={caja} disabled defaultValue={g('cstr_type2')}>
+                      <option value="">{'< Ninguna >'}</option>
+                      {RESTRICCIONES.filter(([v]) => v).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      {g('cstr_type2') && !RESTRICCIONES.some(([v]) => v === g('cstr_type2')) && <option value={g('cstr_type2')}>{g('cstr_type2')}</option>}
+                    </select>
+                  </Fila>
+                  <Fila etq="Fecha">
+                    <input type="date" className={caja} disabled={!editable || !g('cstr_type') || g('cstr_type') === 'CS_ALAP'} defaultValue={fechaInput(g('cstr_date'))}
+                      onChange={e => e.target.value && editar({ restriccion: { tipo: g('cstr_type'), fecha: `${e.target.value} ${g('cstr_type').startsWith('CS_ME') ? '16:00' : '08:00'}` } })} />
+                  </Fila>
+                  <Fila etq="Fecha"><div className={soloLectura}>{fNum(aMinutos(g('cstr_date2')))}</div></Fila>
+                </div>
+              </Caja>
+            </div>
+            <Caja titulo="Unidades de trabajo (h)" className="self-start">
+              {[['Presupuestadas', num('target_work_qty')], ['Reales', num('act_work_qty')], ['Restantes', num('remain_work_qty')], ['Al completar', num('act_work_qty') + num('remain_work_qty')]].map(([etq, v]) => (
+                <Fila key={etq as string} etq={etq}><div className={`${soloLectura} justify-end`}>{(v as number).toLocaleString('es-ES', { maximumFractionDigits: 2 })}</div></Fila>
+              ))}
+            </Caja>
+          </div>
+        )}
+        {pest === 'general' && (
+          <div className="grid grid-cols-3 gap-2" key={`g-${i}-${version}`}>
+            <Caja titulo="Actividad">
+              <Fila etq="Tipo">{<div className={soloLectura}>{({ TT_Task: 'Tarea dependiente', TT_Rsrc: 'Dependiente de recurso', TT_Mile: 'Hito de inicio', TT_FinMile: 'Hito de fin', TT_LOE: 'Nivel de esfuerzo', TT_WBS: 'Resumen WBS' } as Record<string, string>)[g('task_type')] || g('task_type')}</div>}</Fila>
+              <Fila etq="Tipo de duración"><div className={soloLectura}>{({ DT_FixedDUR2: 'Duración y unidades fijas', DT_FixedDrtn: 'Duración y unidades/tiempo fijas', DT_FixedQty: 'Unidades fijas', DT_FixedRate: 'Unidades/tiempo fijas' } as Record<string, string>)[g('duration_type')] || g('duration_type')}</div></Fila>
+              <Fila etq="Tipo de % completado"><div className={soloLectura}>{({ CP_Phys: 'Físico', CP_Drtn: 'Duración', CP_Units: 'Unidades' } as Record<string, string>)[g('complete_pct_type')] || g('complete_pct_type')}</div></Fila>
+              <Fila etq="Calendario"><div className={soloLectura} title={cal?.nombre}>{cal?.nombre || '—'}</div></Fila>
+            </Caja>
+            <Caja titulo="WBS">
+              <Fila etq="WBS"><div className={soloLectura} title={nombreWbs}>{nombreWbs}</div></Fila>
+              <Fila etq="Ruta crítica"><div className={soloLectura}>{g('driving_path_flag') === 'Y' ? 'En el Longest path' : (g('total_float_hr_cnt') !== '' && num('total_float_hr_cnt') <= 0 && estado !== 'TK_Complete') ? 'Crítica (holgura ≤ 0)' : 'No crítica'}</div></Fila>
+              <Fila etq="Creada"><div className={soloLectura}>{fNum(aMinutos(g('create_date')))}{g('create_user') ? ` · ${g('create_user')}` : ''}</div></Fila>
+              <Fila etq="Modificada"><div className={soloLectura}>{fNum(aMinutos(g('update_date')))}{g('update_user') ? ` · ${g('update_user')}` : ''}</div></Fila>
+            </Caja>
+            <Caja titulo="Fechas">
+              <Fila etq="Inicio / fin temprano"><div className={soloLectura}>{fNum(aMinutos(g('early_start_date')))} → {fNum(aMinutos(g('early_end_date')))}</div></Fila>
+              <Fila etq="Inicio / fin tardío"><div className={soloLectura}>{fNum(aMinutos(g('late_start_date')))} → {fNum(aMinutos(g('late_end_date')))}</div></Fila>
+              <Fila etq="Planificadas"><div className={soloLectura}>{fNum(aMinutos(g('target_start_date')))} → {fNum(aMinutos(g('target_end_date')))}</div></Fila>
+              <Fila etq="Reales"><div className={soloLectura}>{fNum(actIni)}{actFin != null ? ` → ${fNum(actFin)}` : ''}</div></Fila>
+            </Caja>
+          </div>
+        )}
+        {pest === 'notas' && (
+          <div className="grid gap-2 text-[11.5px]">
+            {memos.map((mm, k) => (
+              <Caja key={k} titulo={mm.tipo}><div className="whitespace-pre-wrap text-[#1A1A1A]">{mm.texto || '(vacía)'}</div></Caja>
+            ))}
+            {!memos.length && <div className="text-center text-[#5A6A74] py-6">Esta actividad no tiene notas en el XER.</div>}
           </div>
         )}
         {pest === 'relaciones' && (
