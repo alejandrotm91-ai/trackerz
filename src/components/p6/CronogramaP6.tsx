@@ -220,8 +220,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
       if (filtrando && !tiene(n)) return;
       out.push({ tipo: 'wbs', nodo: n, nivel: n.nivel });
       if (!filtrando && !abiertos.has(n.id)) return;
-      for (const h of n.hijos) recorrer(h);
+      // Primero las actividades propias del WBS y después los sub-WBS.
       for (const v of n.tareas) if (!filtrando || pasa(v)) out.push({ tipo: 'act', vt: v, nivel: n.nivel + 1 });
+      for (const h of n.hijos) recorrer(h);
     };
     arbol.raices.forEach(recorrer);
     return out;
