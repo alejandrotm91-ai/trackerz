@@ -12,12 +12,17 @@ import type { Actividad } from '../../types';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, type ModeloP6 } from '../../utils/p6/modelo';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
-import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
+import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
 
 const FILA = 22;
 const ANCHO_IZQ = 870;
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const TIPOS_UDF: Record<string, string> = {
+  FT_TEXT: 'Texto', FT_START_DATE: 'Fecha de inicio', FT_END_DATE: 'Fecha de fin', FT_FLOAT_2_DECIMALS: 'Número',
+  FT_INT: 'Entero', FT_MONEY: 'Moneda', FT_STATICTYPE: 'Indicador',
+};
+const INDICADORES_UDF: Record<string, string> = { UDF_G0: 'Indicador 0 (UDF_G0)', UDF_G1: 'Indicador 1 (UDF_G1)', UDF_G2: 'Indicador 2 (UDF_G2)', UDF_G3: 'Indicador 3 (UDF_G3)', UDF_G4: 'Indicador 4 (UDF_G4)' };
 const ESTADO_TXT: Record<string, string> = { TK_NotStart: 'No iniciada', TK_Active: 'En curso', TK_Complete: 'Terminada' };
 const RESTRICCIONES: [string, string][] = [
   ['', 'Sin restricción'],
@@ -1483,7 +1488,9 @@ const PanelActividad: React.FC<{
   onCambio: (log: Cambio[]) => void; onCerrar: () => void; onEliminar: () => void; onNavegar: (dir: 1 | -1) => void;
   nombreWbs: string; onIr: (i: number) => void;
 }> = ({ m, i, editable, cambios, version, onCambio, onCerrar, onEliminar, onNavegar, nombreWbs, onIr }) => {
-  const [pest, setPest] = React.useState<'general' | 'estado' | 'recursos' | 'relaciones' | 'notas' | 'cambios'>('estado');
+  const [pest, setPest] = React.useState<'general' | 'estado' | 'recursos' | 'relaciones' | 'notas' | 'cambios' | 'udf'>('estado');
+  const [udfBusca, setUdfBusca] = React.useState('');
+  const [udfSoloConValor, setUdfSoloConValor] = React.useState(false);
   const [nuevoCod, setNuevoCod] = React.useState('');
   const [nuevoTipo, setNuevoTipo] = React.useState('FS');
   const [nuevoLag, setNuevoLag] = React.useState('0');
@@ -1542,6 +1549,9 @@ const PanelActividad: React.FC<{
     return (tm?.filas || []).filter(fr => celda(tm!, fr, 'task_id') === g('task_id')).map(fr => ({ tipo: tipos.get(celda(tm!, fr, 'memo_type_id')) || 'Nota', texto: limpiar(celda(tm!, fr, 'task_memo')) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [m, i, version]);
+  const udfs = React.useMemo(() => udfsDeActividad(m, i),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [m, i, version]);
   const fechaPorDefecto = (campoTemprano: string, hora: string) => {
     // Al marcar «Comenzada/Terminada», P6 propone la fecha temprana (sin pasar de la fecha de datos)
     const t0 = aMinutos(g(campoTemprano));
@@ -1561,7 +1571,7 @@ const PanelActividad: React.FC<{
   );
   const caja = 'h-[22px] w-full border border-[#A9A9A9] bg-white px-1.5 text-[11px] text-[#1A1A1A] outline-none focus:border-[#3C7DE0] disabled:bg-[#F3F3F3] disabled:text-[#6B6B6B]';
   const soloLectura = 'h-[22px] w-full border border-[#BDBDBD] bg-[#EFEFEF] px-1.5 text-[11px] text-[#1A1A1A] flex items-center truncate';
-  const tabsP6: [typeof pest, string][] = [['general', 'General'], ['estado', 'Estado'], ['recursos', `Recursos (${asignaciones.length})`], ['relaciones', `Relaciones (${rels.length})`], ['notas', `Notas (${memos.length})`], ['cambios', `Cambios (${cambios.length})`]];
+  const tabsP6: [typeof pest, string][] = [['general', 'General'], ['estado', 'Estado'], ['recursos', `Recursos (${asignaciones.length})`], ['relaciones', `Relaciones (${rels.length})`], ['notas', `Notas (${memos.length})`], ['cambios', `Cambios (${cambios.length})`], ['udf', `User Defined (${udfs.filter(u => u.valor !== '').length})`]];
 
   return (
     <div className="h-[318px] shrink-0 bg-[#F0F0F0] border-t-2 border-[#9A9A9A] flex flex-col">
@@ -1687,6 +1697,53 @@ const PanelActividad: React.FC<{
               <Fila etq="Planificadas"><div className={soloLectura}>{fNum(aMinutos(g('target_start_date')))} → {fNum(aMinutos(g('target_end_date')))}</div></Fila>
               <Fila etq="Reales"><div className={soloLectura}>{fNum(actIni)}{actFin != null ? ` → ${fNum(actFin)}` : ''}</div></Fila>
             </Caja>
+          </div>
+        )}
+        {pest === 'udf' && (
+          <div className="flex flex-col gap-1.5 text-[11px]" key={`udf-${i}-${version}`}>
+            <div className="flex items-center gap-3">
+              <input value={udfBusca} onChange={e => setUdfBusca(e.target.value)} placeholder="Buscar campo…" className={`${caja} !w-56`} />
+              <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={udfSoloConValor} onChange={e => setUdfSoloConValor(e.target.checked)} /> Solo con valor</label>
+              <span className="text-[#5A6A74]">{udfs.length} campos de usuario de actividades{editable ? ' · se guardan al salir del campo' : ''}</span>
+            </div>
+            <table className="w-full border-collapse bg-white border border-[#C3C3C3]">
+              <thead className="bg-[#EAEAEA] text-[10.5px] text-[#3A3A3A] text-left sticky top-0">
+                <tr><th className="px-2 py-1 border-b border-[#C3C3C3] w-[38%]">Campo</th><th className="px-2 border-b border-[#C3C3C3] w-[14%]">Tipo</th><th className="px-2 border-b border-[#C3C3C3]">Valor</th></tr>
+              </thead>
+              <tbody>
+                {udfs.filter(u => (!udfSoloConValor || u.valor !== '') && (!udfBusca || u.etiqueta.toLowerCase().includes(udfBusca.toLowerCase()))).map(u => {
+                  const guardar = (nuevo: string) => {
+                    if (nuevo === u.valor) return;
+                    const l = log();
+                    const err = ponerUdf(m, i, u.id, nuevo, l);
+                    if (err) window.alert(err); else onCambio(l);
+                  };
+                  const esFecha = u.tipo === 'FT_START_DATE' || u.tipo === 'FT_END_DATE';
+                  const esNum = u.tipo === 'FT_FLOAT_2_DECIMALS' || u.tipo === 'FT_INT' || u.tipo === 'FT_MONEY';
+                  return (
+                    <tr key={u.id} className="border-t border-[#ECECEC] hover:bg-[#F7F9FA]">
+                      <td className="px-2 py-0.5">{u.etiqueta}</td>
+                      <td className="px-2 text-[#5A6A74]">{TIPOS_UDF[u.tipo] || u.tipo}</td>
+                      <td className="px-2 py-0.5">
+                        {u.tipo === 'FT_STATICTYPE' ? (
+                          <select className={`${caja} !w-48`} disabled={!editable} defaultValue={u.valor} onChange={e => guardar(e.target.value)}>
+                            <option value="">—</option>
+                            {Object.entries(INDICADORES_UDF).map(([k, etq]) => <option key={k} value={k}>{etq}</option>)}
+                          </select>
+                        ) : esFecha ? (
+                          <input type="date" className={`${caja} !w-48`} disabled={!editable} defaultValue={u.valor.slice(0, 10)}
+                            onChange={e => guardar(e.target.value ? `${e.target.value} ${u.tipo === 'FT_END_DATE' ? '16:00' : '08:00'}` : '')} />
+                        ) : (
+                          <input className={`${caja} ${esNum ? '!w-48 text-right' : ''}`} disabled={!editable} defaultValue={u.valor} inputMode={esNum ? 'decimal' : undefined}
+                            onBlur={e => guardar(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!udfs.length && <tr><td colSpan={3} className="text-center text-[#5A6A74] py-4">Este XER no tiene campos de usuario para actividades.</td></tr>}
+              </tbody>
+            </table>
           </div>
         )}
         {pest === 'notas' && (

@@ -455,3 +455,76 @@ export function moverWbs(m: ModeloP6, id: string, accion: 'arriba' | 'abajo' | '
   registrar(log, etq, 'Nivel', nombreWbs(m, padre), abuelo ? nombreWbs(m, abuelo) : 'proyecto');
   return null;
 }
+
+// ── Campos definidos por el usuario (User Defined Fields) de las actividades ──
+
+export interface CampoUdf {
+  id: string;
+  etiqueta: string;
+  /** FT_TEXT, FT_START_DATE, FT_END_DATE, FT_FLOAT_2_DECIMALS, FT_INT, FT_MONEY, FT_STATICTYPE (indicador) */
+  tipo: string;
+  valor: string;
+}
+
+/** Columna de UDFVALUE donde se guarda cada tipo de dato. */
+export function columnaUdf(tipo: string): 'udf_date' | 'udf_number' | 'udf_text' {
+  if (tipo === 'FT_START_DATE' || tipo === 'FT_END_DATE') return 'udf_date';
+  if (tipo === 'FT_TEXT' || tipo === 'FT_STATICTYPE') return 'udf_text';
+  return 'udf_number';
+}
+
+/** Todos los campos de usuario de actividades, con el valor de la actividad i (vacío si no tiene). */
+export function udfsDeActividad(m: ModeloP6, i: number): CampoUdf[] {
+  const tipos = m.xer.tablas.get('UDFTYPE');
+  const valores = m.xer.tablas.get('UDFVALUE');
+  if (!tipos) return [];
+  const taskId = celda(m.task, m.task.filas[i], 'task_id');
+  const porTipo = new Map<string, string[]>();
+  for (const f of valores?.filas || []) if (celda(valores!, f, 'fk_id') === taskId) porTipo.set(celda(valores!, f, 'udf_type_id'), f);
+  return tipos.filas
+    .filter(f => celda(tipos, f, 'table_name') === 'TASK')
+    .map(f => {
+      const id = celda(tipos, f, 'udf_type_id');
+      const tipo = celda(tipos, f, 'logical_data_type');
+      const fv = porTipo.get(id);
+      return { id, etiqueta: celda(tipos, f, 'udf_type_label') || celda(tipos, f, 'udf_type_name'), tipo, valor: fv ? celda(valores!, fv, columnaUdf(tipo)) : '' };
+    })
+    .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, 'es', { numeric: true }));
+}
+
+/** Pone (o borra, si el valor queda vacío) un campo de usuario de la actividad i. */
+export function ponerUdf(m: ModeloP6, i: number, udfTypeId: string, valor: string, log: Cambio[]): string | null {
+  const tipos = m.xer.tablas.get('UDFTYPE');
+  const valores = m.xer.tablas.get('UDFVALUE');
+  if (!tipos || !valores) return 'Este XER no tiene campos de usuario.';
+  const ft = tipos.filas.find(f => celda(tipos, f, 'udf_type_id') === udfTypeId);
+  if (!ft) return 'No existe ese campo de usuario.';
+  const tipo = celda(tipos, ft, 'logical_data_type');
+  const col = columnaUdf(tipo);
+  const etq = celda(tipos, ft, 'udf_type_label') || celda(tipos, ft, 'udf_type_name');
+  const t = m.task, fa = t.filas[i];
+  const taskId = celda(t, fa, 'task_id');
+  let v = valor.trim();
+  if (col === 'udf_number' && v !== '') {
+    const n = Number(v.replace(',', '.'));
+    if (!Number.isFinite(n)) return `«${valor}» no es un número.`;
+    v = String(tipo === 'FT_INT' ? Math.round(n) : n);
+  }
+  const k = valores.filas.findIndex(f => celda(valores, f, 'fk_id') === taskId && celda(valores, f, 'udf_type_id') === udfTypeId);
+  const antes = k >= 0 ? celda(valores, valores.filas[k], col) : '';
+  if (antes === v) return null;
+  if (v === '') {
+    if (k >= 0) valores.filas.splice(k, 1);
+  } else if (k >= 0) {
+    ponerCelda(valores, valores.filas[k], col, v);
+  } else {
+    const fila = valores.campos.map(() => '');
+    ponerCelda(valores, fila, 'udf_type_id', udfTypeId);
+    ponerCelda(valores, fila, 'fk_id', taskId);
+    ponerCelda(valores, fila, 'proj_id', celda(t, fa, 'proj_id'));
+    ponerCelda(valores, fila, col, v);
+    valores.filas.push(fila);
+  }
+  registrar(log, celda(t, fa, 'task_code'), `UDF ${etq}`, antes, v);
+  return null;
+}
