@@ -55,6 +55,38 @@ export function lineaBasePlanificada(xer: Xer): LineaBase['act'] {
   return act;
 }
 
+/**
+ * Línea base desde los campos de usuario del XER: «21. blStartP6» y «20. blFinishP6»
+ * (fechas de inicio y fin de la línea base de P6). Devuelve null si el XER no los tiene.
+ */
+export function lineaBaseUdf(xer: Xer): { act: LineaBase['act']; n: number } | null {
+  const tipos = xer.tablas.get('UDFTYPE');
+  const valores = xer.tablas.get('UDFVALUE');
+  const t = xer.tablas.get('TASK');
+  if (!tipos || !valores || !t) return null;
+  const buscar = (re: RegExp) => {
+    const f = tipos.filas.find(x => celda(tipos, x, 'table_name') === 'TASK' && re.test(celda(tipos, x, 'udf_type_label').trim()));
+    return f ? celda(tipos, f, 'udf_type_id') : null;
+  };
+  const idIni = buscar(/^(\d+\.\s*)?blStartP6$/i);
+  const idFin = buscar(/^(\d+\.\s*)?blFinishP6$/i);
+  if (!idIni && !idFin) return null;
+  const codigo = new Map<string, string>();
+  for (const f of t.filas) codigo.set(celda(t, f, 'task_id'), celda(t, f, 'task_code'));
+  const act: LineaBase['act'] = {};
+  let n = 0;
+  for (const f of valores.filas) {
+    const tipo = celda(valores, f, 'udf_type_id');
+    if (tipo !== idIni && tipo !== idFin) continue;
+    const cod = codigo.get(celda(valores, f, 'fk_id'));
+    if (!cod) continue;
+    const fecha = aMinutos(celda(valores, f, 'udf_date'));
+    const par = act[cod] ?? (n++, (act[cod] = [null, null]));
+    par[tipo === idIni ? 0 : 1] = fecha;
+  }
+  return n ? { act, n } : null;
+}
+
 export async function guardarLineaBase(lb: LineaBase): Promise<void> {
   await apiFetch(`/api/docs/${DOC}`, {
     method: 'PUT',

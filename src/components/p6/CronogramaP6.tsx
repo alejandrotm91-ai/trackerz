@@ -7,14 +7,14 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
-import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, type LineaBase } from '../../utils/p6/lineaBase';
+import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, type ModeloP6 } from '../../utils/p6/modelo';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
 import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
 
 const FILA = 22;
-const ANCHO_IZQ = 812;
+const ANCHO_IZQ = 870;
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const ESTADO_TXT: Record<string, string> = { TK_NotStart: 'No iniciada', TK_Active: 'En curso', TK_Complete: 'Terminada' };
 const RESTRICCIONES: [string, string][] = [
@@ -98,9 +98,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   });
   React.useEffect(() => { try { localStorage.setItem('p6.lineaBase', verLB ? '1' : '0'); } catch { /* sin almacenamiento */ } }, [verLB]);
   const [lbGuardada, setLbGuardada] = React.useState<LineaBase | null>(null);
-  const [fuenteLB, setFuenteLB] = React.useState<'guardada' | 'planificada'>('guardada');
+  const [fuenteLB, setFuenteLB] = React.useState<'udf' | 'guardada' | 'planificada'>('udf');
   const lbFileRef = React.useRef<HTMLInputElement>(null);
-  React.useEffect(() => { leerLineaBase().then(lb => { setLbGuardada(lb); if (!lb) setFuenteLB('planificada'); }); }, []);
+  React.useEffect(() => { leerLineaBase().then(lb => setLbGuardada(lb)); }, []);
   const [scrollTop, setScrollTop] = React.useState(0);
   const [altoVista, setAltoVista] = React.useState(600);
   const scroller = React.useRef<HTMLDivElement>(null);
@@ -153,13 +153,25 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
 
   const calBase = m ? (m.calendarios.values().next().value ?? null) : null;
   // ── Línea base por actividad (por ID de actividad) ──
+  // Campos de usuario «21. blStartP6» / «20. blFinishP6» del XER (línea base de P6)
+  const lbUdf = React.useMemo(() => (m ? lineaBaseUdf(m.xer) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [m, estadoCarga]);
+  // Fuente efectiva: la elegida si existe; si no, la primera disponible
+  const fuenteEf: 'udf' | 'guardada' | 'planificada' =
+    fuenteLB === 'udf' && lbUdf ? 'udf' : fuenteLB === 'guardada' && lbGuardada ? 'guardada' : fuenteLB === 'planificada' ? 'planificada' : lbUdf ? 'udf' : lbGuardada ? 'guardada' : 'planificada';
+  // La variación se calcula siempre; el botón solo muestra u oculta las barras
   const lbPorAct = React.useMemo(() => {
-    const m = modelo.current;
-    if (!m || !verLB) return null;
-    const fuente = fuenteLB === 'guardada' && lbGuardada ? lbGuardada.act : lineaBasePlanificada(m.xer);
+    if (!m) return null;
+    const fuente = fuenteEf === 'udf' ? lbUdf!.act : fuenteEf === 'guardada' ? lbGuardada!.act : lineaBasePlanificada(m.xer);
     return m.task.filas.map(f => fuente[celda(m.task, f, 'task_code')] ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verLB, fuenteLB, lbGuardada, version, estadoCarga]);
+  }, [m, fuenteEf, lbUdf, lbGuardada, version, estadoCarga]);
+  /** Variación de fin (P6: fin de línea base − fin actual), en horas laborables; negativa = atraso. */
+  const variacionFin = (lbFin: number | null | undefined, fin: number | null | undefined) => {
+    if (lbFin == null || fin == null || !calBase) return null;
+    return (lbFin >= fin ? calBase.entre(fin, lbFin) : -calBase.entre(lbFin, fin)) / 60;
+  };
 
   // ── Vista de actividades ──
   const vts = React.useMemo<Vt[]>(() => {
@@ -508,6 +520,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     arbol.raices.forEach(ver);
     return out;
   }, [m, arbol, filtro, filtroEstado, pasa, enRojo, lbPorAct]);
+  const barrasLB = verLB ? lbPorAct : null;
 
   const lineasRelacion = React.useMemo(() => {
     if (!verRelaciones || vista !== 'actividades') return [] as { d: string; critica: boolean; k: string }[];
@@ -698,8 +711,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                 </button>
                 {verLB && (
                   <>
-                    <select value={fuenteLB} onChange={e => setFuenteLB(e.target.value as 'guardada' | 'planificada')} className="border border-[#D5DEE2] rounded-lg px-2 py-1.5 bg-white max-w-[260px]"
+                    <select value={fuenteEf} onChange={e => setFuenteLB(e.target.value as 'udf' | 'guardada' | 'planificada')} className="border border-[#D5DEE2] rounded-lg px-2 py-1.5 bg-white max-w-[260px]"
                       title="Qué fechas se usan como línea base">
+                      {lbUdf && <option value="udf">LB de P6 (blStartP6 / blFinishP6)</option>}
                       {lbGuardada && <option value="guardada">LB: {lbGuardada.nombre} ({new Date(lbGuardada.creadaEn).toLocaleDateString('es-ES')})</option>}
                       <option value="planificada">Fechas planificadas del XER</option>
                     </select>
@@ -743,6 +757,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                       <div className="w-[52px] text-right px-1">Dur. rest.</div>
                       <div className="w-[78px] text-right px-1">Inicio</div>
                       <div className="w-[78px] text-right px-1">Fin</div>
+                      <div className="w-[58px] text-right px-1 leading-tight" title="Variación de fin respecto a la línea base (fin LB − fin actual, días laborables; negativo = atraso)">Var. fin LB</div>
                       <div className="w-[52px] text-right px-1">Holg. tot.</div>
                       <div className="w-[52px] text-right px-1">Holg. libre</div>
                       <div className="w-[56px] text-right px-2">% avance</div>
@@ -793,6 +808,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                             <div className="w-[104px]" />
                             <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.ini ?? n.ini)}</div>
                             <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.fin ?? n.fin)}</div>
+                            {(() => { const rs = resumenWbs.get(n.id); const vf = variacionFin(rs?.lbFin, rs?.fin ?? n.fin); return <div className="w-[58px] text-right px-1">{vf == null ? '' : dias(vf, 8)}</div>; })()}
                             <div className={`w-[160px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas ? `${n.criticas} críticas` : ''}</div>
                           </div>
                           {(() => {
@@ -803,7 +819,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                             const xFinBarra = Math.max(x1, rs.restFin != null ? ANCHO_IZQ + xDe(rs.restFin) : x1);
                             return (
                               <>
-                                {lbPorAct && rs.lbIni != null && rs.lbFin != null && (
+                                {barrasLB && rs.lbIni != null && rs.lbFin != null && (
                                   <div className="absolute h-[3px] bg-[#E3B505]" style={{ left: ANCHO_IZQ + xDe(rs.lbIni), width: Math.max(2, xDe(rs.lbFin) - xDe(rs.lbIni)), top: 17 }}
                                     title={`Línea base: ${fCorta(rs.lbIni)} → ${fCorta(rs.lbFin)}`} />
                                 )}
@@ -832,10 +848,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                     const critica = enRojo(v);
                     const esHito = v.tipo === 'TT_Mile' || v.tipo === 'TT_FinMile';
                     const seleccionada = sel === v.i;
-                    const lb = lbPorAct?.[v.i] ?? null;
-                    const yB = lbPorAct ? 3 : 6; // con línea base, la barra actual sube para dejarle sitio
-                    const varFin = lb && lb[1] != null && v.fin != null && calBase ? (v.fin >= lb[1] ? calBase.entre(lb[1], v.fin) : -calBase.entre(v.fin, lb[1])) : null;
-                    const tituloLB = lb ? ` · Línea base ${fCorta(lb[0])} → ${fCorta(lb[1])}${varFin != null ? ` (fin ${varFin > 0 ? '+' : ''}${dias(varFin / 60, v.hd)} d)` : ''}` : '';
+                    const lbDatos = lbPorAct?.[v.i] ?? null;
+                    const lb = verLB ? lbDatos : null;
+                    const yB = verLB ? 3 : 6; // con línea base, la barra actual sube para dejarle sitio
+                    const varFin = variacionFin(lbDatos?.[1], v.fin);
+                    const tituloLB = lb ? ` · Línea base ${fCorta(lb[0])} → ${fCorta(lb[1])}${varFin != null ? ` (variación de fin ${varFin > 0 ? '+' : ''}${dias(varFin, v.hd)} d)` : ''}` : '';
                     return (
                       <div key={`a${v.i}`} onClick={() => { setSel(v.i); verFecha(v.resto ?? v.ini); }}
                         className={`absolute flex text-[11px] cursor-pointer border-b border-[#F0F2F4] ${seleccionada ? 'bg-[#FFF7D6]' : 'bg-white hover:bg-[#F7F9FA]'}`}
@@ -847,6 +864,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                           <div className="w-[52px] text-right px-1">{dias(v.durR, v.hd)}</div>
                           <div className="w-[78px] text-right px-1">{fCorta(v.ini)}{v.iniA ? ' A' : ''}</div>
                           <div className="w-[78px] text-right px-1">{fCorta(v.fin)}{v.finA ? ' A' : ''}</div>
+                          <div className={`w-[58px] text-right px-1 ${varFin != null && varFin < 0 ? 'text-red-600' : varFin ? 'text-[#2B7F52]' : ''}`} title={lbDatos ? `Línea base ${fCorta(lbDatos[0])} → ${fCorta(lbDatos[1])}` : 'Sin línea base'}>{varFin == null ? '' : dias(varFin, v.hd)}</div>
                           <div className={`w-[52px] text-right px-1 ${critica ? 'text-red-600 font-semibold' : ''}`}>{v.tf == null ? '' : dias(v.tf, v.hd)}</div>
                           <div className="w-[52px] text-right px-1">{v.ff == null ? '' : dias(v.ff, v.hd)}</div>
                           <div className="w-[56px] text-right px-2">{v.avance ? `${Math.round(v.avance * 10) / 10}%` : ''}</div>
