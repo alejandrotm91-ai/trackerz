@@ -7,7 +7,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
-import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, enAmbito, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
+import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, enAmbito, ocultoEnEjecucion, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, type ModeloP6 } from '../../utils/p6/modelo';
@@ -295,6 +295,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     for (const v of vts) {
       codigos.add(v.cod);
       if (wbsExcluidos.has(v.wbs)) { excluidas++; continue; }
+      if (ocultoEnEjecucion(v.cod)) continue;
       const a = idxMaster.get(v.cod);
       const udf = clasifXer.get(v.cod);
       // Las actividades del XER sin datos en el Master no tienen grupo propio; los hitos se ubican abajo
@@ -340,7 +341,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     }
     let soloMaster = 0;
     for (const [id, a] of idxMaster) {
-      if (codigos.has(id) || !enAmbito(a, ambito)) continue;
+      if (codigos.has(id) || ocultoEnEjecucion(id) || !enAmbito(a, ambito)) continue;
       soloMaster++;
       const n = nodoDe(rutaDe(a, niveles));
       (n.soloMaster ??= []).push(a);

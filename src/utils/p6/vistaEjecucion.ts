@@ -109,3 +109,13 @@ export function enAmbito(a: Actividad | undefined, ambito: Ambito, udf?: Clasifi
   const constr = !!a && esConstruccion(valorCampo(a, 'grupo', udf));
   return ambito === 'construccion' ? constr : !constr;
 }
+
+/**
+ * Activity ID que no se muestran en la vista de ejecución (base + variantes .A/.D/.E/.F).
+ * Válvulas de guillotina 16.8.4.8 a 16.8.4.11.
+ */
+const BASES_OCULTAS = new Set(['16.8.4.8', '16.8.4.9', '16.8.4.10', '16.8.4.11']);
+export function ocultoEnEjecucion(cod: string): boolean {
+  const m = /^(.*)\.([ADEF])$/i.exec(String(cod).trim());
+  return !!m && BASES_OCULTAS.has(m[1]);
+}
