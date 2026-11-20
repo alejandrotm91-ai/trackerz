@@ -863,7 +863,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   <>
                     <select value={fuenteEf} onChange={e => setFuenteLB(e.target.value as 'udf' | 'guardada' | 'planificada')} className="border border-[#D5DEE2] rounded-lg px-2 py-1.5 bg-white max-w-[260px]"
                       title="Qué fechas se usan como línea base">
-                      {lbUdf && <option value="udf">LB de P6 (blStartP6 / blFinishP6)</option>}
+                      {lbUdf && <option value="udf">LB de P6 (blStartP6 / blFinishP6){lbUdf.provisionales ? ` · ${lbUdf.provisionales.toLocaleString("es-ES")} sin LB (fin 30-abr-27)` : ""}</option>}
                       {lbGuardada && <option value="guardada">LB: {lbGuardada.nombre} ({new Date(lbGuardada.creadaEn).toLocaleDateString('es-ES')})</option>}
                       <option value="planificada">Fechas planificadas del XER</option>
                     </select>

@@ -59,7 +59,13 @@ export function lineaBasePlanificada(xer: Xer): LineaBase['act'] {
  * Línea base desde los campos de usuario del XER: «21. blStartP6» y «20. blFinishP6»
  * (fechas de inicio y fin de la línea base de P6). Devuelve null si el XER no los tiene.
  */
-export function lineaBaseUdf(xer: Xer): { act: LineaBase['act']; n: number } | null {
+/**
+ * Fin de línea base provisional: los rubros cuya línea base de P6 termina este día no tienen
+ * línea base real (es la fecha comodín de las actividades pendientes de confirmar).
+ */
+export const FIN_LB_PROVISIONAL = '2027-04-30';
+
+export function lineaBaseUdf(xer: Xer): { act: LineaBase['act']; n: number; provisionales: number } | null {
   const tipos = xer.tablas.get('UDFTYPE');
   const valores = xer.tablas.get('UDFVALUE');
   const t = xer.tablas.get('TASK');
@@ -74,17 +80,21 @@ export function lineaBaseUdf(xer: Xer): { act: LineaBase['act']; n: number } | n
   const codigo = new Map<string, string>();
   for (const f of t.filas) codigo.set(celda(t, f, 'task_id'), celda(t, f, 'task_code'));
   const act: LineaBase['act'] = {};
-  let n = 0;
+  const provisional = new Set<string>();
   for (const f of valores.filas) {
     const tipo = celda(valores, f, 'udf_type_id');
     if (tipo !== idIni && tipo !== idFin) continue;
     const cod = codigo.get(celda(valores, f, 'fk_id'));
     if (!cod) continue;
-    const fecha = aMinutos(celda(valores, f, 'udf_date'));
-    const par = act[cod] ?? (n++, (act[cod] = [null, null]));
-    par[tipo === idIni ? 0 : 1] = fecha;
+    const texto = celda(valores, f, 'udf_date');
+    if (tipo === idFin && texto.startsWith(FIN_LB_PROVISIONAL)) provisional.add(cod);
+    const par = act[cod] ?? (act[cod] = [null, null]);
+    par[tipo === idIni ? 0 : 1] = aMinutos(texto);
   }
-  return n ? { act, n } : null;
+  // Sin línea base para los rubros con el fin provisional (solo cuentan sus propias fechas)
+  for (const cod of provisional) delete act[cod];
+  const n = Object.keys(act).length;
+  return n ? { act, n, provisionales: provisional.size } : null;
 }
 
 export async function guardarLineaBase(lb: LineaBase): Promise<void> {
