@@ -18,6 +18,7 @@ import { ProcesoTab } from './components/ProcesoTab';
 import { MasterTab } from './components/MasterTab';
 import { AIReportModal } from './components/AIReportModal';
 import { ReportePeriodoModal } from './components/ReportePeriodoModal';
+import { CronogramaP6 } from './components/p6/CronogramaP6';
 import { LogoHoja } from './components/LogoHoja';
 import { LogoIngreso } from './components/LogoIngreso';
 const GestionaApp = React.lazy(() => import('./gestiona/GestionaApp'));
@@ -85,6 +86,7 @@ export default function App() {
   const [showAIReportMenu, setShowAIReportMenu] = React.useState(false);
   const [showAIReportModal, setShowAIReportModal] = React.useState(false);
   const [showReportePeriodo, setShowReportePeriodo] = React.useState(false);
+  const [showP6, setShowP6] = React.useState(false);
   const [aiReportData, setAiReportData] = React.useState<AIReportData | null>(null);
   const [isGeneratingAIReport, setIsGeneratingAIReport] = React.useState(false);
   const aiMenuRef = React.useRef<HTMLDivElement>(null);
@@ -1939,6 +1941,15 @@ export default function App() {
                   <span className="text-sm leading-none">📊</span>
                   <span>Master</span>
                 </button>
+                <button
+                  id="btn-cronograma-p6"
+                  onClick={() => setShowP6(true)}
+                  className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border transition-all cursor-pointer shadow-xs active:scale-95 bg-white text-[#5A6A74] border-[#D5DEE2] hover:bg-[#F5F8F9] hover:text-[#14212A]"
+                  title="Abrir el cronograma de Primavera P6 (XER): consultar, actualizar, reprogramar y exportar"
+                >
+                  <span className="text-sm leading-none">🗓️</span>
+                  <span>P6</span>
+                </button>
               </div>
             </div>
 
@@ -2153,6 +2164,7 @@ export default function App() {
         onConfirmar={confirmarClaveReporte}
         onCancelar={() => setClaveReporte({ abierto: false, error: '', verificando: false })}
       />
+      {showP6 && <CronogramaP6 isAdmin={isAdmin} username={username} onClose={() => setShowP6(false)} />}
       <ReportePeriodoModal
         isOpen={showReportePeriodo}
         onClose={() => setShowReportePeriodo(false)}

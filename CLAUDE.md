@@ -13,6 +13,8 @@ App React + Vite (carpeta `src/`) servida desde Cloudflare Workers. Todo corre e
 - `scripts-legacy/` — scripts sueltos que dejó Google AI Studio. No se usan.
 - `src/gestiona/` — pestaña Gestiona (actividades y reuniones de obra), traída del repo `alejandrotm91-ai/gestiona` sin Firebase ni IA. Datos en D1 (`gestiona_docs`, un JSON por registro y colección) vía `src/worker/gestiona.ts` (`/api/gestiona`). Todos consultan; solo el admin modifica (`canUserEdit` → `getPuedeEscribir`). La pestaña relee los datos cada 15 s. Los datos se importaron una vez desde Firebase (30/10/2026); ya no hay importación.
 
+- `src/components/p6/` y `src/utils/p6/` — botón «P6»: abre el XER de Primavera P6 como un programa (tabla por WBS + Gantt, edición de avance, duraciones, restricciones y relaciones, programación F9, vista de recursos, exportación del XER). `xer.ts` lee/escribe el XER sin perder nada (ida y vuelta idéntica), `calendario.ts` calcula tiempo laborable, `cpm.ts` es el motor CPM (lógica retenida, desfases en el calendario de la predecesora, holgura de fin, fecha límite del proyecto), `edicion.ts` aplica cambios con las reglas de P6. El XER se guarda comprimido en el almacén por trozos (tipo `p6`). Todos consultan y exportan; solo el admin edita, programa y guarda.
+
 ## Comandos
 - `npm run dev` — compila y corre todo local (Worker + D1 simulada) en http://localhost:8787. Requiere `.dev.vars` (copiar de `.dev.vars.example`) y `npm run db:migrate:local` la primera vez.
 - `npm run dev:ui` — solo la interfaz con recarga rápida (sin API)

@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { requireAuth, requireAdmin, type AppEnv } from "./auth";
 
-// Almacén en D1 para el cronograma ("master") y la matriz de personal ("personal").
+// Almacén en D1 para el cronograma ("master"), la matriz de personal ("personal") y el XER de
+// Primavera P6 ("p6", comprimido).
 // Subida: el navegador manda cada trozo por separado y al final "confirma" el plan;
 // recién ahí pasa a ser el plan vigente y se borran los anteriores.
 // El Worker guarda y devuelve el texto JSON tal cual, sin procesarlo.
 
-const KINDS = new Set(["master", "personal"]);
+const KINDS = new Set(["master", "personal", "p6"]);
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_CHUNK_CHARS = 1_800_000; // D1 acepta filas de hasta 2 MB
 
