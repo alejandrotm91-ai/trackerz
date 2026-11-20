@@ -77,6 +77,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   const [wbsSel, setWbsSel] = React.useState<string | null>(null);
   const [creando, setCreando] = React.useState(false);
   const [abiertos, setAbiertos] = React.useState<Set<string>>(new Set());
+  // Con un filtro activo todo se muestra desplegado salvo los WBS que el usuario contraiga.
+  const [cerradosF, setCerradosF] = React.useState<Set<string>>(new Set());
   const [filtro, setFiltro] = React.useState('');
   const [filtroTmp, setFiltroTmp] = React.useState('');
   const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'criticas' | 'longest' | 'encurso'>('todas');
@@ -223,14 +225,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     const recorrer = (n: Nodo) => {
       if (filtrando && !tiene(n)) return;
       out.push({ tipo: 'wbs', nodo: n, nivel: n.nivel });
-      if (!filtrando && !abiertos.has(n.id)) return;
+      if (filtrando ? cerradosF.has(n.id) : !abiertos.has(n.id)) return;
       // Primero las actividades propias del WBS y después los sub-WBS.
       for (const v of n.tareas) if (!filtrando || pasa(v)) out.push({ tipo: 'act', vt: v, nivel: n.nivel + 1 });
       for (const h of n.hijos) recorrer(h);
     };
     arbol.raices.forEach(recorrer);
     return out;
-  }, [arbol, abiertos, filtro, filtroEstado, pasa]);
+  }, [arbol, abiertos, cerradosF, filtro, filtroEstado, pasa]);
 
   // ── Escala del Gantt ──
   const rango = React.useMemo(() => {
@@ -357,8 +359,26 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     onClose();
   };
 
-  const alternar = (id: string) => setAbiertos(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const expandirTodo = (abrir: boolean) => setAbiertos(abrir ? new Set(arbol.nodos.keys()) : new Set(arbol.raices.map(r => r.id)));
+  const filtrando = !!filtro || filtroEstado !== 'todas';
+  // Cada filtro nuevo empieza desplegado
+  React.useEffect(() => { setCerradosF(new Set()); }, [filtro, filtroEstado]);
+  const alternarEn = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => (id: string) =>
+    set(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const alternar = (id: string) => (filtrando ? alternarEn(setCerradosF) : alternarEn(setAbiertos))(id);
+  const expandirTodo = (abrir: boolean) => {
+    if (filtrando) {
+      const raices = new Set(arbol.raices.map(r => r.id));
+      setCerradosF(abrir ? new Set() : new Set([...arbol.nodos.keys()].filter(id => !raices.has(id))));
+    } else setAbiertos(abrir ? new Set(arbol.nodos.keys()) : new Set(arbol.raices.map(r => r.id)));
+  };
+  /** Despliega un WBS y sus padres (con y sin filtro). */
+  const abrirRama = (id: string) => {
+    const cadena: string[] = [];
+    let w: string | undefined = id;
+    while (w && arbol.nodos.has(w)) { cadena.push(w); w = arbol.nodos.get(w)!.padre; }
+    setAbiertos(prev => new Set([...prev, ...cadena]));
+    setCerradosF(prev => { const n = new Set(prev); cadena.forEach(c => n.delete(c)); return n; });
+  };
 
   // ── Filas visibles (virtualización) ──
   const desdeFila = Math.max(0, Math.floor(scrollTop / FILA) - 10);
@@ -635,7 +655,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                     const top = 34 + idx * FILA;
                     if (fl.tipo === 'wbs') {
                       const n = fl.nodo;
-                      const abierto = abiertos.has(n.id) || !!filtro || filtroEstado !== 'todas';
+                      const abierto = filtrando ? !cerradosF.has(n.id) : abiertos.has(n.id);
                       const [fondo, texto] = bandaWbs(fl.nivel);
                       const claro = texto !== '#FFFFFF';
                       return (
@@ -725,10 +745,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                       if (err) mostrar(`Actividad creada, pero no la relación con ${rel.codigo}: ${err}`);
                     }
                     // Abrir el WBS donde quedó
-                    const abrir = new Set(abiertos);
-                    let w: string | undefined = datos.wbsId;
-                    while (w && arbol.nodos.has(w)) { abrir.add(w); w = arbol.nodos.get(w)!.padre; }
-                    setAbiertos(abrir);
+                    abrirRama(datos.wbsId);
                     setCreando(false);
                     marcarCambio(log);
                     setSel(r);
@@ -741,10 +758,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
             <VistaWbs m={m} raices={arbol.raices} nodos={arbol.nodos} editable={editable} cambios={cambios} version={version}
               onCambio={marcarCambio} mostrar={mostrar}
               onVerActividades={id => {
-                const abrir = new Set(abiertos);
-                let w: string | undefined = id;
-                while (w && arbol.nodos.has(w)) { abrir.add(w); w = arbol.nodos.get(w)!.padre; }
-                setAbiertos(abrir);
+                abrirRama(id);
                 setWbsSel(id);
                 setVista('actividades');
               }} />
