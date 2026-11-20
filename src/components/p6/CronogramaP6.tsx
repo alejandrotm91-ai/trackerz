@@ -93,6 +93,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [filtroTmp, setFiltroTmp] = React.useState('');
   const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'criticas' | 'longest' | 'encurso' | 'soloMaster'>('todas');
   const [vista, setVista] = React.useState<'actividades' | 'wbs' | 'recursos'>('actividades');
+  // Orden de las actividades dentro de cada grupo (clic en el encabezado Inicio / Fin)
+  const [orden, setOrden] = React.useState<{ col: 'ini' | 'fin'; dir: 1 | -1 } | null>(null);
+  const alternarOrden = (col: 'ini' | 'fin') => setOrden(o => (!o || o.col !== col ? { col, dir: 1 } : o.dir === 1 ? { col, dir: -1 } : null));
   const [px, setPx] = React.useState(1);
   const [verRelaciones, setVerRelaciones] = React.useState<boolean>(() => {
     try { return localStorage.getItem('p6.relaciones') === '1'; } catch { return false; }
@@ -319,18 +322,29 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       out.push({ tipo: 'wbs', nodo: n, nivel: n.nivel });
       if (filtrando ? cerradosF.has(n.id) : !abiertos.has(n.id)) return;
       // Primero las actividades propias del WBS y después los sub-WBS.
-      for (const v of n.tareas) if (!filtrando || pasa(v)) out.push({ tipo: 'act', vt: v, nivel: n.nivel + 1 });
+      const tareas = orden ? [...n.tareas].sort((a, b) => {
+        const x = a[orden.col], y = b[orden.col];
+        if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1; // sin fecha, al final
+        return (x - y) * orden.dir || a.cod.localeCompare(b.cod, 'es', { numeric: true });
+      }) : n.tareas;
+      for (const v of tareas) if (!filtrando || pasa(v)) out.push({ tipo: 'act', vt: v, nivel: n.nivel + 1 });
       // Rubros del Master que todavía no están en Primavera (sin programación): se muestran
       // también con filtros de estado; la búsqueda por texto sí los filtra.
       if (n.soloMaster) {
         const q = filtro.toLowerCase();
-        for (const a of n.soloMaster) if (!q || String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)) out.push({ tipo: 'master', a, nivel: n.nivel + 1 });
+        const fechaM = (a: Actividad) => minutosDeFecha(orden?.col === 'fin' ? a.finish ?? a.blFinish : a.start ?? a.blStart);
+        const solo = orden ? [...n.soloMaster].sort((a, b) => {
+          const x = fechaM(a), y = fechaM(b);
+          if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
+          return (x - y) * orden.dir;
+        }) : n.soloMaster;
+        for (const a of solo) if (!q || String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)) out.push({ tipo: 'master', a, nivel: n.nivel + 1 });
       }
       for (const h of n.hijos) recorrer(h);
     };
     arbol.raices.forEach(recorrer);
     return out;
-  }, [arbol, abiertos, cerradosF, filtro, filtroEstado, pasa]);
+  }, [arbol, abiertos, cerradosF, filtro, filtroEstado, pasa, orden]);
 
   // ── Escala del Gantt ──
   const rango = React.useMemo(() => {
@@ -855,8 +869,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                       <div className="w-[262px] px-1">Nombre</div>
                       <div className="w-[52px] text-right px-1">Dur. orig.</div>
                       <div className="w-[52px] text-right px-1">Dur. rest.</div>
-                      <div className="w-[78px] text-right px-1">Inicio</div>
-                      <div className="w-[78px] text-right px-1">Fin</div>
+                      {(['ini', 'fin'] as const).map(col => (
+                        <button key={col} onClick={() => alternarOrden(col)} title="Ordenar las actividades de cada grupo (ascendente → descendente → original)"
+                          className={`w-[78px] text-right px-1 cursor-pointer hover:text-[#312E81] ${orden?.col === col ? 'text-[#312E81]' : ''}`}>
+                          {col === 'ini' ? 'Inicio' : 'Fin'}{orden?.col === col ? (orden.dir === 1 ? ' ▲' : ' ▼') : ' ↕'}
+                        </button>
+                      ))}
                       <div className="w-[58px] text-right px-1 leading-tight" title="Variación de fin respecto a la línea base (fin LB − fin actual, días laborables; negativo = atraso)">Var. fin LB</div>
                       <div className="w-[52px] text-right px-1">Holg. tot.</div>
                       <div className="w-[52px] text-right px-1">Holg. libre</div>
