@@ -541,6 +541,22 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       setCerradosF(abrir ? new Set() : new Set([...arbol.nodos.keys()].filter(id => !raices.has(id))));
     } else setAbiertos(abrir ? new Set(arbol.nodos.keys()) : new Set(arbol.raices.map(r => r.id)));
   };
+  // Atajos: Ctrl + expande todo, Ctrl − colapsa todo (en la vista de actividades; reemplaza el zoom del navegador)
+  const expandirRef = React.useRef(expandirTodo);
+  expandirRef.current = expandirTodo;
+  React.useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || vista !== 'actividades') return;
+      const mas = e.key === '+' || e.key === '=' || e.code === 'NumpadAdd';
+      const menos = e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract';
+      if (!mas && !menos) return;
+      e.preventDefault();
+      expandirRef.current(mas);
+    };
+    window.addEventListener('keydown', tecla);
+    return () => window.removeEventListener('keydown', tecla);
+  }, [vista]);
+
   /** Despliega un WBS y sus padres (con y sin filtro). */
   const abrirRama = (id: string) => {
     const cadena: string[] = [];
@@ -826,6 +842,25 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 <span className="text-[8.5px] leading-none">{corto}</span>
               </button>
             ))}
+            <div className="w-7 h-px bg-[#C3C3C3] my-1" />
+            <button onClick={() => { setVista('actividades'); setVerRelaciones(v => !v); }} title="Relaciones: mostrar u ocultar las líneas de relación en el Gantt"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verRelaciones ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="2" width="8" height="4" rx="1" fill="#2E9E3A" stroke="#1C6B25" /><rect x="13" y="10" width="8" height="4" rx="1" fill="#2E9E3A" stroke="#1C6B25" /><path d="M9 4 H11 V12 H12.5" fill="none" stroke="#14212A" strokeWidth="1.2" /><path d="M11 10 L13 12 L11 14" fill="#14212A" /></svg>
+              <span className="text-[8.5px] leading-none">Relac.</span>
+            </button>
+            <button onClick={() => { setVista('actividades'); setVerLB(v => !v); }} title="Línea base: mostrar u ocultar la barra amarilla bajo cada actividad"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verLB ? 'bg-[#FFF3C4] border-[#C99F00] text-[#7A5B00] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="2" y="3" width="16" height="5" rx="1.5" fill="#2E9E3A" stroke="#1C6B25" /><rect x="2" y="10" width="13" height="3" rx="1" fill="#E3B505" stroke="#9C7C00" /></svg>
+              <span className="text-[8.5px] leading-none">L. base</span>
+            </button>
+            <div className="w-7 h-px bg-[#C3C3C3] my-1" />
+            {([[true, '+', 'Expandir todo (Ctrl +)'], [false, '−', 'Colapsar todo (Ctrl −)']] as const).map(([abrir, signo, tt]) => (
+              <button key={signo} onClick={() => { setVista('actividades'); expandirTodo(abrir); }} title={tt}
+                className="w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border border-transparent text-[#4A4A4A] hover:bg-white/70">
+                <span className="w-[18px] h-[18px] border border-[#8C8C8C] bg-white flex items-center justify-center text-[14px] font-bold leading-none text-[#1A1A1A]">{signo}</span>
+                <span className="text-[8.5px] leading-none">{abrir ? 'Expandir' : 'Colapsar'}</span>
+              </button>
+            ))}
           </div>
           <div className="flex-1 flex flex-col min-h-0 min-w-0">
           {/* Herramientas (solo en la vista de actividades) */}
@@ -861,18 +896,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   <option value="longest">Longest path (ruta más larga)</option>
                   {enEjecucion && <option value="soloMaster">Solo en Master (aún no en P6)</option>}
                 </select>
-                <button onClick={() => expandirTodo(true)} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer">Expandir todo</button>
-                <button onClick={() => expandirTodo(false)} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer">Colapsar</button>
-                <button onClick={() => setVerRelaciones(v => !v)} title="Mostrar u ocultar las líneas de relación en el Gantt"
-                  className={`px-2 py-1.5 border rounded-lg cursor-pointer flex items-center gap-1 ${verRelaciones ? 'bg-[#312E81] border-[#312E81] text-white font-bold' : 'border-[#D5DEE2] hover:bg-[#F5F8F9]'}`}>
-                  <svg width="14" height="10" viewBox="0 0 14 10" className="shrink-0"><path d="M1 2 H5 V8 H12" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M10 6 L13 8 L10 10" fill="currentColor" /></svg>
-                  Relaciones
-                </button>
-                <button onClick={() => setVerLB(v => !v)} title="Mostrar u ocultar la línea base (barra amarilla bajo cada actividad)"
-                  className={`px-2 py-1.5 border rounded-lg cursor-pointer flex items-center gap-1 ${verLB ? 'bg-[#E3B505] border-[#C99F00] text-[#14212A] font-bold' : 'border-[#D5DEE2] hover:bg-[#F5F8F9]'}`}>
-                  <svg width="14" height="10" viewBox="0 0 14 10" className="shrink-0"><rect x="1" y="1" width="12" height="4" rx="1" fill="currentColor" opacity=".55" /><rect x="1" y="7" width="9" height="2.5" rx="1" fill={verLB ? '#14212A' : '#E3B505'} /></svg>
-                  Línea base
-                </button>
                 {verLB && (
                   <>
                     <select value={fuenteEf} onChange={e => setFuenteLB(e.target.value as 'udf' | 'guardada' | 'planificada')} className="border border-[#D5DEE2] rounded-lg px-2 py-1.5 bg-white max-w-[260px]"
