@@ -25,6 +25,18 @@ const RESTRICCIONES: [string, string][] = [
   ['CS_ALAP', 'Lo más tarde posible'],
 ];
 
+/** Colores de los niveles del WBS, como las bandas de Primavera P6 (fondo, texto). */
+const BANDAS_WBS: [string, string][] = [
+  ['#1F7CC4', '#FFFFFF'], // proyecto: azul
+  ['#7CF27C', '#14212A'], // nivel 1: verde
+  ['#FFFF66', '#14212A'], // nivel 2: amarillo
+  ['#2B2BD9', '#FFFFFF'], // nivel 3: azul intenso
+  ['#9FE7FF', '#14212A'], // nivel 4: cian
+  ['#FFB8E1', '#14212A'], // nivel 5: rosa
+  ['#D9C8FF', '#14212A'], // nivel 6: lavanda
+];
+const bandaWbs = (nivel: number) => (nivel < BANDAS_WBS.length ? BANDAS_WBS[nivel] : BANDAS_WBS[4 + ((nivel - 4) % 3)]);
+
 const fCorta = (t: number | null | undefined) => {
   if (t == null || !isFinite(t)) return '';
   const d = new Date(t * 60000);
@@ -42,7 +54,7 @@ interface Vt {
   tf: number | null; avance: number; cstr: string;
 }
 interface Nodo {
-  id: string; padre: string; cod: string; nombre: string; seq: number;
+  id: string; padre: string; cod: string; codCompleto: string; nombre: string; seq: number;
   hijos: Nodo[]; tareas: Vt[]; nivel: number;
   ini: number | null; fin: number | null; n: number; criticas: number;
 }
@@ -148,7 +160,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     const w = m.xer.tablas.get('PROJWBS');
     for (const f of w?.filas || []) {
       const g = (c: string) => celda(w!, f, c);
-      nodos.set(g('wbs_id'), { id: g('wbs_id'), padre: g('parent_wbs_id'), cod: g('wbs_short_name'), nombre: g('wbs_name'), seq: Number(g('seq_num')) || 0, hijos: [], tareas: [], nivel: 0, ini: null, fin: null, n: 0, criticas: 0 });
+      nodos.set(g('wbs_id'), { id: g('wbs_id'), padre: g('parent_wbs_id'), cod: g('wbs_short_name'), codCompleto: g('wbs_short_name'), nombre: g('wbs_name'), seq: Number(g('seq_num')) || 0, hijos: [], tareas: [], nivel: 0, ini: null, fin: null, n: 0, criticas: 0 });
     }
     const raices: Nodo[] = [];
     for (const n of nodos.values()) {
@@ -157,8 +169,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     }
     for (const v of vts) nodos.get(v.wbs)?.tareas.push(v);
     const natural = (a: string, b: string) => a.localeCompare(b, 'es', { numeric: true });
-    const resumir = (n: Nodo, nivel: number) => {
+    const resumir = (n: Nodo, nivel: number, padre?: Nodo) => {
       n.nivel = nivel;
+      n.codCompleto = padre ? `${padre.codCompleto}.${n.cod}` : n.cod;
       n.hijos.sort((a, b) => a.seq - b.seq || natural(a.cod, b.cod));
       n.tareas.sort((a, b) => (a.ini ?? 0) - (b.ini ?? 0) || natural(a.cod, b.cod));
       let ini: number | null = null, fin: number | null = null, cnt = 0, crit = 0;
@@ -167,7 +180,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
         if (f2 != null && (fin == null || f2 > fin)) fin = f2;
         cnt += c; crit += k;
       };
-      for (const h of n.hijos) { resumir(h, nivel + 1); sumar(h.ini, h.fin, h.n, h.criticas); }
+      for (const h of n.hijos) { resumir(h, nivel + 1, n); sumar(h.ini, h.fin, h.n, h.criticas); }
       for (const v of n.tareas) sumar(v.ini, v.fin, 1, v.tf != null && v.tf <= 0 ? 1 : 0);
       n.ini = ini; n.fin = fin; n.n = cnt; n.criticas = crit;
     };
@@ -512,22 +525,23 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                     if (fl.tipo === 'wbs') {
                       const n = fl.nodo;
                       const abierto = abiertos.has(n.id) || !!filtro || filtroEstado !== 'todas';
-                      const tono = ['#E8E7F7', '#EEF0FB', '#F3F4FB', '#F7F8FC'][Math.min(fl.nivel, 3)];
+                      const [fondo, texto] = bandaWbs(fl.nivel);
+                      const claro = texto !== '#FFFFFF';
                       return (
-                        <div key={`w${n.id}`} className="absolute flex text-[11px] font-semibold cursor-pointer" style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt, background: tono }} onClick={() => alternar(n.id)}>
-                          <div className="sticky left-0 z-[5] flex items-center border-r border-[#D5DEE2]" style={{ width: ANCHO_IZQ, background: tono }}>
+                        <div key={`w${n.id}`} className="absolute flex text-[11px] font-bold cursor-pointer bg-white border-b border-[#E6EAEC]" style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt }} onClick={() => alternar(n.id)}>
+                          <div className="sticky left-0 z-[5] flex items-center border-r border-[#9AA6AD]" style={{ width: ANCHO_IZQ, background: fondo, color: texto }}>
                             <div className="flex items-center gap-1 min-w-0" style={{ paddingLeft: 4 + fl.nivel * 10, width: 382 }}>
-                              {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-[#312E81]" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[#312E81]" />}
-                              <span className="truncate" title={`${n.cod} · ${n.nombre}`}><span className="text-[#5A6A74] font-normal">{n.cod}</span> {n.nombre}</span>
-                              <span className="text-[9.5px] font-normal text-[#5A6A74] shrink-0">({n.n})</span>
+                              {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
+                              <span className="truncate" title={`${n.codCompleto} · ${n.nombre}`}><span className={claro ? 'opacity-70' : 'opacity-80'}>{n.codCompleto}</span>&nbsp; {n.nombre}</span>
+                              <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({n.n})</span>
                             </div>
                             <div className="w-[104px]" />
-                            <div className="w-[78px] text-right px-1 font-normal">{fCorta(n.ini)}</div>
-                            <div className="w-[78px] text-right px-1 font-normal">{fCorta(n.fin)}</div>
-                            <div className="w-[108px] text-right px-2 text-[10px] font-normal text-red-700">{n.criticas ? `${n.criticas} críticas` : ''}</div>
+                            <div className="w-[78px] text-right px-1">{fCorta(n.ini)}</div>
+                            <div className="w-[78px] text-right px-1">{fCorta(n.fin)}</div>
+                            <div className={`w-[108px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas ? `${n.criticas} críticas` : ''}</div>
                           </div>
                           {n.ini != null && n.fin != null && (
-                            <div className="absolute h-1.5 bg-[#1E1B4B] rounded-sm" style={{ left: ANCHO_IZQ + xDe(n.ini), width: Math.max(2, xDe(n.fin) - xDe(n.ini)), top: 8 }} />
+                            <div className="absolute h-1.5 bg-[#14212A]" style={{ left: ANCHO_IZQ + xDe(n.ini), width: Math.max(2, xDe(n.fin) - xDe(n.ini)), top: 8 }} />
                           )}
                         </div>
                       );
