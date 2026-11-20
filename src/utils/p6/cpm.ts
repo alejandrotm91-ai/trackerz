@@ -228,12 +228,19 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
     for (const r of succs[i]) {
       const s = acts[r.succ];
       if (s.estado === 'Terminada' || s.ES == null) continue;
-      const lim = r.tipo === 'FS' ? a.cal.sumar(s.ES, -r.lag, 'fin')
-        : r.tipo === 'FF' ? a.cal.sumar(s.EF!, -r.lag, 'fin')
-        : null;
-      if (lim != null) ff = Math.min(ff, a.cal.entre(a.EF!, lim));
+      const sIni = s.estado !== 'NoIniciada' && s.inicioReal != null ? s.inicioReal : s.ES;
+      if (s.estado === 'EnCurso' && (r.tipo === 'SS' || r.tipo === 'SF')) continue;
+      // Holgura libre: cuánto puede moverse sin retrasar a ninguna sucesora (según el tipo de relación)
+      if (r.tipo === 'FS') ff = Math.min(ff, a.cal.entre(a.EF!, a.cal.sumar(sIni, -r.lag, 'fin')));
+      else if (r.tipo === 'FF') ff = Math.min(ff, a.cal.entre(a.EF!, a.cal.sumar(s.EF!, -r.lag, 'fin')));
+      else if (a.estado === 'NoIniciada') {
+        const lim = r.tipo === 'SS' ? a.cal.sumar(sIni, -r.lag, 'inicio') : a.cal.sumar(s.EF!, -r.lag, 'inicio');
+        ff = Math.min(ff, a.cal.entre(a.ES!, lim));
+      }
     }
-    a.FFl = ff === Infinity ? a.TF ?? null : Math.max(0, ff);
+    // Sin sucesoras: hasta el fin temprano del proyecto
+    if (ff === Infinity) ff = a.cal.entre(a.EF!, finTemprano);
+    a.FFl = Math.max(0, ff);
   }
 
   return { orden, ciclos, finTemprano };

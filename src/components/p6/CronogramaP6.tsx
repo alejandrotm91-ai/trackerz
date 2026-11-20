@@ -13,7 +13,7 @@ import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, e
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
 
 const FILA = 22;
-const ANCHO_IZQ = 760;
+const ANCHO_IZQ = 812;
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const ESTADO_TXT: Record<string, string> = { TK_NotStart: 'No iniciada', TK_Active: 'En curso', TK_Complete: 'Terminada' };
 const RESTRICCIONES: [string, string][] = [
@@ -52,6 +52,8 @@ interface Vt {
   /** Inicio del trabajo restante (en curso) para el Gantt. */
   resto: number | null;
   tf: number | null; avance: number; cstr: string;
+  /** Holgura libre en horas. */
+  ff: number | null;
   /** En la ruta más larga (driving_path_flag de P6). */
   lp: boolean;
 }
@@ -151,6 +153,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
       const es = aMinutos(g('early_start_date'));
       const ef = aMinutos(g('early_end_date'));
       const tf = g('total_float_hr_cnt');
+      const ff = g('free_float_hr_cnt');
       return {
         i, id: g('task_id'), cod: g('task_code'), nombre: g('task_name'), wbs: g('wbs_id'), estado, tipo: g('task_type'),
         durO: Number(g('target_drtn_hr_cnt')) || 0, durR: Number(g('remain_drtn_hr_cnt')) || 0, hd: cal?.horasDia || 8,
@@ -159,6 +162,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
         iniA: estado !== 'TK_NotStart' && as != null, finA: estado === 'TK_Complete' && af != null,
         resto: estado === 'TK_Active' ? es : null,
         tf: tf === '' || estado === 'TK_Complete' ? null : Number(tf),
+        ff: ff === '' || estado === 'TK_Complete' ? null : Number(ff),
         avance: Number(g('phys_complete_pct')) || 0, cstr: g('cstr_type'),
         lp: g('driving_path_flag') === 'Y',
       };
@@ -244,7 +248,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     if (!isFinite(ini)) { ini = Date.UTC(2024, 0, 1) / 60000; fin = ini + 365 * 1440; }
     const d0 = new Date(ini * 60000);
     const desde = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), 1) / 60000;
-    const hasta = fin + 45 * 1440;
+    const hasta = fin + 200 * 1440; // margen para las etiquetas de las barras resumen
     return { desde, hasta };
   }, [vts]);
   const xDe = (t: number) => ((t - rango.desde) / 1440) * px;
@@ -409,6 +413,45 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     return mapa;
   }, [filas]);
   const enRojo = React.useCallback((v: Vt) => (filtroEstado === 'longest' ? v.lp && v.estado !== 'TK_Complete' : v.tf != null && v.tf <= 0), [filtroEstado]);
+  // Resumen de cada WBS para su barra (solo las actividades que pasan el filtro)
+  const resumenWbs = React.useMemo(() => {
+    type R = { ini: number | null; fin: number | null; realIni: number | null; realFin: number | null; restIni: number | null; restFin: number | null; roja: boolean };
+    const out = new Map<string, R>();
+    if (!m) return out;
+    const filtrandoR = !!filtro || filtroEstado !== 'todas';
+    const mn = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.min(a, b));
+    const mx = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.max(a, b));
+    const ver = (n: Nodo): R => {
+      const r: R = { ini: null, fin: null, realIni: null, realFin: null, restIni: null, restFin: null, roja: false };
+      const juntar = (o: R) => {
+        r.ini = mn(r.ini, o.ini); r.fin = mx(r.fin, o.fin);
+        r.realIni = mn(r.realIni, o.realIni); r.realFin = mx(r.realFin, o.realFin);
+        r.restIni = mn(r.restIni, o.restIni); r.restFin = mx(r.restFin, o.restFin);
+        r.roja ||= o.roja;
+      };
+      for (const h of n.hijos) juntar(ver(h));
+      for (const v of n.tareas) {
+        if (filtrandoR && !pasa(v)) continue;
+        r.ini = mn(r.ini, v.ini); r.fin = mx(r.fin, v.fin);
+        // Las barras de trabajo resumen solo tareas (no hitos ni LOE), como P6
+        if (v.tipo === 'TT_Mile' || v.tipo === 'TT_FinMile' || v.tipo === 'TT_LOE' || v.tipo === 'TT_WBS') continue;
+        if (v.iniA && v.ini != null) {
+          r.realIni = mn(r.realIni, v.ini);
+          r.realFin = mx(r.realFin, v.estado === 'TK_Complete' ? v.fin : m.fechaDatos);
+        }
+        if (v.estado !== 'TK_Complete') {
+          r.restIni = mn(r.restIni, v.resto ?? v.ini);
+          r.restFin = mx(r.restFin, v.fin);
+          if (enRojo(v)) r.roja = true;
+        }
+      }
+      out.set(n.id, r);
+      return r;
+    };
+    arbol.raices.forEach(ver);
+    return out;
+  }, [m, arbol, filtro, filtroEstado, pasa, enRojo]);
+
   const lineasRelacion = React.useMemo(() => {
     if (!verRelaciones || vista !== 'actividades') return [] as { d: string; critica: boolean; k: string }[];
     const out: { d: string; critica: boolean; k: string }[] = [];
@@ -621,6 +664,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                       <div className="w-[78px] text-right px-1">Inicio</div>
                       <div className="w-[78px] text-right px-1">Fin</div>
                       <div className="w-[52px] text-right px-1">Holg. tot.</div>
+                      <div className="w-[52px] text-right px-1">Holg. libre</div>
                       <div className="w-[56px] text-right px-2">% avance</div>
                     </div>
                     <div className="relative" style={{ width: anchoGantt }}>
@@ -667,13 +711,36 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                               <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({n.n})</span>
                             </div>
                             <div className="w-[104px]" />
-                            <div className="w-[78px] text-right px-1">{fCorta(n.ini)}</div>
-                            <div className="w-[78px] text-right px-1">{fCorta(n.fin)}</div>
-                            <div className={`w-[108px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas ? `${n.criticas} críticas` : ''}</div>
+                            <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.ini ?? n.ini)}</div>
+                            <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.fin ?? n.fin)}</div>
+                            <div className={`w-[160px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas ? `${n.criticas} críticas` : ''}</div>
                           </div>
-                          {n.ini != null && n.fin != null && (
-                            <div className="absolute h-1.5 bg-[#14212A]" style={{ left: ANCHO_IZQ + xDe(n.ini), width: Math.max(2, xDe(n.fin) - xDe(n.ini)), top: 8 }} />
-                          )}
+                          {(() => {
+                            const rs = resumenWbs.get(n.id);
+                            if (!rs || rs.ini == null || rs.fin == null) return null;
+                            const x0 = ANCHO_IZQ + xDe(rs.ini), x1 = ANCHO_IZQ + xDe(rs.fin);
+                            const tri = (x: number) => <div className="absolute" style={{ left: x - 4, top: 9, borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderTop: '6px solid #14212A' }} />;
+                            const xFinBarra = Math.max(x1, rs.restFin != null ? ANCHO_IZQ + xDe(rs.restFin) : x1);
+                            return (
+                              <>
+                                {/* Barra resumen del WBS (negra, con puntas) */}
+                                <div className="absolute h-1 bg-[#14212A]" style={{ left: x0, width: Math.max(2, x1 - x0), top: 7 }} />
+                                {tri(x0)}{tri(x1)}
+                                {/* Contraído: trabajo real (azul) y restante (rojo si es crítico o del longest path) */}
+                                {!abierto && rs.realIni != null && rs.realFin != null && (
+                                  <div className="absolute h-2.5 bg-[#1F4FE0]" style={{ left: ANCHO_IZQ + xDe(rs.realIni), width: Math.max(2, xDe(rs.realFin) - xDe(rs.realIni)), top: 6 }} />
+                                )}
+                                {!abierto && rs.restIni != null && rs.restFin != null && (
+                                  <div className={`absolute h-2.5 ${rs.roja ? 'bg-[#E8211B]' : 'bg-[#2B7F52]'}`} style={{ left: ANCHO_IZQ + xDe(rs.restIni), width: Math.max(2, xDe(rs.restFin) - xDe(rs.restIni)), top: 6 }} />
+                                )}
+                                {!abierto && (
+                                  <div className="absolute whitespace-nowrap text-[10.5px] font-normal text-[#14212A] pointer-events-none" style={{ left: xFinBarra + 8, top: 3 }}>
+                                    {fNum(rs.fin)}, {n.codCompleto}&nbsp;&nbsp;{n.nombre}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       );
                     }
@@ -693,6 +760,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                           <div className="w-[78px] text-right px-1">{fCorta(v.ini)}{v.iniA ? ' A' : ''}</div>
                           <div className="w-[78px] text-right px-1">{fCorta(v.fin)}{v.finA ? ' A' : ''}</div>
                           <div className={`w-[52px] text-right px-1 ${critica ? 'text-red-600 font-semibold' : ''}`}>{v.tf == null ? '' : dias(v.tf, v.hd)}</div>
+                          <div className="w-[52px] text-right px-1">{v.ff == null ? '' : dias(v.ff, v.hd)}</div>
                           <div className="w-[56px] text-right px-2">{v.avance ? `${Math.round(v.avance * 10) / 10}%` : ''}</div>
                         </div>
                         {/* Barras */}
