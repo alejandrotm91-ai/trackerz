@@ -52,3 +52,15 @@ export function minutosDeFecha(d: Date | string | null | undefined): number | nu
   if (isNaN(x.getTime())) return null;
   return Date.UTC(x.getFullYear(), x.getMonth(), x.getDate(), 8, 0) / 60000;
 }
+
+/** Ámbito de la vista de ejecución: construcción (grupos con «Construccion»/«Constr.») o equipamiento (el resto). */
+export type Ambito = 'todo' | 'construccion' | 'equipamiento';
+
+export const esConstruccion = (grupo: string | null | undefined) => /constr/i.test(String(grupo ?? ''));
+
+/** ¿La actividad (con su fila del Master, o sin ella) entra en el ámbito elegido? */
+export function enAmbito(a: Actividad | undefined, ambito: Ambito): boolean {
+  if (ambito === 'todo') return true;
+  const constr = !!a && esConstruccion(a.grupo);
+  return ambito === 'construccion' ? constr : !constr;
+}

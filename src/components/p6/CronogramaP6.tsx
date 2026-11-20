@@ -7,7 +7,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
-import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, etiquetaCampo, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
+import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, enAmbito, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, type ModeloP6 } from '../../utils/p6/modelo';
@@ -114,6 +114,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const leerLS = <T,>(k: string, def: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : def; } catch { return def; } };
   const [agrupacion, setAgrupacion] = React.useState<'wbs' | 'ejecucion'>(() => leerLS('p6.agrupacion', 'wbs'));
   const [niveles, setNiveles] = React.useState<CampoAgrupacion[]>(() => leerLS('p6.niveles', NIVELES_POR_DEFECTO));
+  const [ambito, setAmbito] = React.useState<Ambito>(() => leerLS('p6.ambito', 'todo'));
+  React.useEffect(() => { try { localStorage.setItem('p6.ambito', JSON.stringify(ambito)); } catch { /* sin almacenamiento */ } }, [ambito]);
   React.useEffect(() => { try { localStorage.setItem('p6.agrupacion', JSON.stringify(agrupacion)); localStorage.setItem('p6.niveles', JSON.stringify(niveles)); } catch { /* sin almacenamiento */ } }, [agrupacion, niveles]);
   const idxMaster = React.useMemo(() => indiceMaster(actividadesMaster), [actividadesMaster]);
   const hayMaster = idxMaster.size > 0;
@@ -272,11 +274,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       codigos.add(v.cod);
       if (wbsExcluidos.has(v.wbs)) { excluidas++; continue; }
       const a = idxMaster.get(v.cod);
+      if (!enAmbito(a, ambito)) continue;
       if (a) { enMaster++; nodoDe(rutaDe(a, niveles)).tareas.push(v); } else { sinMaster++; nodoDe([SIN_MASTER]).tareas.push(v); }
     }
     let soloMaster = 0;
     for (const [id, a] of idxMaster) {
-      if (codigos.has(id)) continue;
+      if (codigos.has(id) || !enAmbito(a, ambito)) continue;
       soloMaster++;
       const n = nodoDe(rutaDe(a, niveles));
       (n.soloMaster ??= []).push(a);
@@ -286,7 +289,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     raices.sort(orden);
     raices.forEach(r => resumirNodo(r, 0, undefined, false, orden));
     return { raices, nodos, enMaster, sinMaster, soloMaster, excluidas };
-  }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs]);
+  }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs, ambito]);
 
   const enEjecucion = agrupacion === 'ejecucion' && hayMaster;
   React.useEffect(() => { if (!enEjecucion) setFiltroEstado(f => (f === 'soloMaster' ? 'todas' : f)); }, [enEjecucion]);
@@ -770,6 +773,15 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   <option value="wbs">Agrupar: WBS de P6</option>
                   <option value="ejecucion">Agrupar: Ejecución (Master)</option>
                 </select>
+                {enEjecucion && (
+                  <select value={ambito} onChange={e => { setAmbito(e.target.value as Ambito); setAbiertos(new Set()); }}
+                    title="Construcción: grupos del Master con «Construccion» o «Constr.»; Equipamiento: el resto"
+                    className={`border rounded-lg px-2 py-1.5 font-semibold ${ambito !== 'todo' ? 'bg-[#EEF0FB] border-[#312E81] text-[#312E81]' : 'bg-white border-[#D5DEE2]'}`}>
+                    <option value="todo">Construcción y equipamiento</option>
+                    <option value="construccion">Construcción</option>
+                    <option value="equipamiento">Equipamiento</option>
+                  </select>
+                )}
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-[#5A6A74]" />
                   <input value={filtroTmp} onChange={e => setFiltroTmp(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') setFiltro(filtroTmp.trim()); }}
