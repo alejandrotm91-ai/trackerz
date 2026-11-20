@@ -306,7 +306,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (contiene.has(n.id)) return contiene.get(n.id)!;
       const q = filtro.toLowerCase();
       const r = n.tareas.some(pasa) || n.hijos.some(tiene)
-        || (filtroEstado === 'todas' && !!n.soloMaster?.some(a => String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)));
+        || (!!n.soloMaster?.some(a => String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)));
       contiene.set(n.id, r);
       return r;
     };
@@ -316,8 +316,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (filtrando ? cerradosF.has(n.id) : !abiertos.has(n.id)) return;
       // Primero las actividades propias del WBS y después los sub-WBS.
       for (const v of n.tareas) if (!filtrando || pasa(v)) out.push({ tipo: 'act', vt: v, nivel: n.nivel + 1 });
-      // Rubros del Master que todavía no están en Primavera (sin programación)
-      if (n.soloMaster && filtroEstado === 'todas') {
+      // Rubros del Master que todavía no están en Primavera (sin programación): se muestran
+      // también con filtros de estado; la búsqueda por texto sí los filtra.
+      if (n.soloMaster) {
         const q = filtro.toLowerCase();
         for (const a of n.soloMaster) if (!q || String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)) out.push({ tipo: 'master', a, nivel: n.nivel + 1 });
       }
