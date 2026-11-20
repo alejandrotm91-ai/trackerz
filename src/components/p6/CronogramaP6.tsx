@@ -7,6 +7,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
+import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, type ModeloP6 } from '../../utils/p6/modelo';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
 import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
@@ -37,6 +38,7 @@ const BANDAS_WBS: [string, string][] = [
 ];
 const bandaWbs = (nivel: number) => (nivel < BANDAS_WBS.length ? BANDAS_WBS[nivel] : BANDAS_WBS[4 + ((nivel - 4) % 3)]);
 
+const esHitoFinTipo = (tipo: string) => tipo === 'TT_FinMile';
 const fCorta = (t: number | null | undefined) => {
   if (t == null || !isFinite(t)) return '';
   const d = new Date(t * 60000);
@@ -90,6 +92,15 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     try { return localStorage.getItem('p6.relaciones') === '1'; } catch { return false; }
   });
   React.useEffect(() => { try { localStorage.setItem('p6.relaciones', verRelaciones ? '1' : '0'); } catch { /* sin almacenamiento */ } }, [verRelaciones]);
+  // Línea base
+  const [verLB, setVerLB] = React.useState<boolean>(() => {
+    try { return localStorage.getItem('p6.lineaBase') === '1'; } catch { return false; }
+  });
+  React.useEffect(() => { try { localStorage.setItem('p6.lineaBase', verLB ? '1' : '0'); } catch { /* sin almacenamiento */ } }, [verLB]);
+  const [lbGuardada, setLbGuardada] = React.useState<LineaBase | null>(null);
+  const [fuenteLB, setFuenteLB] = React.useState<'guardada' | 'planificada'>('guardada');
+  const lbFileRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => { leerLineaBase().then(lb => { setLbGuardada(lb); if (!lb) setFuenteLB('planificada'); }); }, []);
   const [scrollTop, setScrollTop] = React.useState(0);
   const [altoVista, setAltoVista] = React.useState(600);
   const scroller = React.useRef<HTMLDivElement>(null);
@@ -139,6 +150,16 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   }, [estadoCarga, vista]);
 
   const m = modelo.current;
+
+  const calBase = m ? (m.calendarios.values().next().value ?? null) : null;
+  // ── Línea base por actividad (por ID de actividad) ──
+  const lbPorAct = React.useMemo(() => {
+    const m = modelo.current;
+    if (!m || !verLB) return null;
+    const fuente = fuenteLB === 'guardada' && lbGuardada ? lbGuardada.act : lineaBasePlanificada(m.xer);
+    return m.task.filas.map(f => fuente[celda(m.task, f, 'task_code')] ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verLB, fuenteLB, lbGuardada, version, estadoCarga]);
 
   // ── Vista de actividades ──
   const vts = React.useMemo<Vt[]>(() => {
@@ -363,6 +384,39 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     onClose();
   };
 
+  // ── Línea base: fijar con la programación actual o desde otro XER ──
+  const guardarLB = async (lb: LineaBase, msg: string) => {
+    if (lbGuardada && !window.confirm(`Ya hay una línea base («${lbGuardada.nombre}», ${new Date(lbGuardada.creadaEn).toLocaleDateString('es-ES')}). ¿Reemplazarla?`)) return;
+    setOcupado('Guardando la línea base…');
+    try {
+      await guardarLineaBase(lb);
+      setLbGuardada(lb);
+      setFuenteLB('guardada');
+      setVerLB(true);
+      mostrar(msg);
+    } catch (e) {
+      mostrar(`No se pudo guardar la línea base: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setOcupado(''); }
+  };
+  const fijarLineaBase = () => {
+    if (!m) return;
+    if (pendienteF9 && !window.confirm('Hay cambios sin programar (F9). ¿Fijar igualmente la línea base con las fechas actuales?')) return;
+    const nombre = `Programación al ${fCorta(m.fechaDatos)}`;
+    void guardarLB(lineaBaseDeXer(m.xer, nombre, username || 'admin', 'programacion'), `Línea base fijada: ${nombre}.`);
+  };
+  const cargarLineaBase = async (file: File) => {
+    if (!m) return;
+    try {
+      const lb = lineaBaseDeTexto(decodificarXer(new Uint8Array(await file.arrayBuffer())), file.name.replace(/\.xer$/i, ''), username || 'admin');
+      const codigos = new Set(m.task.filas.map(f => celda(m.task, f, 'task_code')));
+      const comunes = Object.keys(lb.act).filter(c => codigos.has(c)).length;
+      if (!comunes) { mostrar('Ese XER no tiene ninguna actividad con los mismos ID que el cronograma.'); return; }
+      await guardarLB(lb, `Línea base cargada de ${file.name}: ${comunes.toLocaleString('es-ES')} de ${codigos.size.toLocaleString('es-ES')} actividades con el mismo ID.`);
+    } catch (e) {
+      mostrar(`No se pudo leer el XER de línea base: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   const filtrando = !!filtro || filtroEstado !== 'todas';
   // Cada filtro nuevo empieza desplegado
   React.useEffect(() => { setCerradosF(new Set()); }, [filtro, filtroEstado]);
@@ -415,24 +469,27 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   const enRojo = React.useCallback((v: Vt) => (filtroEstado === 'longest' ? v.lp && v.estado !== 'TK_Complete' : v.tf != null && v.tf <= 0), [filtroEstado]);
   // Resumen de cada WBS para su barra (solo las actividades que pasan el filtro)
   const resumenWbs = React.useMemo(() => {
-    type R = { ini: number | null; fin: number | null; realIni: number | null; realFin: number | null; restIni: number | null; restFin: number | null; roja: boolean };
+    type R = { ini: number | null; fin: number | null; realIni: number | null; realFin: number | null; restIni: number | null; restFin: number | null; roja: boolean; lbIni: number | null; lbFin: number | null };
     const out = new Map<string, R>();
     if (!m) return out;
     const filtrandoR = !!filtro || filtroEstado !== 'todas';
     const mn = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.min(a, b));
     const mx = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.max(a, b));
     const ver = (n: Nodo): R => {
-      const r: R = { ini: null, fin: null, realIni: null, realFin: null, restIni: null, restFin: null, roja: false };
+      const r: R = { ini: null, fin: null, realIni: null, realFin: null, restIni: null, restFin: null, roja: false, lbIni: null, lbFin: null };
       const juntar = (o: R) => {
         r.ini = mn(r.ini, o.ini); r.fin = mx(r.fin, o.fin);
         r.realIni = mn(r.realIni, o.realIni); r.realFin = mx(r.realFin, o.realFin);
         r.restIni = mn(r.restIni, o.restIni); r.restFin = mx(r.restFin, o.restFin);
         r.roja ||= o.roja;
+        r.lbIni = mn(r.lbIni, o.lbIni); r.lbFin = mx(r.lbFin, o.lbFin);
       };
       for (const h of n.hijos) juntar(ver(h));
       for (const v of n.tareas) {
         if (filtrandoR && !pasa(v)) continue;
         r.ini = mn(r.ini, v.ini); r.fin = mx(r.fin, v.fin);
+        const lb = lbPorAct?.[v.i];
+        if (lb) { r.lbIni = mn(r.lbIni, lb[0]); r.lbFin = mx(r.lbFin, lb[1]); }
         // Las barras de trabajo resumen solo tareas (no hitos ni LOE), como P6
         if (v.tipo === 'TT_Mile' || v.tipo === 'TT_FinMile' || v.tipo === 'TT_LOE' || v.tipo === 'TT_WBS') continue;
         if (v.iniA && v.ini != null) {
@@ -450,7 +507,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
     };
     arbol.raices.forEach(ver);
     return out;
-  }, [m, arbol, filtro, filtroEstado, pasa, enRojo]);
+  }, [m, arbol, filtro, filtroEstado, pasa, enRojo, lbPorAct]);
 
   const lineasRelacion = React.useMemo(() => {
     if (!verRelaciones || vista !== 'actividades') return [] as { d: string; critica: boolean; k: string }[];
@@ -634,6 +691,29 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                   <svg width="14" height="10" viewBox="0 0 14 10" className="shrink-0"><path d="M1 2 H5 V8 H12" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M10 6 L13 8 L10 10" fill="currentColor" /></svg>
                   Relaciones
                 </button>
+                <button onClick={() => setVerLB(v => !v)} title="Mostrar u ocultar la línea base (barra amarilla bajo cada actividad)"
+                  className={`px-2 py-1.5 border rounded-lg cursor-pointer flex items-center gap-1 ${verLB ? 'bg-[#E3B505] border-[#C99F00] text-[#14212A] font-bold' : 'border-[#D5DEE2] hover:bg-[#F5F8F9]'}`}>
+                  <svg width="14" height="10" viewBox="0 0 14 10" className="shrink-0"><rect x="1" y="1" width="12" height="4" rx="1" fill="currentColor" opacity=".55" /><rect x="1" y="7" width="9" height="2.5" rx="1" fill={verLB ? '#14212A' : '#E3B505'} /></svg>
+                  Línea base
+                </button>
+                {verLB && (
+                  <>
+                    <select value={fuenteLB} onChange={e => setFuenteLB(e.target.value as 'guardada' | 'planificada')} className="border border-[#D5DEE2] rounded-lg px-2 py-1.5 bg-white max-w-[260px]"
+                      title="Qué fechas se usan como línea base">
+                      {lbGuardada && <option value="guardada">LB: {lbGuardada.nombre} ({new Date(lbGuardada.creadaEn).toLocaleDateString('es-ES')})</option>}
+                      <option value="planificada">Fechas planificadas del XER</option>
+                    </select>
+                    {editable && (
+                      <>
+                        <button onClick={fijarLineaBase} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer" title="Guardar la programación actual como línea base">Fijar actual</button>
+                        <button onClick={() => lbFileRef.current?.click()} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1" title="Usar otro XER (por ejemplo, el programa contractual) como línea base">
+                          <Upload className="w-3.5 h-3.5" /> XER base
+                        </button>
+                        <input ref={lbFileRef} type="file" accept=".xer" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) cargarLineaBase(f); e.target.value = ''; }} />
+                      </>
+                    )}
+                  </>
+                )}
                 {editable && (
                   <button onClick={() => setCreando(true)} className="px-2 py-1.5 rounded-lg bg-[#312E81] text-white font-bold flex items-center gap-1 cursor-pointer" title="Crear una actividad en el WBS seleccionado">
                     <Plus className="w-3.5 h-3.5" /> Nueva actividad
@@ -723,6 +803,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                             const xFinBarra = Math.max(x1, rs.restFin != null ? ANCHO_IZQ + xDe(rs.restFin) : x1);
                             return (
                               <>
+                                {lbPorAct && rs.lbIni != null && rs.lbFin != null && (
+                                  <div className="absolute h-[3px] bg-[#E3B505]" style={{ left: ANCHO_IZQ + xDe(rs.lbIni), width: Math.max(2, xDe(rs.lbFin) - xDe(rs.lbIni)), top: 17 }}
+                                    title={`Línea base: ${fCorta(rs.lbIni)} → ${fCorta(rs.lbFin)}`} />
+                                )}
                                 {/* Barra resumen del WBS (negra, con puntas) */}
                                 <div className="absolute h-1 bg-[#14212A]" style={{ left: x0, width: Math.max(2, x1 - x0), top: 7 }} />
                                 {tri(x0)}{tri(x1)}
@@ -748,6 +832,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                     const critica = enRojo(v);
                     const esHito = v.tipo === 'TT_Mile' || v.tipo === 'TT_FinMile';
                     const seleccionada = sel === v.i;
+                    const lb = lbPorAct?.[v.i] ?? null;
+                    const yB = lbPorAct ? 3 : 6; // con línea base, la barra actual sube para dejarle sitio
+                    const varFin = lb && lb[1] != null && v.fin != null && calBase ? (v.fin >= lb[1] ? calBase.entre(lb[1], v.fin) : -calBase.entre(v.fin, lb[1])) : null;
+                    const tituloLB = lb ? ` · Línea base ${fCorta(lb[0])} → ${fCorta(lb[1])}${varFin != null ? ` (fin ${varFin > 0 ? '+' : ''}${dias(varFin / 60, v.hd)} d)` : ''}` : '';
                     return (
                       <div key={`a${v.i}`} onClick={() => { setSel(v.i); verFecha(v.resto ?? v.ini); }}
                         className={`absolute flex text-[11px] cursor-pointer border-b border-[#F0F2F4] ${seleccionada ? 'bg-[#FFF7D6]' : 'bg-white hover:bg-[#F7F9FA]'}`}
@@ -764,17 +852,23 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                           <div className="w-[56px] text-right px-2">{v.avance ? `${Math.round(v.avance * 10) / 10}%` : ''}</div>
                         </div>
                         {/* Barras */}
+                        {lb && lb[0] != null && lb[1] != null && (esHito ? (
+                          <div className="absolute w-2 h-2 rotate-45 bg-[#E3B505] border border-[#9C7C00]" style={{ left: ANCHO_IZQ + xDe(esHitoFinTipo(v.tipo) ? lb[1] : lb[0]) - 4, top: 13 }} title={`Línea base ${fCorta(lb[1])}`} />
+                        ) : (
+                          <div className="absolute h-[5px] bg-[#E3B505] rounded-sm" style={{ left: ANCHO_IZQ + xDe(lb[0]), width: Math.max(2, xDe(lb[1]) - xDe(lb[0])), top: 15 }}
+                            title={`Línea base ${fCorta(lb[0])} → ${fCorta(lb[1])}`} />
+                        ))}
                         {esHito ? (
-                          v.ini != null && <div className="absolute w-2.5 h-2.5 rotate-45" style={{ left: ANCHO_IZQ + xDe(v.ini) - 5, top: 6, background: v.estado === 'TK_Complete' ? '#2C67A6' : critica ? '#CD0000' : '#14212A' }} title={`${v.cod} · ${fCorta(v.ini)}`} />
+                          v.ini != null && <div className="absolute w-2.5 h-2.5 rotate-45" style={{ left: ANCHO_IZQ + xDe(v.ini) - 5, top: yB, background: v.estado === 'TK_Complete' ? '#2C67A6' : critica ? '#CD0000' : '#14212A' }} title={`${v.cod} · ${fCorta(v.ini)}${tituloLB}`} />
                         ) : (
                           <>
                             {v.iniA && v.ini != null && (
-                              <div className="absolute h-2.5 bg-[#2C67A6] rounded-sm" title="Real"
-                                style={{ left: ANCHO_IZQ + xDe(v.ini), width: Math.max(2, xDe(v.estado === 'TK_Complete' ? v.fin ?? v.ini : m.fechaDatos) - xDe(v.ini)), top: 6 }} />
+                              <div className="absolute h-2.5 bg-[#2C67A6] rounded-sm" title={`Real${tituloLB}`}
+                                style={{ left: ANCHO_IZQ + xDe(v.ini), width: Math.max(2, xDe(v.estado === 'TK_Complete' ? v.fin ?? v.ini : m.fechaDatos) - xDe(v.ini)), top: yB }} />
                             )}
                             {v.estado !== 'TK_Complete' && (v.resto ?? v.ini) != null && v.fin != null && (
-                              <div className={`absolute h-2.5 rounded-sm ${critica ? 'bg-[#CD0000]' : 'bg-[#2B7F52]'}`} title="Restante"
-                                style={{ left: ANCHO_IZQ + xDe((v.resto ?? v.ini)!), width: Math.max(2, xDe(v.fin) - xDe((v.resto ?? v.ini)!)), top: 6 }} />
+                              <div className={`absolute h-2.5 rounded-sm ${critica ? 'bg-[#CD0000]' : 'bg-[#2B7F52]'}`} title={`Restante${tituloLB}`}
+                                style={{ left: ANCHO_IZQ + xDe((v.resto ?? v.ini)!), width: Math.max(2, xDe(v.fin) - xDe((v.resto ?? v.ini)!)), top: yB }} />
                             )}
                           </>
                         )}
