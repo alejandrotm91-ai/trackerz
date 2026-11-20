@@ -763,9 +763,29 @@ const VistaWbs: React.FC<{
     });
   }, [selW, nodos]);
 
-  const filasW: Nodo[] = [];
-  const recorrer = (n: Nodo) => { filasW.push(n); if (abiertosW.has(n.id)) n.hijos.forEach(recorrer); };
-  raices.forEach(recorrer);
+  // Filas visibles con lo necesario para dibujar las guías punteadas del árbol.
+  const filasW: { n: Nodo; guias: boolean[]; ultimo: boolean }[] = [];
+  const recorrer = (n: Nodo, guias: boolean[], ultimo: boolean) => {
+    filasW.push({ n, guias, ultimo });
+    if (!abiertosW.has(n.id)) return;
+    const sig = n.nivel === 0 ? [] : [...guias, !ultimo];
+    n.hijos.forEach((h, k) => recorrer(h, sig, k === n.hijos.length - 1));
+  };
+  raices.forEach((r, k) => recorrer(r, [], k === raices.length - 1));
+
+  // Inicio real («A») si alguna actividad empezó; fin real solo si todas terminaron.
+  const reales = React.useMemo(() => {
+    const out = new Map<string, { iniA: boolean; finA: boolean }>();
+    const ver = (n: Nodo): { iniA: boolean; finA: boolean; total: number } => {
+      let iniA = n.tareas.some(t => t.iniA), finA = n.tareas.every(t => t.finA), total = n.tareas.length;
+      for (const h of n.hijos) { const x = ver(h); iniA ||= x.iniA; if (x.total) finA &&= x.finA; total += x.total; }
+      const res = { iniA, finA: finA && total > 0 };
+      out.set(n.id, res);
+      return { ...res, total };
+    };
+    raices.forEach(ver);
+    return out;
+  }, [raices]);
 
   const accion = (fn: (log: Cambio[]) => string | null, ok?: string) => {
     const log = [...cambios];
@@ -786,7 +806,7 @@ const VistaWbs: React.FC<{
   const btn = 'px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed';
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-white" key={version >= 0 ? 'wbs' : ''}>
+    <div className="flex-1 flex flex-col min-h-0 bg-white">
       <div className="px-4 py-2 border-b border-[#D5DEE2] flex items-center gap-1.5 flex-wrap text-xs">
         {editable ? (
           <>
@@ -853,35 +873,53 @@ const VistaWbs: React.FC<{
         </div>
       )}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-[11.5px] border-collapse">
-          <thead className="sticky top-0 z-10 bg-[#F5F8F9] text-[10.5px] text-[#5A6A74]">
+        <table className="w-full text-[12px] border-collapse text-[#1A1A1A] select-none">
+          <thead className="sticky top-0 z-10 bg-[#F0F0F0] text-[11.5px] font-normal">
             <tr className="text-left">
-              <th className="px-2 py-1.5 w-[380px]">Código WBS</th><th className="px-2">Nombre</th>
-              <th className="px-2 text-right w-24">Actividades</th><th className="px-2 text-right w-24">Inicio</th><th className="px-2 text-right w-24">Fin</th>
+              <th className="px-2 py-1 font-normal border border-[#C8C8C8] w-[340px]">Código WBS</th>
+              <th className="px-2 font-normal border border-[#C8C8C8]">Nombre WBS</th>
+              <th className="px-2 font-normal border border-[#C8C8C8] text-right w-28">Total actividades</th>
+              <th className="px-2 font-normal border border-[#C8C8C8] w-28">Inicio</th>
+              <th className="px-2 font-normal border border-[#C8C8C8] w-28">Fin real</th>
             </tr>
           </thead>
           <tbody>
-            {filasW.map(n => {
-              const [fondo, texto] = bandaWbs(n.nivel);
+            {filasW.map(({ n, guias, ultimo }) => {
               const elegido = selW === n.id;
+              const abierto = abiertosW.has(n.id) && n.hijos.length > 0;
+              const re = reales.get(n.id);
+              const linea = elegido ? '#FFFFFF' : '#6E6E6E';
+              const vert = (top: string, bottom: string) => <span className="absolute" style={{ left: 8, top, bottom, borderLeft: `1px dotted ${linea}` }} />;
+              const horiz = <span className="absolute" style={{ left: 8, right: 0, top: '50%', borderTop: `1px dotted ${linea}` }} />;
               return (
                 <tr key={n.id} onClick={() => setSelW(n.id)} onDoubleClick={() => alternarW(n.id)}
-                  className="cursor-pointer font-semibold border-b border-white/60"
-                  style={{ background: fondo, color: texto, outline: elegido ? '2px solid #CD0000' : undefined, outlineOffset: -2 }}>
-                  <td className="px-2 py-1" style={{ paddingLeft: 6 + n.nivel * 14 }}>
-                    <span className="inline-flex items-center gap-1">
-                      {n.hijos.length ? (
-                        <button onClick={e => { e.stopPropagation(); alternarW(n.id); }} className="cursor-pointer">
-                          {abiertosW.has(n.id) ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                        </button>
-                      ) : <span className="w-3.5" />}
-                      {n.codCompleto}
-                    </span>
+                  className={`cursor-pointer ${elegido ? 'bg-[#0A64C8] text-white' : 'hover:bg-[#EAF2FB]'}`}>
+                  <td className="p-0 border-r border-[#E2E2E2]">
+                    <div className="flex items-stretch h-[21px] pr-2" style={{ paddingLeft: 4 }}>
+                      {/* Guías de los niveles superiores */}
+                      {guias.map((g, k) => <span key={k} className="relative w-4 shrink-0">{g && vert('0', '0')}</span>)}
+                      {/* Conector hacia el padre */}
+                      {n.nivel > 0 && <span className="relative w-4 shrink-0">{vert('0', ultimo ? '50%' : '0')}{horiz}</span>}
+                      {/* Caja +/− (o tramo horizontal si no tiene hijos) */}
+                      <span className="relative w-4 shrink-0 flex items-center justify-center">
+                        {abierto && vert('50%', '0')}
+                        {n.hijos.length ? (
+                          <button onClick={e => { e.stopPropagation(); alternarW(n.id); }} title={abierto ? 'Contraer' : 'Desplegar'}
+                            className="relative z-[1] w-[11px] h-[11px] border border-[#8C8C8C] bg-white text-[#1A1A1A] flex items-center justify-center leading-none text-[10px] font-bold cursor-pointer">
+                            {abierto ? '−' : '+'}
+                          </button>
+                        ) : n.nivel > 0 ? <span className="absolute" style={{ left: 0, right: 0, top: '50%', borderTop: `1px dotted ${linea}` }} /> : null}
+                      </span>
+                      <span className="flex items-center gap-1.5 pl-1 whitespace-nowrap">
+                        <IconoWbs />
+                        <span className={elegido ? 'outline outline-1 outline-[#F7A000] px-0.5' : 'px-0.5'}>{n.codCompleto}</span>
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-2 truncate max-w-[520px]" title={n.nombre}>{n.nombre}</td>
-                  <td className="px-2 text-right">{n.n.toLocaleString('es-ES')}</td>
-                  <td className="px-2 text-right font-normal">{fCorta(n.ini)}</td>
-                  <td className="px-2 text-right font-normal">{fCorta(n.fin)}</td>
+                  <td className="px-2 truncate max-w-[560px] border-r border-[#E2E2E2]" title={n.nombre}>{n.nombre}</td>
+                  <td className="px-2 text-right border-r border-[#E2E2E2]">{n.n}</td>
+                  <td className="px-2 whitespace-nowrap border-r border-[#E2E2E2]">{fNum(n.ini)}{re?.iniA && n.ini != null ? ' A' : ''}</td>
+                  <td className="px-2 whitespace-nowrap">{re?.finA ? fNum(n.fin) : ''}</td>
                 </tr>
               );
             })}
@@ -890,6 +928,21 @@ const VistaWbs: React.FC<{
       </div>
     </div>
   );
+};
+
+/** Icono de nodo WBS como el de P6 (dos carpetas azules superpuestas). */
+const IconoWbs = () => (
+  <svg width="16" height="14" viewBox="0 0 16 14" className="shrink-0">
+    <rect x="0.5" y="0.5" width="10" height="8" fill="#2B5FD9" stroke="#1B3E91" />
+    <rect x="5.5" y="5.5" width="10" height="8" fill="#3D7CF0" stroke="#1B3E91" />
+  </svg>
+);
+
+/** Fecha corta numérica como en P6: 25-05-22. */
+const fNum = (t: number | null | undefined) => {
+  if (t == null || !isFinite(t)) return '';
+  const d = new Date(t * 60000);
+  return `${String(d.getUTCDate()).padStart(2, '0')}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCFullYear()).slice(2)}`;
 };
 
 /** Siguiente ID libre a partir de otro (13.1.5 → 13.1.6; ABC → ABC.1). */
