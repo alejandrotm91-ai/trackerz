@@ -4,6 +4,7 @@
  * el Activity ID (task_code en el XER = activityId en el Master).
  */
 import type { Actividad } from '../../types';
+import { celda, type Xer } from './xer';
 
 export type CampoAgrupacion = 'grupo' | 'componente' | 'tipo' | 'proceso' | 'cap' | 'scap' | 'unit' | 'subcontratista' | 'ubicacion' | 'macro';
 
@@ -36,13 +37,57 @@ export function indiceMaster(acts: Actividad[] | undefined | null): Map<string, 
   return m;
 }
 
-/** Ruta de grupos de una actividad del Master según los niveles elegidos. */
-export function rutaDe(a: Actividad, niveles: CampoAgrupacion[]): string[] {
-  return niveles.map(k => {
-    const v = (a as unknown as Record<string, unknown>)[k];
-    const s = v == null ? '' : String(v).trim();
-    return s || `(sin ${etiquetaCampo(k)})`;
-  });
+/** Clasificación de una actividad: lo que dice el XER (campos de usuario) y, si no, el Master. */
+export type Clasificacion = Partial<Record<CampoAgrupacion, string>>;
+
+/** Valor de un campo de agrupación: primero el campo de usuario del XER (editable en Trakciona), si no el Master. */
+export function valorCampo(a: Actividad | undefined, k: CampoAgrupacion, udf?: Clasificacion): string {
+  const u = udf?.[k];
+  if (u) return u;
+  const v = a ? (a as unknown as Record<string, unknown>)[k] : undefined;
+  return v == null ? '' : String(v).trim();
+}
+
+/** Ruta de grupos de una actividad según los niveles elegidos. */
+export function rutaDe(a: Actividad | undefined, niveles: CampoAgrupacion[], udf?: Clasificacion): string[] {
+  return niveles.map(k => valorCampo(a, k, udf) || `(sin ${etiquetaCampo(k)})`);
+}
+
+/** Campos de usuario del XER que equivalen a los campos de agrupación del Master (por su etiqueta, sin el «NN.»). */
+const UDF_A_CAMPO: Record<string, CampoAgrupacion> = {
+  grupos: 'grupo', grupo: 'grupo', componente: 'componente', tipo: 'tipo', scap: 'scap', cap: 'cap',
+  proceso: 'proceso', unit: 'unit', subc: 'subcontratista', subcontratista: 'subcontratista', ubicacion: 'ubicacion',
+};
+/** Valores que en el XER significan «sin dato». */
+const VACIO_UDF = new Set(['', '0', '-', 'hito']);
+
+/** task_code → clasificación según los campos de usuario del XER. */
+export function clasificacionXer(xer: Xer): Map<string, Clasificacion> {
+  const out = new Map<string, Clasificacion>();
+  const tipos = xer.tablas.get('UDFTYPE'), valores = xer.tablas.get('UDFVALUE'), t = xer.tablas.get('TASK');
+  if (!tipos || !valores || !t) return out;
+  const campoDe = new Map<string, CampoAgrupacion>();
+  for (const f of tipos.filas) {
+    if (celda(tipos, f, 'table_name') !== 'TASK') continue;
+    const etq = celda(tipos, f, 'udf_type_label').trim().toLowerCase().replace(/^\d+\.\s*/, '');
+    const k = UDF_A_CAMPO[etq];
+    if (k) campoDe.set(celda(tipos, f, 'udf_type_id'), k);
+  }
+  if (!campoDe.size) return out;
+  const codigo = new Map<string, string>();
+  for (const f of t.filas) codigo.set(celda(t, f, 'task_id'), celda(t, f, 'task_code'));
+  for (const f of valores.filas) {
+    const k = campoDe.get(celda(valores, f, 'udf_type_id'));
+    if (!k) continue;
+    const v = celda(valores, f, 'udf_text').trim();
+    if (VACIO_UDF.has(v.toLowerCase())) continue;
+    const cod = codigo.get(celda(valores, f, 'fk_id'));
+    if (!cod) continue;
+    const c = out.get(cod) ?? {};
+    c[k] = v;
+    out.set(cod, c);
+  }
+  return out;
 }
 
 /** Fecha del Master (Date o texto) → minutos UTC del día, como las fechas del XER. */
@@ -58,9 +103,9 @@ export type Ambito = 'todo' | 'construccion' | 'equipamiento';
 
 export const esConstruccion = (grupo: string | null | undefined) => /constr/i.test(String(grupo ?? ''));
 
-/** ¿La actividad (con su fila del Master, o sin ella) entra en el ámbito elegido? */
-export function enAmbito(a: Actividad | undefined, ambito: Ambito): boolean {
+/** ¿La actividad entra en el ámbito elegido? (grupo según el XER o el Master; sin datos del Master → equipamiento) */
+export function enAmbito(a: Actividad | undefined, ambito: Ambito, udf?: Clasificacion): boolean {
   if (ambito === 'todo') return true;
-  const constr = !!a && esConstruccion(a.grupo);
+  const constr = !!a && esConstruccion(valorCampo(a, 'grupo', udf));
   return ambito === 'construccion' ? constr : !constr;
 }

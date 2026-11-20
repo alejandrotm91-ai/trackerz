@@ -7,7 +7,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
-import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, enAmbito, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
+import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, enAmbito, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, type ModeloP6 } from '../../utils/p6/modelo';
@@ -244,7 +244,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     return { raices, nodos };
   }, [m, vts]);
 
-  // Vista de ejecución: misma programación, agrupada con la clasificación del Master
+  // Clasificación que trae el propio XER en sus campos de usuario (se actualiza al editarlos)
+  const clasifXer = React.useMemo(() => (m ? clasificacionXer(m.xer) : new Map()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [m, version]);
+
+  // Vista de ejecución: misma programación, agrupada con la clasificación del XER/Master
   const arbolEjec = React.useMemo(() => {
     const nodos = new Map<string, Nodo>();
     const raices: Nodo[] = [];
@@ -280,8 +285,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       codigos.add(v.cod);
       if (wbsExcluidos.has(v.wbs)) { excluidas++; continue; }
       const a = idxMaster.get(v.cod);
-      if (!enAmbito(a, ambito)) continue;
-      const nodo = a ? (enMaster++, nodoDe(rutaDe(a, niveles))) : (sinMaster++, nodoDe([SIN_MASTER]));
+      const udf = clasifXer.get(v.cod);
+      if (!enAmbito(a, ambito, udf)) continue;
+      const nodo = a ? (enMaster++, nodoDe(rutaDe(a, niveles, udf))) : (sinMaster++, nodoDe([SIN_MASTER]));
       nodo.tareas.push(v);
       grupoDeAct.set(v.i, nodo.id);
     }
@@ -297,7 +303,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     raices.sort(orden);
     raices.forEach(r => resumirNodo(r, 0, undefined, false, orden));
     return { raices, nodos, enMaster, sinMaster, soloMaster, excluidas, grupoDeAct };
-  }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs, ambito]);
+  }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs, ambito, clasifXer]);
 
   const enEjecucion = agrupacion === 'ejecucion' && hayMaster;
   React.useEffect(() => { if (!enEjecucion) setFiltroEstado(f => (f === 'soloMaster' ? 'todas' : f)); }, [enEjecucion]);
