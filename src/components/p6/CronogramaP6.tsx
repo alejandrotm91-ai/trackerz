@@ -307,6 +307,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
 
   const filas = React.useMemo<Fila[]>(() => {
     const out: Fila[] = [];
+    // En la vista de ejecución el orden por fecha se aplica también a los grupos de todos los niveles
+    // (por el inicio o fin de cada grupo); en la WBS de P6 los WBS conservan su orden.
+    const ordenarGrupos = (lista: Nodo[]) => (!orden || !enEjecucion ? lista : [...lista].sort((a, b) => {
+      if (a.nombre === SIN_MASTER || b.nombre === SIN_MASTER) return a.nombre === SIN_MASTER ? 1 : -1;
+      const x = a[orden.col], y = b[orden.col];
+      if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
+      return (x - y) * orden.dir || a.nombre.localeCompare(b.nombre, 'es', { numeric: true });
+    }));
     const filtrando = !!filtro || filtroEstado !== 'todas';
     const contiene = new Map<string, boolean>();
     const tiene = (n: Nodo): boolean => {
@@ -340,11 +348,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         }) : n.soloMaster;
         for (const a of solo) if (!q || String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)) out.push({ tipo: 'master', a, nivel: n.nivel + 1 });
       }
-      for (const h of n.hijos) recorrer(h);
+      ordenarGrupos(n.hijos).forEach(recorrer);
     };
-    arbol.raices.forEach(recorrer);
+    ordenarGrupos(arbol.raices).forEach(recorrer);
     return out;
-  }, [arbol, abiertos, cerradosF, filtro, filtroEstado, pasa, orden]);
+  }, [arbol, abiertos, cerradosF, filtro, filtroEstado, pasa, orden, enEjecucion]);
 
   // ── Escala del Gantt ──
   const rango = React.useMemo(() => {
