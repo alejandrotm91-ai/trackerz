@@ -236,7 +236,17 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const arbolEjec = React.useMemo(() => {
     const nodos = new Map<string, Nodo>();
     const raices: Nodo[] = [];
-    if (!m || !hayMaster) return { raices, nodos, enMaster: 0, sinMaster: 0, soloMaster: 0 };
+    if (!m || !hayMaster) return { raices, nodos, enMaster: 0, sinMaster: 0, soloMaster: 0, excluidas: 0 };
+    // Fuera de la vista de ejecución: el WBS «.D» del proyecto (actividades pendientes de confirmar
+    // por el Ingeniero, con fechas provisionales) y todo lo que cuelga de él.
+    const wbsExcluidos = new Set<string>();
+    for (const raiz of arbolWbs.raices) {
+      const d = raiz.hijos.find(h => h.cod.toUpperCase() === 'D');
+      if (!d) continue;
+      const pila = [d];
+      while (pila.length) { const x = pila.pop()!; wbsExcluidos.add(x.id); pila.push(...x.hijos); }
+    }
+    let excluidas = 0;
     const nodoDe = (ruta: string[]): Nodo => {
       let padre: Nodo | undefined;
       for (let j = 0; j < ruta.length; j++) {
@@ -255,6 +265,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     const codigos = new Set<string>();
     for (const v of vts) {
       codigos.add(v.cod);
+      if (wbsExcluidos.has(v.wbs)) { excluidas++; continue; }
       const a = idxMaster.get(v.cod);
       if (a) { enMaster++; nodoDe(rutaDe(a, niveles)).tareas.push(v); } else { sinMaster++; nodoDe([SIN_MASTER]).tareas.push(v); }
     }
@@ -269,8 +280,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     const orden = (a: Nodo, b: Nodo) => (a.nombre === SIN_MASTER ? 1 : b.nombre === SIN_MASTER ? -1 : natural(a.nombre, b.nombre));
     raices.sort(orden);
     raices.forEach(r => resumirNodo(r, 0, undefined, false, orden));
-    return { raices, nodos, enMaster, sinMaster, soloMaster };
-  }, [m, vts, idxMaster, hayMaster, niveles]);
+    return { raices, nodos, enMaster, sinMaster, soloMaster, excluidas };
+  }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs]);
 
   const enEjecucion = agrupacion === 'ejecucion' && hayMaster;
   const arbol: { raices: Nodo[]; nodos: Map<string, Nodo> } = enEjecucion ? arbolEjec : arbolWbs;
@@ -818,6 +829,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 {arbolEjec.enMaster.toLocaleString('es-ES')} actividades enlazadas por Activity ID
                 {arbolEjec.sinMaster ? ` · ${arbolEjec.sinMaster.toLocaleString('es-ES')} del XER sin datos en el Master` : ''}
                 {arbolEjec.soloMaster ? ` · ${arbolEjec.soloMaster.toLocaleString('es-ES')} rubros solo en el Master (aún no en P6)` : ''}
+                {arbolEjec.excluidas ? ` · ${arbolEjec.excluidas.toLocaleString('es-ES')} del WBS «Pendientes de confirmar» (.D) excluidas` : ''}
               </span>
             </div>
           )}
