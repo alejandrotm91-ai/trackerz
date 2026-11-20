@@ -288,3 +288,161 @@ export function eliminarActividad(m: ModeloP6, i: number, log: Cambio[]) {
   reindexar(m);
   registrar(log, cod, 'Actividad eliminada', `${celda(t, f, 'task_name')} · ${rels} relaciones · ${recursos} asignaciones`, '');
 }
+
+/* ───────────────────────── WBS ───────────────────────── */
+
+const wbsTabla = (m: ModeloP6) => {
+  const w = m.xer.tablas.get('PROJWBS');
+  if (!w) throw new Error('El XER no trae la tabla PROJWBS.');
+  return w;
+};
+const filaWbs = (m: ModeloP6, id: string) => {
+  const w = wbsTabla(m);
+  return w.filas.find(f => celda(w, f, 'wbs_id') === id);
+};
+/** Hijos de un WBS ordenados por su posición (seq_num). */
+function hijosWbs(m: ModeloP6, padre: string): string[][] {
+  const w = wbsTabla(m);
+  return w.filas.filter(f => celda(w, f, 'parent_wbs_id') === padre && celda(w, f, 'proj_node_flag') !== 'Y')
+    .sort((a, b) => (Number(celda(w, a, 'seq_num')) || 0) - (Number(celda(w, b, 'seq_num')) || 0));
+}
+/** Vuelve a numerar las posiciones de unos hermanos (10, 20, 30…). */
+function renumerar(m: ModeloP6, hermanos: string[][]) {
+  const w = wbsTabla(m);
+  hermanos.forEach((f, k) => ponerCelda(w, f, 'seq_num', String((k + 1) * 10)));
+}
+const nombreWbs = (m: ModeloP6, f: string[]) => { const w = wbsTabla(m); return `${celda(w, f, 'wbs_short_name')} · ${celda(w, f, 'wbs_name')}`; };
+const esNodoProyecto = (m: ModeloP6, f: string[] | undefined) => !!f && celda(wbsTabla(m), f, 'proj_node_flag') === 'Y';
+
+/** Crea un WBS dentro de `padreId` (al final, o justo después de `despuesDe`). Devuelve su id o un error. */
+export function crearWbs(m: ModeloP6, padreId: string, corto: string, nombre: string, log: Cambio[], despuesDe?: string): string {
+  const w = wbsTabla(m);
+  const padre = filaWbs(m, padreId);
+  if (!padre) return 'Elige un WBS padre.';
+  const c = corto.trim();
+  if (!c) return 'Falta el código del WBS.';
+  if (!nombre.trim()) return 'Falta el nombre del WBS.';
+  const hermanos = hijosWbs(m, padreId);
+  if (hermanos.some(f => celda(w, f, 'wbs_short_name').toLowerCase() === c.toLowerCase())) return `Ya hay un WBS ${c} en ese nivel.`;
+  const fila = [...padre];
+  const put = (campo: string, v: string) => ponerCelda(w, fila, campo, v);
+  for (const campo of w.campos) if (/_date$/.test(campo)) put(campo, '');
+  const maxId = w.filas.reduce((mx, f) => Math.max(mx, Number(celda(w, f, 'wbs_id')) || 0), 0);
+  const id = String(maxId + 1);
+  put('wbs_id', id);
+  put('parent_wbs_id', padreId);
+  put('proj_node_flag', 'N');
+  put('wbs_short_name', c);
+  put('wbs_name', nombre.trim());
+  put('guid', nuevoGuid());
+  put('tmpl_guid', '');
+  for (const campo of ['orig_cost', 'indep_remain_total_cost', 'indep_remain_work_qty', 'ev_user_pct', 'ev_etc_user_value']) if (w.idx[campo] !== undefined) put(campo, '0');
+  w.filas.push(fila);
+  // Posición: después de `despuesDe` o al final
+  const orden = [...hermanos];
+  const k = despuesDe ? orden.findIndex(f => celda(w, f, 'wbs_id') === despuesDe) : -1;
+  orden.splice(k >= 0 ? k + 1 : orden.length, 0, fila);
+  renumerar(m, orden);
+  registrar(log, `WBS ${c}`, 'WBS creado', '', `${nombre.trim()} (en ${nombreWbs(m, padre)})`);
+  return id;
+}
+
+export function editarWbs(m: ModeloP6, id: string, cambios: { corto?: string; nombre?: string }, log: Cambio[]): string | null {
+  const w = wbsTabla(m);
+  const f = filaWbs(m, id);
+  if (!f) return 'No existe ese WBS.';
+  if (cambios.corto !== undefined) {
+    const c = cambios.corto.trim();
+    if (!c) return 'El código no puede quedar vacío.';
+    const hermanos = hijosWbs(m, celda(w, f, 'parent_wbs_id'));
+    if (hermanos.some(h => h !== f && celda(w, h, 'wbs_short_name').toLowerCase() === c.toLowerCase())) return `Ya hay un WBS ${c} en ese nivel.`;
+    registrar(log, `WBS ${celda(w, f, 'wbs_short_name')}`, 'Código WBS', celda(w, f, 'wbs_short_name'), c);
+    ponerCelda(w, f, 'wbs_short_name', c);
+  }
+  if (cambios.nombre !== undefined && cambios.nombre.trim()) {
+    registrar(log, `WBS ${celda(w, f, 'wbs_short_name')}`, 'Nombre WBS', celda(w, f, 'wbs_name'), cambios.nombre.trim());
+    ponerCelda(w, f, 'wbs_name', cambios.nombre.trim());
+  }
+  return null;
+}
+
+/** Ids de un WBS y de todos sus descendientes. */
+export function subarbolWbs(m: ModeloP6, id: string): Set<string> {
+  const w = wbsTabla(m);
+  const hijos = new Map<string, string[]>();
+  for (const f of w.filas) {
+    const p = celda(w, f, 'parent_wbs_id');
+    (hijos.get(p) || hijos.set(p, []).get(p)!).push(celda(w, f, 'wbs_id'));
+  }
+  const out = new Set<string>();
+  const pila = [id];
+  while (pila.length) { const x = pila.pop()!; if (out.has(x)) continue; out.add(x); pila.push(...(hijos.get(x) || [])); }
+  return out;
+}
+
+/** Elimina un WBS y sus sub-WBS; sus actividades pasan al WBS padre. */
+export function eliminarWbs(m: ModeloP6, id: string, log: Cambio[]): string | null {
+  const w = wbsTabla(m);
+  const f = filaWbs(m, id);
+  if (!f) return 'No existe ese WBS.';
+  if (esNodoProyecto(m, f)) return 'El nodo del proyecto no se puede eliminar.';
+  const padre = celda(w, f, 'parent_wbs_id');
+  const ids = subarbolWbs(m, id);
+  const t = m.task;
+  let movidas = 0;
+  for (const ft of t.filas) if (ids.has(celda(t, ft, 'wbs_id'))) { ponerCelda(t, ft, 'wbs_id', padre); movidas++; }
+  w.filas = w.filas.filter(fw => !ids.has(celda(w, fw, 'wbs_id')));
+  // Otras tablas que apuntan al WBS (códigos de actividad con alcance WBS)
+  const at = m.xer.tablas.get('ACTVTYPE');
+  if (at) for (const fa of at.filas) if (ids.has(celda(at, fa, 'wbs_id'))) ponerCelda(at, fa, 'wbs_id', padre);
+  renumerar(m, hijosWbs(m, padre));
+  const pf = filaWbs(m, padre);
+  registrar(log, `WBS ${celda(w, f, 'wbs_short_name')}`, 'WBS eliminado', `${celda(w, f, 'wbs_name')} · ${ids.size - 1} sub-WBS`, `${movidas} actividades pasan a ${pf ? nombreWbs(m, pf) : 'su padre'}`);
+  return null;
+}
+
+/** Mueve un WBS: arriba/abajo entre sus hermanos, derecha (sangrar) o izquierda (quitar sangría). */
+export function moverWbs(m: ModeloP6, id: string, accion: 'arriba' | 'abajo' | 'derecha' | 'izquierda', log: Cambio[]): string | null {
+  const w = wbsTabla(m);
+  const f = filaWbs(m, id);
+  if (!f) return 'No existe ese WBS.';
+  if (esNodoProyecto(m, f)) return 'El nodo del proyecto no se puede mover.';
+  const padreId = celda(w, f, 'parent_wbs_id');
+  const hermanos = hijosWbs(m, padreId);
+  const k = hermanos.indexOf(f);
+  const etq = `WBS ${celda(w, f, 'wbs_short_name')}`;
+  if (accion === 'arriba' || accion === 'abajo') {
+    const j = accion === 'arriba' ? k - 1 : k + 1;
+    if (j < 0 || j >= hermanos.length) return null;
+    [hermanos[k], hermanos[j]] = [hermanos[j], hermanos[k]];
+    renumerar(m, hermanos);
+    registrar(log, etq, 'Posición', String(k + 1), String(j + 1));
+    return null;
+  }
+  if (accion === 'derecha') {
+    if (k <= 0) return 'No hay un WBS anterior en el mismo nivel para colgarlo.';
+    const nuevoPadre = hermanos[k - 1];
+    const nuevoPadreId = celda(w, nuevoPadre, 'wbs_id');
+    const destino = hijosWbs(m, nuevoPadreId);
+    if (destino.some(h => celda(w, h, 'wbs_short_name').toLowerCase() === celda(w, f, 'wbs_short_name').toLowerCase())) return 'Ya existe un WBS con ese código en el nivel de destino.';
+    ponerCelda(w, f, 'parent_wbs_id', nuevoPadreId);
+    renumerar(m, [...destino, f]);
+    renumerar(m, hijosWbs(m, padreId));
+    registrar(log, etq, 'Nivel', nombreWbs(m, filaWbs(m, padreId)!), nombreWbs(m, nuevoPadre));
+    return null;
+  }
+  // izquierda: pasa a ser hermano de su padre, justo después de él
+  const padre = filaWbs(m, padreId);
+  if (!padre || esNodoProyecto(m, padre)) return 'Ya está en el primer nivel del proyecto.';
+  const abueloId = celda(w, padre, 'parent_wbs_id');
+  const tios = hijosWbs(m, abueloId);
+  if (tios.some(h => h !== f && celda(w, h, 'wbs_short_name').toLowerCase() === celda(w, f, 'wbs_short_name').toLowerCase())) return 'Ya existe un WBS con ese código en el nivel de destino.';
+  ponerCelda(w, f, 'parent_wbs_id', abueloId);
+  const pos = tios.indexOf(padre);
+  tios.splice(pos + 1, 0, f);
+  renumerar(m, tios);
+  renumerar(m, hijosWbs(m, padreId));
+  const abuelo = filaWbs(m, abueloId);
+  registrar(log, etq, 'Nivel', nombreWbs(m, padre), abuelo ? nombreWbs(m, abuelo) : 'proyecto');
+  return null;
+}

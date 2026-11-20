@@ -5,11 +5,11 @@
  * Todos consultan; solo el administrador edita, programa y guarda.
  */
 import React from 'react';
-import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
 import { crearModelo, type ModeloP6 } from '../../utils/p6/modelo';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
-import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
+import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
 
 const FILA = 22;
@@ -78,7 +78,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
   const [filtro, setFiltro] = React.useState('');
   const [filtroTmp, setFiltroTmp] = React.useState('');
   const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'criticas' | 'encurso'>('todas');
-  const [vista, setVista] = React.useState<'actividades' | 'recursos'>('actividades');
+  const [vista, setVista] = React.useState<'actividades' | 'wbs' | 'recursos'>('actividades');
   const [px, setPx] = React.useState(1);
   const [verRelaciones, setVerRelaciones] = React.useState<boolean>(() => {
     try { return localStorage.getItem('p6.relaciones') === '1'; } catch { return false; }
@@ -527,10 +527,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
           {/* Herramientas */}
           <div className="px-4 py-2 bg-white border-b border-[#D5DEE2] flex items-center gap-2 flex-wrap shrink-0 text-xs">
             <div className="inline-flex border border-[#D5DEE2] rounded-lg overflow-hidden">
-              {(['actividades', 'recursos'] as const).map(v => (
+              {(['actividades', 'wbs', 'recursos'] as const).map(v => (
                 <button key={v} onClick={() => setVista(v)} className={`px-3 py-1.5 flex items-center gap-1 cursor-pointer ${vista === v ? 'bg-[#312E81] text-white font-bold' : 'bg-white text-[#5A6A74] hover:text-[#14212A]'}`}>
-                  {v === 'actividades' ? <Layers className="w-3.5 h-3.5" /> : <BarChart3 className="w-3.5 h-3.5" />}
-                  {v === 'actividades' ? 'Actividades' : 'Recursos'}
+                  {v === 'actividades' ? <Layers className="w-3.5 h-3.5" /> : v === 'wbs' ? <Network className="w-3.5 h-3.5" /> : <BarChart3 className="w-3.5 h-3.5" />}
+                  {v === 'actividades' ? 'Actividades' : v === 'wbs' ? 'WBS' : 'Recursos'}
                 </button>
               ))}
             </div>
@@ -721,11 +721,173 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; onClo
                   }} />
               )}
             </>
+          ) : vista === 'wbs' ? (
+            <VistaWbs m={m} raices={arbol.raices} nodos={arbol.nodos} editable={editable} cambios={cambios} version={version}
+              onCambio={marcarCambio} mostrar={mostrar}
+              onVerActividades={id => {
+                const abrir = new Set(abiertos);
+                let w: string | undefined = id;
+                while (w && arbol.nodos.has(w)) { abrir.add(w); w = arbol.nodos.get(w)!.padre; }
+                setAbiertos(abrir);
+                setWbsSel(id);
+                setVista('actividades');
+              }} />
           ) : (
             <VistaRecursos m={m} version={version} />
           )}
         </>
       )}
+    </div>
+  );
+};
+
+/** Ventana WBS (como la de P6): crear, renombrar, mover y eliminar nodos del WBS. */
+const VistaWbs: React.FC<{
+  m: ModeloP6; raices: Nodo[]; nodos: Map<string, Nodo>; editable: boolean; cambios: Cambio[]; version: number;
+  onCambio: (log: Cambio[]) => void; mostrar: (t: string) => void; onVerActividades: (id: string) => void;
+}> = ({ m, raices, nodos, editable, cambios, version, onCambio, mostrar, onVerActividades }) => {
+  const [abiertosW, setAbiertosW] = React.useState<Set<string>>(() => new Set(raices.map(r => r.id)));
+  const [selW, setSelW] = React.useState<string | null>(null);
+  const [nuevo, setNuevo] = React.useState<{ modo: 'hijo' | 'hermano'; corto: string; nombre: string } | null>(null);
+  const nodoSel = selW ? nodos.get(selW) : undefined;
+  const esRaiz = !!nodoSel && raices.some(r => r.id === nodoSel.id);
+  const alternarW = (id: string) => setAbiertosW(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  // El seleccionado siempre visible: tras crearlo o moverlo se abren sus padres.
+  React.useEffect(() => {
+    if (!selW) return;
+    setAbiertosW(prev => {
+      let w: string | undefined = nodos.get(selW)?.padre;
+      const n = new Set(prev); let cambia = false;
+      while (w && nodos.has(w)) { if (!n.has(w)) { n.add(w); cambia = true; } w = nodos.get(w)!.padre; }
+      return cambia ? n : prev;
+    });
+  }, [selW, nodos]);
+
+  const filasW: Nodo[] = [];
+  const recorrer = (n: Nodo) => { filasW.push(n); if (abiertosW.has(n.id)) n.hijos.forEach(recorrer); };
+  raices.forEach(recorrer);
+
+  const accion = (fn: (log: Cambio[]) => string | null, ok?: string) => {
+    const log = [...cambios];
+    const err = fn(log);
+    if (err) { mostrar(err); return false; }
+    onCambio(log);
+    if (ok) mostrar(ok);
+    return true;
+  };
+  const sugerirCodigo = (padreId: string) => {
+    const hs = nodos.get(padreId)?.hijos || [];
+    const nums = hs.map(h => Number(h.cod)).filter(x => Number.isFinite(x));
+    let c = String(nums.length ? Math.max(...nums) + 1 : hs.length + 1);
+    while (hs.some(h => h.cod.toLowerCase() === c.toLowerCase())) c = `${c}A`;
+    return c;
+  };
+  const padreNuevo = () => (nuevo?.modo === 'hijo' || esRaiz ? nodoSel?.id : nodoSel?.padre) || '';
+  const btn = 'px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed';
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 bg-white" key={version >= 0 ? 'wbs' : ''}>
+      <div className="px-4 py-2 border-b border-[#D5DEE2] flex items-center gap-1.5 flex-wrap text-xs">
+        {editable ? (
+          <>
+            <button className={btn} disabled={!nodoSel} onClick={() => nodoSel && setNuevo({ modo: 'hijo', corto: sugerirCodigo(nodoSel.id), nombre: '' })} title="Crear un WBS dentro del seleccionado"><Plus className="w-3.5 h-3.5" /> WBS hijo</button>
+            <button className={btn} disabled={!nodoSel || esRaiz} onClick={() => nodoSel && setNuevo({ modo: 'hermano', corto: sugerirCodigo(nodoSel.padre), nombre: '' })} title="Crear un WBS al mismo nivel, debajo del seleccionado"><Plus className="w-3.5 h-3.5" /> Mismo nivel</button>
+            <span className="w-px h-5 bg-[#D5DEE2] mx-1" />
+            {([['arriba', ArrowUp, 'Subir'], ['abajo', ArrowDown, 'Bajar'], ['izquierda', ArrowLeft, 'Subir de nivel (quitar sangría)'], ['derecha', ArrowRight, 'Bajar de nivel (colgar del WBS anterior)']] as const).map(([a, Ic, tt]) => (
+              <button key={a} className={btn} disabled={!nodoSel || esRaiz} title={tt}
+                onClick={() => nodoSel && accion(log => moverWbs(m, nodoSel.id, a, log))}>
+                <Ic className="w-3.5 h-3.5" />
+              </button>
+            ))}
+            <span className="w-px h-5 bg-[#D5DEE2] mx-1" />
+            <button className={`${btn} text-red-700`} disabled={!nodoSel || esRaiz} onClick={() => {
+              if (!nodoSel) return;
+              const ids = subarbolWbs(m, nodoSel.id);
+              if (!window.confirm(`¿Eliminar el WBS ${nodoSel.codCompleto} · ${nodoSel.nombre}${ids.size > 1 ? ` y sus ${ids.size - 1} sub-WBS` : ''}?\n\nSus ${nodoSel.n} actividades no se borran: pasan al WBS padre.`)) return;
+              const padre = nodoSel.padre;
+              if (accion(log => eliminarWbs(m, nodoSel.id, log), `WBS ${nodoSel.codCompleto} eliminado; sus actividades pasaron al WBS padre.`)) setSelW(padre);
+            }}><Trash2 className="w-3.5 h-3.5" /> Eliminar</button>
+          </>
+        ) : <span className="text-[#5A6A74]">Solo el administrador puede modificar el WBS.</span>}
+        {nodoSel && (
+          <button className={`${btn} ml-auto`} onClick={() => onVerActividades(nodoSel.id)} title="Ir a las actividades de este WBS"><Layers className="w-3.5 h-3.5" /> Ver actividades</button>
+        )}
+      </div>
+      {/* Edición del seleccionado o alta de uno nuevo */}
+      {editable && (nuevo || nodoSel) && (
+        <div className="px-4 py-2 border-b border-[#D5DEE2] bg-[#F5F8F9] flex items-center gap-2 flex-wrap text-xs">
+          {nuevo ? (
+            <form className="flex items-center gap-2 flex-wrap" onSubmit={e => {
+              e.preventDefault();
+              const padre = padreNuevo();
+              let creado = '';
+              const ok = accion(log => {
+                const r = crearWbs(m, padre, nuevo.corto, nuevo.nombre, log, nuevo.modo === 'hermano' ? nodoSel?.id : undefined);
+                if (/^\d+$/.test(r)) { creado = r; return null; }
+                return r;
+              }, 'WBS creado.');
+              if (ok) { setNuevo(null); setAbiertosW(prev => new Set([...prev, padre])); setSelW(creado || null); }
+            }}>
+              <b>Nuevo WBS {nuevo.modo === 'hijo' ? `dentro de ${nodoSel?.codCompleto}` : `al nivel de ${nodoSel?.codCompleto}`}</b>
+              <input value={nuevo.corto} onChange={e => setNuevo({ ...nuevo, corto: e.target.value })} placeholder="Código" className="border border-[#D5DEE2] rounded px-2 py-1 w-24" autoFocus required />
+              <input value={nuevo.nombre} onChange={e => setNuevo({ ...nuevo, nombre: e.target.value })} placeholder="Nombre del WBS" className="border border-[#D5DEE2] rounded px-2 py-1 w-80" required />
+              <button type="submit" className="px-3 py-1 rounded bg-[#312E81] text-white font-bold cursor-pointer">Crear</button>
+              <button type="button" onClick={() => setNuevo(null)} className="px-2 py-1 rounded hover:bg-white cursor-pointer">Cancelar</button>
+            </form>
+          ) : nodoSel && !esRaiz ? (
+            <div className="flex items-center gap-2 flex-wrap" key={`${nodoSel.id}-${version}`}>
+              <b>Seleccionado:</b>
+              <label className="flex items-center gap-1">Código
+                <input defaultValue={nodoSel.cod} className="border border-[#D5DEE2] rounded px-2 py-1 w-24"
+                  onBlur={e => e.target.value !== nodoSel.cod && accion(log => editarWbs(m, nodoSel.id, { corto: e.target.value }, log))}
+                  onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+              </label>
+              <label className="flex items-center gap-1">Nombre
+                <input defaultValue={nodoSel.nombre} className="border border-[#D5DEE2] rounded px-2 py-1 w-96"
+                  onBlur={e => e.target.value !== nodoSel.nombre && accion(log => editarWbs(m, nodoSel.id, { nombre: e.target.value }, log))}
+                  onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+              </label>
+              <span className="text-[#5A6A74]">{nodoSel.n} actividades</span>
+            </div>
+          ) : <span className="text-[#5A6A74]">El nodo del proyecto no se edita aquí. Elige un WBS para modificarlo.</span>}
+        </div>
+      )}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-[11.5px] border-collapse">
+          <thead className="sticky top-0 z-10 bg-[#F5F8F9] text-[10.5px] text-[#5A6A74]">
+            <tr className="text-left">
+              <th className="px-2 py-1.5 w-[380px]">Código WBS</th><th className="px-2">Nombre</th>
+              <th className="px-2 text-right w-24">Actividades</th><th className="px-2 text-right w-24">Inicio</th><th className="px-2 text-right w-24">Fin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filasW.map(n => {
+              const [fondo, texto] = bandaWbs(n.nivel);
+              const elegido = selW === n.id;
+              return (
+                <tr key={n.id} onClick={() => setSelW(n.id)} onDoubleClick={() => alternarW(n.id)}
+                  className="cursor-pointer font-semibold border-b border-white/60"
+                  style={{ background: fondo, color: texto, outline: elegido ? '2px solid #CD0000' : undefined, outlineOffset: -2 }}>
+                  <td className="px-2 py-1" style={{ paddingLeft: 6 + n.nivel * 14 }}>
+                    <span className="inline-flex items-center gap-1">
+                      {n.hijos.length ? (
+                        <button onClick={e => { e.stopPropagation(); alternarW(n.id); }} className="cursor-pointer">
+                          {abiertosW.has(n.id) ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        </button>
+                      ) : <span className="w-3.5" />}
+                      {n.codCompleto}
+                    </span>
+                  </td>
+                  <td className="px-2 truncate max-w-[520px]" title={n.nombre}>{n.nombre}</td>
+                  <td className="px-2 text-right">{n.n.toLocaleString('es-ES')}</td>
+                  <td className="px-2 text-right font-normal">{fCorta(n.ini)}</td>
+                  <td className="px-2 text-right font-normal">{fCorta(n.fin)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
