@@ -29,7 +29,7 @@ export function ponerFechaDatos(m: ModeloP6, fecha: string, log: Cambio[]) {
   const antes = celda(proj, f, 'last_recalc_date');
   ponerCelda(proj, f, 'last_recalc_date', fecha);
   m.fechaDatos = aMinutos(fecha)!;
-  registrar(log, 'Proyecto', 'Fecha de datos', antes, fecha);
+  registrar(log, 'Project', 'Data Date', antes, fecha);
 }
 
 export interface EdicionActividad {
@@ -54,43 +54,43 @@ export function editarActividad(m: ModeloP6, i: number, e: EdicionActividad, log
     ponerCelda(t, f, campo, valor);
     registrar(log, cod, etiqueta, antes, valor);
   };
-  if (e.nombre !== undefined) set('task_name', e.nombre, 'Nombre');
+  if (e.nombre !== undefined) set('task_name', e.nombre, 'Activity Name');
   const estado = () => celda(t, f, 'status_code');
 
   if (e.durOriginal !== undefined) {
-    set('target_drtn_hr_cnt', num(e.durOriginal), 'Duración original (h)');
-    if (estado() === 'TK_NotStart') set('remain_drtn_hr_cnt', num(e.durOriginal), 'Duración restante (h)');
+    set('target_drtn_hr_cnt', num(e.durOriginal), 'Original Duration (h)');
+    if (estado() === 'TK_NotStart') set('remain_drtn_hr_cnt', num(e.durOriginal), 'Remaining Duration (h)');
   }
-  if (e.durRestante !== undefined && estado() !== 'TK_Complete') set('remain_drtn_hr_cnt', num(e.durRestante), 'Duración restante (h)');
+  if (e.durRestante !== undefined && estado() !== 'TK_Complete') set('remain_drtn_hr_cnt', num(e.durRestante), 'Remaining Duration (h)');
 
   if (e.inicioReal !== undefined) {
     if (e.inicioReal) {
-      set('act_start_date', e.inicioReal, 'Inicio real');
-      if (estado() === 'TK_NotStart') set('status_code', 'TK_Active', 'Estado');
+      set('act_start_date', e.inicioReal, 'Actual Start');
+      if (estado() === 'TK_NotStart') set('status_code', 'TK_Active', 'Status');
     } else {
-      set('act_start_date', '', 'Inicio real');
-      set('act_end_date', '', 'Fin real');
-      set('status_code', 'TK_NotStart', 'Estado');
-      set('remain_drtn_hr_cnt', celda(t, f, 'target_drtn_hr_cnt'), 'Duración restante (h)');
-      set('phys_complete_pct', '0', '% avance');
+      set('act_start_date', '', 'Actual Start');
+      set('act_end_date', '', 'Actual Finish');
+      set('status_code', 'TK_NotStart', 'Status');
+      set('remain_drtn_hr_cnt', celda(t, f, 'target_drtn_hr_cnt'), 'Remaining Duration (h)');
+      set('phys_complete_pct', '0', 'Physical %');
     }
   }
   if (e.finReal !== undefined) {
     if (e.finReal) {
-      if (!celda(t, f, 'act_start_date')) set('act_start_date', e.finReal, 'Inicio real');
-      set('act_end_date', e.finReal, 'Fin real');
-      set('status_code', 'TK_Complete', 'Estado');
-      set('remain_drtn_hr_cnt', '0', 'Duración restante (h)');
-      set('phys_complete_pct', '100', '% avance');
+      if (!celda(t, f, 'act_start_date')) set('act_start_date', e.finReal, 'Actual Start');
+      set('act_end_date', e.finReal, 'Actual Finish');
+      set('status_code', 'TK_Complete', 'Status');
+      set('remain_drtn_hr_cnt', '0', 'Remaining Duration (h)');
+      set('phys_complete_pct', '100', 'Physical %');
     } else if (estado() === 'TK_Complete') {
-      set('act_end_date', '', 'Fin real');
-      set('status_code', 'TK_Active', 'Estado');
+      set('act_end_date', '', 'Actual Finish');
+      set('status_code', 'TK_Active', 'Status');
     }
   }
-  if (e.avance !== undefined) set('phys_complete_pct', num(Math.max(0, Math.min(100, e.avance))), '% avance');
+  if (e.avance !== undefined) set('phys_complete_pct', num(Math.max(0, Math.min(100, e.avance))), 'Physical %');
   if (e.restriccion !== undefined) {
-    set('cstr_type', e.restriccion?.tipo || '', 'Restricción');
-    set('cstr_date', e.restriccion?.tipo ? e.restriccion.fecha : '', 'Fecha de restricción');
+    set('cstr_type', e.restriccion?.tipo || '', 'Primary Constraint');
+    set('cstr_date', e.restriccion?.tipo ? e.restriccion.fecha : '', 'Primary Constraint Date');
   }
 }
 
@@ -98,11 +98,11 @@ export function editarActividad(m: ModeloP6, i: number, e: EdicionActividad, log
 export function agregarRelacion(m: ModeloP6, predCodigo: string, succIdx: number, tipo: string, lagHoras: number, log: Cambio[]): string | null {
   const t = m.task, p = m.pred;
   const predIdx = t.filas.findIndex(f => celda(t, f, 'task_code').toLowerCase() === predCodigo.trim().toLowerCase());
-  if (predIdx < 0) return `No existe la actividad ${predCodigo}.`;
-  if (predIdx === succIdx) return 'Una actividad no puede ser predecesora de sí misma.';
+  if (predIdx < 0) return `Activity ${predCodigo} does not exist.`;
+  if (predIdx === succIdx) return 'An activity cannot be its own predecessor.';
   const predId = celda(t, t.filas[predIdx], 'task_id');
   const succId = celda(t, t.filas[succIdx], 'task_id');
-  if (p.filas.some(f => celda(p, f, 'pred_task_id') === predId && celda(p, f, 'task_id') === succId)) return 'Esa relación ya existe.';
+  if (p.filas.some(f => celda(p, f, 'pred_task_id') === predId && celda(p, f, 'task_id') === succId)) return 'That relationship already exists.';
   const maxId = p.filas.reduce((mx, f) => Math.max(mx, Number(celda(p, f, 'task_pred_id')) || 0), 0);
   const proj = celda(t, t.filas[succIdx], 'proj_id');
   const fila = p.campos.map(() => '');
@@ -115,7 +115,7 @@ export function agregarRelacion(m: ModeloP6, predCodigo: string, succIdx: number
   put('pred_type', `PR_${tipo}`);
   put('lag_hr_cnt', num(lagHoras));
   p.filas.push(fila);
-  registrar(log, celda(t, t.filas[succIdx], 'task_code'), 'Relación agregada', '', `${celda(t, t.filas[predIdx], 'task_code')} ${tipo} ${num(lagHoras)}h`);
+  registrar(log, celda(t, t.filas[succIdx], 'task_code'), 'Relationship added', '', `${celda(t, t.filas[predIdx], 'task_code')} ${tipo} ${num(lagHoras)}h`);
   return null;
 }
 
@@ -126,7 +126,7 @@ export function editarRelacion(m: ModeloP6, filaRel: number, tipo: string, lagHo
   ponerCelda(p, f, 'pred_type', `PR_${tipo}`);
   ponerCelda(p, f, 'lag_hr_cnt', num(lagHoras));
   const succ = m.porId.get(celda(p, f, 'task_id'));
-  registrar(log, succ !== undefined ? celda(t, t.filas[succ], 'task_code') : '?', 'Relación', antes, `${tipo} ${num(lagHoras)}h`);
+  registrar(log, succ !== undefined ? celda(t, t.filas[succ], 'task_code') : '?', 'Relationship', antes, `${tipo} ${num(lagHoras)}h`);
 }
 
 export function eliminarRelacion(m: ModeloP6, filaRel: number, log: Cambio[]) {
@@ -135,7 +135,7 @@ export function eliminarRelacion(m: ModeloP6, filaRel: number, log: Cambio[]) {
   const a = m.porId.get(celda(p, f, 'pred_task_id'));
   const b = m.porId.get(celda(p, f, 'task_id'));
   p.filas.splice(filaRel, 1);
-  registrar(log, b !== undefined ? celda(t, t.filas[b], 'task_code') : '?', 'Relación eliminada',
+  registrar(log, b !== undefined ? celda(t, t.filas[b], 'task_code') : '?', 'Relationship deleted',
     `${a !== undefined ? celda(t, t.filas[a], 'task_code') : '?'} ${celda(p, f, 'pred_type').replace('PR_', '')} ${celda(p, f, 'lag_hr_cnt')}h`, '');
 }
 
@@ -224,11 +224,11 @@ export interface NuevaActividad {
 export function crearActividad(m: ModeloP6, n: NuevaActividad, log: Cambio[]): number | string {
   const t = m.task;
   const codigo = n.codigo.trim();
-  if (!codigo) return 'Falta el ID de la actividad.';
-  if (!n.nombre.trim()) return 'Falta el nombre.';
-  if (t.filas.some(f => celda(t, f, 'task_code').toLowerCase() === codigo.toLowerCase())) return `Ya existe una actividad con el ID ${codigo}.`;
+  if (!codigo) return 'The Activity ID is missing.';
+  if (!n.nombre.trim()) return 'The activity name is missing.';
+  if (t.filas.some(f => celda(t, f, 'task_code').toLowerCase() === codigo.toLowerCase())) return `An activity with ID ${codigo} already exists.`;
   const w = m.xer.tablas.get('PROJWBS');
-  if (!w?.filas.some(f => celda(w, f, 'wbs_id') === n.wbsId)) return 'Elige un WBS válido.';
+  if (!w?.filas.some(f => celda(w, f, 'wbs_id') === n.wbsId)) return 'Choose a valid WBS.';
   // Plantilla: una actividad del mismo WBS (o cualquiera del proyecto)
   const plantilla = t.filas.find(f => celda(t, f, 'wbs_id') === n.wbsId && celda(t, f, 'task_type') === 'TT_Task') || t.filas.find(f => celda(t, f, 'task_type') === 'TT_Task') || t.filas[0];
   const fila = plantilla ? [...plantilla] : t.campos.map(() => '');
@@ -267,7 +267,7 @@ export function crearActividad(m: ModeloP6, n: NuevaActividad, log: Cambio[]): n
   for (const c of ['target_end_date', 'early_end_date', 'reend_date']) put(c, aTexto(fin));
   t.filas.push(fila);
   reindexar(m);
-  registrar(log, codigo, 'Actividad creada', '', `${n.nombre.trim()} · ${esHito ? 'hito' : `${num(dur)} h`}`);
+  registrar(log, codigo, 'Activity added', '', `${n.nombre.trim()} · ${esHito ? 'milestone' : `${num(dur)} h`}`);
   return t.filas.length - 1;
 }
 
@@ -295,7 +295,7 @@ export function eliminarActividad(m: ModeloP6, i: number, log: Cambio[]) {
   quitar('UDFVALUE', (tb, fila) => celda(tb, fila, 'fk_id') === id && deTask.has(celda(tb, fila, 'udf_type_id')));
   t.filas.splice(i, 1);
   reindexar(m);
-  registrar(log, cod, 'Actividad eliminada', `${celda(t, f, 'task_name')} · ${rels} relaciones · ${recursos} asignaciones`, '');
+  registrar(log, cod, 'Activity deleted', `${celda(t, f, 'task_name')} · ${rels} relationships · ${recursos} assignments`, '');
 }
 
 /* ───────────────────────── WBS ───────────────────────── */
@@ -327,12 +327,12 @@ const esNodoProyecto = (m: ModeloP6, f: string[] | undefined) => !!f && celda(wb
 export function crearWbs(m: ModeloP6, padreId: string, corto: string, nombre: string, log: Cambio[], despuesDe?: string): string {
   const w = wbsTabla(m);
   const padre = filaWbs(m, padreId);
-  if (!padre) return 'Elige un WBS padre.';
+  if (!padre) return 'Choose a parent WBS.';
   const c = corto.trim();
-  if (!c) return 'Falta el código del WBS.';
-  if (!nombre.trim()) return 'Falta el nombre del WBS.';
+  if (!c) return 'The WBS code is missing.';
+  if (!nombre.trim()) return 'The WBS name is missing.';
   const hermanos = hijosWbs(m, padreId);
-  if (hermanos.some(f => celda(w, f, 'wbs_short_name').toLowerCase() === c.toLowerCase())) return `Ya hay un WBS ${c} en ese nivel.`;
+  if (hermanos.some(f => celda(w, f, 'wbs_short_name').toLowerCase() === c.toLowerCase())) return `There is already a WBS ${c} at that level.`;
   const fila = [...padre];
   const put = (campo: string, v: string) => ponerCelda(w, fila, campo, v);
   for (const campo of w.campos) if (/_date$/.test(campo)) put(campo, '');
@@ -352,24 +352,24 @@ export function crearWbs(m: ModeloP6, padreId: string, corto: string, nombre: st
   const k = despuesDe ? orden.findIndex(f => celda(w, f, 'wbs_id') === despuesDe) : -1;
   orden.splice(k >= 0 ? k + 1 : orden.length, 0, fila);
   renumerar(m, orden);
-  registrar(log, `WBS ${c}`, 'WBS creado', '', `${nombre.trim()} (en ${nombreWbs(m, padre)})`);
+  registrar(log, `WBS ${c}`, 'WBS added', '', `${nombre.trim()} (under ${nombreWbs(m, padre)})`);
   return id;
 }
 
 export function editarWbs(m: ModeloP6, id: string, cambios: { corto?: string; nombre?: string }, log: Cambio[]): string | null {
   const w = wbsTabla(m);
   const f = filaWbs(m, id);
-  if (!f) return 'No existe ese WBS.';
+  if (!f) return 'That WBS does not exist.';
   if (cambios.corto !== undefined) {
     const c = cambios.corto.trim();
-    if (!c) return 'El código no puede quedar vacío.';
+    if (!c) return 'The code cannot be empty.';
     const hermanos = hijosWbs(m, celda(w, f, 'parent_wbs_id'));
-    if (hermanos.some(h => h !== f && celda(w, h, 'wbs_short_name').toLowerCase() === c.toLowerCase())) return `Ya hay un WBS ${c} en ese nivel.`;
-    registrar(log, `WBS ${celda(w, f, 'wbs_short_name')}`, 'Código WBS', celda(w, f, 'wbs_short_name'), c);
+    if (hermanos.some(h => h !== f && celda(w, h, 'wbs_short_name').toLowerCase() === c.toLowerCase())) return `There is already a WBS ${c} at that level.`;
+    registrar(log, `WBS ${celda(w, f, 'wbs_short_name')}`, 'WBS Code', celda(w, f, 'wbs_short_name'), c);
     ponerCelda(w, f, 'wbs_short_name', c);
   }
   if (cambios.nombre !== undefined && cambios.nombre.trim()) {
-    registrar(log, `WBS ${celda(w, f, 'wbs_short_name')}`, 'Nombre WBS', celda(w, f, 'wbs_name'), cambios.nombre.trim());
+    registrar(log, `WBS ${celda(w, f, 'wbs_short_name')}`, 'WBS Name', celda(w, f, 'wbs_name'), cambios.nombre.trim());
     ponerCelda(w, f, 'wbs_name', cambios.nombre.trim());
   }
   return null;
@@ -393,8 +393,8 @@ export function subarbolWbs(m: ModeloP6, id: string): Set<string> {
 export function eliminarWbs(m: ModeloP6, id: string, log: Cambio[]): string | null {
   const w = wbsTabla(m);
   const f = filaWbs(m, id);
-  if (!f) return 'No existe ese WBS.';
-  if (esNodoProyecto(m, f)) return 'El nodo del proyecto no se puede eliminar.';
+  if (!f) return 'That WBS does not exist.';
+  if (esNodoProyecto(m, f)) return 'The project node cannot be deleted.';
   const padre = celda(w, f, 'parent_wbs_id');
   const ids = subarbolWbs(m, id);
   const t = m.task;
@@ -406,7 +406,7 @@ export function eliminarWbs(m: ModeloP6, id: string, log: Cambio[]): string | nu
   if (at) for (const fa of at.filas) if (ids.has(celda(at, fa, 'wbs_id'))) ponerCelda(at, fa, 'wbs_id', padre);
   renumerar(m, hijosWbs(m, padre));
   const pf = filaWbs(m, padre);
-  registrar(log, `WBS ${celda(w, f, 'wbs_short_name')}`, 'WBS eliminado', `${celda(w, f, 'wbs_name')} · ${ids.size - 1} sub-WBS`, `${movidas} actividades pasan a ${pf ? nombreWbs(m, pf) : 'su padre'}`);
+  registrar(log, `WBS ${celda(w, f, 'wbs_short_name')}`, 'WBS deleted', `${celda(w, f, 'wbs_name')} · ${ids.size - 1} child WBS`, `${movidas} activities moved to ${pf ? nombreWbs(m, pf) : 'its parent'}`);
   return null;
 }
 
@@ -414,8 +414,8 @@ export function eliminarWbs(m: ModeloP6, id: string, log: Cambio[]): string | nu
 export function moverWbs(m: ModeloP6, id: string, accion: 'arriba' | 'abajo' | 'derecha' | 'izquierda', log: Cambio[]): string | null {
   const w = wbsTabla(m);
   const f = filaWbs(m, id);
-  if (!f) return 'No existe ese WBS.';
-  if (esNodoProyecto(m, f)) return 'El nodo del proyecto no se puede mover.';
+  if (!f) return 'That WBS does not exist.';
+  if (esNodoProyecto(m, f)) return 'The project node cannot be moved.';
   const padreId = celda(w, f, 'parent_wbs_id');
   const hermanos = hijosWbs(m, padreId);
   const k = hermanos.indexOf(f);
@@ -425,34 +425,34 @@ export function moverWbs(m: ModeloP6, id: string, accion: 'arriba' | 'abajo' | '
     if (j < 0 || j >= hermanos.length) return null;
     [hermanos[k], hermanos[j]] = [hermanos[j], hermanos[k]];
     renumerar(m, hermanos);
-    registrar(log, etq, 'Posición', String(k + 1), String(j + 1));
+    registrar(log, etq, 'Position', String(k + 1), String(j + 1));
     return null;
   }
   if (accion === 'derecha') {
-    if (k <= 0) return 'No hay un WBS anterior en el mismo nivel para colgarlo.';
+    if (k <= 0) return 'There is no previous WBS at the same level to indent under.';
     const nuevoPadre = hermanos[k - 1];
     const nuevoPadreId = celda(w, nuevoPadre, 'wbs_id');
     const destino = hijosWbs(m, nuevoPadreId);
-    if (destino.some(h => celda(w, h, 'wbs_short_name').toLowerCase() === celda(w, f, 'wbs_short_name').toLowerCase())) return 'Ya existe un WBS con ese código en el nivel de destino.';
+    if (destino.some(h => celda(w, h, 'wbs_short_name').toLowerCase() === celda(w, f, 'wbs_short_name').toLowerCase())) return 'A WBS with that code already exists at the target level.';
     ponerCelda(w, f, 'parent_wbs_id', nuevoPadreId);
     renumerar(m, [...destino, f]);
     renumerar(m, hijosWbs(m, padreId));
-    registrar(log, etq, 'Nivel', nombreWbs(m, filaWbs(m, padreId)!), nombreWbs(m, nuevoPadre));
+    registrar(log, etq, 'Level', nombreWbs(m, filaWbs(m, padreId)!), nombreWbs(m, nuevoPadre));
     return null;
   }
   // izquierda: pasa a ser hermano de su padre, justo después de él
   const padre = filaWbs(m, padreId);
-  if (!padre || esNodoProyecto(m, padre)) return 'Ya está en el primer nivel del proyecto.';
+  if (!padre || esNodoProyecto(m, padre)) return 'It is already at the first level of the project.';
   const abueloId = celda(w, padre, 'parent_wbs_id');
   const tios = hijosWbs(m, abueloId);
-  if (tios.some(h => h !== f && celda(w, h, 'wbs_short_name').toLowerCase() === celda(w, f, 'wbs_short_name').toLowerCase())) return 'Ya existe un WBS con ese código en el nivel de destino.';
+  if (tios.some(h => h !== f && celda(w, h, 'wbs_short_name').toLowerCase() === celda(w, f, 'wbs_short_name').toLowerCase())) return 'A WBS with that code already exists at the target level.';
   ponerCelda(w, f, 'parent_wbs_id', abueloId);
   const pos = tios.indexOf(padre);
   tios.splice(pos + 1, 0, f);
   renumerar(m, tios);
   renumerar(m, hijosWbs(m, padreId));
   const abuelo = filaWbs(m, abueloId);
-  registrar(log, etq, 'Nivel', nombreWbs(m, padre), abuelo ? nombreWbs(m, abuelo) : 'proyecto');
+  registrar(log, etq, 'Level', nombreWbs(m, padre), abuelo ? nombreWbs(m, abuelo) : 'project');
   return null;
 }
 
@@ -496,9 +496,9 @@ export function udfsDeActividad(m: ModeloP6, i: number): CampoUdf[] {
 export function ponerUdf(m: ModeloP6, i: number, udfTypeId: string, valor: string, log: Cambio[]): string | null {
   const tipos = m.xer.tablas.get('UDFTYPE');
   const valores = m.xer.tablas.get('UDFVALUE');
-  if (!tipos || !valores) return 'Este XER no tiene campos de usuario.';
+  if (!tipos || !valores) return 'This XER has no user defined fields.';
   const ft = tipos.filas.find(f => celda(tipos, f, 'udf_type_id') === udfTypeId);
-  if (!ft) return 'No existe ese campo de usuario.';
+  if (!ft) return 'That user defined field does not exist.';
   const tipo = celda(tipos, ft, 'logical_data_type');
   const col = columnaUdf(tipo);
   const etq = celda(tipos, ft, 'udf_type_label') || celda(tipos, ft, 'udf_type_name');
@@ -507,7 +507,7 @@ export function ponerUdf(m: ModeloP6, i: number, udfTypeId: string, valor: strin
   let v = valor.trim();
   if (col === 'udf_number' && v !== '') {
     const n = Number(v.replace(',', '.'));
-    if (!Number.isFinite(n)) return `«${valor}» no es un número.`;
+    if (!Number.isFinite(n)) return `«${valor}» is not a number.`;
     v = String(tipo === 'FT_INT' ? Math.round(n) : n);
   }
   const k = valores.filas.findIndex(f => celda(valores, f, 'fk_id') === taskId && celda(valores, f, 'udf_type_id') === udfTypeId);

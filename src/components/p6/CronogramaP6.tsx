@@ -18,28 +18,28 @@ import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xe
 
 const FILA = 22;
 const ANCHO_IZQ = 870;
-const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const MESES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const FILTROS_ESTADO = [
-  ['todas', 'Todas las actividades'],
-  ['pendientes', 'No terminadas'],
-  ['encurso', 'En curso'],
-  ['criticas', 'Críticas (holgura ≤ 0)'],
-  ['longest', 'Longest path (ruta más larga)'],
-  ['soloMaster', 'Solo en Master (aún no en P6)'],
+  ['todas', 'All Activities'],
+  ['pendientes', 'Not Completed'],
+  ['encurso', 'In Progress'],
+  ['criticas', 'Critical (Total Float ≤ 0)'],
+  ['longest', 'Longest Path'],
+  ['soloMaster', 'Master Only (not yet in P6)'],
 ] as const;
 const TIPOS_UDF: Record<string, string> = {
-  FT_TEXT: 'Texto', FT_START_DATE: 'Fecha de inicio', FT_END_DATE: 'Fecha de fin', FT_FLOAT_2_DECIMALS: 'Número',
-  FT_INT: 'Entero', FT_MONEY: 'Moneda', FT_STATICTYPE: 'Indicador',
+  FT_TEXT: 'Text', FT_START_DATE: 'Start Date', FT_END_DATE: 'Finish Date', FT_FLOAT_2_DECIMALS: 'Number',
+  FT_INT: 'Integer', FT_MONEY: 'Cost', FT_STATICTYPE: 'Indicator',
 };
-const INDICADORES_UDF: Record<string, string> = { UDF_G0: 'Indicador 0 (UDF_G0)', UDF_G1: 'Indicador 1 (UDF_G1)', UDF_G2: 'Indicador 2 (UDF_G2)', UDF_G3: 'Indicador 3 (UDF_G3)', UDF_G4: 'Indicador 4 (UDF_G4)' };
-const ESTADO_TXT: Record<string, string> = { TK_NotStart: 'No iniciada', TK_Active: 'En curso', TK_Complete: 'Terminada' };
+const INDICADORES_UDF: Record<string, string> = { UDF_G0: 'Indicator 0 (UDF_G0)', UDF_G1: 'Indicator 1 (UDF_G1)', UDF_G2: 'Indicator 2 (UDF_G2)', UDF_G3: 'Indicator 3 (UDF_G3)', UDF_G4: 'Indicator 4 (UDF_G4)' };
+const ESTADO_TXT: Record<string, string> = { TK_NotStart: 'Not Started', TK_Active: 'In Progress', TK_Complete: 'Completed' };
 const RESTRICCIONES: [string, string][] = [
-  ['', 'Sin restricción'],
-  ['CS_MSOA', 'Comenzar en o después de'],
-  ['CS_MSO', 'Comenzar en'],
-  ['CS_MEO', 'Terminar en'],
-  ['CS_MEOB', 'Terminar en o antes de'],
-  ['CS_ALAP', 'Lo más tarde posible'],
+  ['', '<None>'],
+  ['CS_MSOA', 'Start On or After'],
+  ['CS_MSO', 'Start On'],
+  ['CS_MEO', 'Finish On'],
+  ['CS_MEOB', 'Finish On or Before'],
+  ['CS_ALAP', 'As Late As Possible'],
 ];
 
 /** Colores de los niveles del WBS, como las bandas de Primavera P6 (fondo, texto). */
@@ -62,7 +62,7 @@ const fCorta = (t: number | null | undefined) => {
   const d = new Date(t * 60000);
   return `${String(d.getUTCDate()).padStart(2, '0')}-${MESES[d.getUTCMonth()]}-${String(d.getUTCFullYear()).slice(2)}`;
 };
-const dias = (h: number, hd: number) => (Math.round((h / hd) * 10) / 10).toLocaleString('es-ES');
+const dias = (h: number, hd: number) => (Math.round((h / hd) * 10) / 10).toLocaleString('en-US');
 const dinero = (v: number) => Math.round(v).toLocaleString('en-US');
 
 interface Vt {
@@ -405,7 +405,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     const orden = (a: Nodo, b: Nodo) => (a.fijo || b.fijo ? (a.fijo && b.fijo ? a.seq - b.seq || natural(a.cod, b.cod) : a.fijo ? -1 : 1)
       : a.nombre === SIN_MASTER ? 1 : b.nombre === SIN_MASTER ? -1 : (a.seq - b.seq) || natural(a.nombre, b.nombre));
     // Nivel superior: el proyecto (p. ej. «PTAR Merinos & EB Progreso»), con los totales de todo
-    const raiz: Nodo = { id: RAIZ_CONSTRUCTIVA, padre: '', cod: '', codCompleto: '', nombre: arbolWbs.raices[0]?.nombre || 'Proyecto', seq: 0, hijos: raices, tareas: [], nivel: 0, ini: null, fin: null, n: 0, criticas: 0 };
+    const raiz: Nodo = { id: RAIZ_CONSTRUCTIVA, padre: '', cod: '', codCompleto: '', nombre: arbolWbs.raices[0]?.nombre || 'Project', seq: 0, hijos: raices, tareas: [], nivel: 0, ini: null, fin: null, n: 0, criticas: 0 };
     raices.forEach(h => { h.padre = RAIZ_CONSTRUCTIVA; });
     nodos.set(RAIZ_CONSTRUCTIVA, raiz);
     resumirNodo(raiz, 0, undefined, false, orden);
@@ -538,7 +538,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     setPendienteF9(false);
     setSinGuardar(true);
     refrescar();
-    mostrar(`Programado en ${Math.round(performance.now() - t0)} ms · fin del proyecto ${fCorta(r.finTemprano)} · ${r.criticas.toLocaleString('es-ES')} actividades críticas · ${r.rutaLarga.toLocaleString('es-ES')} en el longest path${r.ciclos.length ? ` · ${r.ciclos.length} en ciclos lógicos` : ''}`);
+    mostrar(`Scheduled in ${Math.round(performance.now() - t0)} ms · project finish ${fCorta(r.finTemprano)} · ${r.criticas.toLocaleString('en-US')} critical activities · ${r.rutaLarga.toLocaleString('en-US')} on the longest path${r.ciclos.length ? ` · ${r.ciclos.length} in logic loops` : ''}`);
   }, [editable]);
 
   React.useEffect(() => {
@@ -564,7 +564,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
 
   const guardar = async () => {
     if (!m || !editable) return;
-    setOcupado('Guardando en la nube…');
+    setOcupado('Saving to the cloud…');
     try {
       const nueva = await guardarXerEnNube(escribirXer(m.xer), {
         nombre: nombreArchivo || `${proyecto}.xer`,
@@ -573,43 +573,43 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         actividades: m.task.filas.length,
         guardadoPor: username || 'admin',
         cambios: (meta?.cambios || 0) + cambios.length,
-      }, pct => setOcupado(`Guardando en la nube… ${pct} %`));
+      }, pct => setOcupado(`Saving to the cloud… ${pct} %`));
       setMeta(nueva);
       setCambios([]);
       setSinGuardar(false);
-      mostrar('Cronograma guardado en la nube.');
+      mostrar('Schedule saved to the cloud.');
     } catch (e: any) {
-      mostrar(`No se pudo guardar: ${e?.message || e}`);
+      mostrar(`Could not save: ${e?.message || e}`);
     } finally {
       setOcupado('');
     }
   };
 
   const cargarArchivo = async (file: File) => {
-    setOcupado('Leyendo el XER…');
+    setOcupado('Reading the XER…');
     try {
       const texto = decodificarXer(new Uint8Array(await file.arrayBuffer()));
-      if (!texto.startsWith('ERMHDR')) throw new Error('El archivo no parece un XER de Primavera P6.');
+      if (!texto.startsWith('ERMHDR')) throw new Error('The file does not look like a Primavera P6 XER.');
       setNombreArchivo(file.name);
       abrirTexto(texto);
       setSinGuardar(true);
-      mostrar(`${file.name} abierto. Pulsa «Guardar» para publicarlo en la nube.`);
+      mostrar(`${file.name} opened. Click «Save» to publish it to the cloud.`);
     } catch (e: any) {
-      mostrar(`No se pudo abrir: ${e?.message || e}`);
+      mostrar(`Could not open: ${e?.message || e}`);
     } finally {
       setOcupado('');
     }
   };
 
   const cerrar = () => {
-    if (sinGuardar && editable && !window.confirm('Hay cambios sin guardar en la nube. ¿Cerrar de todos modos?')) return;
+    if (sinGuardar && editable && !window.confirm('There are unsaved changes. Close anyway?')) return;
     onClose();
   };
 
   // ── Línea base: fijar con la programación actual o desde otro XER ──
   const guardarLB = async (lb: LineaBase, msg: string) => {
-    if (lbGuardada && !window.confirm(`Ya hay una línea base («${lbGuardada.nombre}», ${new Date(lbGuardada.creadaEn).toLocaleDateString('es-ES')}). ¿Reemplazarla?`)) return;
-    setOcupado('Guardando la línea base…');
+    if (lbGuardada && !window.confirm(`A baseline already exists («${lbGuardada.nombre}», ${new Date(lbGuardada.creadaEn).toLocaleDateString('en-US')}). Replace it?`)) return;
+    setOcupado('Saving the baseline…');
     try {
       await guardarLineaBase(lb);
       setLbGuardada(lb);
@@ -617,14 +617,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       setVerLB(true);
       mostrar(msg);
     } catch (e) {
-      mostrar(`No se pudo guardar la línea base: ${e instanceof Error ? e.message : String(e)}`);
+      mostrar(`Could not save the baseline: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setOcupado(''); }
   };
   const fijarLineaBase = () => {
     if (!m) return;
-    if (pendienteF9 && !window.confirm('Hay cambios sin programar (F9). ¿Fijar igualmente la línea base con las fechas actuales?')) return;
-    const nombre = `Programación al ${fCorta(m.fechaDatos)}`;
-    void guardarLB(lineaBaseDeXer(m.xer, nombre, username || 'admin', 'programacion'), `Línea base fijada: ${nombre}.`);
+    if (pendienteF9 && !window.confirm('There are unscheduled changes (F9). Set the baseline with the current dates anyway?')) return;
+    const nombre = `Schedule as of ${fCorta(m.fechaDatos)}`;
+    void guardarLB(lineaBaseDeXer(m.xer, nombre, username || 'admin', 'programacion'), `Baseline set: ${nombre}.`);
   };
   const cargarLineaBase = async (file: File) => {
     if (!m) return;
@@ -632,10 +632,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       const lb = lineaBaseDeTexto(decodificarXer(new Uint8Array(await file.arrayBuffer())), file.name.replace(/\.xer$/i, ''), username || 'admin');
       const codigos = new Set(m.task.filas.map(f => celda(m.task, f, 'task_code')));
       const comunes = Object.keys(lb.act).filter(c => codigos.has(c)).length;
-      if (!comunes) { mostrar('Ese XER no tiene ninguna actividad con los mismos ID que el cronograma.'); return; }
-      await guardarLB(lb, `Línea base cargada de ${file.name}: ${comunes.toLocaleString('es-ES')} de ${codigos.size.toLocaleString('es-ES')} actividades con el mismo ID.`);
+      if (!comunes) { mostrar('That XER has no activities with the same IDs as this schedule.'); return; }
+      await guardarLB(lb, `Baseline loaded from ${file.name}: ${comunes.toLocaleString('en-US')} of ${codigos.size.toLocaleString('en-US')} activities with the same ID.`);
     } catch (e) {
-      mostrar(`No se pudo leer el XER de línea base: ${e instanceof Error ? e.message : String(e)}`);
+      mostrar(`Could not read the baseline XER: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -684,12 +684,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     // Si el filtro la oculta, se quita el filtro
     if ((filtro || filtroEstado !== 'todas') && !pasa(v)) {
       setFiltro(''); setFiltroTmp(''); setFiltroEstado('todas');
-      mostrar(`Se quitó el filtro para mostrar ${v.cod}.`);
+      mostrar(`Filter cleared to show ${v.cod}.`);
     }
     let grupo: string | undefined = v.wbs;
     if (enEjecucion) {
       grupo = arbolEjec.grupoDeAct.get(i);
-      if (!grupo) { setAgrupacion('wbs'); grupo = v.wbs; mostrar(`${v.cod} no está en la vista constructiva (sin datos en el Master, WBS «.D» o fuera del ámbito): se muestra en la WBS de P6.`); }
+      if (!grupo) { setAgrupacion('wbs'); grupo = v.wbs; mostrar(`${v.cod} is not in the Construction view (no Master data, WBS «.D» or outside the scope): showing it in the P6 WBS.`); }
     }
     const arb = enEjecucion && arbolEjec.grupoDeAct.has(i) ? arbolEjec : arbolWbs;
     const cadena: string[] = [];
@@ -840,16 +840,16 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         <div className="flex items-center gap-2 min-w-0">
           <Layers className="w-4 h-4 text-indigo-200 shrink-0" />
           <div className="min-w-0">
-            <div className="text-sm font-bold leading-tight truncate">Cronograma P6 {proyecto && <span className="text-indigo-200 font-normal">· {proyecto}</span>}</div>
+            <div className="text-sm font-bold leading-tight truncate">P6 Schedule {proyecto && <span className="text-indigo-200 font-normal">· {proyecto}</span>}</div>
             <div className="text-[10.5px] text-indigo-200 truncate">
-              {nombreArchivo || 'Sin archivo'}{meta && ` · guardado ${new Date(meta.guardadoEn).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} por ${meta.guardadoPor}`}
+              {nombreArchivo || 'No file'}{meta && ` · saved ${new Date(meta.guardadoEn).toLocaleString('en-US', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} by ${meta.guardadoPor}`}
             </div>
           </div>
         </div>
         {m && (
           <div className="flex items-center gap-1.5 text-[11px] bg-white/10 rounded-lg px-2 py-1">
             <Calendar className="w-3.5 h-3.5 text-indigo-200" />
-            <span className="text-indigo-200">Fecha de datos</span>
+            <span className="text-indigo-200">Data Date</span>
             <CampoFecha
               disabled={!editable}
               valor={aTexto(m.fechaDatos).slice(0, 10)}
@@ -864,63 +864,63 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         )}
         {m && (
           <div className="text-[11px] text-indigo-100 flex items-center gap-3">
-            <span>Fin: <b className="text-white">{fCorta(finProyecto)}</b></span>
-            {finLimite && <span>Límite: <b className="text-white">{fCorta(finLimite)}</b></span>}
-            <span>Críticas: <b className="text-red-300">{criticas.toLocaleString('es-ES')}</b></span>
-            <span title="Actividades en la ruta más larga (Longest Path): la cadena que fija el fin del proyecto">Longest path: <b className="text-red-300">{rutaLarga.toLocaleString('es-ES')}</b></span>
-            <span>{vts.length.toLocaleString('es-ES')} actividades</span>
+            <span>Finish: <b className="text-white">{fCorta(finProyecto)}</b></span>
+            {finLimite && <span>Must Finish By: <b className="text-white">{fCorta(finLimite)}</b></span>}
+            <span>Critical: <b className="text-red-300">{criticas.toLocaleString('en-US')}</b></span>
+            <span title="Activities on the Longest Path: the chain that drives the project finish">Longest Path: <b className="text-red-300">{rutaLarga.toLocaleString('en-US')}</b></span>
+            <span>{vts.length.toLocaleString('en-US')} activities</span>
           </div>
         )}
         <div className="ml-auto flex items-center gap-1.5">
           {editable && m && (
-            <button onClick={programar} title="Programar el cronograma (F9)"
+            <button onClick={programar} title="Schedule the project (F9)"
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer ${pendienteF9 ? 'bg-amber-400 text-[#1E1B4B] animate-pulse' : 'bg-white/15 hover:bg-white/25'}`}>
-              <Play className="w-3.5 h-3.5" /> Programar (F9)
+              <Play className="w-3.5 h-3.5" /> Schedule (F9)
             </button>
           )}
           {editable && (
             <>
               <input ref={fileRef} type="file" accept=".xer" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) cargarArchivo(f); e.target.value = ''; }} />
-              <button onClick={() => fileRef.current?.click()} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/15 hover:bg-white/25 flex items-center gap-1.5 cursor-pointer" title="Abrir un XER exportado desde Primavera P6">
-                <Upload className="w-3.5 h-3.5" /> Cargar XER
+              <button onClick={() => fileRef.current?.click()} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/15 hover:bg-white/25 flex items-center gap-1.5 cursor-pointer" title="Open an XER exported from Primavera P6">
+                <Upload className="w-3.5 h-3.5" /> Import XER
               </button>
             </>
           )}
           {editable && m && (
             <button onClick={guardar} disabled={!sinGuardar || !!ocupado}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${sinGuardar ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-white/15'}`}>
-              <Save className="w-3.5 h-3.5" /> Guardar{cambios.length ? ` (${cambios.length})` : ''}
+              <Save className="w-3.5 h-3.5" /> Save{cambios.length ? ` (${cambios.length})` : ''}
             </button>
           )}
           {m && (
-            <button onClick={exportar} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-[#1E1B4B] hover:bg-indigo-50 flex items-center gap-1.5 cursor-pointer" title="Descargar el XER para importarlo en Primavera P6">
-              <Download className="w-3.5 h-3.5" /> Exportar XER
+            <button onClick={exportar} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-[#1E1B4B] hover:bg-indigo-50 flex items-center gap-1.5 cursor-pointer" title="Download the XER to import it into Primavera P6">
+              <Download className="w-3.5 h-3.5" /> Export XER
             </button>
           )}
-          <button onClick={cerrar} className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer" title="Cerrar"><X className="w-4 h-4" /></button>
+          <button onClick={cerrar} className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer" title="Close"><X className="w-4 h-4" /></button>
         </div>
       </div>
 
       {/* Avisos */}
       {(aviso || ocupado || pendienteF9) && (
         <div className={`px-4 py-1.5 text-[11.5px] shrink-0 ${ocupado ? 'bg-indigo-50 text-indigo-900' : pendienteF9 ? 'bg-amber-50 text-amber-900' : 'bg-emerald-50 text-emerald-900'}`}>
-          {ocupado || aviso || 'Hay cambios sin programar: pulsa «Programar (F9)» para recalcular las fechas.'}
+          {ocupado || aviso || 'There are unscheduled changes: press «Schedule (F9)» to recalculate the dates.'}
         </div>
       )}
 
-      {estadoCarga === 'cargando' && <div className="flex-1 flex items-center justify-center text-sm text-[#5A6A74]">Cargando el cronograma…</div>}
-      {estadoCarga === 'error' && <div className="flex-1 flex items-center justify-center text-sm text-red-700">No se pudo cargar el cronograma.</div>}
+      {estadoCarga === 'cargando' && <div className="flex-1 flex items-center justify-center text-sm text-[#5A6A74]">Loading the schedule…</div>}
+      {estadoCarga === 'error' && <div className="flex-1 flex items-center justify-center text-sm text-red-700">The schedule could not be loaded.</div>}
       {estadoCarga === 'vacio' && (
         <div className="flex-1 flex items-center justify-center">
           <div className="bg-white border border-[#D5DEE2] rounded-2xl p-8 text-center max-w-md space-y-3">
             <Layers className="w-8 h-8 mx-auto text-[#312E81]" />
-            <h3 className="font-bold">Aún no hay un cronograma de P6</h3>
+            <h3 className="font-bold">There is no P6 schedule yet</h3>
             <p className="text-xs text-[#5A6A74]">
-              {editable ? 'Exporta el proyecto desde Primavera P6 en formato XER y cárgalo aquí.' : 'El administrador todavía no ha cargado el XER de Primavera P6.'}
+              {editable ? 'Export the project from Primavera P6 as XER and import it here.' : 'The administrator has not loaded the Primavera P6 XER yet.'}
             </p>
             {editable && (
               <button onClick={() => fileRef.current?.click()} className="px-4 py-2 rounded-xl bg-[#312E81] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer">
-                <Upload className="w-3.5 h-3.5" /> Cargar XER
+                <Upload className="w-3.5 h-3.5" /> Import XER
               </button>
             )}
           </div>
@@ -933,28 +933,28 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           {/* Barra lateral vertical (como la de P6): vistas y rutas */}
           <div className="w-[46px] shrink-0 bg-[#ECECEC] border-r border-[#C3C3C3] flex flex-col items-center py-2 gap-1">
             {(['actividades', 'wbs', 'recursos'] as const).map(v => {
-              const etq = v === 'actividades' ? 'Actividades' : v === 'wbs' ? 'WBS' : 'Recursos';
+              const etq = v === 'actividades' ? 'Activities' : v === 'wbs' ? 'WBS' : 'Resources';
               return (
                 <button key={v} onClick={() => setVista(v)} title={etq}
                   className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${vista === v ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
                   {v === 'actividades' ? <IconoBarras /> : v === 'wbs' ? <IconoWbsLateral /> : <IconoRecursos />}
-                  <span className="text-[8.5px] leading-none">{v === 'actividades' ? 'Activ.' : etq}</span>
+                  <span className="text-[8.5px] leading-none">{v === 'actividades' ? 'Activities' : etq}</span>
                 </button>
               );
             })}
             <div className="w-7 h-px bg-[#C3C3C3] my-1" />
             <div className="relative">
-              <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Filtro de estado: ${FILTROS_ESTADO.find(([k]) => k === filtroEstado)?.[1] ?? ''}`}
+              <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${FILTROS_ESTADO.find(([k]) => k === filtroEstado)?.[1] ?? ''}`}
                 className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroEstado !== 'todas' ? 'bg-[#E4E6F7] border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
                 <svg width="22" height="16" viewBox="0 0 22 16"><path d="M3 2 H19 L13 8.5 V14 L9 12.5 V8.5 Z" fill={filtroEstado !== 'todas' ? '#312E81' : '#9AA6AD'} stroke="#3A3A3A" strokeWidth="0.8" /></svg>
-                <span className="text-[8.5px] leading-none">Filtro</span>
+                <span className="text-[8.5px] leading-none">Filter</span>
               </button>
               {menuFiltro && (
                 <>
                   <div className="fixed inset-0 z-[60]" onClick={() => setMenuFiltro(false)} />
                   <div className="absolute left-[44px] top-0 z-[61] w-[250px] bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
                     <div className="flex items-center justify-between px-3 py-1.5 bg-[#F0F0F0] border-b border-[#D5D5D5] rounded-t-lg">
-                      <b>Filtro de estado</b>
+                      <b>Status Filter</b>
                       <button onClick={() => setMenuFiltro(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                     </div>
                     <div className="p-2 flex flex-col gap-0.5">
@@ -969,7 +969,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 </>
               )}
             </div>
-            {([['criticas', 'Ruta crítica', 'Crítica', 'Solo las actividades críticas (holgura total ≤ 0)'], ['longest', 'Longest path', 'Longest', 'Solo la ruta más larga: la cadena de actividades que fija el fin del proyecto']] as const).map(([k, etq, corto, tt]) => (
+            {([['criticas', 'Critical Path', 'Critical', 'Only critical activities (Total Float ≤ 0)'], ['longest', 'Longest Path', 'Longest', 'Only the longest path: the chain of activities that drives the project finish']] as const).map(([k, etq, corto, tt]) => (
               <button key={k} onClick={() => { setVista('actividades'); setFiltroEstado(f => (f === k ? 'todas' : k)); setVerRelaciones(true); }} title={`${etq}: ${tt}`}
                 className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroEstado === k && vista === 'actividades' ? 'bg-[#CD0000] border-[#CD0000] text-white shadow-sm' : 'border-transparent text-[#B30000] hover:bg-white/70'}`}>
                 {k === 'criticas' ? <IconoCritica activo={filtroEstado === k && vista === 'actividades'} /> : <IconoLongest activo={filtroEstado === k && vista === 'actividades'} />}
@@ -977,34 +977,34 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               </button>
             ))}
             <div className="w-7 h-px bg-[#C3C3C3] my-1" />
-            <button onClick={() => { setVista('actividades'); setVerRelaciones(v => !v); }} title="Relaciones: mostrar u ocultar las líneas de relación en el Gantt"
+            <button onClick={() => { setVista('actividades'); setVerRelaciones(v => !v); }} title="Relationships: show or hide the relationship lines in the Gantt chart"
               className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verRelaciones ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
               <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="2" width="8" height="4" rx="1" fill="#2E9E3A" stroke="#1C6B25" /><rect x="13" y="10" width="8" height="4" rx="1" fill="#2E9E3A" stroke="#1C6B25" /><path d="M9 4 H11 V12 H12.5" fill="none" stroke="#14212A" strokeWidth="1.2" /><path d="M11 10 L13 12 L11 14" fill="#14212A" /></svg>
-              <span className="text-[8.5px] leading-none">Relac.</span>
+              <span className="text-[8.5px] leading-none">Relations</span>
             </button>
             <div className="relative">
-              <button onClick={() => { setVista('actividades'); if (menuLB) setMenuLB(false); else { setVerLB(true); setMenuLB(true); } }} title="Línea base: mostrar y elegir cuál usar"
+              <button onClick={() => { setVista('actividades'); if (menuLB) setMenuLB(false); else { setVerLB(true); setMenuLB(true); } }} title="Baseline: show it and choose which one to use"
                 className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verLB ? 'bg-[#FFF3C4] border-[#C99F00] text-[#7A5B00] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
                 <svg width="22" height="16" viewBox="0 0 22 16"><rect x="2" y="3" width="16" height="5" rx="1.5" fill="#2E9E3A" stroke="#1C6B25" /><rect x="2" y="10" width="13" height="3" rx="1" fill="#E3B505" stroke="#9C7C00" /></svg>
-                <span className="text-[8.5px] leading-none">L. base</span>
+                <span className="text-[8.5px] leading-none">Baseline</span>
               </button>
               {menuLB && (
                 <>
                   <div className="fixed inset-0 z-[60]" onClick={() => setMenuLB(false)} />
                   <div className="absolute left-[44px] top-0 z-[61] w-[330px] bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
                     <div className="flex items-center justify-between px-3 py-1.5 bg-[#F0F0F0] border-b border-[#D5D5D5] rounded-t-lg">
-                      <b>Línea base</b>
+                      <b>Baseline</b>
                       <button onClick={() => setMenuLB(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                     </div>
                     <div className="p-3 flex flex-col gap-2">
                       <label className="flex items-center gap-2 cursor-pointer font-semibold">
-                        <input type="checkbox" checked={verLB} onChange={e => setVerLB(e.target.checked)} /> Mostrar barras de línea base en el Gantt
+                        <input type="checkbox" checked={verLB} onChange={e => setVerLB(e.target.checked)} /> Show baseline bars in the Gantt chart
                       </label>
-                      <div className="text-[10.5px] text-[#5A6A74] mt-1">Cuál usar (también para la columna «Var. fin LB»):</div>
+                      <div className="text-[10.5px] text-[#5A6A74] mt-1">Baseline to use (also for the «BL Finish Var.» column):</div>
                       {([
-                        ['udf', lbUdf ? `LB de P6 (blStartP6 / blFinishP6)` : '', lbUdf?.provisionales ? `${lbUdf.provisionales.toLocaleString('es-ES')} rubros con fin 30-abr-27 quedan sin LB` : ''],
-                        ['guardada', lbGuardada ? `Guardada: ${lbGuardada.nombre}` : '', lbGuardada ? `fijada el ${new Date(lbGuardada.creadaEn).toLocaleDateString('es-ES')} por ${lbGuardada.creadaPor}` : ''],
-                        ['planificada', 'Fechas planificadas del XER', 'inicio y fin planificados de cada actividad'],
+                        ['udf', lbUdf ? `P6 baseline (blStartP6 / blFinishP6)` : '', lbUdf?.provisionales ? `${lbUdf.provisionales.toLocaleString('en-US')} activities with finish 30-Apr-27 have no baseline` : ''],
+                        ['guardada', lbGuardada ? `Saved: ${lbGuardada.nombre}` : '', lbGuardada ? `set on ${new Date(lbGuardada.creadaEn).toLocaleDateString('en-US')} by ${lbGuardada.creadaPor}` : ''],
+                        ['planificada', 'XER planned dates', 'planned start and finish of each activity'],
                       ] as const).filter(([, etq]) => etq).map(([k, etq, det]) => (
                         <label key={k} className={`flex items-start gap-2 px-2 py-1.5 rounded border cursor-pointer ${fuenteEf === k ? 'border-[#C99F00] bg-[#FFF8DC]' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
                           <input type="radio" name="fuenteLB" className="mt-0.5" checked={fuenteEf === k} onChange={() => { setFuenteLB(k); setVerLB(true); }} />
@@ -1013,9 +1013,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                       ))}
                       {editable && (
                         <div className="flex items-center gap-2 pt-2 mt-1 border-t border-[#ECECEC]">
-                          <button onClick={() => { setMenuLB(false); fijarLineaBase(); }} className="px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer" title="Guardar la programación actual como línea base">Fijar actual</button>
-                          <button onClick={() => { setMenuLB(false); lbFileRef.current?.click(); }} className="px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1" title="Usar otro XER (por ejemplo, el programa contractual) como línea base">
-                            <Upload className="w-3.5 h-3.5" /> Desde otro XER
+                          <button onClick={() => { setMenuLB(false); fijarLineaBase(); }} className="px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer" title="Save the current schedule as the baseline">Set Current</button>
+                          <button onClick={() => { setMenuLB(false); lbFileRef.current?.click(); }} className="px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1" title="Use another XER (e.g. the contract schedule) as the baseline">
+                            <Upload className="w-3.5 h-3.5" /> From Another XER
                           </button>
                         </div>
                       )}
@@ -1026,11 +1026,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               <input ref={lbFileRef} type="file" accept=".xer" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) cargarLineaBase(f); e.target.value = ''; }} />
             </div>
             <div className="w-7 h-px bg-[#C3C3C3] my-1" />
-            {([[true, '+', 'Expandir todo (Ctrl +)'], [false, '−', 'Colapsar todo (Ctrl −)']] as const).map(([abrir, signo, tt]) => (
+            {([[true, '+', 'Expand All (Ctrl +)'], [false, '−', 'Collapse All (Ctrl −)']] as const).map(([abrir, signo, tt]) => (
               <button key={signo} onClick={() => { setVista('actividades'); expandirTodo(abrir); }} title={tt}
                 className="w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border border-transparent text-[#4A4A4A] hover:bg-white/70">
                 <span className="w-[18px] h-[18px] border border-[#8C8C8C] bg-white flex items-center justify-center text-[14px] font-bold leading-none text-[#1A1A1A]">{signo}</span>
-                <span className="text-[8.5px] leading-none">{abrir ? 'Expandir' : 'Colapsar'}</span>
+                <span className="text-[8.5px] leading-none">{abrir ? 'Expand' : 'Collapse'}</span>
               </button>
             ))}
           </div>
@@ -1040,34 +1040,34 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             {vista === 'actividades' && (
               <>
                 <select value={enEjecucion ? 'ejecucion' : 'wbs'} onChange={e => { setAgrupacion(e.target.value as 'wbs' | 'ejecucion'); setAbiertos(new Set([RAIZ_CONSTRUCTIVA, ...arbolWbs.raices.map(x => x.id)])); }}
-                  disabled={!hayMaster} title={hayMaster ? 'Cómo se agrupan las actividades' : 'Carga el Master para usar la vista constructiva'}
+                  disabled={!hayMaster} title={hayMaster ? 'How activities are grouped' : 'Load the Master to use the Construction view'}
                   className={`border rounded-lg px-2 py-1.5 font-semibold ${enEjecucion ? 'bg-[#312E81] border-[#312E81] text-white' : 'bg-white border-[#D5DEE2]'}`}>
-                  <option value="wbs">Agrupar: WBS de P6</option>
-                  <option value="ejecucion">Agrupar: Constructiva</option>
+                  <option value="wbs">Group by: P6 WBS</option>
+                  <option value="ejecucion">Group by: Construction</option>
                 </select>
                 {enEjecucion && (
                   <select value={ambito} onChange={e => { setAmbito(e.target.value as Ambito); setAbiertos(new Set([RAIZ_CONSTRUCTIVA])); }}
-                    title="Construcción: grupos del Master con «Construccion» o «Constr.»; Equipamiento: el resto"
+                    title="Construction: Master groups with «Construccion» or «Constr.»; Equipment: the rest"
                     className={`border rounded-lg px-2 py-1.5 font-semibold ${ambito !== 'todo' ? 'bg-[#EEF0FB] border-[#312E81] text-[#312E81]' : 'bg-white border-[#D5DEE2]'}`}>
-                    <option value="todo">Construcción y equipamiento</option>
-                    <option value="construccion">Construcción</option>
-                    <option value="equipamiento">Equipamiento</option>
+                    <option value="todo">Construction & Equipment</option>
+                    <option value="construccion">Construction</option>
+                    <option value="equipamiento">Equipment</option>
                   </select>
                 )}
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-[#5A6A74]" />
                   <input value={filtroTmp} onChange={e => setFiltroTmp(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') setFiltro(filtroTmp.trim()); }}
-                    placeholder="Buscar ID o nombre (Enter)" className="pl-7 pr-2 py-1.5 border border-[#D5DEE2] rounded-lg w-56 outline-none focus:border-[#312E81]" />
+                    placeholder="Find Activity ID or Name (Enter)" className="pl-7 pr-2 py-1.5 border border-[#D5DEE2] rounded-lg w-56 outline-none focus:border-[#312E81]" />
                 </div>
-                {filtro && <button onClick={() => { setFiltro(''); setFiltroTmp(''); }} className="text-[#5A6A74] hover:text-red-600 cursor-pointer">Quitar búsqueda ✕</button>}
+                {filtro && <button onClick={() => { setFiltro(''); setFiltroTmp(''); }} className="text-[#5A6A74] hover:text-red-600 cursor-pointer">Clear search ✕</button>}
                 {editable && (
-                  <button onClick={() => setCreando(true)} className="px-2 py-1.5 rounded-lg bg-[#312E81] text-white font-bold flex items-center gap-1 cursor-pointer" title="Crear una actividad en el WBS seleccionado">
-                    <Plus className="w-3.5 h-3.5" /> Nueva actividad
+                  <button onClick={() => setCreando(true)} className="px-2 py-1.5 rounded-lg bg-[#312E81] text-white font-bold flex items-center gap-1 cursor-pointer" title="Add an activity to the selected WBS">
+                    <Plus className="w-3.5 h-3.5" /> Add Activity
                   </button>
                 )}
                 <div className="ml-auto flex items-center gap-1 text-[#5A6A74]">
-                  Escala
-                  {[[0.4, 'Años'], [1, 'Trimestres'], [3, 'Meses'], [8, 'Semanas']].map(([v, l]) => (
+                  Timescale
+                  {[[0.4, 'Years'], [1, 'Quarters'], [3, 'Months'], [8, 'Weeks']].map(([v, l]) => (
                     <button key={String(v)} onClick={() => setPx(v as number)} className={`px-2 py-1 rounded cursor-pointer ${px === v ? 'bg-[#312E81] text-white' : 'hover:bg-[#F5F8F9]'}`}>{l}</button>
                   ))}
                 </div>
@@ -1077,31 +1077,31 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
 
           {vista === 'actividades' && enEjecucion && (
             <div className="px-4 py-1.5 border-b border-[#D5DEE2] bg-[#EEF0FB] flex items-center gap-1.5 flex-wrap text-[11px]">
-              <span className="font-bold text-[#312E81]">Vista constructiva · niveles:</span>
-              <span className="text-[#5A6A74]" title="Niveles fijos de esta vista">Proyecto</span><ChevronRight className="w-3 h-3 text-[#5A6A74]" />
-              <span className="text-[#5A6A74]" title="Según el campo 02.Ubicacion">Ubicación</span><ChevronRight className="w-3 h-3 text-[#5A6A74]" />
+              <span className="font-bold text-[#312E81]">Construction view · levels:</span>
+              <span className="text-[#5A6A74]" title="Fixed levels of this view">Project</span><ChevronRight className="w-3 h-3 text-[#5A6A74]" />
+              <span className="text-[#5A6A74]" title="From the 02.Ubicacion field">Location</span><ChevronRight className="w-3 h-3 text-[#5A6A74]" />
               {niveles.map((k, j) => (
                 <React.Fragment key={k}>
                   {j > 0 && <ChevronRight className="w-3 h-3 text-[#5A6A74]" />}
                   <span className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-white border border-[#C9CDEB]">
                     {etiquetaCampo(k)}
-                    {j > 0 && <button title="Subir este nivel" onClick={() => setNiveles(nv => { const c = [...nv]; [c[j - 1], c[j]] = [c[j], c[j - 1]]; return c; })} className="text-[#5A6A74] hover:text-[#312E81] cursor-pointer"><ArrowLeft className="w-3 h-3" /></button>}
-                    {niveles.length > 1 && <button title="Quitar este nivel" onClick={() => setNiveles(nv => nv.filter(x => x !== k))} className="text-[#5A6A74] hover:text-red-600 cursor-pointer"><X className="w-3 h-3" /></button>}
+                    {j > 0 && <button title="Move this level up" onClick={() => setNiveles(nv => { const c = [...nv]; [c[j - 1], c[j]] = [c[j], c[j - 1]]; return c; })} className="text-[#5A6A74] hover:text-[#312E81] cursor-pointer"><ArrowLeft className="w-3 h-3" /></button>}
+                    {niveles.length > 1 && <button title="Remove this level" onClick={() => setNiveles(nv => nv.filter(x => x !== k))} className="text-[#5A6A74] hover:text-red-600 cursor-pointer"><X className="w-3 h-3" /></button>}
                   </span>
                 </React.Fragment>
               ))}
               {niveles.length < 5 && (
                 <select value="" onChange={e => { const k = e.target.value as CampoAgrupacion; if (k) setNiveles(nv => [...nv, k]); }} className="border border-[#C9CDEB] rounded-full px-2 py-0.5 bg-white cursor-pointer">
-                  <option value="">+ nivel</option>
+                  <option value="">+ level</option>
                   {CAMPOS_AGRUPACION.filter(c => !niveles.includes(c.k)).map(c => <option key={c.k} value={c.k}>{c.etq}</option>)}
                 </select>
               )}
-              <button onClick={() => setNiveles(NIVELES_POR_DEFECTO)} className="text-[#312E81] underline cursor-pointer ml-1">Restablecer</button>
+              <button onClick={() => setNiveles(NIVELES_POR_DEFECTO)} className="text-[#312E81] underline cursor-pointer ml-1">Reset</button>
               <span className="ml-auto text-[#5A6A74]">
-                {arbolEjec.enMaster.toLocaleString('es-ES')} actividades enlazadas por Activity ID
-                {arbolEjec.sinMaster ? ` · ${arbolEjec.sinMaster.toLocaleString('es-ES')} del XER sin datos en el Master (${arbolEjec.hitosUbicados.toLocaleString('es-ES')} hitos ubicados junto a su sucesora/predecesora; el resto, ocultas)` : ''}
-                {arbolEjec.soloMaster ? ` · ${arbolEjec.soloMaster.toLocaleString('es-ES')} rubros solo en el Master (aún no en P6)` : ''}
-                {arbolEjec.excluidas ? ` · ${arbolEjec.excluidas.toLocaleString('es-ES')} del WBS «Pendientes de confirmar» (.D) excluidas` : ''}
+                {arbolEjec.enMaster.toLocaleString('en-US')} activities linked by Activity ID
+                {arbolEjec.sinMaster ? ` · ${arbolEjec.sinMaster.toLocaleString('en-US')} XER activities without Master data (${arbolEjec.hitosUbicados.toLocaleString('en-US')} milestones placed with their related activities; the rest hidden)` : ''}
+                {arbolEjec.soloMaster ? ` · ${arbolEjec.soloMaster.toLocaleString('en-US')} Master-only items (not yet in P6)` : ''}
+                {arbolEjec.excluidas ? ` · ${arbolEjec.excluidas.toLocaleString('en-US')} from WBS «Pending confirmation» (.D) excluded` : ''}
               </span>
             </div>
           )}
@@ -1113,20 +1113,20 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   {/* Encabezado */}
                   <div className="sticky top-0 z-20 flex bg-[#F5F8F9] border-b border-[#D5DEE2] text-[10px] font-semibold text-[#5A6A74]" style={{ height: 34 }}>
                     <div className="sticky left-0 z-30 bg-[#F5F8F9] flex items-end pb-1 border-r border-[#D5DEE2]" style={{ width: ANCHO_IZQ }}>
-                      <div className="w-[120px] px-2">ID de actividad</div>
-                      <div className="w-[262px] px-1">Nombre</div>
-                      <div className="w-[52px] text-right px-1">Dur. orig.</div>
-                      <div className="w-[52px] text-right px-1">Dur. rest.</div>
+                      <div className="w-[120px] px-2">Activity ID</div>
+                      <div className="w-[262px] px-1">Activity Name</div>
+                      <div className="w-[52px] text-right px-1">Orig. Dur.</div>
+                      <div className="w-[52px] text-right px-1">Rem. Dur.</div>
                       {(['ini', 'fin'] as const).map(col => (
-                        <button key={col} onClick={() => alternarOrden(col)} title="Ordenar las actividades de cada grupo (ascendente → descendente → original)"
+                        <button key={col} onClick={() => alternarOrden(col)} title="Sort the activities of each group (ascending → descending → original)"
                           className={`w-[78px] text-right px-1 cursor-pointer hover:text-[#312E81] ${orden?.col === col ? 'text-[#312E81]' : ''}`}>
-                          {col === 'ini' ? 'Inicio' : 'Fin'}{orden?.col === col ? (orden.dir === 1 ? ' ▲' : ' ▼') : ' ↕'}
+                          {col === 'ini' ? 'Start' : 'Finish'}{orden?.col === col ? (orden.dir === 1 ? ' ▲' : ' ▼') : ' ↕'}
                         </button>
                       ))}
-                      <div className="w-[58px] text-right px-1 leading-tight" title="Variación de fin respecto a la línea base (fin LB − fin actual, días laborables; negativo = atraso)">Var. fin LB</div>
-                      <div className="w-[52px] text-right px-1">Holg. tot.</div>
-                      <div className="w-[52px] text-right px-1">Holg. libre</div>
-                      <div className="w-[56px] text-right px-2">% avance</div>
+                      <div className="w-[58px] text-right px-1 leading-tight" title="Variance - BL Project Finish Date (BL finish − finish, working days; negative = late)">BL Finish Var.</div>
+                      <div className="w-[52px] text-right px-1">Total Float</div>
+                      <div className="w-[52px] text-right px-1">Free Float</div>
+                      <div className="w-[56px] text-right px-2">Phys. %</div>
                     </div>
                     <div className="relative" style={{ width: anchoGantt }}>
                       {meses.map(mo => (mo.mes === 0 || mo === meses[0]) && (
@@ -1153,7 +1153,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     </svg>
                   )}
                   {/* Línea de fecha de datos */}
-                  <div className="absolute z-10 w-0.5 bg-[#CD0000]/70 pointer-events-none" style={{ left: ANCHO_IZQ + xDatos, top: 34, height: filas.length * FILA }} title="Fecha de datos" />
+                  <div className="absolute z-10 w-0.5 bg-[#CD0000]/70 pointer-events-none" style={{ left: ANCHO_IZQ + xDatos, top: 34, height: filas.length * FILA }} title="Data Date" />
                   {/* Filas */}
                   {filas.slice(desdeFila, hastaFila).map((fl, k) => {
                     const idx = desdeFila + k;
@@ -1170,7 +1170,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                             <div className="flex items-center gap-1 min-w-0" style={{ paddingLeft: 4 + fl.nivel * 10, width: 382 }}>
                               {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
                               <span className="truncate" title={`${n.codCompleto} · ${n.nombre}`}><span className={claro ? 'opacity-70' : 'opacity-80'}>{n.codCompleto}</span>&nbsp; {n.nombre}</span>
-                              <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({filtroEstado === 'soloMaster' ? `${n.nSolo ?? 0} solo en Master` : n.n})</span>
+                              <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({filtroEstado === 'soloMaster' ? `${n.nSolo ?? 0} Master only` : n.n})</span>
                             </div>
                             <div className="w-[104px]" />
                             <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.ini ?? n.ini)}</div>
@@ -1181,9 +1181,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                               const vf = n.id === RAIZ_CONSTRUCTIVA
                                 ? n.hijos.map(vfDe).filter((x): x is number => x != null).reduce<number | null>((a, b) => (a == null || b < a ? b : a), null)
                                 : vfDe(n);
-                              return <div className="w-[58px] text-right px-1" title={n.id === RAIZ_CONSTRUCTIVA ? 'La variación de fin más negativa de sus grupos' : undefined}>{vf == null ? '' : dias(vf, 8)}</div>;
+                              return <div className="w-[58px] text-right px-1" title={n.id === RAIZ_CONSTRUCTIVA ? 'The most negative finish variance of its groups' : undefined}>{vf == null ? '' : dias(vf, 8)}</div>;
                             })()}
-                            <div className={`w-[160px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas && filtroEstado !== 'soloMaster' ? `${n.criticas} críticas` : ''}</div>
+                            <div className={`w-[160px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas && filtroEstado !== 'soloMaster' ? `${n.criticas} critical` : ''}</div>
                           </div>
                           {(() => {
                             const rs = resumenWbs.get(n.id);
@@ -1195,7 +1195,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                               <>
                                 {barrasLB && rs.lbIni != null && rs.lbFin != null && (
                                   <div className="absolute h-[3px] bg-[#E3B505]" style={{ left: ANCHO_IZQ + xDe(rs.lbIni), width: Math.max(2, xDe(rs.lbFin) - xDe(rs.lbIni)), top: 17 }}
-                                    title={`Línea base: ${fCorta(rs.lbIni)} → ${fCorta(rs.lbFin)}`} />
+                                    title={`Baseline: ${fCorta(rs.lbIni)} → ${fCorta(rs.lbFin)}`} />
                                 )}
                                 {/* Barra resumen del WBS (negra, con puntas) */}
                                 <div className="absolute h-1 bg-[#14212A]" style={{ left: x0, width: Math.max(2, x1 - x0), top: 7 }} />
@@ -1224,14 +1224,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                       const ini = minutosDeFecha(a.start ?? a.blStart), fin = minutosDeFecha(a.finish ?? a.blFinish);
                       return (
                         <div key={`m${a.activityId}`} className="absolute flex text-[11px] border-b border-[#F0F2F4] bg-[#FAFAF7] text-[#7A868D] italic"
-                          style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt }} title="Rubro creado en el Master que todavía no existe en el XER de Primavera">
+                          style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt }} title="Item created in the Master that does not exist in the Primavera XER yet">
                           <div className="sticky left-0 z-[5] flex items-center border-r border-[#D5DEE2] bg-[#FAFAF7]" style={{ width: ANCHO_IZQ }}>
                             <div className="w-[120px] px-2 font-mono text-[10px] truncate not-italic" style={{ paddingLeft: 4 + fl.nivel * 10 }}>{a.activityId}</div>
                             <div className="w-[262px] px-1 truncate" title={a.descripcion}>{a.descripcion}</div>
                             <div className="w-[104px]" />
                             <div className="w-[78px] text-right px-1">{fCorta(ini)}</div>
                             <div className="w-[78px] text-right px-1">{fCorta(fin)}</div>
-                            <div className="w-[218px] px-2 text-[10px] not-italic"><span className="px-1.5 py-0.5 rounded bg-[#FFF3C4] text-[#7A5B00] font-semibold">Solo en Master · no está en P6</span></div>
+                            <div className="w-[218px] px-2 text-[10px] not-italic"><span className="px-1.5 py-0.5 rounded bg-[#FFF3C4] text-[#7A5B00] font-semibold">Master only · not in P6</span></div>
                           </div>
                           {ini != null && fin != null && (
                             <div className="absolute h-2.5 rounded-sm border border-dashed border-[#9AA6AD] bg-[#E6EAEC]/60" style={{ left: ANCHO_IZQ + xDe(ini), width: Math.max(4, xDe(fin) - xDe(ini)), top: 6 }} />
@@ -1247,7 +1247,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     const lb = verLB ? lbDatos : null;
                     const yB = verLB ? 3 : 6; // con línea base, la barra actual sube para dejarle sitio
                     const varFin = variacionFin(lbDatos?.[1], v.fin);
-                    const tituloLB = lb ? ` · Línea base ${fCorta(lb[0])} → ${fCorta(lb[1])}${varFin != null ? ` (variación de fin ${varFin > 0 ? '+' : ''}${dias(varFin, v.hd)} d)` : ''}` : '';
+                    const tituloLB = lb ? ` · Baseline ${fCorta(lb[0])} → ${fCorta(lb[1])}${varFin != null ? ` (finish variance ${varFin > 0 ? '+' : ''}${dias(varFin, v.hd)} d)` : ''}` : '';
                     return (
                       <div key={`a${v.i}`} onClick={() => { setSel(v.i); verFecha(v.resto ?? v.ini); }}
                         className={`absolute flex text-[11px] cursor-pointer border-b border-[#F0F2F4] ${seleccionada ? 'bg-[#FFF7D6]' : 'bg-white hover:bg-[#F7F9FA]'}`}
@@ -1259,28 +1259,28 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                           <div className="w-[52px] text-right px-1">{dias(v.durR, v.hd)}</div>
                           <div className="w-[78px] text-right px-1">{fCorta(v.ini)}{v.iniA ? ' A' : ''}</div>
                           <div className="w-[78px] text-right px-1">{fCorta(v.fin)}{v.finA ? ' A' : ''}</div>
-                          <div className={`w-[58px] text-right px-1 ${varFin != null && varFin < 0 ? 'text-red-600' : varFin ? 'text-[#2B7F52]' : ''}`} title={lbDatos ? `Línea base ${fCorta(lbDatos[0])} → ${fCorta(lbDatos[1])}` : 'Sin línea base'}>{varFin == null ? '' : dias(varFin, v.hd)}</div>
+                          <div className={`w-[58px] text-right px-1 ${varFin != null && varFin < 0 ? 'text-red-600' : varFin ? 'text-[#2B7F52]' : ''}`} title={lbDatos ? `Baseline ${fCorta(lbDatos[0])} → ${fCorta(lbDatos[1])}` : 'No baseline'}>{varFin == null ? '' : dias(varFin, v.hd)}</div>
                           <div className={`w-[52px] text-right px-1 ${critica ? 'text-red-600 font-semibold' : ''}`}>{v.tf == null ? '' : dias(v.tf, v.hd)}</div>
                           <div className="w-[52px] text-right px-1">{v.ff == null ? '' : dias(v.ff, v.hd)}</div>
                           <div className="w-[56px] text-right px-2">{v.avance ? `${Math.round(v.avance * 10) / 10}%` : ''}</div>
                         </div>
                         {/* Barras */}
                         {lb && lb[0] != null && lb[1] != null && (esHito ? (
-                          <div className="absolute w-2 h-2 rotate-45 bg-[#E3B505] border border-[#9C7C00]" style={{ left: ANCHO_IZQ + xDe(esHitoFinTipo(v.tipo) ? lb[1] : lb[0]) - 4, top: 13 }} title={`Línea base ${fCorta(lb[1])}`} />
+                          <div className="absolute w-2 h-2 rotate-45 bg-[#E3B505] border border-[#9C7C00]" style={{ left: ANCHO_IZQ + xDe(esHitoFinTipo(v.tipo) ? lb[1] : lb[0]) - 4, top: 13 }} title={`Baseline ${fCorta(lb[1])}`} />
                         ) : (
                           <div className="absolute h-[5px] bg-[#E3B505] rounded-sm" style={{ left: ANCHO_IZQ + xDe(lb[0]), width: Math.max(2, xDe(lb[1]) - xDe(lb[0])), top: 15 }}
-                            title={`Línea base ${fCorta(lb[0])} → ${fCorta(lb[1])}`} />
+                            title={`Baseline ${fCorta(lb[0])} → ${fCorta(lb[1])}`} />
                         ))}
                         {esHito ? (
                           v.ini != null && <div className="absolute w-2.5 h-2.5 rotate-45" style={{ left: ANCHO_IZQ + xDe(v.ini) - 5, top: yB, background: v.estado === 'TK_Complete' ? '#2C67A6' : critica ? '#CD0000' : '#14212A' }} title={`${v.cod} · ${fCorta(v.ini)}${tituloLB}`} />
                         ) : (
                           <>
                             {v.iniA && v.ini != null && (
-                              <div className="absolute h-2.5 bg-[#2C67A6] rounded-sm" title={`Real${tituloLB}`}
+                              <div className="absolute h-2.5 bg-[#2C67A6] rounded-sm" title={`Actual${tituloLB}`}
                                 style={{ left: ANCHO_IZQ + xDe(v.ini), width: Math.max(2, xDe(v.estado === 'TK_Complete' ? v.fin ?? v.ini : m.fechaDatos) - xDe(v.ini)), top: yB }} />
                             )}
                             {v.estado !== 'TK_Complete' && (v.resto ?? v.ini) != null && v.fin != null && (
-                              <div className={`absolute h-2.5 rounded-sm ${critica ? 'bg-[#CD0000]' : 'bg-[#2B7F52]'}`} title={`Restante${tituloLB}`}
+                              <div className={`absolute h-2.5 rounded-sm ${critica ? 'bg-[#CD0000]' : 'bg-[#2B7F52]'}`} title={`Remaining${tituloLB}`}
                                 style={{ left: ANCHO_IZQ + xDe((v.resto ?? v.ini)!), width: Math.max(2, xDe(v.fin) - xDe((v.resto ?? v.ini)!)), top: yB }} />
                             )}
                           </>
@@ -1316,12 +1316,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     const cod = celda(t, f, 'task_code');
                     const id = celda(t, f, 'task_id');
                     const nRel = m.pred.filas.filter(fr => celda(m.pred, fr, 'task_id') === id || celda(m.pred, fr, 'pred_task_id') === id).length;
-                    if (!window.confirm(`¿Eliminar la actividad ${cod} · ${celda(t, f, 'task_name')}?\n\nTambién se quitan sus ${nRel} relaciones, sus asignaciones de recursos, códigos y campos personalizados.`)) return;
+                    if (!window.confirm(`Delete activity ${cod} · ${celda(t, f, 'task_name')}?\n\nIts ${nRel} relationships, resource assignments, codes and user defined fields will also be removed.`)) return;
                     const log = [...cambios];
                     eliminarActividad(m, sel, log);
                     setSel(null);
                     marcarCambio(log);
-                    mostrar(`Actividad ${cod} eliminada. Pulsa «Programar (F9)» para recalcular.`);
+                    mostrar(`Activity ${cod} deleted. Press «Schedule (F9)» to recalculate.`);
                   }} />
               )}
               {creando && (
@@ -1335,15 +1335,15 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     for (const rel of datos.relaciones) {
                       const err = rel.rol === 'pred'
                         ? agregarRelacion(m, rel.codigo, r, rel.tipo, 0, log)
-                        : (() => { const otra = m.task.filas.findIndex(fr => celda(m.task, fr, 'task_code').toLowerCase() === rel.codigo.toLowerCase()); return otra < 0 ? `No existe ${rel.codigo}` : agregarRelacion(m, datos.codigo, otra, rel.tipo, 0, log); })();
-                      if (err) mostrar(`Actividad creada, pero no la relación con ${rel.codigo}: ${err}`);
+                        : (() => { const otra = m.task.filas.findIndex(fr => celda(m.task, fr, 'task_code').toLowerCase() === rel.codigo.toLowerCase()); return otra < 0 ? `${rel.codigo} does not exist` : agregarRelacion(m, datos.codigo, otra, rel.tipo, 0, log); })();
+                      if (err) mostrar(`Activity created, but not the relationship with ${rel.codigo}: ${err}`);
                     }
                     // Abrir el WBS donde quedó
                     abrirRama(datos.wbsId);
                     setCreando(false);
                     marcarCambio(log);
                     setSel(r);
-                    mostrar(`Actividad ${datos.codigo} creada. Pulsa «Programar (F9)» para calcular sus fechas.`);
+                    mostrar(`Activity ${datos.codigo} added. Press «Schedule (F9)» to calculate its dates.`);
                     return null;
                   }} />
               )}
@@ -1458,10 +1458,10 @@ const VistaWbs: React.FC<{
       <div className="px-4 py-2 border-b border-[#D5DEE2] flex items-center gap-1.5 flex-wrap text-xs">
         {editable ? (
           <>
-            <button className={btn} disabled={!nodoSel} onClick={() => nodoSel && setNuevo({ modo: 'hijo', corto: sugerirCodigo(nodoSel.id), nombre: '' })} title="Crear un WBS dentro del seleccionado"><Plus className="w-3.5 h-3.5" /> WBS hijo</button>
-            <button className={btn} disabled={!nodoSel || esRaiz} onClick={() => nodoSel && setNuevo({ modo: 'hermano', corto: sugerirCodigo(nodoSel.padre), nombre: '' })} title="Crear un WBS al mismo nivel, debajo del seleccionado"><Plus className="w-3.5 h-3.5" /> Mismo nivel</button>
+            <button className={btn} disabled={!nodoSel} onClick={() => nodoSel && setNuevo({ modo: 'hijo', corto: sugerirCodigo(nodoSel.id), nombre: '' })} title="Add a WBS under the selected one"><Plus className="w-3.5 h-3.5" /> Add Child</button>
+            <button className={btn} disabled={!nodoSel || esRaiz} onClick={() => nodoSel && setNuevo({ modo: 'hermano', corto: sugerirCodigo(nodoSel.padre), nombre: '' })} title="Add a WBS at the same level, below the selected one"><Plus className="w-3.5 h-3.5" /> Add Sibling</button>
             <span className="w-px h-5 bg-[#D5DEE2] mx-1" />
-            {([['arriba', ArrowUp, 'Subir'], ['abajo', ArrowDown, 'Bajar'], ['izquierda', ArrowLeft, 'Subir de nivel (quitar sangría)'], ['derecha', ArrowRight, 'Bajar de nivel (colgar del WBS anterior)']] as const).map(([a, Ic, tt]) => (
+            {([['arriba', ArrowUp, 'Move Up'], ['abajo', ArrowDown, 'Move Down'], ['izquierda', ArrowLeft, 'Move Left (outdent)'], ['derecha', ArrowRight, 'Move Right (indent under the previous WBS)']] as const).map(([a, Ic, tt]) => (
               <button key={a} className={btn} disabled={!nodoSel || esRaiz} title={tt}
                 onClick={() => nodoSel && accion(log => moverWbs(m, nodoSel.id, a, log))}>
                 <Ic className="w-3.5 h-3.5" />
@@ -1471,14 +1471,14 @@ const VistaWbs: React.FC<{
             <button className={`${btn} text-red-700`} disabled={!nodoSel || esRaiz} onClick={() => {
               if (!nodoSel) return;
               const ids = subarbolWbs(m, nodoSel.id);
-              if (!window.confirm(`¿Eliminar el WBS ${nodoSel.codCompleto} · ${nodoSel.nombre}${ids.size > 1 ? ` y sus ${ids.size - 1} sub-WBS` : ''}?\n\nSus ${nodoSel.n} actividades no se borran: pasan al WBS padre.`)) return;
+              if (!window.confirm(`Delete WBS ${nodoSel.codCompleto} · ${nodoSel.nombre}${ids.size > 1 ? ` and its ${ids.size - 1} child WBS` : ''}?\n\nIts ${nodoSel.n} activities are not deleted: they move to the parent WBS.`)) return;
               const padre = nodoSel.padre;
-              if (accion(log => eliminarWbs(m, nodoSel.id, log), `WBS ${nodoSel.codCompleto} eliminado; sus actividades pasaron al WBS padre.`)) setSelW(padre);
-            }}><Trash2 className="w-3.5 h-3.5" /> Eliminar</button>
+              if (accion(log => eliminarWbs(m, nodoSel.id, log), `WBS ${nodoSel.codCompleto} deleted; its activities moved to the parent WBS.`)) setSelW(padre);
+            }}><Trash2 className="w-3.5 h-3.5" /> Delete</button>
           </>
-        ) : <span className="text-[#5A6A74]">Solo el administrador puede modificar el WBS.</span>}
+        ) : <span className="text-[#5A6A74]">Only the administrator can modify the WBS.</span>}
         {nodoSel && (
-          <button className={`${btn} ml-auto`} onClick={() => onVerActividades(nodoSel.id)} title="Ir a las actividades de este WBS"><Layers className="w-3.5 h-3.5" /> Ver actividades</button>
+          <button className={`${btn} ml-auto`} onClick={() => onVerActividades(nodoSel.id)} title="Go to the activities of this WBS"><Layers className="w-3.5 h-3.5" /> View Activities</button>
         )}
       </div>
       {/* Edición del seleccionado o alta de uno nuevo */}
@@ -1493,42 +1493,42 @@ const VistaWbs: React.FC<{
                 const r = crearWbs(m, padre, nuevo.corto, nuevo.nombre, log, nuevo.modo === 'hermano' ? nodoSel?.id : undefined);
                 if (/^\d+$/.test(r)) { creado = r; return null; }
                 return r;
-              }, 'WBS creado.');
+              }, 'WBS added.');
               if (ok) { setNuevo(null); setAbiertosW(prev => new Set([...prev, padre])); setSelW(creado || null); }
             }}>
-              <b>Nuevo WBS {nuevo.modo === 'hijo' ? `dentro de ${nodoSel?.codCompleto}` : `al nivel de ${nodoSel?.codCompleto}`}</b>
-              <input value={nuevo.corto} onChange={e => setNuevo({ ...nuevo, corto: e.target.value })} placeholder="Código" className="border border-[#D5DEE2] rounded px-2 py-1 w-24" autoFocus required />
-              <input value={nuevo.nombre} onChange={e => setNuevo({ ...nuevo, nombre: e.target.value })} placeholder="Nombre del WBS" className="border border-[#D5DEE2] rounded px-2 py-1 w-80" required />
-              <button type="submit" className="px-3 py-1 rounded bg-[#312E81] text-white font-bold cursor-pointer">Crear</button>
-              <button type="button" onClick={() => setNuevo(null)} className="px-2 py-1 rounded hover:bg-white cursor-pointer">Cancelar</button>
+              <b>New WBS {nuevo.modo === 'hijo' ? `under ${nodoSel?.codCompleto}` : `at the level of ${nodoSel?.codCompleto}`}</b>
+              <input value={nuevo.corto} onChange={e => setNuevo({ ...nuevo, corto: e.target.value })} placeholder="Code" className="border border-[#D5DEE2] rounded px-2 py-1 w-24" autoFocus required />
+              <input value={nuevo.nombre} onChange={e => setNuevo({ ...nuevo, nombre: e.target.value })} placeholder="WBS Name" className="border border-[#D5DEE2] rounded px-2 py-1 w-80" required />
+              <button type="submit" className="px-3 py-1 rounded bg-[#312E81] text-white font-bold cursor-pointer">Add</button>
+              <button type="button" onClick={() => setNuevo(null)} className="px-2 py-1 rounded hover:bg-white cursor-pointer">Cancel</button>
             </form>
           ) : nodoSel && !esRaiz ? (
             <div className="flex items-center gap-2 flex-wrap" key={`${nodoSel.id}-${version}`}>
-              <b>Seleccionado:</b>
-              <label className="flex items-center gap-1">Código
+              <b>Selected:</b>
+              <label className="flex items-center gap-1">Code
                 <input defaultValue={nodoSel.cod} className="border border-[#D5DEE2] rounded px-2 py-1 w-24"
                   onBlur={e => e.target.value !== nodoSel.cod && accion(log => editarWbs(m, nodoSel.id, { corto: e.target.value }, log))}
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
               </label>
-              <label className="flex items-center gap-1">Nombre
+              <label className="flex items-center gap-1">Name
                 <input defaultValue={nodoSel.nombre} className="border border-[#D5DEE2] rounded px-2 py-1 w-96"
                   onBlur={e => e.target.value !== nodoSel.nombre && accion(log => editarWbs(m, nodoSel.id, { nombre: e.target.value }, log))}
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
               </label>
-              <span className="text-[#5A6A74]">{nodoSel.n} actividades</span>
+              <span className="text-[#5A6A74]">{nodoSel.n} activities</span>
             </div>
-          ) : <span className="text-[#5A6A74]">El nodo del proyecto no se edita aquí. Elige un WBS para modificarlo.</span>}
+          ) : <span className="text-[#5A6A74]">The project node cannot be edited here. Select a WBS to modify it.</span>}
         </div>
       )}
       <div className="flex-1 overflow-auto">
         <table className="w-full text-[12px] border-collapse text-[#1A1A1A] select-none">
           <thead className="sticky top-0 z-10 bg-[#F0F0F0] text-[11.5px] font-normal">
             <tr className="text-left">
-              <th className="px-2 py-1 font-normal border border-[#C8C8C8] w-[340px]">Código WBS</th>
-              <th className="px-2 font-normal border border-[#C8C8C8]">Nombre WBS</th>
-              <th className="px-2 font-normal border border-[#C8C8C8] text-right w-28">Total actividades</th>
-              <th className="px-2 font-normal border border-[#C8C8C8] w-28">Inicio</th>
-              <th className="px-2 font-normal border border-[#C8C8C8] w-28">Fin real</th>
+              <th className="px-2 py-1 font-normal border border-[#C8C8C8] w-[340px]">WBS Code</th>
+              <th className="px-2 font-normal border border-[#C8C8C8]">WBS Name</th>
+              <th className="px-2 font-normal border border-[#C8C8C8] text-right w-28">Total Activities</th>
+              <th className="px-2 font-normal border border-[#C8C8C8] w-28">Start</th>
+              <th className="px-2 font-normal border border-[#C8C8C8] w-28">Actual Finish</th>
             </tr>
           </thead>
           <tbody>
@@ -1552,7 +1552,7 @@ const VistaWbs: React.FC<{
                       <span className="relative w-4 shrink-0 flex items-center justify-center">
                         {abierto && vert('50%', '0')}
                         {n.hijos.length ? (
-                          <button onClick={e => { e.stopPropagation(); alternarW(n.id); }} title={abierto ? 'Contraer' : 'Desplegar'}
+                          <button onClick={e => { e.stopPropagation(); alternarW(n.id); }} title={abierto ? 'Collapse' : 'Expand'}
                             className="relative z-[1] w-[11px] h-[11px] border border-[#8C8C8C] bg-white text-[#1A1A1A] flex items-center justify-center leading-none text-[10px] font-bold cursor-pointer">
                             {abierto ? '−' : '+'}
                           </button>
@@ -1606,7 +1606,7 @@ const CampoFecha: React.FC<{ valor: string; disabled?: boolean; className?: stri
   return (
     <input type="date" value={v} disabled={disabled} onChange={e => setV(e.target.value)} onBlur={confirmar}
       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmar(); } if (e.key === 'Escape') setV(valor); }}
-      title={pendiente ? 'Pulsa Enter o sal del campo para aplicar la fecha (Esc para deshacer)' : undefined}
+      title={pendiente ? 'Press Enter or leave the field to apply the date (Esc to undo)' : undefined}
       className={`${className ?? ''} ${pendiente ? '!border-[#E3A008] !bg-[#FFF8E1] !text-[#14212A]' : ''}`} />
   );
 };
@@ -1684,42 +1684,42 @@ const NuevaActividadDialog: React.FC<{
         const err = onCrear({ wbsId, codigo: codigo.trim(), nombre: nombre.trim(), tipo, durHoras: (Number(diasDur) || 0) * hd, relaciones: rels });
         if (err) setError(err);
       }} className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-3 text-xs">
-        <div className="flex items-center gap-2"><Plus className="w-4 h-4 text-[#312E81]" /><h3 className="text-sm font-bold">Nueva actividad</h3></div>
+        <div className="flex items-center gap-2"><Plus className="w-4 h-4 text-[#312E81]" /><h3 className="text-sm font-bold">Add Activity</h3></div>
         <label className="block space-y-1"><span className="text-[#5A6A74]">WBS</span>
           <select value={wbsId} onChange={e => setWbsId(e.target.value)} className={inp}>
             {opciones.map(n => <option key={n.id} value={n.id}>{n.codCompleto} · {n.nombre}</option>)}
           </select>
         </label>
         <div className="grid grid-cols-3 gap-2">
-          <label className="block space-y-1 col-span-1"><span className="text-[#5A6A74]">ID de actividad</span>
+          <label className="block space-y-1 col-span-1"><span className="text-[#5A6A74]">Activity ID</span>
             <input value={codigo} onChange={e => setCodigo(e.target.value)} className={inp} autoFocus required />
           </label>
-          <label className="block space-y-1 col-span-2"><span className="text-[#5A6A74]">Nombre</span>
+          <label className="block space-y-1 col-span-2"><span className="text-[#5A6A74]">Activity Name</span>
             <input value={nombre} onChange={e => setNombre(e.target.value)} className={inp} required />
           </label>
-          <label className="block space-y-1"><span className="text-[#5A6A74]">Tipo</span>
+          <label className="block space-y-1"><span className="text-[#5A6A74]">Activity Type</span>
             <select value={tipo} onChange={e => setTipo(e.target.value)} className={inp}>
-              <option value="TT_Task">Tarea</option>
-              <option value="TT_Mile">Hito de inicio</option>
-              <option value="TT_FinMile">Hito de fin</option>
+              <option value="TT_Task">Task Dependent</option>
+              <option value="TT_Mile">Start Milestone</option>
+              <option value="TT_FinMile">Finish Milestone</option>
             </select>
           </label>
-          <label className="block space-y-1"><span className="text-[#5A6A74]">Duración (días)</span>
+          <label className="block space-y-1"><span className="text-[#5A6A74]">Original Duration (d)</span>
             <input type="number" min="0" step="0.5" value={tipo === 'TT_Task' ? diasDur : '0'} disabled={tipo !== 'TT_Task'} onChange={e => setDiasDur(e.target.value)} className={inp} />
           </label>
           <div />
-          <label className="block space-y-1 col-span-3 sm:col-span-1"><span className="text-[#5A6A74]">Predecesora (FS, opcional)</span>
+          <label className="block space-y-1 col-span-3 sm:col-span-1"><span className="text-[#5A6A74]">Predecessor (FS, optional)</span>
             <input value={pred} onChange={e => setPred(e.target.value)} placeholder="ID" className={inp} />
           </label>
-          <label className="block space-y-1 col-span-3 sm:col-span-1"><span className="text-[#5A6A74]">Sucesora (FS, opcional)</span>
+          <label className="block space-y-1 col-span-3 sm:col-span-1"><span className="text-[#5A6A74]">Successor (FS, optional)</span>
             <input value={succ} onChange={e => setSucc(e.target.value)} placeholder="ID" className={inp} />
           </label>
         </div>
-        <p className="text-[11px] text-[#5A6A74]">Nace como «No iniciada» con el calendario de su WBS. Las fechas se calculan al pulsar «Programar (F9)». Las relaciones se pueden ajustar luego en su pestaña.</p>
+        <p className="text-[11px] text-[#5A6A74]">It is added as «Not Started» with the calendar of its WBS. Dates are calculated when you press «Schedule (F9)». Relationships can be adjusted later in its tab.</p>
         {error && <p className="text-[11.5px] text-red-600">{error}</p>}
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onCancelar} className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancelar</button>
-          <button type="submit" className="px-3 py-1.5 rounded-lg bg-[#312E81] text-white font-bold cursor-pointer">Crear actividad</button>
+          <button type="button" onClick={onCancelar} className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
+          <button type="submit" className="px-3 py-1.5 rounded-lg bg-[#312E81] text-white font-bold cursor-pointer">Add Activity</button>
         </div>
       </form>
     </div>
@@ -1811,7 +1811,7 @@ const PanelActividad: React.FC<{
     const mt = m.xer.tablas.get('MEMOTYPE');
     const tipos = new Map((mt?.filas || []).map(fr => [celda(mt!, fr, 'memo_type_id'), celda(mt!, fr, 'memo_type')]));
     const limpiar = (h: string) => h.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\x7f\x7f/g, '\n').trim();
-    return (tm?.filas || []).filter(fr => celda(tm!, fr, 'task_id') === g('task_id')).map(fr => ({ tipo: tipos.get(celda(tm!, fr, 'memo_type_id')) || 'Nota', texto: limpiar(celda(tm!, fr, 'task_memo')) }));
+    return (tm?.filas || []).filter(fr => celda(tm!, fr, 'task_id') === g('task_id')).map(fr => ({ tipo: tipos.get(celda(tm!, fr, 'memo_type_id')) || 'Note', texto: limpiar(celda(tm!, fr, 'task_memo')) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [m, i, version]);
   const udfs = React.useMemo(() => udfsDeActividad(m, i),
@@ -1827,7 +1827,7 @@ const PanelActividad: React.FC<{
   // Estilo P6: cajas grises con título y campos blancos
   const caja = 'h-[22px] w-full border border-[#A9A9A9] bg-white px-1.5 text-[11px] text-[#1A1A1A] outline-none focus:border-[#3C7DE0] disabled:bg-[#F3F3F3] disabled:text-[#6B6B6B]';
   const soloLectura = 'h-[22px] w-full border border-[#BDBDBD] bg-[#EFEFEF] px-1.5 text-[11px] text-[#1A1A1A] flex items-center truncate';
-  const tabsP6: [typeof pest, string][] = [['general', 'General'], ['estado', 'Estado'], ['recursos', `Recursos (${asignaciones.length})`], ['relaciones', `Relaciones (${rels.length})`], ['notas', `Notas (${memos.length})`], ['cambios', `Cambios (${cambios.length})`], ['udf', `User Defined (${udfs.filter(u => u.valor !== '').length})`]];
+  const tabsP6: [typeof pest, string][] = [['general', 'General'], ['estado', 'Status'], ['recursos', `Resources (${asignaciones.length})`], ['relaciones', `Relationships (${rels.length})`], ['notas', `Notebook (${memos.length})`], ['cambios', `Changes (${cambios.length})`], ['udf', `User Defined (${udfs.filter(u => u.valor !== '').length})`]];
 
   return (
     <div className="h-[318px] shrink-0 bg-[#F0F0F0] border-t-2 border-[#9A9A9A] flex flex-col">
@@ -1839,132 +1839,132 @@ const PanelActividad: React.FC<{
         ))}
         <div className="ml-auto flex items-center gap-1 pb-0.5">
           {editable && (
-            <button onClick={onEliminar} className="px-2 py-0.5 rounded text-red-700 hover:bg-red-50 flex items-center gap-1 cursor-pointer" title="Eliminar esta actividad">
-              <Trash2 className="w-3.5 h-3.5" /> Eliminar
+            <button onClick={onEliminar} className="px-2 py-0.5 rounded text-red-700 hover:bg-red-50 flex items-center gap-1 cursor-pointer" title="Delete this activity">
+              <Trash2 className="w-3.5 h-3.5" /> Delete
             </button>
           )}
-          <button onClick={onCerrar} className="p-1 hover:bg-white rounded cursor-pointer" title="Cerrar"><X className="w-3.5 h-3.5" /></button>
+          <button onClick={onCerrar} className="p-1 hover:bg-white rounded cursor-pointer" title="Close"><X className="w-3.5 h-3.5" /></button>
         </div>
       </div>
       {/* Cabecera: actividad, nombre y proyecto */}
       <div className="flex items-center gap-3 px-2 py-1.5 text-[11px] text-[#1A1A1A]" key={`cab-${i}-${version}`}>
         <div className="flex flex-col border border-[#A9A9A9] bg-[#F7F7F7]">
-          <button onClick={() => onNavegar(-1)} title="Actividad anterior" className="px-3 leading-[10px] text-[9px] hover:bg-white cursor-pointer">▲</button>
-          <button onClick={() => onNavegar(1)} title="Actividad siguiente" className="px-3 leading-[10px] text-[9px] hover:bg-white cursor-pointer border-t border-[#D0D0D0]">▼</button>
+          <button onClick={() => onNavegar(-1)} title="Previous activity" className="px-3 leading-[10px] text-[9px] hover:bg-white cursor-pointer">▲</button>
+          <button onClick={() => onNavegar(1)} title="Next activity" className="px-3 leading-[10px] text-[9px] hover:bg-white cursor-pointer border-t border-[#D0D0D0]">▼</button>
         </div>
-        <span>Actividad</span>
+        <span>Activity</span>
         <div className={`${soloLectura} !w-[230px] font-mono`}>{g('task_code')}</div>
-        <input className={`${caja} !w-auto flex-1 min-w-[200px]`} disabled={!editable} defaultValue={g('task_name')} title="Nombre de la actividad"
+        <input className={`${caja} !w-auto flex-1 min-w-[200px]`} disabled={!editable} defaultValue={g('task_name')} title="Activity name"
           onBlur={e => e.target.value !== g('task_name') && editar({ nombre: e.target.value })}
           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
-        <span className="ml-4">Proyecto</span>
+        <span className="ml-4">Project</span>
         <div className={`${soloLectura} !w-[260px]`}>{proyecto}</div>
       </div>
       <div className="flex-1 overflow-auto px-2 pb-2">
         {pest === 'estado' && (
           <div className="grid grid-cols-[minmax(260px,1fr)_minmax(560px,2.2fr)_minmax(260px,1fr)] gap-2 h-full" key={`${i}-${version}`}>
             <div className="flex flex-col gap-2">
-              <Caja titulo={`Duración (días de ${hd} h)`}>
+              <Caja titulo={`Duration (days of ${hd} h)`}>
                 <Fila etq="Original">
                   <input type="number" step="0.5" min="0" className={`${caja} text-right`} disabled={!editable || estado === 'TK_Complete'} defaultValue={num('target_drtn_hr_cnt') / hd}
                     onBlur={e => { const v = Number(e.target.value) * hd; if (v !== num('target_drtn_hr_cnt')) editar({ durOriginal: v }); }} />
                 </Fila>
-                <Fila etq="Real"><div className={`${soloLectura} justify-end`}>{d(durReal)}</div></Fila>
-                <Fila etq="Restante">
+                <Fila etq="Actual"><div className={`${soloLectura} justify-end`}>{d(durReal)}</div></Fila>
+                <Fila etq="Remaining">
                   <input type="number" step="0.5" min="0" className={`${caja} text-right`} disabled={!editable || estado === 'TK_Complete'} defaultValue={durRest / hd}
                     onBlur={e => { const v = Number(e.target.value) * hd; if (v !== num('remain_drtn_hr_cnt')) editar({ durRestante: v }); }} />
                 </Fila>
-                <Fila etq="Al completar"><div className={`${soloLectura} justify-end`}>{d(durReal + durRest)}</div></Fila>
+                <Fila etq="At Complete"><div className={`${soloLectura} justify-end`}>{d(durReal + durRest)}</div></Fila>
               </Caja>
-              <Caja titulo="Holguras (días)">
-                <Fila etq="Holgura total"><div className={`${soloLectura} justify-end`}>{g('total_float_hr_cnt') === '' || estado === 'TK_Complete' ? '' : d(num('total_float_hr_cnt'))}</div></Fila>
-                <Fila etq="Holgura libre"><div className={`${soloLectura} justify-end`}>{g('free_float_hr_cnt') === '' || estado === 'TK_Complete' ? '' : d(num('free_float_hr_cnt'))}</div></Fila>
+              <Caja titulo="Float (days)">
+                <Fila etq="Total Float"><div className={`${soloLectura} justify-end`}>{g('total_float_hr_cnt') === '' || estado === 'TK_Complete' ? '' : d(num('total_float_hr_cnt'))}</div></Fila>
+                <Fila etq="Free Float"><div className={`${soloLectura} justify-end`}>{g('free_float_hr_cnt') === '' || estado === 'TK_Complete' ? '' : d(num('free_float_hr_cnt'))}</div></Fila>
               </Caja>
             </div>
             <div className="flex flex-col gap-2">
-              <Caja titulo={`Estado · ${ESTADO_TXT[estado] || estado}`}>
+              <Caja titulo={`Status · ${ESTADO_TXT[estado] || estado}`}>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-[5px]">
                   <Fila etq={<label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" disabled={!editable} checked={!!g('act_start_date')}
-                    onChange={e => editar({ inicioReal: e.target.checked ? fechaPorDefecto('early_start_date', '08:00') : null, ...(e.target.checked ? {} : { finReal: null }) })} /> Comenzada</label>}>
+                    onChange={e => editar({ inicioReal: e.target.checked ? fechaPorDefecto('early_start_date', '08:00') : null, ...(e.target.checked ? {} : { finReal: null }) })} /> Started</label>}>
                     <CampoFecha className={caja} disabled={!editable || !g('act_start_date')} valor={fechaInput(g('act_start_date'))}
                       onConfirmar={v => editar({ inicioReal: `${v} 08:00` })} />
                   </Fila>
-                  <Fila etq="% físico">
+                  <Fila etq="Physical %">
                     <input type="number" min="0" max="100" step="1" className={`${caja} text-right`} disabled={!editable} defaultValue={Math.round(num('phys_complete_pct') * 10) / 10}
                       onBlur={e => { const v = Number(e.target.value); if (v !== num('phys_complete_pct')) editar({ avance: v }); }} />
                   </Fila>
                   <Fila etq={<label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" disabled={!editable || !g('act_start_date')} checked={!!g('act_end_date')}
-                    onChange={e => editar({ finReal: e.target.checked ? fechaPorDefecto('early_end_date', '16:00') : null })} /> Terminada</label>}>
+                    onChange={e => editar({ finReal: e.target.checked ? fechaPorDefecto('early_end_date', '16:00') : null })} /> Finished</label>}>
                     <CampoFecha className={caja} disabled={!editable || !g('act_end_date')} valor={fechaInput(g('act_end_date'))}
                       onConfirmar={v => editar({ finReal: `${v} 16:00` })} />
                   </Fila>
-                  <Fila etq="Suspender"><div className={soloLectura}>{fNum(aMinutos(g('suspend_date')))}</div></Fila>
-                  <Fila etq="Fin esperado"><div className={soloLectura}>{fNum(aMinutos(g('expect_end_date')))}</div></Fila>
-                  <Fila etq="Reanudar"><div className={soloLectura}>{fNum(aMinutos(g('resume_date')))}</div></Fila>
+                  <Fila etq="Suspend"><div className={soloLectura}>{fNum(aMinutos(g('suspend_date')))}</div></Fila>
+                  <Fila etq="Exp Finish"><div className={soloLectura}>{fNum(aMinutos(g('expect_end_date')))}</div></Fila>
+                  <Fila etq="Resume"><div className={soloLectura}>{fNum(aMinutos(g('resume_date')))}</div></Fila>
                 </div>
               </Caja>
-              <Caja titulo="Restricciones">
+              <Caja titulo="Constraints">
                 <div className="grid grid-cols-2 gap-x-6 gap-y-[5px]">
-                  <Fila etq="Primaria">
+                  <Fila etq="Primary">
                     <select className={caja} disabled={!editable} defaultValue={g('cstr_type')}
                       onChange={e => editar({ restriccion: e.target.value ? { tipo: e.target.value, fecha: g('cstr_date') || aTexto(m.fechaDatos) } : null })}>
-                      {RESTRICCIONES.map(([v, l]) => <option key={v} value={v}>{v ? l : '< Ninguna >'}</option>)}
+                      {RESTRICCIONES.map(([v, l]) => <option key={v} value={v}>{v ? l : '< None >'}</option>)}
                     </select>
                   </Fila>
-                  <Fila etq="Secundaria">
+                  <Fila etq="Secondary">
                     <select className={caja} disabled defaultValue={g('cstr_type2')}>
-                      <option value="">{'< Ninguna >'}</option>
+                      <option value="">{'< None >'}</option>
                       {RESTRICCIONES.filter(([v]) => v).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                       {g('cstr_type2') && !RESTRICCIONES.some(([v]) => v === g('cstr_type2')) && <option value={g('cstr_type2')}>{g('cstr_type2')}</option>}
                     </select>
                   </Fila>
-                  <Fila etq="Fecha">
+                  <Fila etq="Date">
                     <CampoFecha className={caja} disabled={!editable || !g('cstr_type') || g('cstr_type') === 'CS_ALAP'} valor={fechaInput(g('cstr_date'))}
                       onConfirmar={v => editar({ restriccion: { tipo: g('cstr_type'), fecha: `${v} ${g('cstr_type').startsWith('CS_ME') ? '16:00' : '08:00'}` } })} />
                   </Fila>
-                  <Fila etq="Fecha"><div className={soloLectura}>{fNum(aMinutos(g('cstr_date2')))}</div></Fila>
+                  <Fila etq="Date"><div className={soloLectura}>{fNum(aMinutos(g('cstr_date2')))}</div></Fila>
                 </div>
               </Caja>
             </div>
-            <Caja titulo="Unidades de trabajo (h)" className="self-start">
-              {[['Presupuestadas', num('target_work_qty')], ['Reales', num('act_work_qty')], ['Restantes', num('remain_work_qty')], ['Al completar', num('act_work_qty') + num('remain_work_qty')]].map(([etq, v]) => (
-                <Fila key={etq as string} etq={etq}><div className={`${soloLectura} justify-end`}>{(v as number).toLocaleString('es-ES', { maximumFractionDigits: 2 })}</div></Fila>
+            <Caja titulo="Labor Units (h)" className="self-start">
+              {[['Budgeted', num('target_work_qty')], ['Actual', num('act_work_qty')], ['Remaining', num('remain_work_qty')], ['At Complete', num('act_work_qty') + num('remain_work_qty')]].map(([etq, v]) => (
+                <Fila key={etq as string} etq={etq}><div className={`${soloLectura} justify-end`}>{(v as number).toLocaleString('en-US', { maximumFractionDigits: 2 })}</div></Fila>
               ))}
             </Caja>
           </div>
         )}
         {pest === 'general' && (
           <div className="grid grid-cols-3 gap-2" key={`g-${i}-${version}`}>
-            <Caja titulo="Actividad">
-              <Fila etq="Tipo">{<div className={soloLectura}>{({ TT_Task: 'Tarea dependiente', TT_Rsrc: 'Dependiente de recurso', TT_Mile: 'Hito de inicio', TT_FinMile: 'Hito de fin', TT_LOE: 'Nivel de esfuerzo', TT_WBS: 'Resumen WBS' } as Record<string, string>)[g('task_type')] || g('task_type')}</div>}</Fila>
-              <Fila etq="Tipo de duración"><div className={soloLectura}>{({ DT_FixedDUR2: 'Duración y unidades fijas', DT_FixedDrtn: 'Duración y unidades/tiempo fijas', DT_FixedQty: 'Unidades fijas', DT_FixedRate: 'Unidades/tiempo fijas' } as Record<string, string>)[g('duration_type')] || g('duration_type')}</div></Fila>
-              <Fila etq="Tipo de % completado"><div className={soloLectura}>{({ CP_Phys: 'Físico', CP_Drtn: 'Duración', CP_Units: 'Unidades' } as Record<string, string>)[g('complete_pct_type')] || g('complete_pct_type')}</div></Fila>
-              <Fila etq="Calendario"><div className={soloLectura} title={cal?.nombre}>{cal?.nombre || '—'}</div></Fila>
+            <Caja titulo="Activity">
+              <Fila etq="Activity Type">{<div className={soloLectura}>{({ TT_Task: 'Task Dependent', TT_Rsrc: 'Resource Dependent', TT_Mile: 'Start Milestone', TT_FinMile: 'Finish Milestone', TT_LOE: 'Level of Effort', TT_WBS: 'WBS Summary' } as Record<string, string>)[g('task_type')] || g('task_type')}</div>}</Fila>
+              <Fila etq="Duration Type"><div className={soloLectura}>{({ DT_FixedDUR2: 'Fixed Duration and Units', DT_FixedDrtn: 'Fixed Duration and Units/Time', DT_FixedQty: 'Fixed Units', DT_FixedRate: 'Fixed Units/Time' } as Record<string, string>)[g('duration_type')] || g('duration_type')}</div></Fila>
+              <Fila etq="% Complete Type"><div className={soloLectura}>{({ CP_Phys: 'Physical', CP_Drtn: 'Duration', CP_Units: 'Units' } as Record<string, string>)[g('complete_pct_type')] || g('complete_pct_type')}</div></Fila>
+              <Fila etq="Calendar"><div className={soloLectura} title={cal?.nombre}>{cal?.nombre || '—'}</div></Fila>
             </Caja>
             <Caja titulo="WBS">
               <Fila etq="WBS"><div className={soloLectura} title={nombreWbs}>{nombreWbs}</div></Fila>
-              <Fila etq="Ruta crítica"><div className={soloLectura}>{g('driving_path_flag') === 'Y' ? 'En el Longest path' : (g('total_float_hr_cnt') !== '' && num('total_float_hr_cnt') <= 0 && estado !== 'TK_Complete') ? 'Crítica (holgura ≤ 0)' : 'No crítica'}</div></Fila>
-              <Fila etq="Creada"><div className={soloLectura}>{fNum(aMinutos(g('create_date')))}{g('create_user') ? ` · ${g('create_user')}` : ''}</div></Fila>
-              <Fila etq="Modificada"><div className={soloLectura}>{fNum(aMinutos(g('update_date')))}{g('update_user') ? ` · ${g('update_user')}` : ''}</div></Fila>
+              <Fila etq="Critical"><div className={soloLectura}>{g('driving_path_flag') === 'Y' ? 'On the Longest Path' : (g('total_float_hr_cnt') !== '' && num('total_float_hr_cnt') <= 0 && estado !== 'TK_Complete') ? 'Critical (Total Float ≤ 0)' : 'Not critical'}</div></Fila>
+              <Fila etq="Added"><div className={soloLectura}>{fNum(aMinutos(g('create_date')))}{g('create_user') ? ` · ${g('create_user')}` : ''}</div></Fila>
+              <Fila etq="Last Modified"><div className={soloLectura}>{fNum(aMinutos(g('update_date')))}{g('update_user') ? ` · ${g('update_user')}` : ''}</div></Fila>
             </Caja>
-            <Caja titulo="Fechas">
-              <Fila etq="Inicio / fin temprano"><div className={soloLectura}>{fNum(aMinutos(g('early_start_date')))} → {fNum(aMinutos(g('early_end_date')))}</div></Fila>
-              <Fila etq="Inicio / fin tardío"><div className={soloLectura}>{fNum(aMinutos(g('late_start_date')))} → {fNum(aMinutos(g('late_end_date')))}</div></Fila>
-              <Fila etq="Planificadas"><div className={soloLectura}>{fNum(aMinutos(g('target_start_date')))} → {fNum(aMinutos(g('target_end_date')))}</div></Fila>
-              <Fila etq="Reales"><div className={soloLectura}>{fNum(actIni)}{actFin != null ? ` → ${fNum(actFin)}` : ''}</div></Fila>
+            <Caja titulo="Dates">
+              <Fila etq="Early Start / Finish"><div className={soloLectura}>{fNum(aMinutos(g('early_start_date')))} → {fNum(aMinutos(g('early_end_date')))}</div></Fila>
+              <Fila etq="Late Start / Finish"><div className={soloLectura}>{fNum(aMinutos(g('late_start_date')))} → {fNum(aMinutos(g('late_end_date')))}</div></Fila>
+              <Fila etq="Planned"><div className={soloLectura}>{fNum(aMinutos(g('target_start_date')))} → {fNum(aMinutos(g('target_end_date')))}</div></Fila>
+              <Fila etq="Actual"><div className={soloLectura}>{fNum(actIni)}{actFin != null ? ` → ${fNum(actFin)}` : ''}</div></Fila>
             </Caja>
           </div>
         )}
         {pest === 'udf' && (
           <div className="flex flex-col gap-1.5 text-[11px]" key={`udf-${i}-${version}`}>
             <div className="flex items-center gap-3">
-              <input value={udfBusca} onChange={e => setUdfBusca(e.target.value)} placeholder="Buscar campo…" className={`${caja} !w-56`} />
-              <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={udfSoloConValor} onChange={e => setUdfSoloConValor(e.target.checked)} /> Solo con valor</label>
-              <span className="text-[#5A6A74]">{udfs.length} campos de usuario de actividades{editable ? ' · se guardan al salir del campo' : ''}</span>
+              <input value={udfBusca} onChange={e => setUdfBusca(e.target.value)} placeholder="Find field…" className={`${caja} !w-56`} />
+              <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={udfSoloConValor} onChange={e => setUdfSoloConValor(e.target.checked)} /> With value only</label>
+              <span className="text-[#5A6A74]">{udfs.length} activity user defined fields{editable ? ' · saved when you leave the field' : ''}</span>
             </div>
             <table className="w-full border-collapse bg-white border border-[#C3C3C3]">
               <thead className="bg-[#EAEAEA] text-[10.5px] text-[#3A3A3A] text-left sticky top-0">
-                <tr><th className="px-2 py-1 border-b border-[#C3C3C3] w-[38%]">Campo</th><th className="px-2 border-b border-[#C3C3C3] w-[14%]">Tipo</th><th className="px-2 border-b border-[#C3C3C3]">Valor</th></tr>
+                <tr><th className="px-2 py-1 border-b border-[#C3C3C3] w-[38%]">Field</th><th className="px-2 border-b border-[#C3C3C3] w-[14%]">Type</th><th className="px-2 border-b border-[#C3C3C3]">Value</th></tr>
               </thead>
               <tbody>
                 {udfs.filter(u => (!udfSoloConValor || u.valor !== '') && (!udfBusca || u.etiqueta.toLowerCase().includes(udfBusca.toLowerCase()))).map(u => {
@@ -1997,7 +1997,7 @@ const PanelActividad: React.FC<{
                     </tr>
                   );
                 })}
-                {!udfs.length && <tr><td colSpan={3} className="text-center text-[#5A6A74] py-4">Este XER no tiene campos de usuario para actividades.</td></tr>}
+                {!udfs.length && <tr><td colSpan={3} className="text-center text-[#5A6A74] py-4">This XER has no activity user defined fields.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -2005,20 +2005,20 @@ const PanelActividad: React.FC<{
         {pest === 'notas' && (
           <div className="grid gap-2 text-[11.5px]">
             {memos.map((mm, k) => (
-              <Caja key={k} titulo={mm.tipo}><div className="whitespace-pre-wrap text-[#1A1A1A]">{mm.texto || '(vacía)'}</div></Caja>
+              <Caja key={k} titulo={mm.tipo}><div className="whitespace-pre-wrap text-[#1A1A1A]">{mm.texto || '(empty)'}</div></Caja>
             ))}
-            {!memos.length && <div className="text-center text-[#5A6A74] py-6">Esta actividad no tiene notas en el XER.</div>}
+            {!memos.length && <div className="text-center text-[#5A6A74] py-6">This activity has no notebook topics in the XER.</div>}
           </div>
         )}
         {pest === 'relaciones' && (
           <div className="grid md:grid-cols-2 gap-4 text-[11.5px]">
             {(['pred', 'succ'] as const).map(rol => (
               <div key={rol}>
-                <div className="font-bold text-[#312E81] mb-1">{rol === 'pred' ? 'Predecesoras' : 'Sucesoras'}</div>
+                <div className="font-bold text-[#312E81] mb-1">{rol === 'pred' ? 'Predecessors' : 'Successors'}</div>
                 <table className="w-full">
-                  <thead><tr className="text-[10px] text-[#5A6A74] text-left"><th>ID</th><th>Nombre</th><th>Tipo</th><th>Desfase (d)</th>
-                    <th className="text-center" title="Conductora (Driving en P6): la relación que fija la fecha de la sucesora">Conductora</th>
-                    <th className="text-right pr-2" title="Holgura de la relación: cuántos días podría retrasarse la predecesora sin mover a la sucesora">Holg. rel. (d)</th><th></th></tr></thead>
+                  <thead><tr className="text-[10px] text-[#5A6A74] text-left"><th>Activity ID</th><th>Activity Name</th><th>Type</th><th>Lag (d)</th>
+                    <th className="text-center" title="Driving: the relationship that sets the successor's date">Driving</th>
+                    <th className="text-right pr-2" title="Relationship free float: how many days the predecessor could slip without moving the successor">Rel. Float (d)</th><th></th></tr></thead>
                   <tbody>
                     {rels.filter(r => r.rol === rol).map(r => {
                       const h = holgurasRel.get(r.fila);
@@ -2026,7 +2026,7 @@ const PanelActividad: React.FC<{
                       return (
                       <tr key={`${r.fila}-${version}`} className={`border-t border-[#F0F2F4] ${conduce ? 'bg-[#FDECEC]' : ''}`}>
                         <td className="font-mono text-[10px] pr-2 whitespace-nowrap">
-                          <button onClick={() => onIr(r.otra)} title={`Ir a ${celda(t, t.filas[r.otra], 'task_code')}`}
+                          <button onClick={() => onIr(r.otra)} title={`Go to ${celda(t, t.filas[r.otra], 'task_code')}`}
                             className="inline-flex items-center justify-center w-4 h-4 mr-1 rounded border border-[#C9CDEB] text-[#312E81] hover:bg-[#312E81] hover:text-white cursor-pointer align-middle">
                             <ArrowRight className="w-2.5 h-2.5" />
                           </button>
@@ -2043,9 +2043,9 @@ const PanelActividad: React.FC<{
                           <input type="number" step="0.5" disabled={!editable} defaultValue={r.lag / hd} className="w-16 border border-[#D5DEE2] rounded px-1 text-[11px]"
                             onBlur={e => { const v = Number(e.target.value) * hd; if (v !== r.lag) { const l = log(); editarRelacion(m, r.fila, r.tipo, v, l); onCambio(l); } }} />
                         </td>
-                        <td className="text-center">{conduce ? <span className="inline-flex items-center gap-1 px-1.5 rounded bg-[#CD0000] text-white text-[10px] font-bold" title="Esta relación fija la fecha">✓ Sí</span> : h == null ? <span className="text-[#9AA6AD]" title="No aplica (actividad terminada, LOE o relación sin efecto)">—</span> : ''}</td>
+                        <td className="text-center">{conduce ? <span className="inline-flex items-center gap-1 px-1.5 rounded bg-[#CD0000] text-white text-[10px] font-bold" title="This relationship drives the date">✓ Yes</span> : h == null ? <span className="text-[#9AA6AD]" title="Not applicable (completed activity, LOE or relationship without effect)">—</span> : ''}</td>
                         <td className={`text-right pr-2 ${conduce ? 'text-[#CD0000] font-bold' : ''}`}>{h == null ? '' : dias(Math.max(0, h), hd)}</td>
-                        <td>{editable && <button className="text-red-600 hover:underline cursor-pointer" onClick={() => { const l = log(); eliminarRelacion(m, r.fila, l); onCambio(l); }}>Quitar</button>}</td>
+                        <td>{editable && <button className="text-red-600 hover:underline cursor-pointer" onClick={() => { const l = log(); eliminarRelacion(m, r.fila, l); onCambio(l); }}>Remove</button>}</td>
                       </tr>
                       );
                     })}
@@ -2055,53 +2055,53 @@ const PanelActividad: React.FC<{
             ))}
             {editable && (
               <div className="md:col-span-2 flex items-center gap-2 flex-wrap bg-[#F5F8F9] rounded-lg p-2">
-                <span className="font-semibold">Agregar</span>
+                <span className="font-semibold">Assign</span>
                 <select value={nuevoRol} onChange={e => setNuevoRol(e.target.value as any)} className="border border-[#D5DEE2] rounded px-1 py-0.5">
-                  <option value="pred">predecesora</option><option value="succ">sucesora</option>
+                  <option value="pred">predecessor</option><option value="succ">successor</option>
                 </select>
-                <input value={nuevoCod} onChange={e => setNuevoCod(e.target.value)} placeholder="ID de actividad" className="border border-[#D5DEE2] rounded px-1.5 py-0.5 w-40" />
+                <input value={nuevoCod} onChange={e => setNuevoCod(e.target.value)} placeholder="Activity ID" className="border border-[#D5DEE2] rounded px-1.5 py-0.5 w-40" />
                 <select value={nuevoTipo} onChange={e => setNuevoTipo(e.target.value)} className="border border-[#D5DEE2] rounded px-1 py-0.5">
                   {['FS', 'SS', 'FF', 'SF'].map(x => <option key={x}>{x}</option>)}
                 </select>
-                <input type="number" step="0.5" value={nuevoLag} onChange={e => setNuevoLag(e.target.value)} className="border border-[#D5DEE2] rounded px-1.5 py-0.5 w-20" title="Desfase en días" />
-                <span className="text-[#5A6A74]">días</span>
+                <input type="number" step="0.5" value={nuevoLag} onChange={e => setNuevoLag(e.target.value)} className="border border-[#D5DEE2] rounded px-1.5 py-0.5 w-20" title="Lag in days" />
+                <span className="text-[#5A6A74]">days</span>
                 <button className="px-2.5 py-1 rounded bg-[#312E81] text-white font-bold cursor-pointer" onClick={() => {
                   const l = log();
                   let err: string | null;
                   if (nuevoRol === 'pred') err = agregarRelacion(m, nuevoCod, i, nuevoTipo, Number(nuevoLag) * hd, l);
                   else {
                     const otra = t.filas.findIndex(fr => celda(t, fr, 'task_code').toLowerCase() === nuevoCod.trim().toLowerCase());
-                    err = otra < 0 ? `No existe la actividad ${nuevoCod}.` : agregarRelacion(m, g('task_code'), otra, nuevoTipo, Number(nuevoLag) * hd, l);
+                    err = otra < 0 ? `Activity ${nuevoCod} does not exist.` : agregarRelacion(m, g('task_code'), otra, nuevoTipo, Number(nuevoLag) * hd, l);
                   }
                   if (err) window.alert(err); else { setNuevoCod(''); onCambio(l); }
-                }}>Agregar</button>
+                }}>Assign</button>
               </div>
             )}
           </div>
         )}
         {pest === 'recursos' && (
           <table className="w-full text-[11.5px]">
-            <thead><tr className="text-[10px] text-[#5A6A74] text-right"><th className="text-left">Recurso</th><th>Cant. presup.</th><th>Cant. real</th><th>Cant. restante</th><th>Costo presup.</th><th>Costo real</th><th>Costo restante</th></tr></thead>
+            <thead><tr className="text-[10px] text-[#5A6A74] text-right"><th className="text-left">Resource</th><th>Budgeted Units</th><th>Actual Units</th><th>Remaining Units</th><th>Budgeted Cost</th><th>Actual Cost</th><th>Remaining Cost</th></tr></thead>
             <tbody>
               {asignaciones.map((a, k) => (
                 <tr key={k} className="border-t border-[#F0F2F4] text-right">
                   <td className="text-left font-semibold">{a.recurso}</td>
-                  <td>{a.qP.toLocaleString('es-ES', { maximumFractionDigits: 2 })}</td><td>{a.qR.toLocaleString('es-ES', { maximumFractionDigits: 2 })}</td><td>{a.qF.toLocaleString('es-ES', { maximumFractionDigits: 2 })}</td>
+                  <td>{a.qP.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td><td>{a.qR.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td><td>{a.qF.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td>
                   <td>{dinero(a.cP)}</td><td className="text-[#2B7F52]">{dinero(a.cR)}</td><td>{dinero(a.cF)}</td>
                 </tr>
               ))}
-              {!asignaciones.length && <tr><td colSpan={7} className="text-center text-[#5A6A74] py-4">Sin recursos asignados.</td></tr>}
+              {!asignaciones.length && <tr><td colSpan={7} className="text-center text-[#5A6A74] py-4">No resources assigned.</td></tr>}
             </tbody>
           </table>
         )}
         {pest === 'cambios' && (
           <table className="w-full text-[11px]">
-            <thead><tr className="text-[10px] text-[#5A6A74] text-left"><th>Actividad</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+            <thead><tr className="text-[10px] text-[#5A6A74] text-left"><th>Activity</th><th>Field</th><th>Before</th><th>After</th></tr></thead>
             <tbody>
               {[...cambios].reverse().map((c, k) => (
                 <tr key={k} className="border-t border-[#F0F2F4]"><td className="font-mono">{c.actividad}</td><td>{c.campo}</td><td className="text-[#5A6A74]">{c.antes}</td><td className="font-semibold">{c.despues}</td></tr>
               ))}
-              {!cambios.length && <tr><td colSpan={4} className="text-center text-[#5A6A74] py-4">Sin cambios desde que se guardó.</td></tr>}
+              {!cambios.length && <tr><td colSpan={4} className="text-center text-[#5A6A74] py-4">No changes since the last save.</td></tr>}
             </tbody>
           </table>
         )}
@@ -2160,7 +2160,7 @@ const VistaRecursos: React.FC<{ m: ModeloP6; version: number }> = ({ m, version 
   }, [m, version]);
   const [recSel, setRecSel] = React.useState(0);
   const d = datos[recSel];
-  if (!d) return <div className="flex-1 flex items-center justify-center text-sm text-[#5A6A74]">El XER no trae asignaciones de recursos.</div>;
+  if (!d) return <div className="flex-1 flex items-center justify-center text-sm text-[#5A6A74]">The XER has no resource assignments.</div>;
   const max = Math.max(1, ...d.meses.map(([, v]) => Math.max(v.real + v.rest, v.pres)));
   let acR = 0, acP = 0;
   const acum = d.meses.map(([k, v]) => { acR += v.real + v.rest; acP += v.pres; return { k, acR, acP }; });
@@ -2176,10 +2176,10 @@ const VistaRecursos: React.FC<{ m: ModeloP6; version: number }> = ({ m, version 
           <button key={r.rec} onClick={() => setRecSel(k)} className={`px-3 py-1.5 rounded-lg border cursor-pointer ${k === recSel ? 'bg-[#312E81] text-white border-[#312E81] font-bold' : 'border-[#D5DEE2] text-[#5A6A74]'}`}>{r.rec}</button>
         ))}
         <div className="ml-auto flex gap-4 text-[11.5px]">
-          <span>Presupuestado: <b>{dinero(tot.pres)}</b></span>
-          <span>Real: <b className="text-[#2C67A6]">{dinero(tot.real)}</b></span>
-          <span>Restante: <b className="text-[#2B7F52]">{dinero(tot.rest)}</b></span>
-          <span>Al terminar: <b>{dinero(tot.real + tot.rest)}</b></span>
+          <span>Budgeted: <b>{dinero(tot.pres)}</b></span>
+          <span>Actual: <b className="text-[#2C67A6]">{dinero(tot.real)}</b></span>
+          <span>Remaining: <b className="text-[#2B7F52]">{dinero(tot.rest)}</b></span>
+          <span>At Completion: <b>{dinero(tot.real + tot.rest)}</b></span>
         </div>
       </div>
       <div className="overflow-x-auto border border-[#D5DEE2] rounded-lg">
@@ -2189,8 +2189,8 @@ const VistaRecursos: React.FC<{ m: ModeloP6; version: number }> = ({ m, version 
             const hR = (v.real / max) * H, hF = (v.rest / max) * H;
             return (
               <g key={k}>
-                <rect x={x + 1} y={H - hR} width={Math.max(1, bw - 2)} height={hR} fill="#2C67A6"><title>{`${k} · real ${dinero(v.real)}`}</title></rect>
-                <rect x={x + 1} y={H - hR - hF} width={Math.max(1, bw - 2)} height={hF} fill="#2B7F52"><title>{`${k} · restante ${dinero(v.rest)}`}</title></rect>
+                <rect x={x + 1} y={H - hR} width={Math.max(1, bw - 2)} height={hR} fill="#2C67A6"><title>{`${k} · actual ${dinero(v.real)}`}</title></rect>
+                <rect x={x + 1} y={H - hR - hF} width={Math.max(1, bw - 2)} height={hF} fill="#2B7F52"><title>{`${k} · remaining ${dinero(v.rest)}`}</title></rect>
                 {k.endsWith('-01') && <text x={x + 2} y={H + 14} fontSize="10" fill="#5A6A74">{k.slice(0, 4)}</text>}
                 {k === hoy && <line x1={x} x2={x} y1={0} y2={H} stroke="#CD0000" strokeDasharray="3 3" />}
               </g>
@@ -2199,15 +2199,15 @@ const VistaRecursos: React.FC<{ m: ModeloP6; version: number }> = ({ m, version 
           <polyline fill="none" stroke="#14212A" strokeWidth="1.5" points={acum.map((a, j) => `${j * bw + bw / 2},${H - (a.acR / maxAc) * H}`).join(' ')} />
           <polyline fill="none" stroke="#A86B12" strokeWidth="1.5" strokeDasharray="4 3" points={acum.map((a, j) => `${j * bw + bw / 2},${H - (a.acP / maxAc) * H}`).join(' ')} />
           <g fontSize="10" fill="#5A6A74">
-            <rect x={8} y={H + 22} width={10} height={8} fill="#2C67A6" /><text x={22} y={H + 30}>Real por mes</text>
-            <rect x={110} y={H + 22} width={10} height={8} fill="#2B7F52" /><text x={124} y={H + 30}>Restante por mes (según la programación)</text>
-            <line x1={345} x2={365} y1={H + 26} y2={H + 26} stroke="#14212A" strokeWidth="1.5" /><text x={370} y={H + 30}>Acumulado real + restante</text>
-            <line x1={520} x2={540} y1={H + 26} y2={H + 26} stroke="#A86B12" strokeDasharray="4 3" /><text x={545} y={H + 30}>Acumulado presupuestado</text>
+            <rect x={8} y={H + 22} width={10} height={8} fill="#2C67A6" /><text x={22} y={H + 30}>Actual per month</text>
+            <rect x={110} y={H + 22} width={10} height={8} fill="#2B7F52" /><text x={124} y={H + 30}>Remaining per month (per schedule)</text>
+            <line x1={345} x2={365} y1={H + 26} y2={H + 26} stroke="#14212A" strokeWidth="1.5" /><text x={370} y={H + 30}>Cumulative actual + remaining</text>
+            <line x1={520} x2={540} y1={H + 26} y2={H + 26} stroke="#A86B12" strokeDasharray="4 3" /><text x={545} y={H + 30}>Cumulative budgeted</text>
           </g>
         </svg>
       </div>
       <p className="text-[11px] text-[#5A6A74] mt-2">
-        Cada asignación se reparte de forma uniforme entre sus fechas: el presupuesto entre sus fechas planificadas, lo real entre el inicio real y el fin real (o la fecha de datos) y lo restante entre las fechas tempranas de la actividad. Tras reprogramar (F9), la curva restante muestra el nuevo flujo.
+        Each assignment is spread evenly over its dates: budgeted over its planned dates, actual between the actual start and actual finish (or the data date), and remaining over the activity's early dates. After rescheduling (F9), the remaining curve shows the new cash flow.
       </p>
     </div>
   );

@@ -9,21 +9,21 @@ import { celda, type Xer } from './xer';
 export type CampoAgrupacion = 'grupo' | 'componente' | 'tipo' | 'proceso' | 'cap' | 'scap' | 'unit' | 'subcontratista' | 'ubicacion' | 'macro';
 
 export const CAMPOS_AGRUPACION: { k: CampoAgrupacion; etq: string }[] = [
-  { k: 'grupo', etq: 'Grupo (fase)' },
-  { k: 'componente', etq: 'Componente' },
-  { k: 'tipo', etq: 'Tipo' },
+  { k: 'grupo', etq: 'Group (phase)' },
+  { k: 'componente', etq: 'Component' },
+  { k: 'tipo', etq: 'Type' },
   { k: 'scap', etq: 'SCAP' },
   { k: 'cap', etq: 'CAP' },
-  { k: 'proceso', etq: 'Proceso' },
+  { k: 'proceso', etq: 'Process' },
   { k: 'unit', etq: 'Unit' },
   { k: 'macro', etq: 'Macro' },
-  { k: 'subcontratista', etq: 'Subcontratista' },
-  { k: 'ubicacion', etq: 'Ubicación' },
+  { k: 'subcontratista', etq: 'Subcontractor' },
+  { k: 'ubicacion', etq: 'Location' },
 ];
 
 export const NIVELES_POR_DEFECTO: CampoAgrupacion[] = ['grupo', 'componente', 'scap'];
 
-export const SIN_MASTER = '(Sin datos en el Master)';
+export const SIN_MASTER = '(No Master data)';
 
 export const etiquetaCampo = (k: CampoAgrupacion) => CAMPOS_AGRUPACION.find(c => c.k === k)?.etq ?? k;
 
@@ -50,7 +50,7 @@ export function valorCampo(a: Actividad | undefined, k: CampoAgrupacion, udf?: C
 
 /** Ruta de grupos de una actividad según los niveles elegidos. */
 export function rutaDe(a: Actividad | undefined, niveles: CampoAgrupacion[], udf?: Clasificacion): string[] {
-  return niveles.map(k => valorCampo(a, k, udf) || `(sin ${etiquetaCampo(k)})`);
+  return niveles.map(k => valorCampo(a, k, udf) || `(no ${etiquetaCampo(k)})`);
 }
 
 /** Campos de usuario del XER que equivalen a los campos de agrupación del Master (por su etiqueta, sin el «NN.»). */
@@ -131,7 +131,7 @@ export const RE_HITO_CONSTRUCCION = /\bobras?\b|civil|arquitect[oó]nic|tuber[i�
 const UBICACIONES: [RegExp, string][] = [[/merinos/i, 'PTAR Merinos'], [/progreso/i, 'EBAR Progreso'], [/guayacanes/i, 'Guayacanes']];
 export function etiquetaUbicacion(v: string): string {
   const u = UBICACIONES.find(([re]) => re.test(v));
-  return u ? u[1] : v || '(sin Ubicación)';
+  return u ? u[1] : v || '(no Location)';
 }
 export function ordenUbicacion(etq: string): number {
   const k = UBICACIONES.findIndex(([, e]) => e === etq);
