@@ -15,6 +15,7 @@ import { holguraRelacion, type TipoRel } from '../../utils/p6/cpm';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
 import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
+import { COLUMNAS_DEF, DialogoColumnas, NOMBRE_ESTADO, NOMBRE_RESTR, NOMBRE_TIPO, catalogoColumnas, valoresUdf, type ColumnaP6 } from './columnasP6';
 
 const FILA = 22;
 const ANCHO_IZQ = 870;
@@ -167,6 +168,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [paletas, setPaletas] = React.useState<Paletas>(() => ({ ...PALETAS_DEF, ...leerLS<Partial<Paletas>>('p6.paletas', {}) }));
   React.useEffect(() => { try { localStorage.setItem('p6.grupo', JSON.stringify(opcGrupo)); localStorage.setItem('p6.paletas', JSON.stringify(paletas)); } catch { /* sin almacenamiento */ } }, [opcGrupo, paletas]);
   const [verGrupo, setVerGrupo] = React.useState(false);
+  // Columnas de la tabla (como «Columns» de P6)
+  const [columnasSel, setColumnasSel] = React.useState<string[]>(() => leerLS('p6.columnas', COLUMNAS_DEF));
+  React.useEffect(() => { try { localStorage.setItem('p6.columnas', JSON.stringify(columnasSel)); } catch { /* sin almacenamiento */ } }, [columnasSel]);
+  const [verColumnas, setVerColumnas] = React.useState(false);
   const [ambito, setAmbito] = React.useState<Ambito>(() => leerLS('p6.ambito', 'todo'));
   React.useEffect(() => { try { localStorage.setItem('p6.ambito', JSON.stringify(ambito)); } catch { /* sin almacenamiento */ } }, [ambito]);
   React.useEffect(() => { try { localStorage.setItem('p6.agrupacion', JSON.stringify(agrupacion)); localStorage.setItem('p6.niveles', JSON.stringify(niveles)); } catch { /* sin almacenamiento */ } }, [agrupacion, niveles]);
@@ -221,6 +226,19 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   }, [estadoCarga, vista]);
 
   const m = modelo.current;
+  const catalogo = React.useMemo(() => catalogoColumnas(m),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [m, estadoCarga]);
+  const cols: ColumnaP6[] = React.useMemo(() => {
+    const porId = new Map(catalogo.map(c => [c.id, c]));
+    const v = columnasSel.map(id => porId.get(id)).filter((c): c is ColumnaP6 => !!c);
+    return v.length ? v : COLUMNAS_DEF.map(id => porId.get(id)!).filter(Boolean);
+  }, [catalogo, columnasSel]);
+  // Ancho de la parte de tabla (sustituye al ancho fijo)
+  const ANCHO_IZQ = cols.reduce((a, c) => a + c.ancho, 0) + 2;
+  const udfVals = React.useMemo(() => valoresUdf(m, cols.map(c => c.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [m, cols, version]);
 
   const calBase = m ? (m.calendarios.values().next().value ?? null) : null;
   // ── Línea base por actividad (por ID de actividad) ──
@@ -586,6 +604,73 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     window.addEventListener('keydown', tecla);
     return () => window.removeEventListener('keydown', tecla);
   }, [programar]);
+
+  // Contenido de cada celda de una actividad según su columna
+  const celdaAct = (c: ColumnaP6, v: Vt, nivel: number, critica: boolean, lbDatos: [number | null, number | null] | null, varFin: number | null): React.ReactNode => {
+    const t = m!.task, f = t.filas[v.i];
+    const g = (k: string) => celda(t, f, k);
+    const fecha = (k: string) => fCorta(aMinutos(g(k)));
+    const num = (k: string) => (g(k) === '' ? '' : (Number(g(k)) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }));
+    let txt: React.ReactNode = '';
+    let clase = '';
+    let title: string | undefined;
+    switch (c.id) {
+      case 'id': return <div key={c.id} className="px-2 font-mono text-[10px] truncate shrink-0" style={{ width: c.ancho, paddingLeft: 4 + nivel * 10 }} title={v.cod}>{v.cod}</div>;
+      case 'nombre': txt = v.nombre; title = v.nombre; break;
+      case 'tipo': txt = NOMBRE_TIPO[v.tipo] ?? v.tipo; break;
+      case 'estado': txt = NOMBRE_ESTADO[v.estado] ?? v.estado; break;
+      case 'calendario': txt = m!.calendarios.get(g('clndr_id'))?.nombre ?? ''; break;
+      case 'wbs': txt = arbolWbs.nodos.get(v.wbs)?.codCompleto ?? ''; break;
+      case 'wbsNombre': txt = arbolWbs.nodos.get(v.wbs)?.nombre ?? ''; title = String(txt); break;
+      case 'restr': txt = v.cstr ? NOMBRE_RESTR[v.cstr] ?? v.cstr : ''; break;
+      case 'restrFecha': txt = fecha('cstr_date'); break;
+      case 'lp': txt = v.lp ? 'Yes' : ''; clase = v.lp ? 'text-red-600 font-semibold' : ''; break;
+      case 'critica': txt = v.tf != null && v.tf <= 0 ? 'Yes' : ''; clase = 'text-red-600'; break;
+      case 'ini': txt = <>{fCorta(v.ini)}{v.iniA ? ' A' : ''}</>; break;
+      case 'fin': txt = <>{fCorta(v.fin)}{v.finA ? ' A' : ''}</>; break;
+      case 'es': txt = fecha('early_start_date'); break;
+      case 'ef': txt = fecha('early_end_date'); break;
+      case 'ls': txt = fecha('late_start_date'); break;
+      case 'lf': txt = fecha('late_end_date'); break;
+      case 'as': txt = fecha('act_start_date'); break;
+      case 'af': txt = fecha('act_end_date'); break;
+      case 'ps': txt = fecha('target_start_date'); break;
+      case 'pf': txt = fecha('target_end_date'); break;
+      case 'bls': txt = fCorta(lbDatos?.[0]); break;
+      case 'blf': txt = fCorta(lbDatos?.[1]); break;
+      case 'expf': txt = fecha('expect_end_date'); break;
+      case 'durO': txt = dias(v.durO, v.hd); break;
+      case 'durR': txt = dias(v.durR, v.hd); break;
+      case 'durA': {
+        const ini = aMinutos(g('act_start_date')), fin = aMinutos(g('act_end_date'));
+        const cal = m!.calendarios.get(g('clndr_id'));
+        txt = ini != null && cal ? dias(cal.entre(ini, v.estado === 'TK_Complete' && fin != null ? fin : Math.max(ini, m!.fechaDatos)) / 60, v.hd) : '';
+        break;
+      }
+      case 'durC': {
+        const ini = aMinutos(g('act_start_date'));
+        const cal = m!.calendarios.get(g('clndr_id'));
+        const real = ini != null && cal ? cal.entre(ini, v.estado === 'TK_Complete' ? aMinutos(g('act_end_date')) ?? ini : Math.max(ini, m!.fechaDatos)) / 60 : 0;
+        txt = dias(real + (v.estado === 'TK_Complete' ? 0 : v.durR), v.hd);
+        break;
+      }
+      case 'tf': txt = v.tf == null ? '' : dias(v.tf, v.hd); clase = critica ? 'text-red-600 font-semibold' : ''; break;
+      case 'ff': txt = v.ff == null ? '' : dias(v.ff, v.hd); break;
+      case 'avance': txt = v.avance ? `${Math.round(v.avance * 10) / 10}%` : ''; break;
+      case 'varFin': txt = varFin == null ? '' : dias(varFin, v.hd); clase = varFin != null && varFin < 0 ? 'text-red-600' : varFin ? 'text-[#2B7F52]' : ''; title = lbDatos ? `Baseline ${fCorta(lbDatos[0])} → ${fCorta(lbDatos[1])}` : 'No baseline'; break;
+      case 'varIni': { const vi = variacionFin(lbDatos?.[0], v.ini); txt = vi == null ? '' : dias(vi, v.hd); clase = vi != null && vi < 0 ? 'text-red-600' : vi ? 'text-[#2B7F52]' : ''; break; }
+      case 'uP': txt = num('target_work_qty'); break;
+      case 'uA': txt = num('act_work_qty'); break;
+      case 'uR': txt = num('remain_work_qty'); break;
+      default:
+        if (c.id.startsWith('udf:')) {
+          const val = udfVals.get(c.id.slice(4))?.get(v.id) ?? '';
+          txt = /^\d{4}-\d{2}-\d{2}/.test(val) ? fCorta(aMinutos(val)) : val && c.der ? (Number(val) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) : val;
+          title = val;
+        }
+    }
+    return <div key={c.id} className={`px-1 truncate shrink-0 ${c.der ? 'text-right' : ''} ${clase}`} style={{ width: c.ancho }} title={title}>{txt}</div>;
+  };
 
   const proyecto = m ? celda(m.xer.tablas.get('PROJECT')!, m.xer.tablas.get('PROJECT')!.filas[0], 'proj_short_name') : '';
   const finProyecto = m ? aMinutos(celda(m.xer.tablas.get('PROJECT')!, m.xer.tablas.get('PROJECT')!.filas[0], 'scd_end_date')) : null;
@@ -969,6 +1054,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         </div>
       )}
 
+      {verColumnas && m && (
+        <DialogoColumnas catalogo={catalogo} elegidas={cols.map(c => c.id)} onAplicar={ids => setColumnasSel(ids)} onCerrar={() => setVerColumnas(false)} />
+      )}
       {verGrupo && m && (
         <DialogoGrupo
           constructiva={enEjecucion} niveles={niveles} opciones={opcGrupo} paleta={enEjecucion ? paletas.constr : paletas.wbs}
@@ -1031,6 +1119,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verGrupo ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
               <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="14" height="3.5" fill="#1F7CC4" /><rect x="4" y="6" width="11" height="3.5" fill="#7CF27C" stroke="#4FA94F" strokeWidth="0.5" /><rect x="7" y="11" width="8" height="3.5" fill="#FFFF66" stroke="#C9C94A" strokeWidth="0.5" /><path d="M18 2 V14 M16 12 L18 14.5 L20 12" fill="none" stroke="#3A3A3A" strokeWidth="1.2" /></svg>
               <span className="text-[8.5px] leading-none">Group</span>
+            </button>
+            <button onClick={() => { setVista('actividades'); setVerColumnas(true); }} title="Columns: choose and order the table columns"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verColumnas ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="14" fill="#FFFFFF" stroke="#5A6A74" /><rect x="1" y="1" width="20" height="3.5" fill="#9AA6AD" /><path d="M7 1 V15 M13 1 V15" stroke="#5A6A74" strokeWidth="1" /></svg>
+              <span className="text-[8.5px] leading-none">Columns</span>
             </button>
             {([['criticas', 'Critical Path', 'Critical', 'Only critical activities (Total Float ≤ 0)'], ['longest', 'Longest Path', 'Longest', 'Only the longest path: the chain of activities that drives the project finish']] as const).map(([k, etq, corto, tt]) => (
               <button key={k} onClick={() => { setVista('actividades'); setFiltroEstado(f => (f === k ? 'todas' : k)); setVerRelaciones(true); }} title={`${etq}: ${tt}`}
@@ -1146,20 +1239,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   {/* Encabezado */}
                   <div className="sticky top-0 z-20 flex bg-[#F5F8F9] border-b border-[#D5DEE2] text-[10px] font-semibold text-[#5A6A74]" style={{ height: 34 }}>
                     <div className="sticky left-0 z-30 bg-[#F5F8F9] flex items-end pb-1 border-r border-[#D5DEE2]" style={{ width: ANCHO_IZQ }}>
-                      <div className="w-[120px] px-2">Activity ID</div>
-                      <div className="w-[262px] px-1">Activity Name</div>
-                      <div className="w-[52px] text-right px-1">Orig. Dur.</div>
-                      <div className="w-[52px] text-right px-1">Rem. Dur.</div>
-                      {(['ini', 'fin'] as const).map(col => (
-                        <button key={col} onClick={() => alternarOrden(col)} title="Sort the activities of each group (ascending → descending → original)"
-                          className={`w-[78px] text-right px-1 cursor-pointer hover:text-[#312E81] ${orden?.col === col ? 'text-[#312E81]' : ''}`}>
-                          {col === 'ini' ? 'Start' : 'Finish'}{orden?.col === col ? (orden.dir === 1 ? ' ▲' : ' ▼') : ' ↕'}
+                      {cols.map(c => (c.id === 'ini' || c.id === 'fin') ? (
+                        <button key={c.id} onClick={() => alternarOrden(c.id as 'ini' | 'fin')} title="Sort the activities of each group (ascending → descending → original)"
+                          className={`text-right px-1 cursor-pointer hover:text-[#312E81] shrink-0 ${orden?.col === c.id ? 'text-[#312E81]' : ''}`} style={{ width: c.ancho }}>
+                          {c.titulo}{orden?.col === c.id ? (orden.dir === 1 ? ' ▲' : ' ▼') : ' ↕'}
                         </button>
+                      ) : (
+                        <div key={c.id} className={`px-1 leading-tight shrink-0 ${c.der ? 'text-right' : ''} ${c.id === 'id' ? 'pl-2' : ''}`} style={{ width: c.ancho }} title={c.titulo}>{c.titulo}</div>
                       ))}
-                      <div className="w-[58px] text-right px-1 leading-tight" title="Variance - BL Project Finish Date (BL finish − finish, working days; negative = late)">BL Finish Var.</div>
-                      <div className="w-[52px] text-right px-1">Total Float</div>
-                      <div className="w-[52px] text-right px-1">Free Float</div>
-                      <div className="w-[56px] text-right px-2">Phys. %</div>
                     </div>
                     <div className="relative" style={{ width: anchoGantt }}>
                       {meses.map(mo => (mo.mes === 0 || mo === meses[0]) && (
@@ -1201,25 +1288,49 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                       return (
                         <div key={`w${n.id}`} className="absolute flex text-[11px] font-bold cursor-pointer bg-white border-b border-[#E6EAEC]" style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt, outline: wbsSel === n.id && !enEjecucion ? '2px solid #CD0000' : undefined, outlineOffset: -2 }} onClick={() => { alternar(n.id); setWbsSel(n.id); }}>
                           <div className="sticky left-0 z-[5] flex items-center border-r border-[#9AA6AD]" style={{ width: ANCHO_IZQ, background: fondo, color: texto }}>
-                            <div className="flex items-center gap-1 min-w-0" style={{ paddingLeft: 4 + fl.nivel * 10, width: 382 }}>
-                              {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
-                              <span className="truncate" title={`${n.codCompleto} · ${n.nombre}`}>{opcGrupo.codigo && n.codCompleto && <><span className={claro ? 'opacity-70' : 'opacity-80'}>{n.codCompleto}</span>&nbsp; </>}{(opcGrupo.nombre || !n.codCompleto) && n.nombre}</span>
-                              <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({filtroEstado === 'soloMaster' ? `${n.nSolo ?? 0} Master only` : n.n})</span>
-                            </div>
-                            <div className="w-[104px]" />
-                            {opcGrupo.totales ? <>
-                            <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.ini ?? n.ini)}</div>
-                            <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.fin ?? n.fin)}</div>
                             {(() => {
-                              const vfDe = (x: Nodo) => { const rs = resumenWbs.get(x.id); return variacionFin(rs?.lbFin, rs?.fin ?? x.fin); };
-                              // En el proyecto de la vista constructiva: la variación más negativa de sus grupos
-                              const vf = n.id === RAIZ_CONSTRUCTIVA
-                                ? n.hijos.map(vfDe).filter((x): x is number => x != null).reduce<number | null>((a, b) => (a == null || b < a ? b : a), null)
-                                : vfDe(n);
-                              return <div className="w-[58px] text-right px-1" title={n.id === RAIZ_CONSTRUCTIVA ? 'The most negative finish variance of its groups' : undefined}>{vf == null ? '' : dias(vf, 8)}</div>;
+                              // La etiqueta ocupa las columnas iniciales sin total; el resto muestra el total de la banda
+                              const conTotal = (id: string) => ['ini', 'fin', 'es', 'ef', 'bls', 'blf', 'varFin', 'durO', 'tf'].includes(id);
+                              let k = 0;
+                              while (k < cols.length - 1 && !conTotal(cols[k].id)) k++;
+                              if (k === 0) k = Math.min(2, cols.length);
+                              const anchoEtq = cols.slice(0, k).reduce((a, c) => a + c.ancho, 0);
+                              const rs = resumenWbs.get(n.id);
+                              const vfDe = (x: Nodo) => { const r2 = resumenWbs.get(x.id); return variacionFin(r2?.lbFin, r2?.fin ?? x.fin); };
+                              const total = (id: string): React.ReactNode => {
+                                if (!opcGrupo.totales) return '';
+                                switch (id) {
+                                  case 'ini': case 'es': return fCorta(rs?.ini ?? n.ini);
+                                  case 'fin': case 'ef': return fCorta(rs?.fin ?? n.fin);
+                                  case 'bls': return fCorta(rs?.lbIni);
+                                  case 'blf': return fCorta(rs?.lbFin);
+                                  case 'varFin': {
+                                    // En el proyecto de la vista constructiva: la variación más negativa de sus grupos
+                                    const vf = n.id === RAIZ_CONSTRUCTIVA
+                                      ? n.hijos.map(vfDe).filter((x): x is number => x != null).reduce<number | null>((a, b) => (a == null || b < a ? b : a), null)
+                                      : vfDe(n);
+                                    return vf == null ? '' : dias(vf, 8);
+                                  }
+                                  default: return '';
+                                }
+                              };
+                              return (
+                                <>
+                                  <div className="flex items-center gap-1 min-w-0 shrink-0 pr-1" style={{ paddingLeft: 4 + fl.nivel * 10, width: anchoEtq }}>
+                                    {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
+                                    <span className="truncate" title={`${n.codCompleto} · ${n.nombre}`}>{opcGrupo.codigo && n.codCompleto && <><span className={claro ? 'opacity-70' : 'opacity-80'}>{n.codCompleto}</span>&nbsp; </>}{(opcGrupo.nombre || !n.codCompleto) && n.nombre}</span>
+                                    <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({filtroEstado === 'soloMaster' ? `${n.nSolo ?? 0} Master only` : n.n})</span>
+                                    {opcGrupo.totales && n.criticas > 0 && filtroEstado !== 'soloMaster' && (
+                                      <span className={`ml-auto shrink-0 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas} critical</span>
+                                    )}
+                                  </div>
+                                  {cols.slice(k).map(c => (
+                                    <div key={c.id} className={`px-1 shrink-0 truncate ${c.der ? 'text-right' : ''}`} style={{ width: c.ancho }}
+                                      title={c.id === 'varFin' && n.id === RAIZ_CONSTRUCTIVA ? 'The most negative finish variance of its groups' : undefined}>{total(c.id)}</div>
+                                  ))}
+                                </>
+                              );
                             })()}
-                            <div className={`w-[160px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas && filtroEstado !== 'soloMaster' ? `${n.criticas} critical` : ''}</div>
-                            </> : null}
                           </div>
                           {(() => {
                             const rs = resumenWbs.get(n.id);
@@ -1262,12 +1373,18 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                         <div key={`m${a.activityId}`} className="absolute flex text-[11px] border-b border-[#F0F2F4] bg-[#FAFAF7] text-[#7A868D] italic"
                           style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt }} title="Item created in the Master that does not exist in the Primavera XER yet">
                           <div className="sticky left-0 z-[5] flex items-center border-r border-[#D5DEE2] bg-[#FAFAF7]" style={{ width: ANCHO_IZQ }}>
-                            <div className="w-[120px] px-2 font-mono text-[10px] truncate not-italic" style={{ paddingLeft: 4 + fl.nivel * 10 }}>{a.activityId}</div>
-                            <div className="w-[262px] px-1 truncate" title={a.descripcion}>{a.descripcion}</div>
-                            <div className="w-[104px]" />
-                            <div className="w-[78px] text-right px-1">{fCorta(ini)}</div>
-                            <div className="w-[78px] text-right px-1">{fCorta(fin)}</div>
-                            <div className="w-[218px] px-2 text-[10px] not-italic"><span className="px-1.5 py-0.5 rounded bg-[#FFF3C4] text-[#7A5B00] font-semibold">Master only · not in P6</span></div>
+                            {cols.map(c => {
+                              const base = `px-1 truncate shrink-0 ${c.der ? 'text-right' : ''}`;
+                              if (c.id === 'id') return <div key={c.id} className="px-2 font-mono text-[10px] truncate not-italic shrink-0" style={{ width: c.ancho, paddingLeft: 4 + fl.nivel * 10 }}>{a.activityId}</div>;
+                              if (c.id === 'nombre') return (
+                                <div key={c.id} className={`${base} flex items-center gap-1`} style={{ width: c.ancho }} title={a.descripcion}>
+                                  <span className="truncate">{a.descripcion}</span>
+                                  <span className="shrink-0 px-1 rounded bg-[#FFF3C4] text-[#7A5B00] text-[9.5px] font-semibold not-italic">Master only · not in P6</span>
+                                </div>
+                              );
+                              const txt = c.id === 'ini' || c.id === 'es' ? fCorta(ini) : c.id === 'fin' || c.id === 'ef' ? fCorta(fin) : '';
+                              return <div key={c.id} className={base} style={{ width: c.ancho }}>{txt}</div>;
+                            })}
                           </div>
                           {ini != null && fin != null && (
                             <div className="absolute h-2.5 rounded-sm border border-dashed border-[#9AA6AD] bg-[#E6EAEC]/60" style={{ left: ANCHO_IZQ + xDe(ini), width: Math.max(4, xDe(fin) - xDe(ini)), top: 6 }} />
@@ -1289,16 +1406,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                         className={`absolute flex text-[11px] cursor-pointer border-b border-[#F0F2F4] ${seleccionada ? 'bg-[#FFF7D6]' : 'bg-white hover:bg-[#F7F9FA]'}`}
                         style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt }}>
                         <div className={`sticky left-0 z-[5] flex items-center border-r border-[#D5DEE2] ${seleccionada ? 'bg-[#FFF7D6]' : 'bg-white'}`} style={{ width: ANCHO_IZQ }}>
-                          <div className="w-[120px] px-2 font-mono text-[10px] truncate" style={{ paddingLeft: 4 + fl.nivel * 10 }} title={v.cod}>{v.cod}</div>
-                          <div className="w-[262px] px-1 truncate" title={v.nombre}>{v.nombre}</div>
-                          <div className="w-[52px] text-right px-1">{dias(v.durO, v.hd)}</div>
-                          <div className="w-[52px] text-right px-1">{dias(v.durR, v.hd)}</div>
-                          <div className="w-[78px] text-right px-1">{fCorta(v.ini)}{v.iniA ? ' A' : ''}</div>
-                          <div className="w-[78px] text-right px-1">{fCorta(v.fin)}{v.finA ? ' A' : ''}</div>
-                          <div className={`w-[58px] text-right px-1 ${varFin != null && varFin < 0 ? 'text-red-600' : varFin ? 'text-[#2B7F52]' : ''}`} title={lbDatos ? `Baseline ${fCorta(lbDatos[0])} → ${fCorta(lbDatos[1])}` : 'No baseline'}>{varFin == null ? '' : dias(varFin, v.hd)}</div>
-                          <div className={`w-[52px] text-right px-1 ${critica ? 'text-red-600 font-semibold' : ''}`}>{v.tf == null ? '' : dias(v.tf, v.hd)}</div>
-                          <div className="w-[52px] text-right px-1">{v.ff == null ? '' : dias(v.ff, v.hd)}</div>
-                          <div className="w-[56px] text-right px-2">{v.avance ? `${Math.round(v.avance * 10) / 10}%` : ''}</div>
+                          {cols.map(c => celdaAct(c, v, fl.nivel, critica, lbDatos, varFin))}
                         </div>
                         {/* Barras */}
                         {lb && lb[0] != null && lb[1] != null && (esHito ? (
