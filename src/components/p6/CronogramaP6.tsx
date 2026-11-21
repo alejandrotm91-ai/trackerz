@@ -788,14 +788,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           <div className="flex items-center gap-1.5 text-[11px] bg-white/10 rounded-lg px-2 py-1">
             <Calendar className="w-3.5 h-3.5 text-indigo-200" />
             <span className="text-indigo-200">Fecha de datos</span>
-            <input
-              type="date"
+            <CampoFecha
               disabled={!editable}
-              value={aTexto(m.fechaDatos).slice(0, 10)}
-              onChange={e => {
-                if (!e.target.value) return;
+              valor={aTexto(m.fechaDatos).slice(0, 10)}
+              onConfirmar={v => {
                 const log = [...cambios];
-                ponerFechaDatos(m, `${e.target.value} ${aTexto(m.fechaDatos).slice(11) || '16:00'}`, log);
+                ponerFechaDatos(m, `${v} ${aTexto(m.fechaDatos).slice(11) || '16:00'}`, log);
                 marcarCambio(log);
               }}
               className="bg-transparent text-white text-[11px] outline-none [color-scheme:dark] disabled:opacity-80"
@@ -1508,6 +1506,39 @@ const VistaWbs: React.FC<{
   );
 };
 
+/** Cajas y filas del panel de actividad al estilo de P6. */
+const Caja: React.FC<{ titulo: string; children: React.ReactNode; className?: string }> = ({ titulo, children, className }) => (
+  <div className={`border border-[#C3C3C3] bg-[#F4F4F4] ${className ?? ''}`}>
+    <div className="px-2 py-[3px] text-[11px] text-[#1A1A1A] border-b border-[#C3C3C3] bg-[#EAEAEA]">{titulo}</div>
+    <div className="px-3 py-1.5 grid gap-[5px]">{children}</div>
+  </div>
+);
+const Fila: React.FC<{ etq: React.ReactNode; children: React.ReactNode }> = ({ etq, children }) => (
+  <div className="grid grid-cols-[112px_1fr] items-center gap-2 text-[11px] text-[#1A1A1A]"><span>{etq}</span>{children}</div>
+);
+
+/**
+ * Campo de fecha que NO aplica el cambio mientras se navega por el calendario (las flechas de mes
+ * cambian el valor): se aplica al salir del campo o con Enter. Escape lo deshace. Mientras hay una
+ * fecha sin aplicar, el campo se ve en amarillo.
+ */
+const CampoFecha: React.FC<{ valor: string; disabled?: boolean; className?: string; permitirVacio?: boolean; onConfirmar: (v: string) => void }> = ({ valor, disabled, className, permitirVacio, onConfirmar }) => {
+  const [v, setV] = React.useState(valor);
+  React.useEffect(() => { setV(valor); }, [valor]);
+  const pendiente = v !== valor;
+  const confirmar = () => {
+    if (v === valor) return;
+    if (!v && !permitirVacio) { setV(valor); return; }
+    onConfirmar(v);
+  };
+  return (
+    <input type="date" value={v} disabled={disabled} onChange={e => setV(e.target.value)} onBlur={confirmar}
+      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmar(); } if (e.key === 'Escape') setV(valor); }}
+      title={pendiente ? 'Pulsa Enter o sal del campo para aplicar la fecha (Esc para deshacer)' : undefined}
+      className={`${className ?? ''} ${pendiente ? '!border-[#E3A008] !bg-[#FFF8E1] !text-[#14212A]' : ''}`} />
+  );
+};
+
 /** Iconos de la barra lateral (al estilo de P6). */
 const IconoBarras = () => (
   <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="2" width="14" height="4" rx="1.5" fill="#2E9E3A" stroke="#1C6B25" /><rect x="6" y="9" width="15" height="4" rx="1.5" fill="#2E9E3A" stroke="#1C6B25" /></svg>
@@ -1701,15 +1732,6 @@ const PanelActividad: React.FC<{
   };
 
   // Estilo P6: cajas grises con título y campos blancos
-  const Caja: React.FC<{ titulo: string; children: React.ReactNode; className?: string }> = ({ titulo, children, className }) => (
-    <div className={`border border-[#C3C3C3] bg-[#F4F4F4] ${className ?? ''}`}>
-      <div className="px-2 py-[3px] text-[11px] text-[#1A1A1A] border-b border-[#C3C3C3] bg-[#EAEAEA]">{titulo}</div>
-      <div className="px-3 py-1.5 grid gap-[5px]">{children}</div>
-    </div>
-  );
-  const Fila: React.FC<{ etq: React.ReactNode; children: React.ReactNode }> = ({ etq, children }) => (
-    <div className="grid grid-cols-[112px_1fr] items-center gap-2 text-[11px] text-[#1A1A1A]"><span>{etq}</span>{children}</div>
-  );
   const caja = 'h-[22px] w-full border border-[#A9A9A9] bg-white px-1.5 text-[11px] text-[#1A1A1A] outline-none focus:border-[#3C7DE0] disabled:bg-[#F3F3F3] disabled:text-[#6B6B6B]';
   const soloLectura = 'h-[22px] w-full border border-[#BDBDBD] bg-[#EFEFEF] px-1.5 text-[11px] text-[#1A1A1A] flex items-center truncate';
   const tabsP6: [typeof pest, string][] = [['general', 'General'], ['estado', 'Estado'], ['recursos', `Recursos (${asignaciones.length})`], ['relaciones', `Relaciones (${rels.length})`], ['notas', `Notas (${memos.length})`], ['cambios', `Cambios (${cambios.length})`], ['udf', `User Defined (${udfs.filter(u => u.valor !== '').length})`]];
@@ -1771,8 +1793,8 @@ const PanelActividad: React.FC<{
                 <div className="grid grid-cols-2 gap-x-6 gap-y-[5px]">
                   <Fila etq={<label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" disabled={!editable} checked={!!g('act_start_date')}
                     onChange={e => editar({ inicioReal: e.target.checked ? fechaPorDefecto('early_start_date', '08:00') : null, ...(e.target.checked ? {} : { finReal: null }) })} /> Comenzada</label>}>
-                    <input type="date" className={caja} disabled={!editable || !g('act_start_date')} defaultValue={fechaInput(g('act_start_date'))}
-                      onChange={e => e.target.value && editar({ inicioReal: `${e.target.value} 08:00` })} />
+                    <CampoFecha className={caja} disabled={!editable || !g('act_start_date')} valor={fechaInput(g('act_start_date'))}
+                      onConfirmar={v => editar({ inicioReal: `${v} 08:00` })} />
                   </Fila>
                   <Fila etq="% físico">
                     <input type="number" min="0" max="100" step="1" className={`${caja} text-right`} disabled={!editable} defaultValue={Math.round(num('phys_complete_pct') * 10) / 10}
@@ -1780,8 +1802,8 @@ const PanelActividad: React.FC<{
                   </Fila>
                   <Fila etq={<label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" disabled={!editable || !g('act_start_date')} checked={!!g('act_end_date')}
                     onChange={e => editar({ finReal: e.target.checked ? fechaPorDefecto('early_end_date', '16:00') : null })} /> Terminada</label>}>
-                    <input type="date" className={caja} disabled={!editable || !g('act_end_date')} defaultValue={fechaInput(g('act_end_date'))}
-                      onChange={e => e.target.value && editar({ finReal: `${e.target.value} 16:00` })} />
+                    <CampoFecha className={caja} disabled={!editable || !g('act_end_date')} valor={fechaInput(g('act_end_date'))}
+                      onConfirmar={v => editar({ finReal: `${v} 16:00` })} />
                   </Fila>
                   <Fila etq="Suspender"><div className={soloLectura}>{fNum(aMinutos(g('suspend_date')))}</div></Fila>
                   <Fila etq="Fin esperado"><div className={soloLectura}>{fNum(aMinutos(g('expect_end_date')))}</div></Fila>
@@ -1804,8 +1826,8 @@ const PanelActividad: React.FC<{
                     </select>
                   </Fila>
                   <Fila etq="Fecha">
-                    <input type="date" className={caja} disabled={!editable || !g('cstr_type') || g('cstr_type') === 'CS_ALAP'} defaultValue={fechaInput(g('cstr_date'))}
-                      onChange={e => e.target.value && editar({ restriccion: { tipo: g('cstr_type'), fecha: `${e.target.value} ${g('cstr_type').startsWith('CS_ME') ? '16:00' : '08:00'}` } })} />
+                    <CampoFecha className={caja} disabled={!editable || !g('cstr_type') || g('cstr_type') === 'CS_ALAP'} valor={fechaInput(g('cstr_date'))}
+                      onConfirmar={v => editar({ restriccion: { tipo: g('cstr_type'), fecha: `${v} ${g('cstr_type').startsWith('CS_ME') ? '16:00' : '08:00'}` } })} />
                   </Fila>
                   <Fila etq="Fecha"><div className={soloLectura}>{fNum(aMinutos(g('cstr_date2')))}</div></Fila>
                 </div>
@@ -1872,8 +1894,8 @@ const PanelActividad: React.FC<{
                             {Object.entries(INDICADORES_UDF).map(([k, etq]) => <option key={k} value={k}>{etq}</option>)}
                           </select>
                         ) : esFecha ? (
-                          <input type="date" className={`${caja} !w-48`} disabled={!editable} defaultValue={u.valor.slice(0, 10)}
-                            onChange={e => guardar(e.target.value ? `${e.target.value} ${u.tipo === 'FT_END_DATE' ? '16:00' : '08:00'}` : '')} />
+                          <CampoFecha className={`${caja} !w-48`} disabled={!editable} valor={u.valor.slice(0, 10)} permitirVacio
+                            onConfirmar={v => guardar(v ? `${v} ${u.tipo === 'FT_END_DATE' ? '16:00' : '08:00'}` : '')} />
                         ) : (
                           <input className={`${caja} ${esNum ? '!w-48 text-right' : ''}`} disabled={!editable} defaultValue={u.valor} inputMode={esNum ? 'decimal' : undefined}
                             onBlur={e => guardar(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
