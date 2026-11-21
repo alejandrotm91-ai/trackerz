@@ -253,31 +253,36 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
  */
 export function relacionesConductoras(acts: ActividadCpm[], rels: Rel[]): Set<Rel> {
   const out = new Set<Rel>();
-  const inicioDe = (p: ActividadCpm) => (p.estado !== 'NoIniciada' && p.inicioReal != null ? p.inicioReal : p.ES!);
-  for (const r of rels) {
-    if (r.pred === r.succ) continue;
-    const p = acts[r.pred], s = acts[r.succ];
-    if (s.estado === 'Terminada' || p.EF == null || s.ES == null || s.EF == null || esLoe(p)) continue;
-    const enCurso = s.estado === 'EnCurso';
-    if (enCurso && (r.tipo === 'SS' || r.tipo === 'SF')) continue;
-    if (enCurso && p.estado === 'Terminada') continue;
-    const pc = p.cal, sc = s.cal;
-    let conduce = false;
-    switch (r.tipo) {
-      case 'FS': case 'SS': {
-        const v = r.tipo === 'FS' ? pc.sumar(p.EF, r.lag, 'fin') : pc.sumar(inicioDe(p), r.lag, 'inicio');
-        conduce = esHitoFin(s) ? sc.aFin(v) >= s.EF : sc.aInicio(v) >= s.ES;
-        break;
-      }
-      case 'FF': case 'SF': {
-        const v = r.tipo === 'FF' ? pc.sumar(p.EF, r.lag, 'fin') : pc.sumar(inicioDe(p), r.lag, 'fin');
-        conduce = esHitoInicio(s) ? v >= s.EF : sc.aFin(v) >= s.EF;
-        break;
-      }
-    }
-    if (conduce) out.add(r);
-  }
+  for (const r of rels) { const h = holguraRelacion(acts, r); if (h != null && h <= 0) out.add(r); }
   return out;
+}
+
+/**
+ * Holgura de una relación (minutos de trabajo en el calendario de la sucesora): cuánto podría
+ * retrasarse la predecesora sin mover a la sucesora por esta relación. 0 (o menos) = conductora.
+ * null si la relación no aplica (sucesora terminada, predecesora LOE, etc.).
+ */
+export function holguraRelacion(acts: ActividadCpm[], r: Rel): number | null {
+  if (r.pred === r.succ) return null;
+  const inicioDe = (p: ActividadCpm) => (p.estado !== 'NoIniciada' && p.inicioReal != null ? p.inicioReal : p.ES!);
+  const p = acts[r.pred], s = acts[r.succ];
+  if (s.estado === 'Terminada' || p.EF == null || s.ES == null || s.EF == null || esLoe(p)) return null;
+  const enCurso = s.estado === 'EnCurso';
+  if (enCurso && (r.tipo === 'SS' || r.tipo === 'SF')) return null;
+  if (enCurso && p.estado === 'Terminada') return null;
+  const pc = p.cal, sc = s.cal;
+  const dif = (a: Minutos, b: Minutos) => (a <= b ? sc.entre(a, b) : -sc.entre(b, a));
+  switch (r.tipo) {
+    case 'FS': case 'SS': {
+      const v = r.tipo === 'FS' ? pc.sumar(p.EF, r.lag, 'fin') : pc.sumar(inicioDe(p), r.lag, 'inicio');
+      return esHitoFin(s) ? dif(sc.aFin(v), s.EF) : dif(sc.aInicio(v), s.ES);
+    }
+    case 'FF': case 'SF': {
+      const v = r.tipo === 'FF' ? pc.sumar(p.EF, r.lag, 'fin') : pc.sumar(inicioDe(p), r.lag, 'fin');
+      return esHitoInicio(s) ? dif(v, s.EF) : dif(sc.aFin(v), s.EF);
+    }
+  }
+  return null;
 }
 
 /**

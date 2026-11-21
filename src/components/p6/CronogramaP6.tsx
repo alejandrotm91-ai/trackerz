@@ -10,7 +10,8 @@ import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../..
 import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, enAmbito, ocultoEnEjecucion, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
-import { crearModelo, type ModeloP6 } from '../../utils/p6/modelo';
+import { crearModelo, entradasCpm, type ModeloP6 } from '../../utils/p6/modelo';
+import { holguraRelacion, type TipoRel } from '../../utils/p6/cpm';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
 import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
@@ -1690,6 +1691,27 @@ const PanelActividad: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [m, i, version]);
 
+  // Relaciones conductoras («Driving» de P6) y holgura de cada relación, con las fechas que muestra el cronograma
+  const holgurasRel = React.useMemo(() => {
+    const out = new Map<number, number | null>(); // fila de TASKPRED → holgura en horas (≤ 0 = conductora)
+    if (pest !== 'relaciones' || !rels.length) return out;
+    const { acts } = entradasCpm(m);
+    const fecha = (k: number, c: string) => aMinutos(celda(t, t.filas[k], c)) ?? undefined;
+    const usar = new Set<number>([i, ...rels.map(x => x.otra)]);
+    for (const k of usar) {
+      const a = acts[k];
+      if (a.estado === 'Terminada') { a.ES = fecha(k, 'act_start_date') ?? fecha(k, 'early_start_date'); a.EF = fecha(k, 'act_end_date') ?? fecha(k, 'early_end_date'); }
+      else { a.ES = fecha(k, 'early_start_date'); a.EF = fecha(k, 'early_end_date'); }
+    }
+    for (const x of rels) {
+      const rel = { pred: x.rol === 'pred' ? x.otra : i, succ: x.rol === 'pred' ? i : x.otra, tipo: x.tipo as TipoRel, lag: x.lag * 60 };
+      const h = holguraRelacion(acts, rel);
+      out.set(x.fila, h == null ? null : h / 60);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m, i, version, pest, rels]);
+
   const asignaciones = React.useMemo(() => {
     const tr = m.xer.tablas.get('TASKRSRC');
     const rs = m.xer.tablas.get('RSRC');
@@ -1923,10 +1945,15 @@ const PanelActividad: React.FC<{
               <div key={rol}>
                 <div className="font-bold text-[#312E81] mb-1">{rol === 'pred' ? 'Predecesoras' : 'Sucesoras'}</div>
                 <table className="w-full">
-                  <thead><tr className="text-[10px] text-[#5A6A74] text-left"><th>ID</th><th>Nombre</th><th>Tipo</th><th>Desfase (d)</th><th></th></tr></thead>
+                  <thead><tr className="text-[10px] text-[#5A6A74] text-left"><th>ID</th><th>Nombre</th><th>Tipo</th><th>Desfase (d)</th>
+                    <th className="text-center" title="Conductora (Driving en P6): la relación que fija la fecha de la sucesora">Conductora</th>
+                    <th className="text-right pr-2" title="Holgura de la relación: cuántos días podría retrasarse la predecesora sin mover a la sucesora">Holg. rel. (d)</th><th></th></tr></thead>
                   <tbody>
-                    {rels.filter(r => r.rol === rol).map(r => (
-                      <tr key={`${r.fila}-${version}`} className="border-t border-[#F0F2F4]">
+                    {rels.filter(r => r.rol === rol).map(r => {
+                      const h = holgurasRel.get(r.fila);
+                      const conduce = h != null && h <= 0.01;
+                      return (
+                      <tr key={`${r.fila}-${version}`} className={`border-t border-[#F0F2F4] ${conduce ? 'bg-[#FDECEC]' : ''}`}>
                         <td className="font-mono text-[10px] pr-2 whitespace-nowrap">
                           <button onClick={() => onIr(r.otra)} title={`Ir a ${celda(t, t.filas[r.otra], 'task_code')}`}
                             className="inline-flex items-center justify-center w-4 h-4 mr-1 rounded border border-[#C9CDEB] text-[#312E81] hover:bg-[#312E81] hover:text-white cursor-pointer align-middle">
@@ -1945,9 +1972,12 @@ const PanelActividad: React.FC<{
                           <input type="number" step="0.5" disabled={!editable} defaultValue={r.lag / hd} className="w-16 border border-[#D5DEE2] rounded px-1 text-[11px]"
                             onBlur={e => { const v = Number(e.target.value) * hd; if (v !== r.lag) { const l = log(); editarRelacion(m, r.fila, r.tipo, v, l); onCambio(l); } }} />
                         </td>
+                        <td className="text-center">{conduce ? <span className="inline-flex items-center gap-1 px-1.5 rounded bg-[#CD0000] text-white text-[10px] font-bold" title="Esta relación fija la fecha">✓ Sí</span> : h == null ? <span className="text-[#9AA6AD]" title="No aplica (actividad terminada, LOE o relación sin efecto)">—</span> : ''}</td>
+                        <td className={`text-right pr-2 ${conduce ? 'text-[#CD0000] font-bold' : ''}`}>{h == null ? '' : dias(Math.max(0, h), hd)}</td>
                         <td>{editable && <button className="text-red-600 hover:underline cursor-pointer" onClick={() => { const l = log(); eliminarRelacion(m, r.fila, l); onCambio(l); }}>Quitar</button>}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
