@@ -1156,10 +1156,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     if (fl.tipo === 'wbs') {
                       const n = fl.nodo;
                       const abierto = filtrando ? !cerradosF.has(n.id) : abiertos.has(n.id);
-                      const [fondo, texto] = enEjecucion ? (n.id === RAIZ_CONSTRUCTIVA ? ['#FFE14D', '#14212A'] : bandaWbs(Math.max(0, fl.nivel - 1))) : bandaWbs(fl.nivel);
+                      // En la constructiva: el proyecto en amarillo y, debajo, los colores de la WBS desde el verde
+                      const [fondo, texto] = enEjecucion && n.id === RAIZ_CONSTRUCTIVA ? ['#FFE14D', '#14212A'] : bandaWbs(fl.nivel);
                       const claro = texto !== '#FFFFFF';
                       return (
-                        <div key={`w${n.id}`} className="absolute flex text-[11px] font-bold cursor-pointer bg-white border-b border-[#E6EAEC]" style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt, outline: wbsSel === n.id ? '2px solid #CD0000' : undefined, outlineOffset: -2 }} onClick={() => { alternar(n.id); setWbsSel(n.id); }}>
+                        <div key={`w${n.id}`} className="absolute flex text-[11px] font-bold cursor-pointer bg-white border-b border-[#E6EAEC]" style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt, outline: wbsSel === n.id && !enEjecucion ? '2px solid #CD0000' : undefined, outlineOffset: -2 }} onClick={() => { alternar(n.id); setWbsSel(n.id); }}>
                           <div className="sticky left-0 z-[5] flex items-center border-r border-[#9AA6AD]" style={{ width: ANCHO_IZQ, background: fondo, color: texto }}>
                             <div className="flex items-center gap-1 min-w-0" style={{ paddingLeft: 4 + fl.nivel * 10, width: 382 }}>
                               {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
