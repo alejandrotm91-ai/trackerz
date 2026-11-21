@@ -13,7 +13,7 @@ import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, line
 import { crearModelo, entradasCpm, lagSsDesdeInicioTemprano, type ModeloP6 } from '../../utils/p6/modelo';
 import { holguraRelacion, type TipoRel } from '../../utils/p6/cpm';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
-import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
+import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, cargarUnidadesMaster, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
 import { COLUMNAS_DEF, DialogoColumnas, NOMBRE_ESTADO, NOMBRE_RESTR, NOMBRE_TIPO, catalogoColumnas, valoresUdf, type ColumnaP6 } from './columnasP6';
 
@@ -236,6 +236,22 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   }, [catalogo, columnasSel]);
   // Ancho de la parte de tabla (sustituye al ancho fijo)
   const ANCHO_IZQ = cols.reduce((a, c) => a + c.ancho, 0) + 2;
+  // Unidades de las asignaciones de recursos por actividad (Budgeted / Actual / Remaining)
+  const unidadesRsrc = React.useMemo(() => {
+    const out = new Map<string, { b: number; a: number; r: number }>();
+    const tr = m?.xer.tablas.get('TASKRSRC');
+    if (!tr || !cols.some(c => c.id.startsWith('q'))) return out;
+    for (const f of tr.filas) {
+      const id = celda(tr, f, 'task_id');
+      const x = out.get(id) ?? { b: 0, a: 0, r: 0 };
+      x.b += Number(celda(tr, f, 'target_qty')) || 0;
+      x.a += (Number(celda(tr, f, 'act_reg_qty')) || 0) + (Number(celda(tr, f, 'act_ot_qty')) || 0);
+      x.r += Number(celda(tr, f, 'remain_qty')) || 0;
+      out.set(id, x);
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m, cols, version]);
   const udfVals = React.useMemo(() => valoresUdf(m, cols.map(c => c.id)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [m, cols, version]);
@@ -659,6 +675,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       case 'avance': txt = v.avance ? `${Math.round(v.avance * 10) / 10}%` : ''; break;
       case 'varFin': txt = varFin == null ? '' : dias(varFin, v.hd); clase = varFin != null && varFin < 0 ? 'text-red-600' : varFin ? 'text-[#2B7F52]' : ''; title = lbDatos ? `Baseline ${fCorta(lbDatos[0])} → ${fCorta(lbDatos[1])}` : 'No baseline'; break;
       case 'varIni': { const vi = variacionFin(lbDatos?.[0], v.ini); txt = vi == null ? '' : dias(vi, v.hd); clase = vi != null && vi < 0 ? 'text-red-600' : vi ? 'text-[#2B7F52]' : ''; break; }
+      case 'qBud': case 'qAct': case 'qRem': case 'qAtC': {
+        const u = unidadesRsrc.get(v.id);
+        const val = !u ? null : c.id === 'qBud' ? u.b : c.id === 'qAct' ? u.a : c.id === 'qRem' ? u.r : u.a + u.r;
+        txt = val == null ? '' : val.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        break;
+      }
       case 'uP': txt = num('target_work_qty'); break;
       case 'uA': txt = num('act_work_qty'); break;
       case 'uR': txt = num('remain_work_qty'); break;
@@ -762,6 +784,26 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     } catch (e) {
       mostrar(`Could not read the baseline XER: ${e instanceof Error ? e.message : String(e)}`);
     }
+  };
+
+  // Budgeted Units desde la cantidad del Master (enlazando por Activity ID; sin los «p6»)
+  const cargarUnidades = () => {
+    if (!m) return;
+    const cantidad = new Map<string, number | null>();
+    for (const [id, a] of idxMaster) cantidad.set(id, a.cantidadCdo ?? null);
+    const prev = cargarUnidadesMaster(m, cantidad, false, []);
+    if (!prev.cambian) { mostrar(`Budgeted Units already match the Master (${prev.iguales.toLocaleString('en-US')} activities). Nothing to load.`); return; }
+    const est = (k: string) => (prev.porEstado[k] ?? 0).toLocaleString('en-US');
+    if (!window.confirm(`Load Budgeted Units from the Master «Cantidad» column?\n\n`
+      + `• ${prev.cambian.toLocaleString('en-US')} activities will change (Not Started ${est('TK_NotStart')} · In Progress ${est('TK_Active')} · Completed ${est('TK_Complete')})\n`
+      + `• ${prev.iguales.toLocaleString('en-US')} already match\n`
+      + `• ${prev.conP6.toLocaleString('en-US')} Activity IDs with «p6» are left out\n`
+      + `• ${prev.sinMaster.toLocaleString('en-US')} not in the Master · ${prev.sinCantidad.toLocaleString('en-US')} without quantity · ${prev.sinAsignacion.toLocaleString('en-US')} without resource assignment\n\n`
+      + `Not started activities also get Remaining Units = Budgeted Units. Actual units and costs are not changed.`)) return;
+    const log = [...cambios];
+    const res = cargarUnidadesMaster(m, cantidad, true, log);
+    marcarCambio(log);
+    mostrar(`Budgeted Units loaded from the Master in ${res.cambian.toLocaleString('en-US')} activities (${res.conP6.toLocaleString('en-US')} «p6» left out). Press «Save» to keep them.`);
   };
 
   // El botón Filter se resalta solo con los filtros de su menú (Critical y Longest tienen sus botones)
@@ -1216,6 +1258,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     placeholder="Find Activity ID or Name (Enter)" className="pl-7 pr-2 py-1.5 border border-[#D5DEE2] rounded-lg w-56 outline-none focus:border-[#312E81]" />
                 </div>
                 {filtro && <button onClick={() => { setFiltro(''); setFiltroTmp(''); }} className="text-[#5A6A74] hover:text-red-600 cursor-pointer">Clear search ✕</button>}
+                {editable && hayMaster && (
+                  <button onClick={cargarUnidades} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1"
+                    title="Load the Budgeted Units of each activity's material resource («Venta») from the Master «Cantidad» column, linked by Activity ID (IDs with «p6» are left out)">
+                    <Download className="w-3.5 h-3.5" /> Units ← Master
+                  </button>
+                )}
                 {editable && (
                   <button onClick={() => setCreando(true)} className="px-2 py-1.5 rounded-lg bg-[#312E81] text-white font-bold flex items-center gap-1 cursor-pointer" title="Add an activity to the selected WBS">
                     <Plus className="w-3.5 h-3.5" /> Add Activity

@@ -528,3 +528,64 @@ export function ponerUdf(m: ModeloP6, i: number, udfTypeId: string, valor: strin
   registrar(log, celda(t, fa, 'task_code'), `UDF ${etq}`, antes, v);
   return null;
 }
+
+// ── Budgeted Units desde el Master ──
+
+/** Cantidades con hasta 6 decimales (como las guarda P6). */
+const numQ = (v: number) => (Math.round(v * 1e6) / 1e6).toString();
+
+export interface ResumenUnidades {
+  cambian: number;
+  iguales: number;
+  /** Activity ID con «p6»: se dejan fuera (tienen un trato aparte). */
+  conP6: number;
+  sinMaster: number;
+  sinCantidad: number;
+  sinAsignacion: number;
+  porEstado: Record<string, number>;
+}
+
+/**
+ * Carga en la asignación de recurso material de cada actividad (el recurso «Venta», campo
+ * Budgeted Units = TASKRSRC.target_qty) la cantidad del Master, enlazando por Activity ID.
+ * Como P6: en las no iniciadas Remaining = Budgeted (y unidades/hora); en las iniciadas o
+ * terminadas se conservan las unidades reales y restantes. Los costos no se tocan.
+ * Con `aplicar = false` solo cuenta lo que cambiaría.
+ */
+export function cargarUnidadesMaster(m: ModeloP6, cantidad: Map<string, number | null>, aplicar: boolean, log: Cambio[]): ResumenUnidades {
+  const r: ResumenUnidades = { cambian: 0, iguales: 0, conP6: 0, sinMaster: 0, sinCantidad: 0, sinAsignacion: 0, porEstado: {} };
+  const tr = m.xer.tablas.get('TASKRSRC');
+  const t = m.task;
+  const asignacion = new Map<string, string[]>();
+  for (const f of tr?.filas || []) {
+    const id = celda(tr!, f, 'task_id');
+    const ya = asignacion.get(id);
+    // la de material (RT_Mat) tiene prioridad; si no, la primera
+    if (!ya || (celda(tr!, ya, 'rsrc_type') !== 'RT_Mat' && celda(tr!, f, 'rsrc_type') === 'RT_Mat')) asignacion.set(id, f);
+  }
+  for (const f of t.filas) {
+    const cod = celda(t, f, 'task_code');
+    if (/p6/i.test(cod)) { r.conP6++; continue; }
+    if (!cantidad.has(cod)) { r.sinMaster++; continue; }
+    const q = cantidad.get(cod);
+    if (q == null || !Number.isFinite(q)) { r.sinCantidad++; continue; }
+    const fa = asignacion.get(celda(t, f, 'task_id'));
+    if (!fa || !tr) { r.sinAsignacion++; continue; }
+    const antes = Number(celda(tr, fa, 'target_qty')) || 0;
+    if (Math.abs(antes - q) < 1e-6) { r.iguales++; continue; }
+    const estado = celda(t, f, 'status_code');
+    r.cambian++;
+    r.porEstado[estado] = (r.porEstado[estado] ?? 0) + 1;
+    if (!aplicar) continue;
+    ponerCelda(tr, fa, 'target_qty', numQ(q));
+    const durO = Number(celda(t, f, 'target_drtn_hr_cnt')) || 0;
+    if (durO > 0) ponerCelda(tr, fa, 'target_qty_per_hr', numQ(q / durO));
+    if (estado === 'TK_NotStart') {
+      ponerCelda(tr, fa, 'remain_qty', numQ(q));
+      const durR = Number(celda(t, f, 'remain_drtn_hr_cnt')) || 0;
+      if (durR > 0) ponerCelda(tr, fa, 'remain_qty_per_hr', numQ(q / durR));
+    }
+    registrar(log, cod, 'Budgeted Units', numQ(antes), numQ(q));
+  }
+  return r;
+}
