@@ -5,7 +5,7 @@
  * Todos consultan; solo el administrador edita, programa y guarda.
  */
 import React from 'react';
-import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
 import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, etiquetaUbicacion, ordenUbicacion, type Clasificacion, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
@@ -15,7 +15,7 @@ import { holguraRelacion, type TipoRel } from '../../utils/p6/cpm';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
 import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, cargarUnidadesMaster, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
-import { calcularUso, compacto, periodosDeEscala, sumarTramo, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
+import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseUso, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
 import { COLUMNAS_DEF, DialogoColumnas, NOMBRE_ESTADO, NOMBRE_RESTR, NOMBRE_TIPO, catalogoColumnas, valoresUdf, type ColumnaP6 } from './columnasP6';
 
 const FILA = 22;
@@ -1870,6 +1870,15 @@ const PanelUso: React.FC<{
   const [medida, setMedida] = React.useState<MedidaUso>('cost');
   const [series, setSeries] = React.useState<SerieUso[]>(['b', 'r', 'a']);
   const [acumulado, setAcumulado] = React.useState(false);
+  // Botones de fase (como en el Gantt del Master): ninguno activo = todas; varios = cualquiera de ellos
+  const [fases, setFases] = React.useState<Set<FaseUso>>(new Set());
+  const faseDeAct = React.useMemo(() => new Map<number, FaseUso>(), [m, version]);
+  const pasaFase = React.useCallback((v: Vt) => {
+    if (!fases.size) return true;
+    let f = faseDeAct.get(v.i);
+    if (!f) { f = faseDe(v.nombre); faseDeAct.set(v.i, f); }
+    return fases.has(f);
+  }, [fases, faseDeAct]);
   const [alto, setAlto] = React.useState(280);
   const [scrollTop, setScrollTop] = React.useState(0);
   const periodos = React.useMemo(() => periodosDeEscala(desde, hasta, px), [desde, hasta, px]);
@@ -1887,6 +1896,7 @@ const PanelUso: React.FC<{
       const r = { b: new Float64Array(nPer), a: new Float64Array(nPer), r: new Float64Array(nPer) };
       for (const v of n.tareas) {
         if (filtrando && !pasa(v)) continue;
+        if (!pasaFase(v)) continue;
         const u = uso.get(v.i);
         if (!u) continue;
         sumarTramo(r.b, u.b); sumarTramo(r.a, u.a); sumarTramo(r.r, u.r);
@@ -1896,7 +1906,7 @@ const PanelUso: React.FC<{
       return r;
     };
     return calc;
-  }, [uso, nPer, filtrando, pasa]);
+  }, [uso, nPer, filtrando, pasa, pasaFase]);
   const serieDeAct = (i: number, k: SerieUso): Float64Array => {
     const acc = new Float64Array(nPer);
     sumarTramo(acc, uso.get(i)?.[k]);
@@ -1943,7 +1953,23 @@ const PanelUso: React.FC<{
           </label>
         ))}
         <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={acumulado} onChange={e => setAcumulado(e.target.checked)} /> Cumulative</label>
-        <span className="text-[#5A6A74]">Spread over the working time of each activity&apos;s calendar · periods follow the Gantt timescale</span>
+        <div className="flex items-center gap-1">
+          {([
+            ['procura', 'Procurement', ShoppingCart, 'bg-blue-600 border-blue-600', 'bg-blue-50 text-blue-900 border-blue-300', 'Activities whose name starts with "compr"'],
+            ['flete', 'Freight', Truck, 'bg-purple-600 border-purple-600', 'bg-purple-50 text-purple-900 border-purple-300', 'Activities whose name starts with "flete"'],
+            ['montaje', 'Installation', Wrench, 'bg-amber-600 border-amber-600', 'bg-amber-50 text-amber-900 border-amber-300', 'Activities whose name starts with "inst"'],
+            ['construccion', 'Construction', HardHat, 'bg-emerald-600 border-emerald-600', 'bg-emerald-50 text-emerald-900 border-emerald-300', 'All other activities (not Procurement, Freight or Installation)'],
+          ] as const).map(([k, etq, Icono, on, off, tt]) => {
+            const activo = fases.has(k);
+            return (
+              <button key={k} title={tt} onClick={() => setFases(fs => { const n = new Set(fs); if (n.has(k)) n.delete(k); else n.add(k); return n; })}
+                className={`px-2 py-0.5 rounded border font-semibold flex items-center gap-1 cursor-pointer ${activo ? `${on} text-white` : off}`}>
+                <Icono className="w-3 h-3" />{etq}
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[#5A6A74] truncate min-w-0" title="Spread over the working time of each activity's calendar · periods follow the Gantt timescale">Spread over each activity&apos;s working calendar</span>
         <button onClick={onCerrar} className="ml-auto p-0.5 hover:bg-white rounded cursor-pointer" title="Close"><X className="w-3.5 h-3.5" /></button>
       </div>
       <div ref={usoRef} className="flex-1 overflow-auto relative" onScroll={e => { const el = e.target as HTMLDivElement; setScrollTop(el.scrollTop); onScrollX(el.scrollLeft); }}>
@@ -1968,7 +1994,9 @@ const PanelUso: React.FC<{
               datos = totalNodo(fl.nodo);
             } else if (fl.tipo === 'act') {
               etq = <span className="truncate"><span className="font-mono text-[10px] mr-2">{fl.vt.cod}</span>{fl.vt.nombre}</span>;
-              datos = { b: serieDeAct(fl.vt.i, 'b'), a: serieDeAct(fl.vt.i, 'a'), r: serieDeAct(fl.vt.i, 'r') };
+              // Las actividades de otra fase se dejan en gris y sin valores
+              if (pasaFase(fl.vt)) datos = { b: serieDeAct(fl.vt.i, 'b'), a: serieDeAct(fl.vt.i, 'a'), r: serieDeAct(fl.vt.i, 'r') };
+              else texto = '#A3ADB3';
             } else {
               etq = <span className="truncate italic text-[#7A868D]"><span className="font-mono text-[10px] mr-2">{fl.a.activityId}</span>{fl.a.descripcion}</span>;
             }

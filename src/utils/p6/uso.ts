@@ -13,6 +13,20 @@ import type { ModeloP6 } from './modelo';
 import type { Calendario } from './calendario';
 
 export type MedidaUso = 'units' | 'cost';
+
+/**
+ * Fase de una actividad por su nombre, con la misma regla que los botones Procura / Flete /
+ * Montaje / Construcción del Gantt del Master: «compr…» = procura, «flete…» = flete,
+ * «inst…» = montaje y el resto = construcción.
+ */
+export type FaseUso = 'procura' | 'flete' | 'montaje' | 'construccion';
+export function faseDe(nombre: string): FaseUso {
+  const n = (nombre || '').trim().replace(/^["'«\s\-.]*/, '');
+  if (/^inst/i.test(n)) return 'montaje';
+  if (/^compr/i.test(n)) return 'procura';
+  if (/^flete/i.test(n)) return 'flete';
+  return 'construccion';
+}
 export type SerieUso = 'b' | 'a' | 'r';
 
 /** Valores por período de una actividad (solo el tramo con datos, para ahorrar memoria). */
