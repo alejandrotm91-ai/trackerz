@@ -21,12 +21,14 @@ const ANCHO_IZQ = 870;
 const MESES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const FILTROS_ESTADO = [
   ['todas', 'All Activities'],
-  ['pendientes', 'Not Completed'],
+  ['noiniciadas', 'Not Started'],
   ['encurso', 'In Progress'],
-  ['criticas', 'Critical (Total Float ≤ 0)'],
-  ['longest', 'Longest Path'],
+  ['terminadas', 'Completed'],
+  ['pendientes', 'In Progress + Not Started'],
   ['soloMaster', 'Master Only (not yet in P6)'],
 ] as const;
+/** Nombre de cada filtro (incluidos Critical y Longest Path, que van en sus botones de la barra lateral). */
+const NOMBRE_FILTRO: Record<string, string> = { ...Object.fromEntries(FILTROS_ESTADO), criticas: 'Critical (Total Float ≤ 0)', longest: 'Longest Path' };
 const TIPOS_UDF: Record<string, string> = {
   FT_TEXT: 'Text', FT_START_DATE: 'Start Date', FT_END_DATE: 'Finish Date', FT_FLOAT_2_DECIMALS: 'Number',
   FT_INT: 'Integer', FT_MONEY: 'Cost', FT_STATICTYPE: 'Indicator',
@@ -109,7 +111,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [cerradosF, setCerradosF] = React.useState<Set<string>>(new Set());
   const [filtro, setFiltro] = React.useState('');
   const [filtroTmp, setFiltroTmp] = React.useState('');
-  const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'criticas' | 'longest' | 'encurso' | 'soloMaster'>('todas');
+  const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'noiniciadas' | 'terminadas' | 'criticas' | 'longest' | 'encurso' | 'soloMaster'>('todas');
   const [vista, setVista] = React.useState<'actividades' | 'wbs' | 'recursos'>('actividades');
   // Orden de las actividades dentro de cada grupo (clic en el encabezado Inicio / Fin)
   const [orden, setOrden] = React.useState<{ col: 'ini' | 'fin'; dir: 1 | -1 } | null>(null);
@@ -421,6 +423,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const pasa = React.useCallback((v: Vt) => {
     if (filtroEstado === 'pendientes' && v.estado === 'TK_Complete') return false;
     if (filtroEstado === 'encurso' && v.estado !== 'TK_Active') return false;
+    if (filtroEstado === 'noiniciadas' && v.estado !== 'TK_NotStart') return false;
+    if (filtroEstado === 'terminadas' && v.estado !== 'TK_Complete') return false;
     if (filtroEstado === 'criticas' && !(v.tf != null && v.tf <= 0)) return false;
     if (filtroEstado === 'longest' && !v.lp) return false;
     if (filtroEstado === 'soloMaster') return false; // solo los rubros del Master que aún no están en P6
@@ -639,6 +643,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     }
   };
 
+  // El botón Filter se resalta solo con los filtros de su menú (Critical y Longest tienen sus botones)
+  const filtroMenuActivo = filtroEstado !== 'todas' && filtroEstado !== 'criticas' && filtroEstado !== 'longest';
   const filtrando = !!filtro || filtroEstado !== 'todas';
   // Cada filtro nuevo empieza desplegado
   React.useEffect(() => { setCerradosF(new Set()); }, [filtro, filtroEstado]);
@@ -944,9 +950,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             })}
             <div className="w-7 h-px bg-[#C3C3C3] my-1" />
             <div className="relative">
-              <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${FILTROS_ESTADO.find(([k]) => k === filtroEstado)?.[1] ?? ''}`}
-                className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroEstado !== 'todas' ? 'bg-[#E4E6F7] border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
-                <svg width="22" height="16" viewBox="0 0 22 16"><path d="M3 2 H19 L13 8.5 V14 L9 12.5 V8.5 Z" fill={filtroEstado !== 'todas' ? '#312E81' : '#9AA6AD'} stroke="#3A3A3A" strokeWidth="0.8" /></svg>
+              <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${NOMBRE_FILTRO[filtroEstado] ?? ''}`}
+                className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroMenuActivo ? 'bg-[#E4E6F7] border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+                <svg width="22" height="16" viewBox="0 0 22 16"><path d="M3 2 H19 L13 8.5 V14 L9 12.5 V8.5 Z" fill={filtroMenuActivo ? '#312E81' : '#9AA6AD'} stroke="#3A3A3A" strokeWidth="0.8" /></svg>
                 <span className="text-[8.5px] leading-none">Filter</span>
               </button>
               {menuFiltro && (
@@ -960,7 +966,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     <div className="p-2 flex flex-col gap-0.5">
                       {FILTROS_ESTADO.filter(([k]) => k !== 'soloMaster' || enEjecucion).map(([k, etq]) => (
                         <label key={k} className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer ${filtroEstado === k ? 'border-[#8A8FC9] bg-[#EEF0FB] font-semibold' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
-                          <input type="radio" name="filtroEstado" checked={filtroEstado === k} onChange={() => { setFiltroEstado(k); if (k === 'criticas' || k === 'longest') setVerRelaciones(true); setMenuFiltro(false); }} />
+                          <input type="radio" name="filtroEstado" checked={filtroEstado === k} onChange={() => { setFiltroEstado(k); setMenuFiltro(false); }} />
                           {etq}
                         </label>
                       ))}
