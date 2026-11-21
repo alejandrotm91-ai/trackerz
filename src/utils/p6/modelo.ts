@@ -73,6 +73,12 @@ export function entradasCpm(m: ModeloP6): { acts: ActividadCpm[]; rels: Rel[] } 
 
 export function programarModelo(m: ModeloP6): { acts: ActividadCpm[]; rels: Rel[]; res: ResultadoCpm } {
   const { acts, rels } = entradasCpm(m);
-  const res = programar(acts, rels, { fechaDatos: m.fechaDatos, finProyecto: m.finProyecto });
+  const res = programar(acts, rels, { fechaDatos: m.fechaDatos, finProyecto: m.finProyecto, lagSsDesdeInicioTemprano: lagSsDesdeInicioTemprano(m) });
   return { acts, rels, res };
+}
+
+/** Opción de P6 «Calculate start-to-start lag from: Early Start» (SCHEDOPTIONS.sched_lag_early_start_flag). */
+export function lagSsDesdeInicioTemprano(m: ModeloP6): boolean {
+  const so = m.xer.tablas.get('SCHEDOPTIONS');
+  return !!so?.filas[0] && celda(so, so.filas[0], 'sched_lag_early_start_flag') === 'Y';
 }

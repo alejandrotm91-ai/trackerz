@@ -30,6 +30,13 @@ export interface ActividadCpm {
   /** Duración restante en minutos de trabajo (la original si no ha empezado). */
   durRest: number;
   inicioReal: Minutos | null;
+  /**
+   * Base de los desfases SS/SF cuando esta actividad es predecesora, y parte del desfase ya
+   * consumida (minutos). Con la opción de P6 «SS lag from Early Start», en una actividad en curso
+   * la base es su inicio restante y se descuenta lo ya trabajado desde su inicio real.
+   */
+  inicioSS?: Minutos;
+  lagConsumido?: number;
   finReal: Minutos | null;
   restriccion: { tipo: string; fecha: Minutos | null } | null;
   suspension: Minutos | null;
@@ -46,6 +53,15 @@ export interface OpcionesCpm {
   fechaDatos: Minutos;
   /** Fecha límite del proyecto (Must finish by). Si no hay, el fin temprano del proyecto. */
   finProyecto: Minutos | null;
+  /** P6 «Calculate start-to-start lag from: Early Start» (SCHEDOPTIONS.sched_lag_early_start_flag). */
+  lagSsDesdeInicioTemprano?: boolean;
+}
+
+/** Inicio desde el que corre un SS/SF y el desfase efectivo de una relación desde la predecesora p. */
+export function baseSs(p: ActividadCpm, lag: number): { base: Minutos; lag: number } {
+  // Solo se consume un desfase positivo; los negativos (adelantos) se mantienen
+  if (p.inicioSS != null) return { base: p.inicioSS, lag: lag > 0 ? Math.max(0, lag - (p.lagConsumido ?? 0)) : lag };
+  return { base: p.estado !== 'NoIniciada' && p.inicioReal != null ? p.inicioReal : p.ES!, lag };
 }
 
 export interface ResultadoCpm {
@@ -94,8 +110,6 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
   const DD = op.fechaDatos;
 
   // Inicio efectivo de una predecesora (real si ya empezó)
-  const inicioDe = (p: ActividadCpm) => (p.estado !== 'NoIniciada' && p.inicioReal != null ? p.inicioReal : p.ES!);
-
   // ── Pasada hacia adelante ──
   let finTemprano = DD;
   for (const i of orden) {
@@ -105,6 +119,7 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
       a.ES = a.inicioReal ?? a.finReal ?? DD;
       a.EF = a.finReal ?? a.ES;
       a.TF = null; a.FFl = null;
+      a.inicioSS = a.ES; a.lagConsumido = 0;
       continue;
     }
     const dur = durDe(a);
@@ -116,13 +131,15 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
       const p = acts[r.pred];
       if (p.EF == null || esLoe(p)) continue;
       const pc = p.cal;
-      if (enCurso && (r.tipo === 'SS' || r.tipo === 'SF')) continue; // ya empezó
+      // Sucesora en curso: un SS/SF ya se cumplió al empezar, salvo que la predecesora también esté en
+      // curso; entonces (lógica retenida, como P6) el trabajo restante espera al restante de la predecesora.
       if (p.estado === 'Terminada' && enCurso) continue;
+      const ss = baseSs(p, r.lag);
       switch (r.tipo) {
         case 'FS': ini = Math.max(ini, pc.sumar(p.EF, r.lag, 'fin')); break;
-        case 'SS': ini = Math.max(ini, pc.sumar(inicioDe(p), r.lag, 'inicio')); break;
+        case 'SS': ini = Math.max(ini, pc.sumar(ss.base, ss.lag, 'inicio')); break;
         case 'FF': fin = Math.max(fin, pc.sumar(p.EF, r.lag, 'fin')); break;
-        case 'SF': fin = Math.max(fin, pc.sumar(inicioDe(p), r.lag, 'fin')); break;
+        case 'SF': fin = Math.max(fin, pc.sumar(ss.base, ss.lag, 'fin')); break;
       }
     }
     // Restricciones
@@ -145,6 +162,14 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
     a.ES = ES;
     a.EF = EF;
     if (EF > finTemprano) finTemprano = EF;
+    // Base de los SS/SF que salen de esta actividad
+    if (enCurso && op.lagSsDesdeInicioTemprano) {
+      a.inicioSS = ES;
+      a.lagConsumido = a.inicioReal != null ? cal.entre(a.inicioReal, Math.max(a.inicioReal, DD)) : 0;
+    } else {
+      a.inicioSS = enCurso && a.inicioReal != null ? a.inicioReal : ES;
+      a.lagConsumido = 0;
+    }
   }
 
   // ── Nivel de esfuerzo: termina cuando lo piden sus sucesoras ──
@@ -178,12 +203,12 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
     for (const r of succs[i]) {
       const s = acts[r.succ];
       if (s.estado === 'Terminada' || s.LF == null || esLoe(s)) continue;
-      if (s.estado === 'EnCurso' && (r.tipo === 'SS' || r.tipo === 'SF')) continue;
+
       switch (r.tipo) {
         case 'FS': lf = Math.min(lf, cal.sumar(s.LS!, -r.lag, 'fin')); break;
-        case 'SS': ls = Math.min(ls, cal.sumar(s.LS!, -r.lag, 'inicio')); break;
+        case 'SS': ls = Math.min(ls, cal.sumar(s.LS!, -baseSs(a, r.lag).lag, 'inicio')); break;
         case 'FF': lf = Math.min(lf, cal.sumar(s.LF, -r.lag, 'fin')); break;
-        case 'SF': ls = Math.min(ls, cal.sumar(s.LF, -r.lag, 'inicio')); break;
+        case 'SF': ls = Math.min(ls, cal.sumar(s.LF, -baseSs(a, r.lag).lag, 'inicio')); break;
       }
     }
     const rs = a.restriccion;
@@ -229,7 +254,12 @@ export function programar(acts: ActividadCpm[], rels: Rel[], op: OpcionesCpm): R
       const s = acts[r.succ];
       if (s.estado === 'Terminada' || s.ES == null) continue;
       const sIni = s.estado !== 'NoIniciada' && s.inicioReal != null ? s.inicioReal : s.ES;
-      if (s.estado === 'EnCurso' && (r.tipo === 'SS' || r.tipo === 'SF')) continue;
+      if (s.estado === 'EnCurso' && (r.tipo === 'SS' || r.tipo === 'SF')) {
+        const ss = baseSs(a, r.lag);
+        const lim = r.tipo === 'SS' ? a.cal.sumar(s.ES, -ss.lag, 'inicio') : a.cal.sumar(s.EF!, -ss.lag, 'inicio');
+        ff = Math.min(ff, a.cal.entre(ss.base, lim));
+        continue;
+      }
       // Holgura libre: cuánto puede moverse sin retrasar a ninguna sucesora (según el tipo de relación)
       if (r.tipo === 'FS') ff = Math.min(ff, a.cal.entre(a.EF!, a.cal.sumar(sIni, -r.lag, 'fin')));
       else if (r.tipo === 'FF') ff = Math.min(ff, a.cal.entre(a.EF!, a.cal.sumar(s.EF!, -r.lag, 'fin')));
@@ -264,21 +294,20 @@ export function relacionesConductoras(acts: ActividadCpm[], rels: Rel[]): Set<Re
  */
 export function holguraRelacion(acts: ActividadCpm[], r: Rel): number | null {
   if (r.pred === r.succ) return null;
-  const inicioDe = (p: ActividadCpm) => (p.estado !== 'NoIniciada' && p.inicioReal != null ? p.inicioReal : p.ES!);
   const p = acts[r.pred], s = acts[r.succ];
   if (s.estado === 'Terminada' || p.EF == null || s.ES == null || s.EF == null || esLoe(p)) return null;
   const enCurso = s.estado === 'EnCurso';
-  if (enCurso && (r.tipo === 'SS' || r.tipo === 'SF')) return null;
   if (enCurso && p.estado === 'Terminada') return null;
+  const ss = baseSs(p, r.lag);
   const pc = p.cal, sc = s.cal;
   const dif = (a: Minutos, b: Minutos) => (a <= b ? sc.entre(a, b) : -sc.entre(b, a));
   switch (r.tipo) {
     case 'FS': case 'SS': {
-      const v = r.tipo === 'FS' ? pc.sumar(p.EF, r.lag, 'fin') : pc.sumar(inicioDe(p), r.lag, 'inicio');
+      const v = r.tipo === 'FS' ? pc.sumar(p.EF, r.lag, 'fin') : pc.sumar(ss.base, ss.lag, 'inicio');
       return esHitoFin(s) ? dif(sc.aFin(v), s.EF) : dif(sc.aInicio(v), s.ES);
     }
     case 'FF': case 'SF': {
-      const v = r.tipo === 'FF' ? pc.sumar(p.EF, r.lag, 'fin') : pc.sumar(inicioDe(p), r.lag, 'fin');
+      const v = r.tipo === 'FF' ? pc.sumar(p.EF, r.lag, 'fin') : pc.sumar(ss.base, ss.lag, 'fin');
       return esHitoInicio(s) ? dif(v, s.EF) : dif(sc.aFin(v), s.EF);
     }
   }

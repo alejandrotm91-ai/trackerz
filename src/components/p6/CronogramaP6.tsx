@@ -10,7 +10,7 @@ import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../..
 import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, etiquetaUbicacion, ordenUbicacion, type Clasificacion, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
-import { crearModelo, entradasCpm, type ModeloP6 } from '../../utils/p6/modelo';
+import { crearModelo, entradasCpm, lagSsDesdeInicioTemprano, type ModeloP6 } from '../../utils/p6/modelo';
 import { holguraRelacion, type TipoRel } from '../../utils/p6/cpm';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
 import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
@@ -1773,12 +1773,15 @@ const PanelActividad: React.FC<{
     const out = new Map<number, number | null>(); // fila de TASKPRED → holgura en horas (≤ 0 = conductora)
     if (pest !== 'relaciones' || !rels.length) return out;
     const { acts } = entradasCpm(m);
+    const ssTemprano = lagSsDesdeInicioTemprano(m);
     const fecha = (k: number, c: string) => aMinutos(celda(t, t.filas[k], c)) ?? undefined;
     const usar = new Set<number>([i, ...rels.map(x => x.otra)]);
     for (const k of usar) {
       const a = acts[k];
       if (a.estado === 'Terminada') { a.ES = fecha(k, 'act_start_date') ?? fecha(k, 'early_start_date'); a.EF = fecha(k, 'act_end_date') ?? fecha(k, 'early_end_date'); }
       else { a.ES = fecha(k, 'early_start_date'); a.EF = fecha(k, 'early_end_date'); }
+      // Base de los SS/SF como en el motor (P6: «SS lag from Early Start» en actividades en curso)
+      if (a.estado === 'EnCurso' && ssTemprano && a.inicioReal != null) { a.inicioSS = a.ES; a.lagConsumido = a.cal.entre(a.inicioReal, Math.max(a.inicioReal, m.fechaDatos)); }
     }
     for (const x of rels) {
       const rel = { pred: x.rol === 'pred' ? x.otra : i, succ: x.rol === 'pred' ? i : x.otra, tipo: x.tipo as TipoRel, lag: x.lag * 60 };
