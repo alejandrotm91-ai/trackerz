@@ -1934,7 +1934,7 @@ const PanelUso: React.FC<{
           </label>
         ))}
         <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={acumulado} onChange={e => setAcumulado(e.target.checked)} /> Cumulative</label>
-        <span className="text-[#5A6A74]">Spread evenly over each activity&apos;s dates · periods follow the Gantt timescale</span>
+        <span className="text-[#5A6A74]">Spread over the working time of each activity&apos;s calendar · periods follow the Gantt timescale</span>
         <button onClick={onCerrar} className="ml-auto p-0.5 hover:bg-white rounded cursor-pointer" title="Close"><X className="w-3.5 h-3.5" /></button>
       </div>
       <div ref={usoRef} className="flex-1 overflow-auto relative" onScroll={e => { const el = e.target as HTMLDivElement; setScrollTop(el.scrollTop); onScrollX(el.scrollLeft); }}>

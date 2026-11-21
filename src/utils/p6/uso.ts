@@ -1,7 +1,8 @@
 /**
  * «Activity Usage» como en P6: unidades o costos de las asignaciones de recursos de cada
  * actividad repartidos por períodos de la escala de tiempo.
- * Reparto inicial uniforme (lineal en el tiempo) sobre las fechas de cada valor:
+ * Reparto uniforme en el TIEMPO LABORABLE del calendario de cada actividad (los días y horas
+ * no laborables no reciben valor), sobre las fechas de cada valor:
  *  - Budgeted (planificado): entre el inicio y el fin planificados (target_start/end_date).
  *  - Actual: entre el inicio real y el fin real (o la fecha de datos si sigue en curso).
  *  - Remaining: entre el inicio del trabajo restante y el fin temprano.
@@ -9,6 +10,7 @@
 import { aMinutos } from './calendario';
 import { celda } from './xer';
 import type { ModeloP6 } from './modelo';
+import type { Calendario } from './calendario';
 
 export type MedidaUso = 'units' | 'cost';
 export type SerieUso = 'b' | 'a' | 'r';
@@ -44,8 +46,11 @@ export function periodosDeEscala(desde: number, hasta: number, px: number): { t:
   return out;
 }
 
-/** Reparte `valor` de forma uniforme entre [ini, fin] sobre los períodos `lim` (límites). */
-function repartir(valor: number, ini: number, fin: number, lim: number[]): TramoUso | undefined {
+/**
+ * Reparte `valor` entre [ini, fin] sobre los períodos `lim` (límites), en proporción al tiempo
+ * laborable del calendario `cal` que cae en cada período (si no hay tiempo laborable, por tiempo natural).
+ */
+function repartir(valor: number, ini: number, fin: number, lim: number[], cal?: Calendario): TramoUso | undefined {
   if (!valor || !isFinite(ini) || !isFinite(fin)) return undefined;
   if (fin < ini) [ini, fin] = [fin, ini];
   // Período de un instante (búsqueda binaria)
@@ -59,9 +64,12 @@ function repartir(valor: number, ini: number, fin: number, lim: number[]): Tramo
   const p0 = per(ini), p1 = per(Math.max(ini, fin - 1e-6));
   const vals = new Float64Array(p1 - p0 + 1);
   if (fin === ini) { vals[0] = valor; return { desde: p0, vals }; }
+  const laborable = cal ? cal.entre(ini, fin) : 0;
+  const peso = laborable > 0 ? (a: number, b: number) => cal!.entre(a, b) : (a: number, b: number) => b - a;
+  const total = laborable > 0 ? laborable : fin - ini;
   for (let k = p0; k <= p1; k++) {
     const a = Math.max(ini, lim[k]), b = Math.min(fin, lim[k + 1]);
-    if (b > a) vals[k - p0] = (valor * (b - a)) / (fin - ini);
+    if (b > a) vals[k - p0] = (valor * peso(a, b)) / total;
   }
   return { desde: p0, vals };
 }
@@ -90,11 +98,12 @@ export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso): Map<
     const es = g('early_start_date'), ef = g('early_end_date');
     const as = g('act_start_date'), af = g('act_end_date');
     const ps = g('target_start_date') ?? es ?? as, pf = g('target_end_date') ?? ef ?? af;
+    const cal = m.calendarios.get(celda(t, f, 'clndr_id'));
     const u: UsoActividad = {};
-    if (ps != null && pf != null) u.b = repartir(x.b, ps, pf, lim);
-    if (as != null) u.a = repartir(x.a, as, estado === 'TK_Complete' && af != null ? af : Math.max(as, m.fechaDatos), lim);
+    if (ps != null && pf != null) u.b = repartir(x.b, ps, pf, lim, cal);
+    if (as != null) u.a = repartir(x.a, as, estado === 'TK_Complete' && af != null ? af : Math.max(as, m.fechaDatos), lim, cal);
     const rs = estado === 'TK_Active' ? (es ?? m.fechaDatos) : (es ?? as);
-    if (estado !== 'TK_Complete' && rs != null && ef != null) u.r = repartir(x.r, Math.max(rs, estado === 'TK_Active' ? m.fechaDatos : rs), ef, lim);
+    if (estado !== 'TK_Complete' && rs != null && ef != null) u.r = repartir(x.r, Math.max(rs, estado === 'TK_Active' ? m.fechaDatos : rs), ef, lim, cal);
     if (u.b || u.a || u.r) out.set(i, u);
   });
   return out;
