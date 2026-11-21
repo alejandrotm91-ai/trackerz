@@ -7,7 +7,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
-import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
+import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, etiquetaUbicacion, ordenUbicacion, type Clasificacion, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, entradasCpm, type ModeloP6 } from '../../utils/p6/modelo';
@@ -299,13 +299,16 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (padre) padre.hijos.push(n); else raices.push(n);
       return n;
     };
+    // Primer nivel bajo el proyecto: la ubicación (02.Ubicacion) → PTAR Merinos, EBAR Progreso, Guayacanes
+    const nivelesSinUbic = niveles.filter(k => k !== 'ubicacion');
+    const rutaConstructiva = (a: Actividad, udf?: Clasificacion) => [etiquetaUbicacion(valorCampo(a, 'ubicacion', udf)), ...rutaDe(a, nivelesSinUbic, udf)];
     const nodoDe = (ruta: string[]): Nodo => {
       let padre: Nodo | undefined;
       for (let j = 0; j < ruta.length; j++) {
         const id = `g:${ruta.slice(0, j + 1).join('\u241f')}`;
         let n = nodos.get(id);
         if (!n) {
-          n = { id, padre: padre?.id ?? '', cod: '', codCompleto: '', nombre: ruta[j], seq: 0, hijos: [], tareas: [], nivel: j, ini: null, fin: null, n: 0, criticas: 0 };
+          n = { id, padre: padre?.id ?? '', cod: '', codCompleto: '', nombre: ruta[j], seq: j === 0 ? ordenUbicacion(ruta[0]) : 0, hijos: [], tareas: [], nivel: j, ini: null, fin: null, n: 0, criticas: 0 };
           nodos.set(id, n);
           if (padre) padre.hijos.push(n); else raices.push(n);
         }
@@ -328,7 +331,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (!a) { sinMaster++; if (v.tipo === 'TT_Mile' || v.tipo === 'TT_FinMile') hitosSinMaster.push(v); continue; }
       if (!enAmbito(a, ambito, udf)) continue;
       enMaster++;
-      const nodo = nodoDe(rutaDe(a, niveles, udf));
+      const nodo = nodoDe(rutaConstructiva(a, udf));
       nodo.tareas.push(v);
       grupoDeAct.set(v.i, nodo.id);
     }
@@ -395,12 +398,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     for (const [id, a] of idxMaster) {
       if (codigos.has(id) || ocultoEnEjecucion(id) || !enAmbito(a, ambito)) continue;
       soloMaster++;
-      const n = nodoDe(rutaDe(a, niveles));
+      const n = nodoDe(rutaConstructiva(a));
       (n.soloMaster ??= []).push(a);
     }
     const natural = (a: string, b: string) => a.localeCompare(b, 'es', { numeric: true });
     const orden = (a: Nodo, b: Nodo) => (a.fijo || b.fijo ? (a.fijo && b.fijo ? a.seq - b.seq || natural(a.cod, b.cod) : a.fijo ? -1 : 1)
-      : a.nombre === SIN_MASTER ? 1 : b.nombre === SIN_MASTER ? -1 : natural(a.nombre, b.nombre));
+      : a.nombre === SIN_MASTER ? 1 : b.nombre === SIN_MASTER ? -1 : (a.seq - b.seq) || natural(a.nombre, b.nombre));
     // Nivel superior: el proyecto (p. ej. «PTAR Merinos & EB Progreso»), con los totales de todo
     const raiz: Nodo = { id: RAIZ_CONSTRUCTIVA, padre: '', cod: '', codCompleto: '', nombre: arbolWbs.raices[0]?.nombre || 'Proyecto', seq: 0, hijos: raices, tareas: [], nivel: 0, ini: null, fin: null, n: 0, criticas: 0 };
     raices.forEach(h => { h.padre = RAIZ_CONSTRUCTIVA; });
@@ -1075,6 +1078,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           {vista === 'actividades' && enEjecucion && (
             <div className="px-4 py-1.5 border-b border-[#D5DEE2] bg-[#EEF0FB] flex items-center gap-1.5 flex-wrap text-[11px]">
               <span className="font-bold text-[#312E81]">Vista constructiva · niveles:</span>
+              <span className="text-[#5A6A74]" title="Niveles fijos de esta vista">Proyecto</span><ChevronRight className="w-3 h-3 text-[#5A6A74]" />
+              <span className="text-[#5A6A74]" title="Según el campo 02.Ubicacion">Ubicación</span><ChevronRight className="w-3 h-3 text-[#5A6A74]" />
               {niveles.map((k, j) => (
                 <React.Fragment key={k}>
                   {j > 0 && <ChevronRight className="w-3 h-3 text-[#5A6A74]" />}

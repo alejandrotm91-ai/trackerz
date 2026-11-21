@@ -126,3 +126,14 @@ export function ocultoEnEjecucion(cod: string): boolean {
  */
 export const RE_HITO_EQUIPAMIENTO = /equipamiento|\bequipos?\b|montaje de equipos|instalaci[oó]n de equipos|motorizad/i;
 export const RE_HITO_CONSTRUCCION = /\bobras?\b|civil|arquitect[oó]nic|tuber[ií]a|agua(s)? lluvia|pluvial|agua de servicio|sanitari|hormig[oó]n|estructura|urbaniz|vial(idad)?\b|cubierta|mamposter|enlucid|pintura|cimentaci|relleno|excavaci|movimiento de tierras|alcantarill|drenaje/i;
+
+/** Nombre de la ubicación (02.Ubicacion) en la vista constructiva y su orden. */
+const UBICACIONES: [RegExp, string][] = [[/merinos/i, 'PTAR Merinos'], [/progreso/i, 'EBAR Progreso'], [/guayacanes/i, 'Guayacanes']];
+export function etiquetaUbicacion(v: string): string {
+  const u = UBICACIONES.find(([re]) => re.test(v));
+  return u ? u[1] : v || '(sin Ubicación)';
+}
+export function ordenUbicacion(etq: string): number {
+  const k = UBICACIONES.findIndex(([, e]) => e === etq);
+  return k >= 0 ? k + 1 : 9;
+}
