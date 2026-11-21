@@ -52,6 +52,8 @@ const BANDAS_WBS: [string, string][] = [
   ['#FFB8E1', '#14212A'], // nivel 5: rosa
   ['#D9C8FF', '#14212A'], // nivel 6: lavanda
 ];
+/** Nodo superior (el proyecto) de la vista constructiva. */
+const RAIZ_CONSTRUCTIVA = 'g:__proyecto';
 const bandaWbs = (nivel: number) => (nivel < BANDAS_WBS.length ? BANDAS_WBS[nivel] : BANDAS_WBS[4 + ((nivel - 4) % 3)]);
 
 const esHitoFinTipo = (tipo: string) => tipo === 'TT_FinMile';
@@ -399,12 +401,17 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     const natural = (a: string, b: string) => a.localeCompare(b, 'es', { numeric: true });
     const orden = (a: Nodo, b: Nodo) => (a.fijo || b.fijo ? (a.fijo && b.fijo ? a.seq - b.seq || natural(a.cod, b.cod) : a.fijo ? -1 : 1)
       : a.nombre === SIN_MASTER ? 1 : b.nombre === SIN_MASTER ? -1 : natural(a.nombre, b.nombre));
-    raices.sort(orden);
-    raices.forEach(r => resumirNodo(r, 0, undefined, false, orden));
-    return { raices, nodos, enMaster, sinMaster, soloMaster, excluidas, grupoDeAct, hitosUbicados };
+    // Nivel superior: el proyecto (p. ej. «PTAR Merinos & EB Progreso»), con los totales de todo
+    const raiz: Nodo = { id: RAIZ_CONSTRUCTIVA, padre: '', cod: '', codCompleto: '', nombre: arbolWbs.raices[0]?.nombre || 'Proyecto', seq: 0, hijos: raices, tareas: [], nivel: 0, ini: null, fin: null, n: 0, criticas: 0 };
+    raices.forEach(h => { h.padre = RAIZ_CONSTRUCTIVA; });
+    nodos.set(RAIZ_CONSTRUCTIVA, raiz);
+    resumirNodo(raiz, 0, undefined, false, orden);
+    return { raices: [raiz], nodos, enMaster, sinMaster, soloMaster, excluidas, grupoDeAct, hitosUbicados };
   }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs, ambito, clasifXer]);
 
   const enEjecucion = agrupacion === 'ejecucion' && hayMaster;
+  // Al entrar en la vista constructiva, el proyecto (nivel superior) se ve abierto
+  React.useEffect(() => { if (enEjecucion) setAbiertos(prev => (prev.has(RAIZ_CONSTRUCTIVA) ? prev : new Set([...prev, RAIZ_CONSTRUCTIVA]))); }, [enEjecucion]);
   React.useEffect(() => { if (!enEjecucion) setFiltroEstado(f => (f === 'soloMaster' ? 'todas' : f)); }, [enEjecucion]);
   const arbol: { raices: Nodo[]; nodos: Map<string, Nodo> } = enEjecucion ? arbolEjec : arbolWbs;
 
@@ -679,7 +686,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     let grupo: string | undefined = v.wbs;
     if (enEjecucion) {
       grupo = arbolEjec.grupoDeAct.get(i);
-      if (!grupo) { setAgrupacion('wbs'); grupo = v.wbs; mostrar(`${v.cod} no está en la vista de ejecución (sin datos en el Master, WBS «.D» o fuera del ámbito): se muestra en la WBS de P6.`); }
+      if (!grupo) { setAgrupacion('wbs'); grupo = v.wbs; mostrar(`${v.cod} no está en la vista constructiva (sin datos en el Master, WBS «.D» o fuera del ámbito): se muestra en la WBS de P6.`); }
     }
     const arb = enEjecucion && arbolEjec.grupoDeAct.has(i) ? arbolEjec : arbolWbs;
     const cadena: string[] = [];
@@ -1029,14 +1036,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           <div className={`px-4 py-2 bg-white border-b border-[#D5DEE2] flex items-center gap-2 flex-wrap shrink-0 text-xs ${vista === 'actividades' ? '' : 'hidden'}`}>
             {vista === 'actividades' && (
               <>
-                <select value={enEjecucion ? 'ejecucion' : 'wbs'} onChange={e => { setAgrupacion(e.target.value as 'wbs' | 'ejecucion'); setAbiertos(new Set()); }}
-                  disabled={!hayMaster} title={hayMaster ? 'Cómo se agrupan las actividades' : 'Carga el Master para usar la vista de ejecución'}
+                <select value={enEjecucion ? 'ejecucion' : 'wbs'} onChange={e => { setAgrupacion(e.target.value as 'wbs' | 'ejecucion'); setAbiertos(new Set([RAIZ_CONSTRUCTIVA, ...arbolWbs.raices.map(x => x.id)])); }}
+                  disabled={!hayMaster} title={hayMaster ? 'Cómo se agrupan las actividades' : 'Carga el Master para usar la vista constructiva'}
                   className={`border rounded-lg px-2 py-1.5 font-semibold ${enEjecucion ? 'bg-[#312E81] border-[#312E81] text-white' : 'bg-white border-[#D5DEE2]'}`}>
                   <option value="wbs">Agrupar: WBS de P6</option>
-                  <option value="ejecucion">Agrupar: Ejecución (Master)</option>
+                  <option value="ejecucion">Agrupar: Constructiva</option>
                 </select>
                 {enEjecucion && (
-                  <select value={ambito} onChange={e => { setAmbito(e.target.value as Ambito); setAbiertos(new Set()); }}
+                  <select value={ambito} onChange={e => { setAmbito(e.target.value as Ambito); setAbiertos(new Set([RAIZ_CONSTRUCTIVA])); }}
                     title="Construcción: grupos del Master con «Construccion» o «Constr.»; Equipamiento: el resto"
                     className={`border rounded-lg px-2 py-1.5 font-semibold ${ambito !== 'todo' ? 'bg-[#EEF0FB] border-[#312E81] text-[#312E81]' : 'bg-white border-[#D5DEE2]'}`}>
                     <option value="todo">Construcción y equipamiento</option>
@@ -1067,7 +1074,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
 
           {vista === 'actividades' && enEjecucion && (
             <div className="px-4 py-1.5 border-b border-[#D5DEE2] bg-[#EEF0FB] flex items-center gap-1.5 flex-wrap text-[11px]">
-              <span className="font-bold text-[#312E81]">Vista de ejecución · niveles:</span>
+              <span className="font-bold text-[#312E81]">Vista constructiva · niveles:</span>
               {niveles.map((k, j) => (
                 <React.Fragment key={k}>
                   {j > 0 && <ChevronRight className="w-3 h-3 text-[#5A6A74]" />}
@@ -1149,7 +1156,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     if (fl.tipo === 'wbs') {
                       const n = fl.nodo;
                       const abierto = filtrando ? !cerradosF.has(n.id) : abiertos.has(n.id);
-                      const [fondo, texto] = bandaWbs(fl.nivel);
+                      const [fondo, texto] = enEjecucion ? (n.id === RAIZ_CONSTRUCTIVA ? ['#FFE14D', '#14212A'] : bandaWbs(Math.max(0, fl.nivel - 1))) : bandaWbs(fl.nivel);
                       const claro = texto !== '#FFFFFF';
                       return (
                         <div key={`w${n.id}`} className="absolute flex text-[11px] font-bold cursor-pointer bg-white border-b border-[#E6EAEC]" style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt, outline: wbsSel === n.id ? '2px solid #CD0000' : undefined, outlineOffset: -2 }} onClick={() => { alternar(n.id); setWbsSel(n.id); }}>
@@ -1162,7 +1169,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                             <div className="w-[104px]" />
                             <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.ini ?? n.ini)}</div>
                             <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.fin ?? n.fin)}</div>
-                            {(() => { const rs = resumenWbs.get(n.id); const vf = variacionFin(rs?.lbFin, rs?.fin ?? n.fin); return <div className="w-[58px] text-right px-1">{vf == null ? '' : dias(vf, 8)}</div>; })()}
+                            {(() => {
+                              const vfDe = (x: Nodo) => { const rs = resumenWbs.get(x.id); return variacionFin(rs?.lbFin, rs?.fin ?? x.fin); };
+                              // En el proyecto de la vista constructiva: la variación más negativa de sus grupos
+                              const vf = n.id === RAIZ_CONSTRUCTIVA
+                                ? n.hijos.map(vfDe).filter((x): x is number => x != null).reduce<number | null>((a, b) => (a == null || b < a ? b : a), null)
+                                : vfDe(n);
+                              return <div className="w-[58px] text-right px-1" title={n.id === RAIZ_CONSTRUCTIVA ? 'La variación de fin más negativa de sus grupos' : undefined}>{vf == null ? '' : dias(vf, 8)}</div>;
+                            })()}
                             <div className={`w-[160px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas && filtroEstado !== 'soloMaster' ? `${n.criticas} críticas` : ''}</div>
                           </div>
                           {(() => {
