@@ -83,6 +83,8 @@ interface Nodo {
   soloMaster?: Actividad[];
   /** Nº de rubros solo del Master en el nodo y sus hijos. */
   nSolo?: number;
+  /** Vista de ejecución: grupo copiado de la WBS de P6 (hitos del proyecto); va siempre primero. */
+  fijo?: boolean;
 }
 type Fila = { tipo: 'wbs'; nodo: Nodo; nivel: number } | { tipo: 'act'; vt: Vt; nivel: number } | { tipo: 'master'; a: Actividad; nivel: number };
 
@@ -275,6 +277,26 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       while (pila.length) { const x = pila.pop()!; wbsExcluidos.add(x.id); pila.push(...x.hijos); }
     }
     let excluidas = 0;
+    // Hitos del proyecto (WBS «.A» Eventos clave y «.B» Hitos contractuales, con sus sub-WBS):
+    // en la vista de ejecución se muestran con la misma jerarquía que en la WBS de P6, al principio.
+    const wbsEspejo = new Set<string>();
+    for (const raiz of arbolWbs.raices) {
+      for (const h of raiz.hijos.filter(x => ['A', 'B'].includes(x.cod.toUpperCase()))) {
+        const pila = [h];
+        while (pila.length) { const x = pila.pop()!; wbsEspejo.add(x.id); pila.push(...x.hijos); }
+      }
+    }
+    const nodoEspejo = (wbsId: string): Nodo => {
+      const id = `w:${wbsId}`;
+      const ya = nodos.get(id);
+      if (ya) return ya;
+      const w = arbolWbs.nodos.get(wbsId)!;
+      const padre = wbsEspejo.has(w.padre) ? nodoEspejo(w.padre) : undefined;
+      const n: Nodo = { id, padre: padre?.id ?? '', cod: w.cod, codCompleto: w.codCompleto, nombre: w.nombre, seq: w.seq, hijos: [], tareas: [], nivel: 0, ini: null, fin: null, n: 0, criticas: 0, fijo: true };
+      nodos.set(id, n);
+      if (padre) padre.hijos.push(n); else raices.push(n);
+      return n;
+    };
     const nodoDe = (ruta: string[]): Nodo => {
       let padre: Nodo | undefined;
       for (let j = 0; j < ruta.length; j++) {
@@ -297,6 +319,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       codigos.add(v.cod);
       if (wbsExcluidos.has(v.wbs)) { excluidas++; continue; }
       if (ocultoEnEjecucion(v.cod)) continue;
+      if (wbsEspejo.has(v.wbs)) { const n = nodoEspejo(v.wbs); n.tareas.push(v); grupoDeAct.set(v.i, n.id); continue; }
       const a = idxMaster.get(v.cod);
       const udf = clasifXer.get(v.cod);
       // Las actividades del XER sin datos en el Master no tienen grupo propio; los hitos se ubican abajo
@@ -321,7 +344,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       // El grupo más repetido entre las vecinas ya ubicadas
       const grupoMasComun = (vecinas: number[] | undefined) => {
         const cuenta = new Map<string, number>();
-        for (const j of vecinas ?? []) { const g = grupoDeAct.get(j); if (g) cuenta.set(g, (cuenta.get(g) ?? 0) + 1); }
+        // (los grupos copiados de la WBS de hitos no reciben otros hitos)
+        for (const j of vecinas ?? []) { const g = grupoDeAct.get(j); if (g && !g.startsWith('w:')) cuenta.set(g, (cuenta.get(g) ?? 0) + 1); }
         let mejor: string | undefined, n = 0;
         for (const [g, c] of cuenta) if (c > n) { mejor = g; n = c; }
         return mejor;
@@ -348,7 +372,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       (n.soloMaster ??= []).push(a);
     }
     const natural = (a: string, b: string) => a.localeCompare(b, 'es', { numeric: true });
-    const orden = (a: Nodo, b: Nodo) => (a.nombre === SIN_MASTER ? 1 : b.nombre === SIN_MASTER ? -1 : natural(a.nombre, b.nombre));
+    const orden = (a: Nodo, b: Nodo) => (a.fijo || b.fijo ? (a.fijo && b.fijo ? a.seq - b.seq || natural(a.cod, b.cod) : a.fijo ? -1 : 1)
+      : a.nombre === SIN_MASTER ? 1 : b.nombre === SIN_MASTER ? -1 : natural(a.nombre, b.nombre));
     raices.sort(orden);
     raices.forEach(r => resumirNodo(r, 0, undefined, false, orden));
     return { raices, nodos, enMaster, sinMaster, soloMaster, excluidas, grupoDeAct, hitosUbicados };
@@ -376,6 +401,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     // En la vista de ejecución el orden por fecha se aplica también a los grupos de todos los niveles
     // (por el inicio o fin de cada grupo); en la WBS de P6 los WBS conservan su orden.
     const ordenarGrupos = (lista: Nodo[]) => (!orden || !enEjecucion ? lista : [...lista].sort((a, b) => {
+      if (a.fijo || b.fijo) return a.fijo && b.fijo ? 0 : a.fijo ? -1 : 1; // los hitos del proyecto, siempre arriba
       if (a.nombre === SIN_MASTER || b.nombre === SIN_MASTER) return a.nombre === SIN_MASTER ? 1 : -1;
       const x = a[orden.col], y = b[orden.col];
       if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
