@@ -55,6 +55,10 @@ const BANDAS_WBS: [string, string][] = [
   ['#FFB8E1', '#14212A'], // nivel 5: rosa
   ['#D9C8FF', '#14212A'], // nivel 6: lavanda
 ];
+/** Condición de filtro sobre un campo de usuario de actividades. */
+interface FiltroUdf { campo: string; op: 'igual' | 'distinto' | 'contiene' | 'vacio'; valor: string }
+const OPS_UDF: [FiltroUdf['op'], string][] = [['igual', 'equals'], ['distinto', 'is not'], ['contiene', 'contains'], ['vacio', 'is empty']];
+
 /** Opciones de Group & Sort. */
 interface OpcionesGrupo {
   /** Oculta las bandas sin actividades (Hide if empty). */
@@ -138,6 +142,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [cerradosF, setCerradosF] = React.useState<Set<string>>(new Set());
   const [filtro, setFiltro] = React.useState('');
   const [filtroTmp, setFiltroTmp] = React.useState('');
+  // Filtros por campos de usuario (User Defined): condiciones que se combinan con AND
+  const [filtrosUdf, setFiltrosUdf] = React.useState<FiltroUdf[]>([]);
   const [filtroEstado, setFiltroEstado] = React.useState<'todas' | 'pendientes' | 'noiniciadas' | 'terminadas' | 'criticas' | 'longest' | 'encurso' | 'soloMaster'>('todas');
   const [vista, setVista] = React.useState<'actividades' | 'wbs' | 'recursos'>('actividades');
   // Orden de las actividades dentro de cada grupo (clic en el encabezado Inicio / Fin)
@@ -485,7 +491,25 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   React.useEffect(() => { if (!enEjecucion) setFiltroEstado(f => (f === 'soloMaster' ? 'todas' : f)); }, [enEjecucion]);
   const arbol: { raices: Nodo[]; nodos: Map<string, Nodo> } = enEjecucion ? arbolEjec : arbolWbs;
 
+  const condUdf = React.useMemo(() => filtrosUdf.filter(f => f.campo && (f.op === 'vacio' || f.valor.trim())), [filtrosUdf]);
+  const hayFiltroUdf = condUdf.length > 0;
+  const camposFiltroUdf = filtrosUdf.map(f => f.campo).filter(Boolean).join('|');
+  const udfFiltroVals = React.useMemo(() => valoresUdf(m, camposFiltroUdf ? camposFiltroUdf.split('|').map(c => `udf:${c}`) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [m, camposFiltroUdf, version]);
+  const pasaUdf = React.useCallback((v: Vt) => condUdf.every(f => {
+    const val = (udfFiltroVals.get(f.campo)?.get(v.id) ?? '').trim().toLowerCase();
+    const q = f.valor.trim().toLowerCase();
+    switch (f.op) {
+      case 'igual': return val === q || (/^\d{4}-\d{2}-\d{2}/.test(val) && val.startsWith(q));
+      case 'distinto': return val !== q;
+      case 'contiene': return val.includes(q);
+      case 'vacio': return val === '' || val === '0';
+    }
+    return true;
+  }), [condUdf, udfFiltroVals]);
   const pasa = React.useCallback((v: Vt) => {
+    if (hayFiltroUdf && !pasaUdf(v)) return false;
     if (filtroEstado === 'pendientes' && v.estado === 'TK_Complete') return false;
     if (filtroEstado === 'encurso' && v.estado !== 'TK_Active') return false;
     if (filtroEstado === 'noiniciadas' && v.estado !== 'TK_NotStart') return false;
@@ -498,7 +522,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (!v.cod.toLowerCase().includes(q) && !v.nombre.toLowerCase().includes(q)) return false;
     }
     return true;
-  }, [filtro, filtroEstado]);
+  }, [filtro, filtroEstado, hayFiltroUdf, pasaUdf]);
 
   const filas = React.useMemo<Fila[]>(() => {
     const out: Fila[] = [];
@@ -514,13 +538,13 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
       return (x - y) * orden.dir || a.nombre.localeCompare(b.nombre, 'es', { numeric: true });
     }));
-    const filtrando = !!filtro || filtroEstado !== 'todas';
+    const filtrando = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf;
     const contiene = new Map<string, boolean>();
     const tiene = (n: Nodo): boolean => {
       if (contiene.has(n.id)) return contiene.get(n.id)!;
       const q = filtro.toLowerCase();
       const r = n.tareas.some(pasa) || n.hijos.some(tiene)
-        || (!!n.soloMaster?.some(a => String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)));
+        || (!hayFiltroUdf && !!n.soloMaster?.some(a => String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)));
       contiene.set(n.id, r);
       return r;
     };
@@ -539,7 +563,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       for (const v of tareas) if (!filtrando || pasa(v)) out.push({ tipo: 'act', vt: v, nivel: n.nivel + 1 });
       // Rubros del Master que todavía no están en Primavera (sin programación): se muestran
       // también con filtros de estado; la búsqueda por texto sí los filtra.
-      if (n.soloMaster) {
+      if (n.soloMaster && !hayFiltroUdf) {
         const q = filtro.toLowerCase();
         const fechaM = (a: Actividad) => minutosDeFecha(orden?.col === 'fin' ? a.finish ?? a.blFinish : a.start ?? a.blStart);
         const solo = orden ? [...n.soloMaster].sort((a, b) => {
@@ -807,10 +831,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   };
 
   // El botón Filter se resalta solo con los filtros de su menú (Critical y Longest tienen sus botones)
-  const filtroMenuActivo = filtroEstado !== 'todas' && filtroEstado !== 'criticas' && filtroEstado !== 'longest';
-  const filtrando = !!filtro || filtroEstado !== 'todas';
+  const filtroMenuActivo = (filtroEstado !== 'todas' && filtroEstado !== 'criticas' && filtroEstado !== 'longest') || hayFiltroUdf;
+  const filtrando = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf;
   // Cada filtro nuevo empieza desplegado
-  React.useEffect(() => { setCerradosF(new Set()); }, [filtro, filtroEstado]);
+  React.useEffect(() => { setCerradosF(new Set()); }, [filtro, filtroEstado, condUdf]);
   const alternarEn = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => (id: string) =>
     set(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const alternar = (id: string) => (filtrando ? alternarEn(setCerradosF) : alternarEn(setAbiertos))(id);
@@ -851,8 +875,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     const v = vts[i];
     if (!v) return;
     // Si el filtro la oculta, se quita el filtro
-    if ((filtro || filtroEstado !== 'todas') && !pasa(v)) {
-      setFiltro(''); setFiltroTmp(''); setFiltroEstado('todas');
+    if ((filtro || filtroEstado !== 'todas' || hayFiltroUdf) && !pasa(v)) {
+      setFiltro(''); setFiltroTmp(''); setFiltroEstado('todas'); setFiltrosUdf([]);
       mostrar(`Filter cleared to show ${v.cod}.`);
     }
     let grupo: string | undefined = v.wbs;
@@ -915,7 +939,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     type R = { ini: number | null; fin: number | null; realIni: number | null; realFin: number | null; restIni: number | null; restFin: number | null; roja: boolean; lbIni: number | null; lbFin: number | null };
     const out = new Map<string, R>();
     if (!m) return out;
-    const filtrandoR = !!filtro || filtroEstado !== 'todas';
+    const filtrandoR = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf;
     const mn = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.min(a, b));
     const mx = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.max(a, b));
     const ver = (n: Nodo): R => {
@@ -1132,7 +1156,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             })}
             <div className="w-7 h-px bg-[#C3C3C3] my-1" />
             <div className="relative">
-              <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${NOMBRE_FILTRO[filtroEstado] ?? ''}`}
+              <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${NOMBRE_FILTRO[filtroEstado] ?? ''}${hayFiltroUdf ? ` · ${condUdf.length} User Defined condition${condUdf.length > 1 ? 's' : ''}` : ''}`}
                 className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroMenuActivo ? 'bg-[#E4E6F7] border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
                 <svg width="22" height="16" viewBox="0 0 22 16"><path d="M3 2 H19 L13 8.5 V14 L9 12.5 V8.5 Z" fill={filtroMenuActivo ? '#312E81' : '#9AA6AD'} stroke="#3A3A3A" strokeWidth="0.8" /></svg>
                 <span className="text-[8.5px] leading-none">Filter</span>
@@ -1140,7 +1164,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               {menuFiltro && (
                 <>
                   <div className="fixed inset-0 z-[60]" onClick={() => setMenuFiltro(false)} />
-                  <div className="absolute left-[44px] top-0 z-[61] w-[250px] bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
+                  <div className="absolute left-[44px] top-0 z-[61] w-[470px] bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
                     <div className="flex items-center justify-between px-3 py-1.5 bg-[#F0F0F0] border-b border-[#D5D5D5] rounded-t-lg">
                       <b>Status Filter</b>
                       <button onClick={() => setMenuFiltro(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
@@ -1148,10 +1172,48 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     <div className="p-2 flex flex-col gap-0.5">
                       {FILTROS_ESTADO.filter(([k]) => k !== 'soloMaster' || enEjecucion).map(([k, etq]) => (
                         <label key={k} className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer ${filtroEstado === k ? 'border-[#8A8FC9] bg-[#EEF0FB] font-semibold' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
-                          <input type="radio" name="filtroEstado" checked={filtroEstado === k} onChange={() => { setFiltroEstado(k); setMenuFiltro(false); }} />
+                          <input type="radio" name="filtroEstado" checked={filtroEstado === k} onChange={() => setFiltroEstado(k)} />
                           {etq}
                         </label>
                       ))}
+                    </div>
+                    {/* Filtros por campos de usuario */}
+                    <div className="border-t border-[#E2E2E2] p-2">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <b>User Defined</b>
+                        <span className="text-[10.5px] text-[#5A6A74]">all conditions must be met (AND)</span>
+                        {filtrosUdf.length > 0 && <button onClick={() => setFiltrosUdf([])} className="ml-auto text-[#312E81] underline cursor-pointer">Clear</button>}
+                      </div>
+                      {filtrosUdf.map((f, k) => {
+                        const vals = udfFiltroVals.get(f.campo);
+                        const distintos = vals ? [...[...vals.values()].reduce((mm, x) => mm.set(x, (mm.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]).slice(0, 300) : [];
+                        const poner = (cambio: Partial<FiltroUdf>) => setFiltrosUdf(fs => fs.map((x, y) => (y === k ? { ...x, ...cambio } : x)));
+                        return (
+                          <div key={k} className="flex items-center gap-1 mb-1">
+                            <select value={f.campo} onChange={e => poner({ campo: e.target.value, valor: '' })} className="border border-[#D5DEE2] rounded px-1 py-1 w-[150px] bg-white">
+                              <option value="">Field…</option>
+                              {catalogo.filter(c => c.id.startsWith('udf:')).map(c => <option key={c.id} value={c.id.slice(4)}>{c.titulo}</option>)}
+                            </select>
+                            <select value={f.op} onChange={e => poner({ op: e.target.value as FiltroUdf['op'] })} className="border border-[#D5DEE2] rounded px-1 py-1 bg-white">
+                              {OPS_UDF.map(([o, etq]) => <option key={o} value={o}>{etq}</option>)}
+                            </select>
+                            {f.op !== 'vacio' && (
+                              <>
+                                <input list={`udf-vals-${k}`} value={f.valor} onChange={e => poner({ valor: e.target.value })} placeholder={f.campo ? 'Value…' : ''} disabled={!f.campo}
+                                  className="border border-[#D5DEE2] rounded px-1.5 py-1 flex-1 min-w-0" />
+                                <datalist id={`udf-vals-${k}`}>
+                                  {distintos.map(([x, c]) => <option key={x} value={x}>{`${c} activities`}</option>)}
+                                </datalist>
+                              </>
+                            )}
+                            <button onClick={() => setFiltrosUdf(fs => fs.filter((_, y) => y !== k))} title="Remove condition" className="p-1 text-[#5A6A74] hover:text-red-600 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                          </div>
+                        );
+                      })}
+                      <button onClick={() => setFiltrosUdf(fs => [...fs, { campo: '', op: 'igual', valor: '' }])} className="mt-0.5 px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> Add condition
+                      </button>
+                      {hayFiltroUdf && <div className="mt-1.5 text-[10.5px] text-[#5A6A74]">Master-only items are hidden while a User Defined filter is active.</div>}
                     </div>
                   </div>
                 </>
