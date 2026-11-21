@@ -7,7 +7,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
-import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, enAmbito, ocultoEnEjecucion, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
+import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, entradasCpm, type ModeloP6 } from '../../utils/p6/modelo';
@@ -330,8 +330,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       nodo.tareas.push(v);
       grupoDeAct.set(v.i, nodo.id);
     }
-    // Hitos sin datos en el Master: se muestran en el grupo de las actividades con que se relacionan
-    // que sí está en la vista. Se repite para cadenas de hitos (hito → hito → actividad).
+    // Hitos sin datos en el Master: se muestran en el grupo de las actividades con que se relacionan.
+    // 1) Su ámbito (construcción / equipamiento) se decide con TODO el proyecto, no solo con lo visible:
+    //    por el nombre del hito y, si no lo dice, por la mayoría de sus relacionadas.
+    // 2) Si no es del ámbito elegido, no se muestra; si lo es, va al grupo más repetido entre sus
+    //    relacionadas de ese mismo ámbito. Se repite para cadenas de hitos (hito → hito → actividad).
     let hitosUbicados = 0;
     if (hitosSinMaster.length) {
       const suc = new Map<number, number[]>(), pre = new Map<number, number[]>();
@@ -341,23 +344,45 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         (suc.get(p0) ?? suc.set(p0, []).get(p0)!).push(s0);
         (pre.get(s0) ?? pre.set(s0, []).get(s0)!).push(p0);
       }
-      // El grupo más repetido entre las vecinas ya ubicadas
-      const grupoMasComun = (vecinas: number[] | undefined) => {
+      // Ámbito de cada actividad con datos (true = construcción), sin importar el ámbito elegido
+      const esConstr = new Map<number, boolean>();
+      for (const v of vts) {
+        const a = idxMaster.get(v.cod);
+        if (a) esConstr.set(v.i, esConstruccion(valorCampo(a, 'grupo', clasifXer.get(v.cod))));
+      }
+      const ambitoPorNombre = (nombre: string): boolean | undefined =>
+        RE_HITO_EQUIPAMIENTO.test(nombre) ? false : RE_HITO_CONSTRUCCION.test(nombre) ? true : undefined;
+      const mayoria = (vecinas: number[] | undefined): boolean | undefined => {
+        let c = 0, e = 0;
+        for (const j of vecinas ?? []) { const x = esConstr.get(j); if (x === true) c++; else if (x === false) e++; }
+        return c + e === 0 ? undefined : c >= e;
+      };
+      // El grupo más repetido entre las vecinas ya ubicadas del mismo ámbito
+      const grupoMasComun = (vecinas: number[] | undefined, constr: boolean | null) => {
         const cuenta = new Map<string, number>();
         // (los grupos copiados de la WBS de hitos no reciben otros hitos)
-        for (const j of vecinas ?? []) { const g = grupoDeAct.get(j); if (g && !g.startsWith('w:')) cuenta.set(g, (cuenta.get(g) ?? 0) + 1); }
+        for (const j of vecinas ?? []) {
+          const g = grupoDeAct.get(j);
+          if (g && !g.startsWith('w:') && (constr === null || esConstr.get(j) === constr)) cuenta.set(g, (cuenta.get(g) ?? 0) + 1);
+        }
         let mejor: string | undefined, n = 0;
         for (const [g, c] of cuenta) if (c > n) { mejor = g; n = c; }
         return mejor;
       };
       let pendientes = hitosSinMaster;
-      for (let vuelta = 0; vuelta < 6 && pendientes.length; vuelta++) {
+      for (let vuelta = 0; vuelta < 8 && pendientes.length; vuelta++) {
         const quedan: Vt[] = [];
         for (const v of pendientes) {
           // Hito de inicio → con lo que arranca (sucesoras); hito de fin → con lo que cierra (predecesoras)
-          const g = v.tipo === 'TT_FinMile'
-            ? grupoMasComun(pre.get(v.i)) ?? grupoMasComun(suc.get(v.i))
-            : grupoMasComun(suc.get(v.i)) ?? grupoMasComun(pre.get(v.i));
+          const [prim, seg] = v.tipo === 'TT_FinMile' ? [pre.get(v.i), suc.get(v.i)] : [suc.get(v.i), pre.get(v.i)];
+          let constr = esConstr.get(v.i);
+          if (constr === undefined) constr = ambitoPorNombre(v.nombre) ?? mayoria(prim) ?? mayoria(seg);
+          if (constr === undefined) { quedan.push(v); continue; }
+          esConstr.set(v.i, constr);
+          if (ambito !== 'todo' && constr !== (ambito === 'construccion')) continue; // de otro ámbito: no se muestra
+          // En la vista combinada, si no hay relacionadas de su ámbito, va con cualquiera de ellas
+          const g = grupoMasComun(prim, constr) ?? grupoMasComun(seg, constr)
+            ?? (ambito === 'todo' && vuelta >= 2 ? grupoMasComun(prim, null) ?? grupoMasComun(seg, null) : undefined);
           if (g) { grupoDeAct.set(v.i, g); nodos.get(g)!.tareas.push(v); hitosUbicados++; } else quedan.push(v);
         }
         if (quedan.length === pendientes.length) break;

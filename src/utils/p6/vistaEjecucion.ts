@@ -119,3 +119,10 @@ export function ocultoEnEjecucion(cod: string): boolean {
   const m = /^(.*)\.([ADEF])$/i.exec(String(cod).trim());
   return !!m && BASES_OCULTAS.has(m[1]);
 }
+
+/**
+ * Ámbito de un hito sin datos en el Master por su nombre. Primero se mira si habla de equipos
+ * (p. ej. «Fin Equipamiento Tanque de Agua de Servicio» es de equipamiento); si no, si habla de obra.
+ */
+export const RE_HITO_EQUIPAMIENTO = /equipamiento|\bequipos?\b|montaje de equipos|instalaci[oó]n de equipos|motorizad/i;
+export const RE_HITO_CONSTRUCCION = /\bobras?\b|civil|arquitect[oó]nic|tuber[ií]a|agua(s)? lluvia|pluvial|agua de servicio|sanitari|hormig[oó]n|estructura|urbaniz|vial(idad)?\b|cubierta|mamposter|enlucid|pintura|cimentaci|relleno|excavaci|movimiento de tierras|alcantarill|drenaje/i;
