@@ -54,6 +54,32 @@ const BANDAS_WBS: [string, string][] = [
   ['#FFB8E1', '#14212A'], // nivel 5: rosa
   ['#D9C8FF', '#14212A'], // nivel 6: lavanda
 ];
+/** Opciones de Group & Sort. */
+interface OpcionesGrupo {
+  /** Oculta las bandas sin actividades (Hide if empty). */
+  ocultarVacios: boolean;
+  /** Fechas, variación y críticas en las bandas (Show Group Totals). */
+  totales: boolean;
+  /** Mostrar código e/o nombre en las bandas. */
+  codigo: boolean;
+  nombre: boolean;
+  /** Ordenar las bandas alfabéticamente (vista WBS). */
+  alfabetico: boolean;
+}
+const OPC_GRUPO_DEF: OpcionesGrupo = { ocultarVacios: true, totales: true, codigo: true, nombre: true, alfabetico: false };
+/** Colores [fondo, texto] por nivel de banda, uno para cada vista. */
+interface Paletas { wbs: [string, string][]; constr: [string, string][] }
+const PALETAS_DEF: Paletas = { wbs: BANDAS_WBS_DEF(), constr: [['#FFE14D', '#14212A'], ...BANDAS_WBS_DEF().slice(1)] };
+function BANDAS_WBS_DEF(): [string, string][] {
+  return [['#1F7CC4', '#FFFFFF'], ['#7CF27C', '#14212A'], ['#FFFF66', '#14212A'], ['#2B2BD9', '#FFFFFF'], ['#9FE7FF', '#14212A'], ['#FFB8E1', '#14212A'], ['#D9C8FF', '#14212A'], ['#FFD8A8', '#14212A']];
+}
+/** ¿Fondo oscuro? (para elegir tonos legibles sobre la banda) */
+const esOscuro = (hex: string) => {
+  const h = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map(k => parseInt(h.slice(k, k + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.5;
+};
+
 /** Nodo superior (el proyecto) de la vista constructiva. */
 const RAIZ_CONSTRUCTIVA = 'g:__proyecto';
 const bandaWbs = (nivel: number) => (nivel < BANDAS_WBS.length ? BANDAS_WBS[nivel] : BANDAS_WBS[4 + ((nivel - 4) % 3)]);
@@ -136,6 +162,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const leerLS = <T,>(k: string, def: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : def; } catch { return def; } };
   const [agrupacion, setAgrupacion] = React.useState<'wbs' | 'ejecucion'>(() => leerLS('p6.agrupacion', 'wbs'));
   const [niveles, setNiveles] = React.useState<CampoAgrupacion[]>(() => leerLS('p6.niveles', NIVELES_POR_DEFECTO));
+  // Group & Sort (como en P6): opciones de presentación de las bandas y colores por nivel
+  const [opcGrupo, setOpcGrupo] = React.useState<OpcionesGrupo>(() => ({ ...OPC_GRUPO_DEF, ...leerLS<Partial<OpcionesGrupo>>('p6.grupo', {}) }));
+  const [paletas, setPaletas] = React.useState<Paletas>(() => ({ ...PALETAS_DEF, ...leerLS<Partial<Paletas>>('p6.paletas', {}) }));
+  React.useEffect(() => { try { localStorage.setItem('p6.grupo', JSON.stringify(opcGrupo)); localStorage.setItem('p6.paletas', JSON.stringify(paletas)); } catch { /* sin almacenamiento */ } }, [opcGrupo, paletas]);
+  const [verGrupo, setVerGrupo] = React.useState(false);
   const [ambito, setAmbito] = React.useState<Ambito>(() => leerLS('p6.ambito', 'todo'));
   React.useEffect(() => { try { localStorage.setItem('p6.ambito', JSON.stringify(ambito)); } catch { /* sin almacenamiento */ } }, [ambito]);
   React.useEffect(() => { try { localStorage.setItem('p6.agrupacion', JSON.stringify(agrupacion)); localStorage.setItem('p6.niveles', JSON.stringify(niveles)); } catch { /* sin almacenamiento */ } }, [agrupacion, niveles]);
@@ -439,7 +470,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     const out: Fila[] = [];
     // En la vista de ejecución el orden por fecha se aplica también a los grupos de todos los niveles
     // (por el inicio o fin de cada grupo); en la WBS de P6 los WBS conservan su orden.
-    const ordenarGrupos = (lista: Nodo[]) => (!orden || !enEjecucion ? lista : [...lista].sort((a, b) => {
+    const natural = (a: string, b: string) => a.localeCompare(b, 'es', { numeric: true });
+    const ordenarGrupos = (lista: Nodo[]) => (!orden || !enEjecucion ? (!enEjecucion && opcGrupo.alfabetico
+      ? [...lista].sort((a, b) => natural(opcGrupo.codigo ? a.codCompleto : a.nombre, opcGrupo.codigo ? b.codCompleto : b.nombre))
+      : lista) : [...lista].sort((a, b) => {
       if (a.fijo || b.fijo) return a.fijo && b.fijo ? 0 : a.fijo ? -1 : 1; // los hitos del proyecto, siempre arriba
       if (a.nombre === SIN_MASTER || b.nombre === SIN_MASTER) return a.nombre === SIN_MASTER ? 1 : -1;
       const x = a[orden.col], y = b[orden.col];
@@ -458,6 +492,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     };
     const recorrer = (n: Nodo) => {
       if (filtrando && !tiene(n)) return;
+      // Hide if empty: bandas sin actividades (ni rubros solo del Master)
+      if (opcGrupo.ocultarVacios && !filtrando && n.n === 0 && !n.nSolo && n.nivel > 0) return;
       out.push({ tipo: 'wbs', nodo: n, nivel: n.nivel });
       if (filtrando ? cerradosF.has(n.id) : !abiertos.has(n.id)) return;
       // Primero las actividades propias del WBS y después los sub-WBS.
@@ -483,7 +519,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     };
     ordenarGrupos(arbol.raices).forEach(recorrer);
     return out;
-  }, [arbol, abiertos, cerradosF, filtro, filtroEstado, pasa, orden, enEjecucion]);
+  }, [arbol, abiertos, cerradosF, filtro, filtroEstado, pasa, orden, enEjecucion, opcGrupo]);
 
   // ── Escala del Gantt ──
   const rango = React.useMemo(() => {
@@ -933,6 +969,22 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         </div>
       )}
 
+      {verGrupo && m && (
+        <DialogoGrupo
+          constructiva={enEjecucion} niveles={niveles} opciones={opcGrupo} paleta={enEjecucion ? paletas.constr : paletas.wbs}
+          nombreRaiz={arbolWbs.raices[0]?.codCompleto || 'Project'}
+          info={enEjecucion ? [
+            `${arbolEjec.enMaster.toLocaleString('en-US')} activities linked by Activity ID`,
+            arbolEjec.sinMaster ? `${arbolEjec.sinMaster.toLocaleString('en-US')} XER activities without Master data (${arbolEjec.hitosUbicados.toLocaleString('en-US')} milestones placed with their related activities; the rest hidden)` : '',
+            arbolEjec.soloMaster ? `${arbolEjec.soloMaster.toLocaleString('en-US')} Master-only items (not yet in P6)` : '',
+            arbolEjec.excluidas ? `${arbolEjec.excluidas.toLocaleString('en-US')} activities from WBS «Pending confirmation» (.D) excluded` : '',
+          ].filter(Boolean) : []}
+          onAplicar={(nv, op, pal) => {
+            if (enEjecucion) { setNiveles(nv); setPaletas(p => ({ ...p, constr: pal })); } else setPaletas(p => ({ ...p, wbs: pal }));
+            setOpcGrupo(op);
+          }}
+          onCerrar={() => setVerGrupo(false)} />
+      )}
       {estadoCarga === 'listo' && m && (
         <>
         <div className="flex-1 flex min-h-0">
@@ -975,6 +1027,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 </>
               )}
             </div>
+            <button onClick={() => { setVista('actividades'); setVerGrupo(true); }} title="Group & Sort: bands, colors and grouping levels"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verGrupo ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="14" height="3.5" fill="#1F7CC4" /><rect x="4" y="6" width="11" height="3.5" fill="#7CF27C" stroke="#4FA94F" strokeWidth="0.5" /><rect x="7" y="11" width="8" height="3.5" fill="#FFFF66" stroke="#C9C94A" strokeWidth="0.5" /><path d="M18 2 V14 M16 12 L18 14.5 L20 12" fill="none" stroke="#3A3A3A" strokeWidth="1.2" /></svg>
+              <span className="text-[8.5px] leading-none">Group</span>
+            </button>
             {([['criticas', 'Critical Path', 'Critical', 'Only critical activities (Total Float ≤ 0)'], ['longest', 'Longest Path', 'Longest', 'Only the longest path: the chain of activities that drives the project finish']] as const).map(([k, etq, corto, tt]) => (
               <button key={k} onClick={() => { setVista('actividades'); setFiltroEstado(f => (f === k ? 'todas' : k)); setVerRelaciones(true); }} title={`${etq}: ${tt}`}
                 className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroEstado === k && vista === 'actividades' ? 'bg-[#CD0000] border-[#CD0000] text-white shadow-sm' : 'border-transparent text-[#B30000] hover:bg-white/70'}`}>
@@ -1081,36 +1138,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             )}
           </div>
 
-          {vista === 'actividades' && enEjecucion && (
-            <div className="px-4 py-1.5 border-b border-[#D5DEE2] bg-[#EEF0FB] flex items-center gap-1.5 flex-wrap text-[11px]">
-              <span className="font-bold text-[#312E81]">Construction view · levels:</span>
-              <span className="text-[#5A6A74]" title="Fixed levels of this view">Project</span><ChevronRight className="w-3 h-3 text-[#5A6A74]" />
-              <span className="text-[#5A6A74]" title="From the 02.Ubicacion field">Location</span><ChevronRight className="w-3 h-3 text-[#5A6A74]" />
-              {niveles.map((k, j) => (
-                <React.Fragment key={k}>
-                  {j > 0 && <ChevronRight className="w-3 h-3 text-[#5A6A74]" />}
-                  <span className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-white border border-[#C9CDEB]">
-                    {etiquetaCampo(k)}
-                    {j > 0 && <button title="Move this level up" onClick={() => setNiveles(nv => { const c = [...nv]; [c[j - 1], c[j]] = [c[j], c[j - 1]]; return c; })} className="text-[#5A6A74] hover:text-[#312E81] cursor-pointer"><ArrowLeft className="w-3 h-3" /></button>}
-                    {niveles.length > 1 && <button title="Remove this level" onClick={() => setNiveles(nv => nv.filter(x => x !== k))} className="text-[#5A6A74] hover:text-red-600 cursor-pointer"><X className="w-3 h-3" /></button>}
-                  </span>
-                </React.Fragment>
-              ))}
-              {niveles.length < 5 && (
-                <select value="" onChange={e => { const k = e.target.value as CampoAgrupacion; if (k) setNiveles(nv => [...nv, k]); }} className="border border-[#C9CDEB] rounded-full px-2 py-0.5 bg-white cursor-pointer">
-                  <option value="">+ level</option>
-                  {CAMPOS_AGRUPACION.filter(c => !niveles.includes(c.k)).map(c => <option key={c.k} value={c.k}>{c.etq}</option>)}
-                </select>
-              )}
-              <button onClick={() => setNiveles(NIVELES_POR_DEFECTO)} className="text-[#312E81] underline cursor-pointer ml-1">Reset</button>
-              <span className="ml-auto text-[#5A6A74]">
-                {arbolEjec.enMaster.toLocaleString('en-US')} activities linked by Activity ID
-                {arbolEjec.sinMaster ? ` · ${arbolEjec.sinMaster.toLocaleString('en-US')} XER activities without Master data (${arbolEjec.hitosUbicados.toLocaleString('en-US')} milestones placed with their related activities; the rest hidden)` : ''}
-                {arbolEjec.soloMaster ? ` · ${arbolEjec.soloMaster.toLocaleString('en-US')} Master-only items (not yet in P6)` : ''}
-                {arbolEjec.excluidas ? ` · ${arbolEjec.excluidas.toLocaleString('en-US')} from WBS «Pending confirmation» (.D) excluded` : ''}
-              </span>
-            </div>
-          )}
           {vista === 'actividades' ? (
             <>
               {/* Tabla + Gantt (virtualizada) */}
@@ -1167,18 +1194,20 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     if (fl.tipo === 'wbs') {
                       const n = fl.nodo;
                       const abierto = filtrando ? !cerradosF.has(n.id) : abiertos.has(n.id);
-                      // En la constructiva: el proyecto en amarillo y, debajo, los colores de la WBS desde el verde
-                      const [fondo, texto] = enEjecucion && n.id === RAIZ_CONSTRUCTIVA ? ['#FFE14D', '#14212A'] : bandaWbs(fl.nivel);
-                      const claro = texto !== '#FFFFFF';
+                      // Colores de la banda según Group & Sort (cada vista con su paleta)
+                      const paleta = enEjecucion ? paletas.constr : paletas.wbs;
+                      const [fondo, texto] = paleta[fl.nivel] ?? bandaWbs(fl.nivel);
+                      const claro = !esOscuro(fondo);
                       return (
                         <div key={`w${n.id}`} className="absolute flex text-[11px] font-bold cursor-pointer bg-white border-b border-[#E6EAEC]" style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt, outline: wbsSel === n.id && !enEjecucion ? '2px solid #CD0000' : undefined, outlineOffset: -2 }} onClick={() => { alternar(n.id); setWbsSel(n.id); }}>
                           <div className="sticky left-0 z-[5] flex items-center border-r border-[#9AA6AD]" style={{ width: ANCHO_IZQ, background: fondo, color: texto }}>
                             <div className="flex items-center gap-1 min-w-0" style={{ paddingLeft: 4 + fl.nivel * 10, width: 382 }}>
                               {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
-                              <span className="truncate" title={`${n.codCompleto} · ${n.nombre}`}><span className={claro ? 'opacity-70' : 'opacity-80'}>{n.codCompleto}</span>&nbsp; {n.nombre}</span>
+                              <span className="truncate" title={`${n.codCompleto} · ${n.nombre}`}>{opcGrupo.codigo && n.codCompleto && <><span className={claro ? 'opacity-70' : 'opacity-80'}>{n.codCompleto}</span>&nbsp; </>}{(opcGrupo.nombre || !n.codCompleto) && n.nombre}</span>
                               <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({filtroEstado === 'soloMaster' ? `${n.nSolo ?? 0} Master only` : n.n})</span>
                             </div>
                             <div className="w-[104px]" />
+                            {opcGrupo.totales ? <>
                             <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.ini ?? n.ini)}</div>
                             <div className="w-[78px] text-right px-1">{fCorta(resumenWbs.get(n.id)?.fin ?? n.fin)}</div>
                             {(() => {
@@ -1190,6 +1219,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                               return <div className="w-[58px] text-right px-1" title={n.id === RAIZ_CONSTRUCTIVA ? 'The most negative finish variance of its groups' : undefined}>{vf == null ? '' : dias(vf, 8)}</div>;
                             })()}
                             <div className={`w-[160px] text-right px-2 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas && filtroEstado !== 'soloMaster' ? `${n.criticas} critical` : ''}</div>
+                            </> : null}
                           </div>
                           {(() => {
                             const rs = resumenWbs.get(n.id);
@@ -1579,6 +1609,120 @@ const VistaWbs: React.FC<{
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+};
+
+/** Sección con título de la ventana Group & Sort. */
+const Seccion: React.FC<{ titulo: string; children: React.ReactNode }> = ({ titulo, children }) => (
+  <div className="border border-[#C3C3C3] bg-white">
+    <div className="px-2 py-1 font-bold bg-[#E8E8E8] border-b border-[#C3C3C3]">{titulo}</div>
+    <div className="p-2">{children}</div>
+  </div>
+);
+
+/** Ventana «Group & Sort» al estilo de P6: opciones de bandas, niveles de agrupación y colores. */
+const DialogoGrupo: React.FC<{
+  constructiva: boolean; niveles: CampoAgrupacion[]; opciones: OpcionesGrupo; paleta: [string, string][]; nombreRaiz: string; info: string[];
+  onAplicar: (niveles: CampoAgrupacion[], opciones: OpcionesGrupo, paleta: [string, string][]) => void; onCerrar: () => void;
+}> = ({ constructiva, niveles, opciones, paleta, nombreRaiz, info, onAplicar, onCerrar }) => {
+  const [nv, setNv] = React.useState<CampoAgrupacion[]>(niveles);
+  const [op, setOp] = React.useState<OpcionesGrupo>(opciones);
+  const [pal, setPal] = React.useState<[string, string][]>(paleta);
+  // Filas de la tabla Group By
+  const filas: { etq: React.ReactNode; k?: CampoAgrupacion; j?: number }[] = constructiva
+    ? [{ etq: 'Project' }, { etq: 'Location (02.Ubicacion)' }, ...nv.map((k, j) => ({ etq: etiquetaCampo(k), k, j }))]
+    : [{ etq: `Project (${nombreRaiz})` }, ...Array.from({ length: 7 }, (_, j) => ({ etq: `WBS level ${j + 1}` }))];
+  const color = (i: number) => pal[i] ?? bandaWbs(i);
+  const ponerColor = (i: number, c: 0 | 1, v: string) => setPal(p => { const q = [...p]; while (q.length <= i) q.push(bandaWbs(q.length)); q[i] = c === 0 ? [v, q[i][1]] : [q[i][0], v]; return q; });
+  const def = constructiva ? PALETAS_DEF.constr : PALETAS_DEF.wbs;
+  const casilla = (k: keyof OpcionesGrupo, etq: string, sangria = false) => (
+    <label className={`flex items-center gap-2 cursor-pointer ${sangria ? 'pl-6' : ''}`}>
+      <input type="checkbox" checked={op[k]} onChange={e => setOp({ ...op, [k]: e.target.checked })} /> {etq}
+    </label>
+  );
+  const botonP6 = 'w-full px-3 py-1.5 border border-[#B5B5B5] bg-[#F5F5F5] hover:bg-white rounded-sm flex items-center gap-2 cursor-pointer';
+  return (
+    <div className="fixed inset-0 z-[90] bg-black/30 flex items-center justify-center p-4" onClick={onCerrar}>
+      <div className="w-[860px] max-w-full max-h-[90vh] overflow-auto bg-[#F0F0F0] border border-[#9A9A9A] shadow-2xl text-[11.5px] text-[#1A1A1A]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-3 py-1.5 bg-white border-b border-[#C3C3C3]">
+          <b>Group and Sort{constructiva ? ' · Construction view' : ' · P6 WBS'}</b>
+          <button onClick={onCerrar} className="p-1 hover:bg-[#F0F0F0] rounded cursor-pointer"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="flex gap-3 p-3">
+          <div className="flex-1 flex flex-col gap-3 min-w-0">
+            <Seccion titulo="Display Options">
+              <div className="flex flex-col gap-1.5">
+                {casilla('totales', 'Show Group Totals (dates, BL finish variance and critical count on each band)')}
+              </div>
+            </Seccion>
+            <Seccion titulo="Group By">
+              <table className="w-full border-collapse">
+                <thead><tr className="text-left text-[10.5px] text-[#3A3A3A] bg-[#F5F5F5]">
+                  <th className="px-2 py-1 border border-[#D5D5D5]">Group By</th>
+                  <th className="px-2 border border-[#D5D5D5] w-[220px]">Font &amp; Color</th>
+                  {constructiva && <th className="px-2 border border-[#D5D5D5] w-[90px]"></th>}
+                </tr></thead>
+                <tbody>
+                  {filas.map((f, i) => {
+                    const [bg, tx] = color(i);
+                    return (
+                      <tr key={i}>
+                        <td className="px-2 py-1 border border-[#D5D5D5]">
+                          {f.k != null && f.j != null ? (
+                            <select value={f.k} onChange={e => { const k = e.target.value as CampoAgrupacion; setNv(v => v.map((x, y) => (y === f.j ? k : x))); }} className="border border-[#B5B5B5] px-1 py-0.5 bg-white">
+                              {CAMPOS_AGRUPACION.filter(c => c.k !== 'ubicacion' && (c.k === f.k || !nv.includes(c.k))).map(c => <option key={c.k} value={c.k}>{c.etq}</option>)}
+                            </select>
+                          ) : <span className="text-[#5A5A5A]">{f.etq}</span>}
+                        </td>
+                        <td className="px-2 py-1 border border-[#D5D5D5]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="flex-1 px-2 py-0.5 font-bold truncate" style={{ background: bg, color: tx }}>{typeof f.etq === 'string' ? f.etq : 'Band'}</span>
+                            <label title="Background color" className="cursor-pointer"><input type="color" value={bg} onChange={e => ponerColor(i, 0, e.target.value)} className="w-6 h-5 p-0 border-0 cursor-pointer" /></label>
+                            <label title="Text color" className="cursor-pointer flex items-center"><span className="text-[10px] font-bold mr-0.5">A</span><input type="color" value={tx} onChange={e => ponerColor(i, 1, e.target.value)} className="w-6 h-5 p-0 border-0 cursor-pointer" /></label>
+                          </div>
+                        </td>
+                        {constructiva && (
+                          <td className="px-1 border border-[#D5D5D5] text-center whitespace-nowrap">
+                            {f.j != null && <>
+                              <button disabled={f.j === 0} title="Move up" onClick={() => setNv(v => { const c = [...v]; [c[f.j! - 1], c[f.j!]] = [c[f.j!], c[f.j! - 1]]; return c; })} className="px-1 disabled:opacity-30 cursor-pointer"><ArrowUp className="w-3.5 h-3.5 inline" /></button>
+                              <button disabled={f.j === nv.length - 1} title="Move down" onClick={() => setNv(v => { const c = [...v]; [c[f.j!], c[f.j! + 1]] = [c[f.j! + 1], c[f.j!]]; return c; })} className="px-1 disabled:opacity-30 cursor-pointer"><ArrowDown className="w-3.5 h-3.5 inline" /></button>
+                              <button disabled={nv.length <= 1} title="Remove level" onClick={() => setNv(v => v.filter((_, y) => y !== f.j))} className="px-1 text-red-600 disabled:opacity-30 cursor-pointer"><X className="w-3.5 h-3.5 inline" /></button>
+                            </>}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {constructiva && nv.length < 6 && (
+                <select value="" onChange={e => { const k = e.target.value as CampoAgrupacion; if (k) setNv(v => [...v, k]); }} className="mt-2 border border-[#B5B5B5] px-1 py-0.5 bg-white cursor-pointer">
+                  <option value="">+ Add grouping level</option>
+                  {CAMPOS_AGRUPACION.filter(c => c.k !== 'ubicacion' && !nv.includes(c.k)).map(c => <option key={c.k} value={c.k}>{c.etq}</option>)}
+                </select>
+              )}
+            </Seccion>
+            <Seccion titulo="Group By Options">
+              <div className="flex flex-col gap-1.5">
+                {casilla('ocultarVacios', 'Hide if empty (bands without activities)')}
+                {!constructiva && casilla('alfabetico', 'Sort bands alphabetically')}
+                <div className="text-[#5A5A5A] mt-1">Show:</div>
+                {casilla('codigo', 'ID / Code', true)}
+                {casilla('nombre', 'Name / Description', true)}
+              </div>
+            </Seccion>
+            {!!info.length && <div className="text-[10.5px] text-[#5A6A74] leading-snug">{info.join(' · ')}</div>}
+          </div>
+          <div className="w-[120px] shrink-0 flex flex-col gap-1.5">
+            <button className={botonP6} onClick={() => { onAplicar(nv, op, pal); onCerrar(); }}><span className="text-emerald-600 font-bold">✓</span> OK</button>
+            <button className={botonP6} onClick={onCerrar}><span className="text-red-600 font-bold">⊘</span> Cancel</button>
+            <div className="h-2" />
+            <button className={botonP6} onClick={() => onAplicar(nv, op, pal)}><span className="text-[#312E81] font-bold">↻</span> Apply</button>
+            <button className={botonP6} onClick={() => { setOp(OPC_GRUPO_DEF); setPal(def); if (constructiva) setNv(NIVELES_POR_DEFECTO); }}><span className="text-emerald-700 font-bold">▶</span> Default</button>
+          </div>
+        </div>
       </div>
     </div>
   );
