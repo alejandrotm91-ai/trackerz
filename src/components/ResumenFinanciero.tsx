@@ -39,8 +39,8 @@ export const ResumenFinanciero: React.FC<ResumenFinancieroProps> = ({
                 <div className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 truncate">
                   Monto Contratado <span className="text-[9px] font-normal text-slate-400">(PG-004)</span>
                 </div>
-                <div className="font-black text-slate-800 mb-1 tracking-tight animate-fade-in" style={{ fontSize: '18px' }} title={`$${stats.totalVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
-                  ${stats.totalVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="font-black text-slate-800 mb-1 tracking-tight animate-fade-in" style={{ fontSize: '18px' }} title={`${stats.totalVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
+                  {stats.totalVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-[10px] sm:text-xs text-slate-500 font-medium truncate mb-2">
                   {stats.actividadesPrincipales} partidas principales
@@ -74,8 +74,8 @@ export const ResumenFinanciero: React.FC<ResumenFinancieroProps> = ({
             <div className="flex items-start justify-between gap-1.5">
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 truncate">Ejecutado Acumulado</div>
-                <div className="font-black text-emerald-700 mb-1 tracking-tight animate-fade-in" style={{ fontSize: '18px' }} title={`$${stats.totalVentaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
-                  ${stats.totalVentaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="font-black text-emerald-700 mb-1 tracking-tight animate-fade-in" style={{ fontSize: '18px' }} title={`${stats.totalVentaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
+                  {stats.totalVentaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">
                   <span className="text-emerald-600 font-semibold">{stats.avanceGeneral}%</span> del contrato
@@ -107,8 +107,8 @@ export const ResumenFinanciero: React.FC<ResumenFinancieroProps> = ({
                 </div>
 
                 {/* Monto Económico por delante */}
-                <div className="font-black text-indigo-700 mb-0.5 tracking-tight animate-fade-in" style={{ fontSize: '18px' }} title={`$${(stats.totalVentaPeriodo || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
-                  ${(stats.totalVentaPeriodo || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="font-black text-indigo-700 mb-0.5 tracking-tight animate-fade-in" style={{ fontSize: '18px' }} title={`${(stats.totalVentaPeriodo || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
+                  {(stats.totalVentaPeriodo || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-[10px] sm:text-xs text-slate-500 font-medium mb-3 truncate">
                   {periodoSeleccionado.anio === 'TODOS' ? 'Total acumulado' : `${periodoSeleccionado.mes} ${periodoSeleccionado.anio}`}
@@ -172,8 +172,8 @@ export const ResumenFinanciero: React.FC<ResumenFinancieroProps> = ({
             <div className="flex items-start justify-between gap-1.5">
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 truncate">Saldo por Ejecutar</div>
-                <div className="font-black text-amber-700 mb-1 tracking-tight animate-fade-in" style={{ fontSize: '18px' }} title={`$${stats.totalSaldo.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
-                  ${stats.totalSaldo.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="font-black text-amber-700 mb-1 tracking-tight animate-fade-in" style={{ fontSize: '18px' }} title={`${stats.totalSaldo.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
+                  {stats.totalSaldo.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">
                   Pendiente de ejecutar
@@ -194,8 +194,8 @@ export const ResumenFinanciero: React.FC<ResumenFinancieroProps> = ({
             <div className="flex items-start justify-between gap-1.5">
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 truncate">Excedentes</div>
-                <div className={`font-black mb-1 tracking-tight animate-fade-in ${stats.totalExcedentes >= 0 ? 'text-rose-600' : 'text-indigo-650'}`} style={{ fontSize: '18px' }} title={`$${stats.totalExcedentes.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
-                  ${stats.totalExcedentes.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className={`font-black mb-1 tracking-tight animate-fade-in ${stats.totalExcedentes >= 0 ? 'text-rose-600' : 'text-indigo-650'}`} style={{ fontSize: '18px' }} title={`${stats.totalExcedentes.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
+                  {stats.totalExcedentes.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">
                   {stats.totalExcedentes >= 0 ? 'Sobreejecución' : 'Ahorro'}

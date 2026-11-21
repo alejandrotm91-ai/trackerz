@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { publicarMasterVivo } from '../utils/masterLive';
 import {
   FileSpreadsheet,
   Cloud,
@@ -50,6 +51,7 @@ import {
   MasterHierarchyMode,
   MasterHierarchyNode,
   buildMasterHierarchyTree,
+  calcularVenta,
   getVisibleHierarchyNodes,
   getMatchingLeafNodes,
   getHierarchyRowStyles,
@@ -61,8 +63,8 @@ import {
 import {
   calculateMasterTotals,
   initializeMasterCdoFromActividades,
-  saveMasterCdoToFirebase,
-  loadLatestMasterCdoFromFirebase,
+  saveMasterCdoToCloud,
+  loadLatestMasterCdoFromCloud,
   parseMasterCdoFromExcel,
   exportMasterCdoToExcel
 } from '../utils/masterCdoSync';
@@ -96,6 +98,8 @@ export function MasterTab({
 }: MasterTabProps) {
   // Master state
   const [items, setItems] = useState<MasterCdoItem[]>([]);
+  // Las demás pestañas (p. ej. CDO vs Planilla) ven lo mismo que se edita aquí
+  useEffect(() => { publicarMasterVivo(items); }, [items]);
   const [semanas, setSemanas] = useState<MasterCdoWeek[]>([]);
   const [fileName, setFileName] = useState<string>('Master_CDO_Online.xlsx');
   const [planId, setPlanId] = useState<string>('master_cdo_default');
@@ -108,7 +112,7 @@ export function MasterTab({
   const [cloudSaveStatus, setCloudSaveStatus] = useState<'synced' | 'pending' | 'saving' | 'error'>('synced');
   const [lastCloudSavedTime, setLastCloudSavedTime] = useState<string | null>(null);
   const [cloudErrorMsg, setCloudErrorMsg] = useState<string>('');
-  const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState<boolean>(false);
+  const [cloudQuotaExceeded, setCloudQuotaExceeded] = useState<boolean>(false);
 
   // Local draft state (prevents data loss if exiting before saving to cloud)
   const [hasUnsavedCloudChanges, setHasUnsavedCloudChanges] = useState<boolean>(false);
@@ -345,7 +349,7 @@ export function MasterTab({
         setIsLoading(false);
 
         // Silently check cloud in background without blocking UI
-        loadLatestMasterCdoFromFirebase(undefined, 25000)
+        loadLatestMasterCdoFromCloud(undefined, 25000)
           .then(cloudData => {
             if (isMounted && cloudData) {
               setCloudSnapshot({
@@ -358,15 +362,15 @@ export function MasterTab({
           })
           .catch(err => {
             if (String(err?.message).includes('QUOTA_EXCEEDED') || err?.code === 'resource-exhausted') {
-              if (isMounted) setFirestoreQuotaExceeded(true);
+              if (isMounted) setCloudQuotaExceeded(true);
             }
           });
         return;
       }
 
-      // Priority 2: No local draft found in browser, query Firestore Cloud
+      // Priority 2: No local draft found in browser, query the cloud (D1)
       try {
-        const cloudData = await loadLatestMasterCdoFromFirebase((pct, msg) => {
+        const cloudData = await loadLatestMasterCdoFromCloud((pct, msg) => {
           if (isMounted && !cancelLoadRef.current) {
             setLoadingProgress(pct);
             setLoadingMsg(msg);
@@ -394,12 +398,12 @@ export function MasterTab({
           return;
         }
       } catch (err: any) {
-        console.warn('Error cargando Master CDO desde Firestore:', err);
+        console.warn('Error cargando Master CDO desde la nube:', err);
         const isQuota = String(err?.message).includes('QUOTA_EXCEEDED') ||
                         err?.code === 'resource-exhausted' ||
                         String(err?.message).toLowerCase().includes('quota');
         if (isQuota && isMounted) {
-          setFirestoreQuotaExceeded(true);
+          setCloudQuotaExceeded(true);
         }
       }
 
@@ -503,7 +507,7 @@ export function MasterTab({
 
     try {
       const currentId = planId || 'master_cdo_default';
-      await saveMasterCdoToFirebase(
+      await saveMasterCdoToCloud(
         currentId,
         fileName,
         itemsToSave,
@@ -526,7 +530,7 @@ export function MasterTab({
       });
       setTimeout(() => setToastMessage(null), 3500);
     } catch (err: any) {
-      console.error('Error guardando en Firestore:', err);
+      console.error('Error guardando en la nube:', err);
       setCloudSaveStatus('error');
       
       const isQuota = String(err?.message).includes('QUOTA_EXCEEDED') ||
@@ -534,7 +538,7 @@ export function MasterTab({
                       String(err?.message).toLowerCase().includes('quota');
                       
       if (isQuota) {
-        setFirestoreQuotaExceeded(true);
+        setCloudQuotaExceeded(true);
         setCloudErrorMsg('Cuota diaria de base de datos agotada.');
         alert('Se ha alcanzado el límite gratuito de lecturas/escrituras en la base de datos hoy. Se ha guardado una copia local de seguridad. Podrás sincronizar a la nube mañana cuando se reinicie la cuota.');
       } else {
@@ -569,15 +573,16 @@ export function MasterTab({
   };
 
   const handleUpdateItemPropertyFromXls = (itemId: string, field: 'precio' | 'step' | 'cantPres', val: number) => {
-    const existingVal = items.find(i => i.id === itemId)?.[field] || 0;
+    const existingVal = (items.find(i => i.id === itemId) as any)?.[field === 'cantPres' ? 'cantidadPresupuesto' : field] || 0;
     if (existingVal === val) return;
 
     const newItems = items.map(item => {
       if (item.id !== itemId) return item;
-      return {
-        ...item,
-        [field]: val
-      };
+      const key = field === 'cantPres' ? 'cantidadPresupuesto' : field;
+      const updated = { ...item, [key]: val };
+      // Igual que la Col I del CDO: ROUND(Cantidad × Precio, 2) × Step
+      updated.venta = calcularVenta(updated.cantidadPresupuesto, updated.precio, updated.step);
+      return updated;
     });
     setItems(newItems);
     triggerDataChange(newItems, semanas);
@@ -802,13 +807,13 @@ export function MasterTab({
   }
 
   // Handle Quota Exceeded Block
-  if (firestoreQuotaExceeded && (!items || items.length === 0)) {
+  if (cloudQuotaExceeded && (!items || items.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] bg-slate-50 rounded-3xl border border-red-200 p-8 text-center">
         <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
         <h3 className="text-xl font-black text-slate-900 mb-2">Límite de Base de Datos Alcanzado</h3>
         <p className="text-sm font-medium text-slate-600 max-w-lg mb-6">
-          Se ha agotado el límite gratuito diario de operaciones en Firestore.
+          Se ha agotado el límite gratuito diario de operaciones de la base de datos.
           No se pudieron cargar los datos del proyecto.
         </p>
         <p className="text-xs text-slate-500 max-w-md bg-white p-4 rounded-xl border border-slate-200">

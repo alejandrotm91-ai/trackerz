@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "trackerz",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Mantiene también la dirección trackerz.alejandrotm91.workers.dev
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "trakciona.app", "custom_domain": true },
+    { "pattern": "www.trakciona.app", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "trackerz-db",
+      "database_id": "c49fc9c1-51e5-464f-adef-c9b23a2706ff",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

@@ -4,10 +4,12 @@
  */
 
 import React from 'react';
-import { Upload, ChevronRight, ChevronDown, Download, Search, Filter, Lock, Unlock, User, FileSpreadsheet, AlertCircle, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles, Brain, RefreshCw, Globe, Server, FileText, ChevronsUpDown, ChevronsDownUp, Layers, X } from 'lucide-react';
+import { Upload, ChevronRight, ChevronDown, Building2, Download, Search, Filter, Lock, Unlock, User, FileSpreadsheet, AlertCircle, AlertTriangle, Check, Copy, Eye, EyeOff, Sparkles, Brain, RefreshCw, Globe, Server, FileText, ChevronsUpDown, ChevronsDownUp, Layers, X, CalendarRange } from 'lucide-react';
 import { useMasterPlan } from './hooks/useMasterPlan';
 import { CronogramaTab } from './components/CronogramaTab';
 import { PlanillaTab } from './components/PlanillaTab';
+import { LEVEL_STYLES } from './utils/nivelesJerarquia';
+import { agruparTipologias } from './utils/helpers';
 import { ComponenteResumen } from './components/ComponenteResumen';
 import { ResumenFinanciero } from './components/ResumenFinanciero';
 import { CaratulaTab } from './components/CaratulaTab';
@@ -15,56 +17,64 @@ import { PersonalTab } from './components/PersonalTab';
 import { ProcesoTab } from './components/ProcesoTab';
 import { MasterTab } from './components/MasterTab';
 import { AIReportModal } from './components/AIReportModal';
-import { buildCronoReportData } from './utils/aiReportHelper';
-import { saveAIReportToFirebase, loadAIReportFromFirebase, AIReportData } from './utils/firebaseSync';
-import { auth } from './firebase';
-import { signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import firebaseConfig from '../firebase-applet-config.json';
-
-const loadGooglePickerAPI = (): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    if ((window as any).google?.picker) {
-      resolve((window as any).google);
-      return;
-    }
-
-    const loadPickerLibrary = () => {
-      (window as any).gapi.load('picker', {
-        callback: () => {
-          resolve((window as any).google);
-        },
-        onerror: (err: any) => {
-          reject(new Error('No se pudo cargar la biblioteca Google Picker.'));
-        }
-      });
-    };
-
-    if (!(window as any).gapi) {
-      const script = document.createElement('script');
-      script.src = 'https://apis.google.com/js/api.js';
-      script.type = 'text/javascript';
-      script.onload = loadPickerLibrary;
-      script.onerror = () => reject(new Error('No se pudo cargar el script de Google API (gapi).'));
-      document.body.appendChild(script);
-    } else {
-      loadPickerLibrary();
-    }
-  });
-};
+import { ReportePeriodoModal } from './components/ReportePeriodoModal';
+import { CronogramaP6 } from './components/p6/CronogramaP6';
+import { lazyConRecarga, LimiteDeError } from './utils/cargaDiferida';
+import { LogoHoja } from './components/LogoHoja';
+import { LogoIngreso } from './components/LogoIngreso';
+const GestionaApp = lazyConRecarga(() => import('./gestiona/GestionaApp'));
+import { ClaveAdminDialog } from './components/ClaveAdminDialog';
+import { construirDatosReporte, construirEjecutivo } from './utils/aiReportHelper';
+import { reporteATexto } from './utils/reporteTexto';
+import type { ReporteIA } from './types/reporteIA';
+import { saveAIReportToCloud, loadAIReportFromCloud, AIReportData } from './utils/cloudSync';
+import { apiFetch } from './utils/api';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const pc = useMasterPlan(isLoggedIn);
-  const [username, setUsername] = React.useState('admin');
-  const [password, setPassword] = React.useState('control2026');
+  // ADM y CRC se muestran juntos como "Indirectos + Aceleración"
+  const tipologiasAgrupadas = React.useMemo(() => agruparTipologias(pc.planillaTipRes), [pc.planillaTipRes]);
+  const [username, setUsername] = React.useState('');
+  // Proyecto de la pantalla de inicio (por ahora solo Los Merinos)
+  const [proyecto, setProyecto] = React.useState('los-merinos');
+  const [password, setPassword] = React.useState('');
+  const [role, setRole] = React.useState<'admin' | 'viewer' | null>(null);
+  const [isCheckingSession, setIsCheckingSession] = React.useState(true);
   const [showPassword, setShowPassword] = React.useState(false);
   const [isCapsLockOn, setIsCapsLockOn] = React.useState(false);
   const [loginError, setLoginError] = React.useState('');
   const [dragOver, setDragOver] = React.useState(false);
   const [isGanttAIPanelOpen, setIsGanttAIPanelOpen] = React.useState(false);
 
-  // Derived Admin state based on username
-  const isAdmin = isLoggedIn && username.trim().toLowerCase() === 'admin';
+  // El rol lo decide el servidor al iniciar sesión
+  const isAdmin = isLoggedIn && role === 'admin';
+
+  // Al abrir la app, recuperar la sesión si la cookie sigue vigente
+  React.useEffect(() => {
+    // Si la red retiene la respuesta (p. ej. un filtro corporativo), no quedarse en blanco: a los 8 s se muestra el inicio de sesión
+    const control = new AbortController();
+    const limite = window.setTimeout(() => control.abort(), 8000);
+    fetch('/api/auth/me', { credentials: 'same-origin', signal: control.signal })
+      .then(res => (res.ok ? res.json() : null))
+      .then(user => {
+        if (user) {
+          setUsername(user.username);
+          setRole(user.role);
+          setIsLoggedIn(true);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { window.clearTimeout(limite); setIsCheckingSession(false); });
+
+    const onExpired = () => {
+      setIsLoggedIn(false);
+      setRole(null);
+      setLoginError('Su sesión venció. Vuelva a iniciar sesión.');
+    };
+    window.addEventListener('trackerz:session-expired', onExpired);
+    return () => { window.clearTimeout(limite); window.removeEventListener('trackerz:session-expired', onExpired); };
+  }, []);
 
   // States for Admin verification of Sincronizacion/Actualizacion Nube and Cargar Otro Archivo
   const [isAdminUnlocked, setIsAdminUnlocked] = React.useState(false);
@@ -73,15 +83,11 @@ export default function App() {
   const [isSyncMenuOpen, setIsSyncMenuOpen] = React.useState(false);
   const [adminError, setAdminError] = React.useState('');
 
-  // Estados y funciones de integración con Google Drive
-  const [driveFiles, setDriveFiles] = React.useState<any[]>([]);
-  const [isBrowsingDrive, setIsBrowsingDrive] = React.useState(false);
-  const [driveListError, setDriveListError] = React.useState('');
-  const [showDrivePicker, setShowDrivePicker] = React.useState(false);
-
   // States for AI Crono Report
   const [showAIReportMenu, setShowAIReportMenu] = React.useState(false);
   const [showAIReportModal, setShowAIReportModal] = React.useState(false);
+  const [showReportePeriodo, setShowReportePeriodo] = React.useState(false);
+  const [showP6, setShowP6] = React.useState(false);
   const [aiReportData, setAiReportData] = React.useState<AIReportData | null>(null);
   const [isGeneratingAIReport, setIsGeneratingAIReport] = React.useState(false);
   const aiMenuRef = React.useRef<HTMLDivElement>(null);
@@ -127,17 +133,18 @@ export default function App() {
   }, [showAvancePartidasModal]);
 
   // Load latest AI report on mount or when plan changes
-  const currentPlanId = pc.firebasePlanData?.planMeta?.id || 'latest_report';
+  const currentPlanId = pc.cloudPlanData?.planMeta?.id || 'latest_report';
 
   React.useEffect(() => {
+    if (!isLoggedIn) return;
     async function fetchReport() {
-      const data = await loadAIReportFromFirebase(currentPlanId);
+      const data = await loadAIReportFromCloud(currentPlanId);
       if (data) {
         setAiReportData(data);
       }
     }
     fetchReport();
-  }, [currentPlanId]);
+  }, [currentPlanId, isLoggedIn]);
 
   // Close AI menu on click outside
   React.useEffect(() => {
@@ -150,7 +157,10 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleGenerateAIReport = async () => {
+  // Generar o actualizar el reporte pide la contraseña del administrador
+  const [claveReporte, setClaveReporte] = React.useState<{ abierto: boolean; error: string; verificando: boolean }>({ abierto: false, error: '', verificando: false });
+
+  const handleGenerateAIReport = () => {
     if (!isAdmin) {
       alert('Solo el administrador de la obra está autorizado para generar o actualizar el reporte de Inteligencia Artificial.');
       return;
@@ -162,32 +172,73 @@ export default function App() {
     }
 
     setShowAIReportMenu(false);
+    setClaveReporte({ abierto: true, error: '', verificando: false });
+  };
+
+  const confirmarClaveReporte = async (password: string) => {
+    setClaveReporte(c => ({ ...c, verificando: true, error: '' }));
+    try {
+      await apiFetch('/api/auth/verify-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+    } catch (err: any) {
+      setClaveReporte({ abierto: true, verificando: false, error: err?.message || 'Contraseña incorrecta' });
+      return;
+    }
+    setClaveReporte({ abierto: false, error: '', verificando: false });
+    await generarReporteIA(password);
+  };
+
+  const generarReporteIA = async (password: string) => {
     setShowAIReportModal(true);
     setIsGeneratingAIReport(true);
 
     try {
-      const reportPayload = buildCronoReportData(pc.actividades, pc.fechaCorteState);
+      const { datos, contexto } = construirDatosReporte(pc.actividades, pc.fechaCorteState);
+      datos.ejecutivo = construirEjecutivo(pc.stats, pc.planillaTotales);
+      // El reporte anterior sirve para medir la evolución
+      const previo = aiReportData?.reporte;
+      const anterior = previo
+        ? {
+            fechaCorte: previo.datos.fechaCorte,
+            generadoEn: aiReportData!.updatedAt,
+            estadoGeneral: previo.analisis.estadoGeneral,
+            kpis: previo.datos.kpis,
+            obraAvance: previo.datos.ejecutivo?.obra.avance,
+            certificacionAvance: previo.datos.ejecutivo?.certificacion?.avance,
+          }
+        : undefined;
 
-      const res = await fetch('/api/gemini/crono-report', {
+      const res = await fetch('/api/ai/crono-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reportPayload)
+        body: JSON.stringify({ datos, contexto, anterior, password })
       });
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Error al comunicarse con el servicio de Inteligencia Gemini.');
+        throw new Error(errorData.message || 'Error al comunicarse con el servicio de Inteligencia Artificial.');
       }
 
       const data = await res.json();
+      const reporte: ReporteIA = { version: 2, datos, analisis: data.analisis, anterior, modelo: data.modelo };
       const newReport: AIReportData = {
-        markdown: data.markdown,
+        markdown: reporteATexto(reporte),
         updatedAt: data.generatedAt || new Date().toISOString(),
         updatedBy: username || 'Admin',
-        summary: reportPayload.projectSummary
+        summary: {
+          total: datos.kpis.totalActividades,
+          totalDelayed: datos.kpis.retrasadas,
+          totalUpcoming: datos.kpis.proximas4Semanas,
+          totalItemsCriticos10k: datos.kpis.partidasCriticas,
+          totalMontoCritico10kUSD: datos.kpis.montoCritico,
+        },
+        reporte,
       };
 
-      await saveAIReportToFirebase(currentPlanId, newReport);
+      await saveAIReportToCloud(currentPlanId, newReport);
       setAiReportData(newReport);
     } catch (err: any) {
       console.error('Error al generar el reporte AI:', err);
@@ -197,93 +248,18 @@ export default function App() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    if (!isAdmin) {
-      alert('Acceso denegado: Solo el administrador está autorizado para conectar Google Drive.');
-      return;
-    }
-    const provider = new GoogleAuthProvider();
-    provider.addScope('https://www.googleapis.com/auth/drive.readonly');
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      if (credential) {
-        const token = credential.accessToken;
-        if (token) {
-          pc.setGoogleAccessToken(token);
-          pc.setGoogleUser(result.user);
-          // Al iniciar sesión, carga config guardada en Firebase y autodescarga si existe
-          const docSnap = await pc.loadDriveConfig();
-          if (docSnap && docSnap.fileId) {
-            await pc.syncFileFromDrive(docSnap.fileId, docSnap.fileName);
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('Error signing in with Google:', error);
-      alert(`Error al iniciar sesión con Google: ${error.message || error}`);
-    }
-  };
-
-  const handleGoogleSignOut = () => {
-    signOut(auth);
-    pc.setGoogleAccessToken(null);
-    pc.setGoogleUser(null);
-    setDriveFiles([]);
-    setShowDrivePicker(false);
-  };
-
-  const handleBrowseDrive = async () => {
-    setIsBrowsingDrive(true);
-    setDriveListError('');
-    try {
-      if (!pc.googleAccessToken) {
-        alert('Por favor, conecta Google Drive primero.');
-        setIsBrowsingDrive(false);
-        return;
-      }
-
-      const google = await loadGooglePickerAPI();
-      const apiKey = firebaseConfig.apiKey;
-
-      const docsView = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
-        .setMimeTypes('application/vnd.google-apps.spreadsheet,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel')
-        .setSelectFolderEnabled(false);
-
-      const picker = new google.picker.PickerBuilder()
-        .addView(docsView)
-        .setOAuthToken(pc.googleAccessToken)
-        .setDeveloperKey(apiKey)
-        .setCallback(async (data: any) => {
-          if (data.action === google.picker.Action.PICKED) {
-            const doc = data.docs[0];
-            const fileId = doc.id;
-            const fileName = doc.name;
-            
-            await pc.saveDriveConfig(fileId, fileName);
-            await pc.syncFileFromDrive(fileId, fileName);
-          }
-        })
-        .setTitle('Selecciona tu archivo de Excel o Google Sheets')
-        .build();
-
-      picker.setVisible(true);
-    } catch (e: any) {
-      console.error('Error al abrir Google Picker:', e);
-      setDriveListError(e.message || 'Error al conectar con Google Drive Picker.');
-      alert(`Error al abrir Google Picker: ${e.message || e}`);
-    } finally {
-      setIsBrowsingDrive(false);
-    }
-  };
-
-  const handleAdminAuth = (e: React.FormEvent) => {
+  const handleAdminAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminPasswordInput === 'ADmin') {
+    try {
+      await apiFetch('/api/auth/verify-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPasswordInput }),
+      });
       setIsAdminUnlocked(true);
       setAdminError('');
-    } else {
-      setAdminError('Contraseña incorrecta');
+    } catch (err: any) {
+      setAdminError(err?.message || 'Contraseña incorrecta');
     }
   };
 
@@ -330,7 +306,7 @@ export default function App() {
           const nextValue = Math.min(target, prev + increment);
           
           if (nextValue >= 100) {
-            setSmoothPhase('¡Sincronización completa con Firebase!');
+            setSmoothPhase('¡Sincronización completa con la nube!');
             if (!completionTimeout) {
               completionTimeout = setTimeout(() => {
                 setIsVisualLoading(false);
@@ -341,7 +317,7 @@ export default function App() {
           } else if (nextValue >= 40) {
             setSmoothPhase('Descargando e integrando última versión de nube...');
           } else if (nextValue >= 5) {
-            setSmoothPhase('Conectando con la base de datos Firebase...');
+            setSmoothPhase('Conectando con la base de datos en la nube...');
           } else {
             setSmoothPhase('Iniciando proceso de carga...');
           }
@@ -403,7 +379,7 @@ export default function App() {
       }
 
       const avanceStr = `${avancePct.toFixed(2)}%`;
-      const saldoStr = saldo < 0 ? `($${formattedMoney(Math.abs(saldo))})` : `$${formattedMoney(saldo)}`;
+      const saldoStr = saldo < 0 ? `(${formattedMoney(Math.abs(saldo))})` : `${formattedMoney(saldo)}`;
       const saldoColor = saldo < 0 ? '#b91c1c' : '#15803d';
       const pctVarStr = pctVar < 0 ? `(${Math.abs(pctVar).toFixed(2)}%)` : (pctVar > 0 ? `+${pctVar.toFixed(2)}%` : '0.00%');
       const pctVarColor = pctVar < 0 ? '#b91c1c' : (pctVar > 0 ? '#15803d' : '#64748b');
@@ -426,9 +402,9 @@ export default function App() {
         <tr style="background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; font-size: ${fontSize};">
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg}; text-align: center; mso-number-format: '\\@';">${code}</td>
           <td style="padding: 6px 10px; padding-left: ${paddingLeft}px; border: 1px solid #cbd5e1; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight};">${indentSpaces}${desc}</td>
-          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${formattedMoney(vContrato)}</td>
-          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg === '#334155' ? '#1d4ed8' : fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${formattedMoney(vPlan)}</td>
-          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg === '#334155' ? '#15803d' : fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">$${formattedMoney(vEjec)}</td>
+          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${formattedMoney(vContrato)}</td>
+          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg === '#334155' ? '#1d4ed8' : fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${formattedMoney(vPlan)}</td>
+          <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg === '#334155' ? '#15803d' : fg}; font-weight: ${fontWeight}; mso-number-format: '\\$#,##0.00';">${formattedMoney(vEjec)}</td>
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${fg}; font-weight: ${fontWeight}; mso-number-format: '0.00%';">${avanceStr}</td>
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${saldoColor}; font-weight: bold; mso-number-format: '\\$#,##0.00';">${saldoStr}</td>
           <td style="padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace, Consolas, sans-serif; background-color: ${bg}; color: ${pctVarColor}; font-weight: bold; mso-number-format: '0.00%';">${pctVarStr}</td>
@@ -455,7 +431,7 @@ export default function App() {
       if (!item.esItemHoja) {
         const level = item.nivel;
         fontWeight = 'bold';
-        if (level <= 1) { bg = '#e0e7ff'; fg = '#312e81'; fontSize = '11.5px'; } // Indigo
+        if (level <= 1) { bg = '#FBE5E5'; fg = '#7A0000'; fontSize = '11.5px'; } // Indigo
         else if (level === 2) { bg = '#e0f2fe'; fg = '#0369a1'; fontSize = '11px'; } // Sky
         else if (level === 3) { bg = '#d1fae5'; fg = '#065f46'; fontSize = '10.5px'; } // Emerald
         else if (level === 4) { bg = '#fef3c7'; fg = '#92400e'; fontSize = '10.5px'; } // Amber
@@ -792,217 +768,78 @@ export default function App() {
     const isLeaf = item.esItemHoja;
     const level = item.nivel || 1;
     
-    // Corporate Fun hierarchical color palettes and styling
-    let rowBg = '';
-    let textStyle = '';
-    let badgeStyle = '';
-    let chevronStyle = '';
-    let progressBarColor = '';
-    let leftAccent = '';
-    
-    if (!isLeaf) {
-      if (level <= 1) {
-        // Nivel 1: Deep Royal Indigo
-        rowBg = 'bg-gradient-to-r from-indigo-100/85 via-indigo-50/50 to-white hover:from-indigo-100 hover:to-indigo-50/80 border-b border-indigo-200/90';
-        leftAccent = 'border-l-[5px] border-indigo-600';
-        textStyle = 'font-black text-indigo-950 text-[12.5px] tracking-tight';
-        badgeStyle = 'bg-indigo-600 text-white shadow-xs font-black text-[10px]';
-        chevronStyle = 'bg-indigo-200/70 text-indigo-800 hover:bg-indigo-300';
-        progressBarColor = 'bg-indigo-600';
-      } else if (level === 2) {
-        // Nivel 2: Ocean Sky Blue
-        rowBg = 'bg-gradient-to-r from-sky-100/75 via-sky-50/40 to-white hover:from-sky-100 hover:to-sky-50/70 border-b border-sky-200/80';
-        leftAccent = 'border-l-[4px] border-sky-500';
-        textStyle = 'font-bold text-sky-950 text-[12px]';
-        badgeStyle = 'bg-sky-500 text-white shadow-xs font-bold text-[9.5px]';
-        chevronStyle = 'bg-sky-200/70 text-sky-800 hover:bg-sky-300';
-        progressBarColor = 'bg-sky-500';
-      } else if (level === 3) {
-        // Nivel 3: Fresh Mint / Emerald
-        rowBg = 'bg-gradient-to-r from-emerald-100/70 via-emerald-50/40 to-white hover:from-emerald-100 hover:to-emerald-50/60 border-b border-emerald-200/70';
-        leftAccent = 'border-l-[4px] border-emerald-500';
-        textStyle = 'font-bold text-emerald-950 text-[11.5px]';
-        badgeStyle = 'bg-emerald-600 text-white shadow-xs font-bold text-[9px]';
-        chevronStyle = 'bg-emerald-200/70 text-emerald-800 hover:bg-emerald-300';
-        progressBarColor = 'bg-emerald-500';
-      } else if (level === 4) {
-        // Nivel 4: Warm Tangerine / Amber
-        rowBg = 'bg-gradient-to-r from-amber-100/70 via-amber-50/40 to-white hover:from-amber-100 hover:to-amber-50/60 border-b border-amber-200/70';
-        leftAccent = 'border-l-[4px] border-amber-500';
-        textStyle = 'font-semibold text-amber-950 text-[11.5px]';
-        badgeStyle = 'bg-amber-500 text-white shadow-xs font-bold text-[9px]';
-        chevronStyle = 'bg-amber-200/70 text-amber-900 hover:bg-amber-300';
-        progressBarColor = 'bg-amber-500';
-      } else if (level === 5) {
-        // Nivel 5: Playful Violet / Purple
-        rowBg = 'bg-gradient-to-r from-purple-100/65 via-purple-50/35 to-white hover:from-purple-100 hover:to-purple-50/50 border-b border-purple-200/60';
-        leftAccent = 'border-l-[4px] border-purple-500';
-        textStyle = 'font-semibold text-purple-950 text-[11px]';
-        badgeStyle = 'bg-purple-600 text-white shadow-xs font-bold text-[9px]';
-        chevronStyle = 'bg-purple-200/70 text-purple-900 hover:bg-purple-300';
-        progressBarColor = 'bg-purple-500';
-      } else {
-        // Nivel 6+: Berry Rose / Coral
-        rowBg = 'bg-gradient-to-r from-rose-100/60 via-rose-50/30 to-white hover:from-rose-100 hover:to-rose-50/40 border-b border-rose-200/60';
-        leftAccent = 'border-l-[4px] border-rose-500';
-        textStyle = 'font-semibold text-rose-950 text-[11px]';
-        badgeStyle = 'bg-rose-500 text-white shadow-xs font-bold text-[9px]';
-        chevronStyle = 'bg-rose-200/70 text-rose-900 hover:bg-rose-300';
-        progressBarColor = 'bg-rose-500';
-      }
-    } else {
-      rowBg = 'bg-white hover:bg-slate-50/90 border-b border-slate-100/80';
-      leftAccent = 'border-l-[3px] border-slate-200/70';
-      textStyle = 'text-slate-700 text-[11.5px] font-medium';
-      badgeStyle = '';
-      chevronStyle = '';
-      progressBarColor = 'bg-emerald-500';
-    }
+    // Mismos colores de jerarquía que la tabla de Control de Ejecución
+    const nivelStyle = LEVEL_STYLES[Math.min(Math.max(level - 1, 0), LEVEL_STYLES.length - 1)];
+    const leftAccent = isLeaf ? '' : nivelStyle.accent;
+    const textStyle = isLeaf ? 'text-slate-800 text-[11px] font-medium' : `${nivelStyle.text} text-[11px] font-bold tracking-wide`;
+    const chevronStyle = isLeaf ? '' : nivelStyle.chevron;
+    const barColor = isLeaf ? '#2B7F52' : nivelStyle.bar;
 
-    const indentPadding = 8 + (level - 1) * 16;
+    // Sangría leve como en Control de Ejecución: 2 px por nivel
+    const indentPadding = isLeaf ? (level - 1) * 2 + 7 : (level - 1) * 2 + 5;
     const isDirectMatch = wbsSearchResults.isActive && wbsSearchResults.matchingItemIds.has(item.id);
+    const titulo = [item.descripcion, item.idOrig ? `id.Orig: ${item.idOrig}` : '', item.subcontratista ? `SubC: ${item.subcontratista}` : '', item.componente ? `Componente: ${item.componente}` : ''].filter(Boolean).join(' | ');
 
     return (
-      <div key={item.id} className={`transition-colors group ${isDirectMatch && isLeaf ? 'ring-1 ring-inset ring-indigo-400/50 bg-indigo-50/20' : ''}`}>
-        <div
-          className={`flex items-center py-2 px-3 cursor-pointer transition-colors ${rowBg} ${leftAccent}`}
-          style={{ paddingLeft: `${indentPadding}px` }}
-          onClick={() => {
-            if (hasChildren) pc.toggleExpand(item.id);
-          }}
+      <React.Fragment key={item.id}>
+        <tr
+          className={`whitespace-nowrap transition-colors ${hasChildren ? 'cursor-pointer' : ''} ${isLeaf ? 'bg-white hover:bg-slate-50 text-[11px] text-slate-700 border-b border-slate-100 border-l-2 border-l-slate-300' : nivelStyle.bg} ${isDirectMatch && isLeaf ? '!bg-[#EEF0FB]' : ''}`}
+          onClick={() => { if (hasChildren) pc.toggleExpand(item.id); }}
         >
-          {/* Expander Chevron or Leaf Bullet */}
-          <div className="flex-shrink-0 w-6 flex justify-center items-center">
-            {hasChildren ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  pc.toggleExpand(item.id);
-                }}
-                className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors cursor-pointer ${chevronStyle}`}
-                title={isExpanded ? 'Colapsar partida' : 'Expandir partida'}
-              >
-                <ChevronRight
-                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isExpanded ? 'rotate-90' : ''
-                  }`}
-                />
-              </button>
-            ) : isLeaf ? (
-              <div className="w-5 h-5 flex items-center justify-center">
-                <span className={`w-1.5 h-1.5 rounded-full transition-colors ${isDirectMatch ? 'bg-indigo-600 scale-125' : 'bg-slate-300 group-hover:bg-indigo-500'}`} />
-              </div>
-            ) : (
-              <div className="w-5 h-5" />
-            )}
-          </div>
-          
-          <div className="flex-1 grid gap-2 items-center" style={{ gridTemplateColumns: '85px minmax(240px, 2fr) 1.2fr 1.2fr 1.2fr 1.4fr 1.2fr 80px' }}>
-            {/* Código / ID */}
-            <div className="text-center font-mono text-[10.5px]">
-              {isLeaf ? (
-                <span className="bg-slate-100 text-slate-700 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-200/80 text-[10px]">
-                  {item.activityId || '-'}
-                </span>
+          {/* WBS / Nivel jerárquico */}
+          <td className={`px-1 py-1 overflow-hidden ${leftAccent}`} style={{ paddingLeft: `${indentPadding}px` }}>
+            <div className="flex items-center gap-1 min-w-0">
+              {hasChildren ? (
+                isExpanded
+                  ? <ChevronDown className={`w-3.5 h-3.5 shrink-0 ${chevronStyle}`} />
+                  : <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${chevronStyle}`} />
+              ) : isLeaf ? (
+                <span className={`w-1.5 h-1.5 mx-1 rounded-full shrink-0 ${isDirectMatch ? 'bg-[#312E81]' : 'bg-[#C5CFD4]'}`} />
               ) : (
-                <span className="text-slate-500 font-medium font-mono text-[10px]">{item.wbs || '-'}</span>
+                <span className="w-3.5 shrink-0" />
               )}
-            </div>
-
-            {/* Descripción WBS / Partida */}
-            <div className="min-w-0 pr-2">
-              <div className="flex items-center gap-1.5 overflow-hidden">
-                {!isLeaf && (
-                  <span className={`font-mono px-1.5 py-0.5 rounded-md shrink-0 ${badgeStyle}`}>
-                    {item.wbs}
-                  </span>
-                )}
-                <span 
-                  className={`truncate ${textStyle}`} 
-                  title={[item.descripcion, item.idOrig ? `id.Orig: ${item.idOrig}` : '', item.subcontratista ? `SubC: ${item.subcontratista}` : '', item.componente ? `Componente: ${item.componente}` : ''].filter(Boolean).join(' | ')}
-                >
-                  {item.descripcion}
-                </span>
-                {!isLeaf && wbsSearchResults.isActive && descendantMatchCountMap.has(item.id) && (
-                  <span className="text-[9px] font-bold text-indigo-700 bg-indigo-100/90 border border-indigo-200 px-1.5 py-0.2 rounded-full shrink-0 shadow-2xs">
-                    {descendantMatchCountMap.get(item.id)} {descendantMatchCountMap.get(item.id) === 1 ? 'partida' : 'partidas'}
-                  </span>
-                )}
-                {isDirectMatch && isLeaf && (
-                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-full shrink-0 shadow-2xs">
-                    Coincidencia
-                  </span>
-                )}
-              </div>
-            </div>
-            
-            {/* V. Contrato */}
-            <div className="text-right font-mono text-[11.5px] text-slate-700 font-medium">
-              ${formattedMoney(values.venta)}
-            </div>
-
-            {/* V. Plan */}
-            <div className="text-right font-mono text-[11.5px] text-indigo-700 font-semibold">
-              ${formattedMoney(values.ventaPlan)}
-            </div>
-
-            {/* V. Ejecutada */}
-            <div className="text-right font-mono text-[11.5px] text-emerald-700 font-bold">
-              ${formattedMoney(values.ventaEjecutada)}
-            </div>
-            
-            {/* % Avance */}
-            <div className="text-right">
-              <div className="flex items-center justify-end gap-1.5">
-                <span className={`font-mono font-bold text-[11px] w-12 text-right ${
-                  avance >= 100 ? 'text-emerald-700' : avance >= 50 ? 'text-indigo-700' : avance > 0 ? 'text-amber-700' : 'text-slate-400'
-                }`}>
-                  {avance.toFixed(2)}%
-                </span>
-                <div className="w-12 sm:w-14 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0 border border-slate-200/60">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      avance >= 100 ? 'bg-emerald-500' : isLeaf ? (avance >= 50 ? 'bg-indigo-500' : avance > 0 ? 'bg-amber-500' : 'bg-slate-300') : progressBarColor
-                    }`}
-                    style={{ width: `${Math.min(avance, 100)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Saldo / Excedente */}
-            <div className="text-right font-mono text-[11.5px]">
-              {values.saldo < 0 ? (
-                <span className="text-rose-600 font-bold">
-                  (${formattedMoney(Math.abs(values.saldo))})
-                </span>
-              ) : (
-                <span className="text-indigo-950 font-semibold">
-                  ${formattedMoney(values.saldo)}
+              {!isLeaf && <span className={`text-[10px] font-mono shrink-0 ${nivelStyle.subText}`}>{item.wbs}</span>}
+              <span className={`truncate min-w-0 ${textStyle}`} title={titulo}>{item.descripcion}</span>
+              {!isLeaf && wbsSearchResults.isActive && descendantMatchCountMap.has(item.id) && (
+                <span className="text-[9px] font-bold text-[#312E81] bg-[#EEF0FB] border border-[#C7CBEF] px-1.5 rounded-full shrink-0">
+                  {descendantMatchCountMap.get(item.id)} {descendantMatchCountMap.get(item.id) === 1 ? 'partida' : 'partidas'}
                 </span>
               )}
-            </div>
-
-            {/* % Var */}
-            <div className="text-right font-mono text-[11px]">
-              {pctVar < 0 ? (
-                <span className="text-rose-600 font-bold" title={`Variación negativa: ${pctVar.toFixed(2)}%`}>
-                  ({Math.abs(pctVar).toFixed(2)}%)
-                </span>
-              ) : pctVar > 0 ? (
-                <span className="text-emerald-700 font-bold" title={`Variación positiva: +${pctVar.toFixed(2)}%`}>
-                  +{pctVar.toFixed(2)}%
-                </span>
-              ) : (
-                <span className="text-slate-400 font-medium">0.00%</span>
+              {isDirectMatch && isLeaf && (
+                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 rounded-full shrink-0">Coincidencia</span>
               )}
             </div>
-          </div>
-        </div>
+          </td>
+          {/* Activity ID */}
+          <td className="px-1.5 py-1 font-mono text-[10px] text-slate-500 truncate" title={isLeaf ? (item.activityId || '') : ''}>{isLeaf ? (item.activityId || '—') : ''}</td>
+          {/* V. Contrato */}
+          <td className={`px-2 py-1 text-right font-mono ${isLeaf ? 'text-[#14212A]' : nivelStyle.vContrato}`}>{formattedMoney(values.venta)}</td>
+          {/* V. Plan */}
+          <td className={`px-2 py-1 text-right font-mono ${isLeaf ? 'text-slate-700' : nivelStyle.vPlan}`}>{formattedMoney(values.ventaPlan)}</td>
+          {/* V. Ejecutada */}
+          <td className={`px-2 py-1 text-right font-mono ${isLeaf ? 'text-green-700' : nivelStyle.vEjec}`}>{formattedMoney(values.ventaEjecutada)}</td>
+          {/* % Avance */}
+          <td className="px-2 py-1 text-right">
+            <div className="flex items-center justify-end gap-1.5">
+              <span className={`font-mono font-semibold ${avance >= 100 ? 'text-green-700' : avance > 0 ? 'text-[#14212A]' : 'text-slate-400'}`}>{avance.toFixed(2)}%</span>
+              <div className="w-10 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0 border border-slate-200/60">
+                <div className="h-full rounded-full" style={{ width: `${Math.min(avance, 100)}%`, backgroundColor: avance >= 100 ? '#2B7F52' : barColor }} />
+              </div>
+            </div>
+          </td>
+          {/* Saldo / Excedente */}
+          <td className={`px-2 py-1 text-right font-mono font-semibold ${values.saldo < 0 ? 'text-red-600' : 'text-[#14212A]'}`}>
+            {values.saldo < 0 ? `(${formattedMoney(Math.abs(values.saldo))})` : formattedMoney(values.saldo)}
+          </td>
+          {/* % Var */}
+          <td className={`px-2 py-1 text-right font-mono font-semibold ${pctVar < 0 ? 'text-red-600' : pctVar > 0 ? 'text-green-700' : 'text-slate-400'}`}
+            title={pctVar !== 0 ? `Variación: ${pctVar > 0 ? '+' : ''}${pctVar.toFixed(2)}%` : undefined}>
+            {pctVar < 0 ? `(${Math.abs(pctVar).toFixed(2)}%)` : pctVar > 0 ? `+${pctVar.toFixed(2)}%` : '0.00%'}
+          </td>
+        </tr>
 
         {hasChildren && isExpanded && (
-          <div>
+          <>
             {(wbsHierarchyMaps.leafChildrenMap.get(item.id) || [])
               .filter(a => (!pc.tipologiaSeleccionada || a.tipo === pc.tipologiaSeleccionada) &&
                            (!pc.componenteSeleccionado || ((a.componente || '').trim() || 'Sin Componente') === pc.componenteSeleccionado) &&
@@ -1012,20 +849,54 @@ export default function App() {
             {(wbsHierarchyMaps.nonLeafChildrenMap.get(item.id) || [])
               .filter(child => !wbsSearchResults.isActive || wbsSearchResults.visibleItemIds.has(child.id))
               .map(child => renderAvancePartidaRow(child))}
-          </div>
+          </>
         )}
-      </div>
+      </React.Fragment>
     );
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const [isLoggingIn, setIsLoggingIn] = React.useState(false);
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.trim() === 'control2026') {
-      setIsLoggedIn(true);
+    setIsLoggingIn(true);
+    const control = new AbortController();
+    const limite = window.setTimeout(() => control.abort(), 20000);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        signal: control.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok) {
+        setLoginError(data.error || 'No se pudo iniciar sesión.');
+        return;
+      }
+      setUsername(data.username);
+      setRole(data.role);
+      setPassword('');
       setLoginError('');
-    } else {
-      setLoginError('Contraseña incorrecta. Ingrese la contraseña autorizada.');
+      setIsLoggedIn(true);
+    } catch (err) {
+      setLoginError(
+        (err as Error)?.name === 'AbortError'
+          ? 'El servidor no respondió a tiempo. Puede que la red (p. ej. un filtro corporativo) esté bloqueando la conexión.'
+          : 'No se pudo conectar con el servidor.'
+      );
+    } finally {
+      window.clearTimeout(limite);
+      setIsLoggingIn(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+    setIsLoggedIn(false);
+    setRole(null);
+    setIsAdminUnlocked(false);
+    setAdminPasswordInput('');
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -1053,6 +924,16 @@ export default function App() {
     }
   };
 
+  // Mientras se comprueba si hay una sesión abierta, no mostrar nada.
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen bg-slate-50/50 flex flex-col items-center justify-center gap-3">
+        <LogoHoja className="h-12 animate-pulse" />
+        <span className="text-xs text-[#5A6A74]">Conectando…</span>
+      </div>
+    );
+  }
+
   // If not logged in, show custom elegant Landing login page.
   if (!isLoggedIn) {
     return (
@@ -1062,33 +943,33 @@ export default function App() {
         <div className="max-w-4xl w-full flex flex-col gap-5">
           {/* Beautiful Explicit Landing Progress Bar justo arriba de la tarjeta */}
           {isVisualLoading && (
-            <div id="loader-bar-landing-card" className="w-full bg-white border border-indigo-150 rounded-2xl p-5 shadow-lg shadow-indigo-100/40 animate-fade-in flex flex-col gap-3">
+            <div id="loader-bar-landing-card" className="w-full bg-white border border-[#F3D6D6] rounded-2xl p-5 shadow-lg shadow-[#CD0000]/5 animate-fade-in flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#CD0000]/50 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#CD0000]"></span>
                   </span>
-                  <span className="text-xs font-black uppercase tracking-wider text-indigo-700">
-                    ☁️ {smoothPhase || 'Sincronizando con la nube de Firebase...'}
+                  <span className="text-xs font-black uppercase tracking-wider text-[#CD0000]">
+                    ☁️ {smoothPhase || 'Sincronizando con la nube...'}
                   </span>
                 </div>
-                <span className="text-sm font-black text-indigo-650 bg-indigo-50/80 px-2 py-0.5 rounded-lg border border-indigo-100">
+                <span className="text-sm font-black text-[#CD0000] bg-[#FDF0F0] px-2 py-0.5 rounded-lg border border-[#F3D6D6]">
                   {Math.round(smoothProgress)}%
                 </span>
               </div>
               
               <div className="w-full h-3 bg-neutral-50/80 rounded-full overflow-hidden border border-slate-200/50 p-0.5 animate-pulse">
                 <div 
-                  className="h-full bg-gradient-to-r from-indigo-500 to-indigo-650 rounded-full transition-all duration-300 ease-out shadow-mini" 
+                  className="h-full bg-gradient-to-r from-[#E53935] to-[#CD0000] rounded-full transition-all duration-300 ease-out shadow-mini" 
                   style={{ width: `${smoothProgress}%` }} 
                 />
               </div>
 
               <div className="flex justify-between items-center text-[10px] text-slate-400 font-extrabold px-1">
-                <span className={smoothProgress >= 5 ? "text-indigo-650 transition-colors duration-200 font-black" : ""}>🔌 Conectando</span>
-                <span className={smoothProgress >= 40 ? "text-indigo-650 transition-colors duration-200 font-black" : ""}>📥 Descargando</span>
-                <span className={smoothProgress >= 75 ? "text-indigo-650 transition-colors duration-200 font-black" : ""}>⚡ Procesando</span>
+                <span className={smoothProgress >= 5 ? "text-[#CD0000] transition-colors duration-200 font-black" : ""}>🔌 Conectando</span>
+                <span className={smoothProgress >= 40 ? "text-[#CD0000] transition-colors duration-200 font-black" : ""}>📥 Descargando</span>
+                <span className={smoothProgress >= 75 ? "text-[#CD0000] transition-colors duration-200 font-black" : ""}>⚡ Procesando</span>
                 <span className={smoothProgress >= 98 || smoothProgress === 100 ? "text-emerald-600 transition-colors duration-200 font-black" : ""}>🎉 Finalizado</span>
               </div>
             </div>
@@ -1097,14 +978,10 @@ export default function App() {
           <div className="bg-white rounded-3xl border border-indigo-100/80 overflow-hidden shadow-[0_15px_40px_rgba(15,23,42,0.06)] grid md:grid-cols-12 min-h-[520px]">
           
           {/* Brand/Showcase column */}
-          <div className="md:col-span-5 bg-gradient-to-br from-slate-50 to-indigo-50/40 p-8 md:p-12 flex flex-col justify-between items-center text-center border-r border-slate-100">
+          <div className="md:col-span-5 bg-white p-8 md:p-12 flex flex-col justify-between items-center text-center border-r border-slate-100">
             <div className="my-auto space-y-4 flex flex-col items-center">
-              <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/15 animate-fade-in">
-                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                  <div className="w-4 h-4 bg-indigo-600 rounded-full"></div>
-                </div>
-              </div>
-              <span className="text-2xl font-extrabold tracking-tight text-slate-900 font-sans">Tracker v2.0</span>
+              <LogoIngreso className="h-24 animate-fade-in" />
+              <span className="block text-[32px] leading-none font-extrabold tracking-tight text-slate-900 font-sans">Trakciona</span>
             </div>
 
             <div className="pt-6 border-t border-slate-100 w-full">
@@ -1131,8 +1008,26 @@ export default function App() {
 
               <div className="space-y-4">
                 <div className="space-y-1.5">
+                  <label htmlFor="login-proyecto" className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
+                    <Building2 className="w-3.5 h-3.5 text-[#CD0000]" />
+                    Proyecto
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="login-proyecto"
+                      value={proyecto}
+                      onChange={(e) => setProyecto(e.target.value)}
+                      className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-11 py-3.5 text-sm font-semibold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all cursor-pointer"
+                    >
+                      <option value="los-merinos">Los Merinos</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
-                    <User className="w-3.5 h-3.5 text-indigo-600" />
+                    <User className="w-3.5 h-3.5 text-[#CD0000]" />
                     Usuario
                   </label>
                   <div className="relative">
@@ -1150,7 +1045,7 @@ export default function App() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 select-none">
-                      <Lock className="w-3.5 h-3.5 text-indigo-600" />
+                      <Lock className="w-3.5 h-3.5 text-[#CD0000]" />
                       Contraseña
                     </label>
                     {isCapsLockOn && (
@@ -1194,14 +1089,12 @@ export default function App() {
 
               <button
                 type="submit"
-                className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 font-sans tracking-tight cursor-pointer"
+                disabled={isLoggingIn}
+                className="w-full disabled:opacity-60 bg-[#CD0000] hover:bg-[#B30000] active:bg-[#990000] text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg shadow-[#CD0000]/15 hover:shadow-[#CD0000]/25 font-sans tracking-tight cursor-pointer"
               >
-                Ingresar a la Plataforma
+                {isLoggingIn ? 'Ingresando...' : 'Ingresar a la Plataforma'}
               </button>
 
-              <p className="text-center text-slate-400 text-[11px] select-none hover:text-slate-500 transition-colors">
-                Para administradores: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono text-[10px] font-semibold border border-slate-200/55">admin</code> / <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono text-[10px] font-semibold border border-slate-200/55">control2026</code>. Para consultores: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono text-[10px] font-semibold border border-slate-200/55">consultor</code> o cualquier otro usuario con la misma contraseña.
-              </p>
             </form>
           </div>
         </div>
@@ -1435,28 +1328,32 @@ export default function App() {
           </div>
         </div>
 
-        {/* Table Container with Horizontal Scroll */}
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white shadow-2xs">
-          <div className="min-w-[940px]">
-            {/* Table headers */}
-            <div className="bg-slate-50/90 border-b border-slate-200 px-3 py-2.5">
-              <div className="flex items-center text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
-                <div className="w-6 flex-shrink-0"></div>
-                <div className="flex-1 grid gap-2 items-center" style={{ gridTemplateColumns: '85px minmax(240px, 2fr) 1.2fr 1.2fr 1.2fr 1.4fr 1.2fr 80px' }}>
-                  <div className="text-center font-bold">Código</div>
-                  <div className="text-left font-bold">Descripción WBS / Partida</div>
-                  <div className="text-right font-bold">V. Contrato</div>
-                  <div className="text-right font-bold">V. Plan</div>
-                  <div className="text-right font-bold">V. Ejecutada</div>
-                  <div className="text-right font-bold">% Avance</div>
-                  <div className="text-right font-bold">Saldo</div>
-                  <div className="text-right font-bold">% Var</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Table rows list */}
-            <div className="divide-y divide-slate-100/80">
+        {/* Tabla con el formato de Control de Ejecución */}
+        <div className="ht-theme overflow-x-auto rounded-xl border border-[#D5DEE2] bg-white">
+          <table className="w-full min-w-[940px] table-fixed text-xs border-collapse text-left">
+            <colgroup>
+              <col style={{ width: '34%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '7%' }} />
+            </colgroup>
+            <thead>
+              <tr className="whitespace-nowrap">
+                <th className="px-2 py-2 text-left text-[10px]">WBS / Nivel Jerárquico</th>
+                <th className="px-1.5 py-2 text-left text-[10px]">Activity ID</th>
+                <th className="px-2 py-2 text-right text-[10px]">V. Contrato</th>
+                <th className="px-2 py-2 text-right text-[10px]">V. Plan</th>
+                <th className="px-2 py-2 text-right text-[10px]">V. Ejecutada</th>
+                <th className="px-2 py-2 text-right text-[10px]">% Avance</th>
+                <th className="px-2 py-2 text-right text-[10px]">Saldo</th>
+                <th className="px-2 py-2 text-right text-[10px]">% Var</th>
+              </tr>
+            </thead>
+            <tbody>
               {(() => {
                 let roots: any[] = [];
                 if (pc.filterLevel !== 'all') {
@@ -1472,7 +1369,7 @@ export default function App() {
 
                 if (roots.length === 0) {
                   return (
-                    <div className="py-12 px-4 text-center text-slate-500">
+                    <tr><td colSpan={8} className="!p-0"><div className="py-12 px-4 text-center text-slate-500 whitespace-normal">
                       <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                         <Search className="w-5 h-5" />
                       </div>
@@ -1492,19 +1389,16 @@ export default function App() {
                         <X className="w-3.5 h-3.5" />
                         <span>Limpiar búsqueda</span>
                       </button>
-                    </div>
+                    </div></td></tr>
                   );
                 }
 
                 return roots.map(item => renderAvancePartidaRow(item));
               })()}
-            </div>
-
-            {/* Sticky Table Footer (Total General) */}
+            </tbody>
             {(() => {
               const stats = pc.stats;
               if (!stats) return null;
-
               const contratoTotal = pc.actividades.filter(a => a.esItemHoja).reduce((sum, a) => sum + (a.ventaM || 0), 0);
               const totalVenta = stats.totalVenta;
               const totalVentaPlan = stats.totalVentaPlanPeriodo;
@@ -1513,67 +1407,24 @@ export default function App() {
               const totalAvance = totalVenta > 0 ? Number(((totalVentaEjecutada / totalVenta) * 100).toFixed(2)) : 0;
               const baseTotalVar = totalVentaPlan > 0 ? totalVentaPlan : (totalVenta > 0 ? totalVenta : contratoTotal);
               const totalPctVar = baseTotalVar > 0 ? Number(((totalSaldo / baseTotalVar) * 100).toFixed(2)) : 0;
-
               return (
-                <div className="border-t-2 border-slate-300 bg-slate-900 text-white font-bold sticky bottom-0 z-10 shadow-lg">
-                  <div className="flex items-center py-2.5 px-3">
-                    <div className="flex-shrink-0 font-black text-indigo-400 uppercase text-[10px] tracking-wider w-6 text-center">
-                      Σ
-                    </div>
-                    
-                    <div className="flex-1 grid gap-2 items-center" style={{ gridTemplateColumns: '85px minmax(240px, 2fr) 1.2fr 1.2fr 1.2fr 1.4fr 1.2fr 80px' }}>
-                      <div className="text-center font-mono text-slate-400 text-xs">-</div>
-                      <div>
-                        <div className="font-extrabold text-white text-[12px] tracking-tight">Total Consolidado</div>
-                        <div className="text-[10px] text-slate-400 font-normal">{pc.actividades.length.toLocaleString('es-ES')} líneas en catálogo</div>
-                      </div>
-                      
-                      <div className="text-right font-mono font-bold text-slate-200 text-[11.5px]">
-                        ${totalVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-right font-mono font-bold text-indigo-300 text-[11.5px]">
-                        ${totalVentaPlan.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-right font-mono font-black text-emerald-400 text-[11.5px]">
-                        ${totalVentaEjecutada.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      
-                      <div className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="font-mono font-black text-white text-[11.5px] w-12 text-right">{totalAvance.toFixed(2)}%</span>
-                          <div className="w-12 sm:w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden shrink-0 border border-slate-700">
-                            <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${Math.min(totalAvance, 100)}%` }} />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="text-right font-mono font-bold text-[11.5px]">
-                        {totalSaldo < 0 ? (
-                          <span className="text-rose-400">
-                            (${Math.abs(totalSaldo).toLocaleString('en-US', { minimumFractionDigits: 2 })})
-                          </span>
-                        ) : (
-                          <span className="text-emerald-300">
-                            ${totalSaldo.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                          </span>
-                        )}
-                      </div>
-                      
-                      <div className="text-right font-mono font-bold text-[11.5px]">
-                        {totalPctVar < 0 ? (
-                          <span className="text-rose-400">({Math.abs(totalPctVar).toFixed(2)}%)</span>
-                        ) : totalPctVar > 0 ? (
-                          <span className="text-emerald-300">+{totalPctVar.toFixed(2)}%</span>
-                        ) : (
-                          <span className="text-slate-400">0.00%</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <tfoot className="sticky bottom-0 z-10">
+                  <tr className="ht-g lv0 whitespace-nowrap">
+                    <td className="px-2 py-2 text-[11px] truncate" title={`${pc.actividades.length.toLocaleString('es-ES')} líneas en catálogo`}>
+                      TOTAL CONSOLIDADO ({pc.actividades.length.toLocaleString('es-ES')} líneas)
+                    </td>
+                    <td></td>
+                    <td className="px-2 py-2 text-right font-mono">{formattedMoney(totalVenta)}</td>
+                    <td className="px-2 py-2 text-right font-mono">{formattedMoney(totalVentaPlan)}</td>
+                    <td className="px-2 py-2 text-right font-mono">{formattedMoney(totalVentaEjecutada)}</td>
+                    <td className="px-2 py-2 text-right font-mono">{totalAvance.toFixed(2)}%</td>
+                    <td className="px-2 py-2 text-right font-mono">{totalSaldo < 0 ? `(${formattedMoney(Math.abs(totalSaldo))})` : formattedMoney(totalSaldo)}</td>
+                    <td className="px-2 py-2 text-right font-mono">{totalPctVar < 0 ? `(${Math.abs(totalPctVar).toFixed(2)}%)` : totalPctVar > 0 ? `+${totalPctVar.toFixed(2)}%` : '0.00%'}</td>
+                  </tr>
+                </tfoot>
               );
             })()}
-          </div>
+          </table>
         </div>
       </div>
     </div>
@@ -1587,15 +1438,15 @@ export default function App() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#442dd7]/60 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#442dd7]"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#CD0000]/50 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#CD0000]"></span>
                 </span>
-                <span className="text-xs font-bold uppercase tracking-wider text-[#442dd7]">{smoothPhase || pc.loadingPhase || 'Cargando datos...'}</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#CD0000]">{smoothPhase || pc.loadingPhase || 'Cargando datos...'}</span>
               </div>
-              <span className="text-sm font-bold text-[#442dd7] bg-[#EEECFB] px-2 py-0.5 rounded-lg border border-[#442dd7]/20">{Math.round(smoothProgress)}%</span>
+              <span className="text-sm font-bold text-[#CD0000] bg-[#FDF0F0] px-2 py-0.5 rounded-lg border border-[#F3D6D6]">{Math.round(smoothProgress)}%</span>
             </div>
             <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-[#D5DEE2] p-0.5 animate-pulse">
-              <div className="h-full bg-gradient-to-r from-[#442dd7] to-[#2C67A6] rounded-full transition-all duration-300 ease-out" style={{ width: `${smoothProgress}%` }} />
+              <div className="h-full bg-gradient-to-r from-[#E53935] to-[#CD0000] rounded-full transition-all duration-300 ease-out" style={{ width: `${smoothProgress}%` }} />
             </div>
           </div>
         </div>
@@ -1605,14 +1456,17 @@ export default function App() {
          {/* Navigation / Header */}
         <div className="flex justify-between items-center bg-white rounded-xl shadow-2xs border border-[#D5DEE2] p-4 sm:p-5 flex-wrap gap-4">
           <div className="flex items-center space-x-3.5">
-            <div className="w-10 h-10 bg-[#442dd7] rounded-xl flex items-center justify-center shadow-xs text-white font-bold text-base">
-              ⚙️
+            <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-xs ring-1 ring-[#F3D6D6]">
+              <LogoHoja className="h-8" />
             </div>
             <div>
-              <h1 className="font-['Barlow_Condensed'] text-2xl sm:text-[26px] font-bold text-[#14212A] tracking-tight leading-none">Tracker v2.0</h1>
+              <h1 className="font-['Barlow_Condensed'] text-2xl sm:text-[26px] font-bold text-[#14212A] tracking-tight leading-none">
+                Trakciona
+                <span className="ml-2 font-sans text-[13px] font-medium text-[#5A6A74] tracking-normal align-middle">Los Merinos</span>
+              </h1>
               <div className="flex flex-col gap-1.5 mt-1">
-                {pc.fileData && pc.fileData.isFirebase ? (
-                  <span className="px-2.5 py-0.5 bg-[#EEECFB] text-[#442dd7] rounded text-[11px] font-semibold border border-[#442dd7]/30 inline-flex items-center gap-1.5 self-start animate-fade-in">
+                {pc.fileData && pc.fileData.isCloud ? (
+                  <span className="px-2.5 py-0.5 bg-[#FBE9E9] text-[#CD0000] rounded text-[11px] font-semibold border border-[#CD0000]/30 inline-flex items-center gap-1.5 self-start animate-fade-in">
                     ☁️ Datos en la Nube Activos
                   </span>
                 ) : pc.fileData && isAdmin ? (
@@ -1628,15 +1482,15 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {pc.firebasePlanData && pc.localPlanData && isAdmin && (
+            {pc.cloudPlanData && pc.localPlanData && isAdmin && (
               <div className="flex items-center bg-[#F5F8F9] p-1 rounded-xl border border-[#D5DEE2] text-[10.5px]" title="Intercambiar origen de datos">
                 <button
                   type="button"
-                  id="btn-source-firebase"
-                  onClick={() => pc.switchSource('firebase')}
+                  id="btn-source-cloud"
+                  onClick={() => pc.switchSource('cloud')}
                   className={`px-3 py-1 font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                    pc.sourceActive === 'firebase'
-                      ? 'bg-[#442dd7] text-white shadow-xs'
+                    pc.sourceActive === 'cloud'
+                      ? 'bg-[#312E81] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A]'
                   }`}
                 >
@@ -1648,7 +1502,7 @@ export default function App() {
                   onClick={() => pc.switchSource('local')}
                   className={`px-3 py-1 font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
                     pc.sourceActive === 'local'
-                      ? 'bg-[#442dd7] text-white shadow-xs'
+                      ? 'bg-[#312E81] text-white shadow-xs'
                       : 'text-[#5A6A74] hover:text-[#14212A]'
                   }`}
                 >
@@ -1661,7 +1515,7 @@ export default function App() {
                 <button
                   id="btn-admin-sync"
                   onClick={() => setIsSyncMenuOpen(!isSyncMenuOpen)}
-                  className="px-3.5 py-1.5 text-xs bg-[#442dd7] hover:bg-[#3722b5] text-white font-semibold rounded-lg transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  className="px-3.5 py-1.5 text-xs bg-[#312E81] hover:bg-[#26236B] text-white font-semibold rounded-lg transition-all shadow-xs flex items-center gap-2 cursor-pointer"
                   title="Panel de Sincronización"
                 >
                   <span>Cloud {isAdminUnlocked ? '🔓' : '🔒'}</span>
@@ -1689,7 +1543,7 @@ export default function App() {
                       </span>
                     </div>
 
-                    {pc.fileData && pc.fileData.isFirebase && (
+                    {pc.fileData && pc.fileData.isCloud && (
                       <div className="flex items-center justify-between p-1.5 bg-indigo-50/30 rounded-xl border border-indigo-100/50 text-[11px]">
                         <span className="text-slate-400 font-extrabold">Estado de Datos:</span>
                         <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-bold flex items-center border border-indigo-150">
@@ -1762,28 +1616,21 @@ export default function App() {
                       <div className="flex flex-col gap-2 pt-0.5">
                         {pc.fileData && (
                           <button
-                            id="btn-publish-firebase"
+                            id="btn-publish-cloud"
                             disabled={pc.loadingProgress > 0}
                             onClick={async () => {
                               if (pc.loadingProgress > 0) return;
-                              await pc.publishPlanToFirebase();
+                              await pc.publishPlanToCloud();
                               setIsSyncMenuOpen(false);
                             }}
-                            className={`w-full py-2 bg-[#5200ff] hover:bg-[#4300d6] active:bg-[#3400a3] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 ${pc.loadingProgress > 0 ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
-                            title="Sincronizar y publicar este plan en la nube de Firebase para todos los usuarios"
+                            className={`w-full py-2 bg-[#CD0000] hover:bg-[#B30000] active:bg-[#990000] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 ${pc.loadingProgress > 0 ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
+                            title="Sincronizar y publicar este plan en la nube para todos los usuarios"
                           >
                             <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
                             Sincronizar Nube
                           </button>
                         )}
 
-                        {pc.fileData && (
-                          <div className="text-center py-1">
-                            <span className="text-[10px] text-indigo-650 font-bold bg-indigo-50/70 border border-indigo-100/50 px-2.5 py-1.5 rounded-xl inline-block leading-none">
-                              ⚡ Consumo est. de cuota Firestore: {(((Math.ceil(pc.actividades.length / 200) + Math.ceil(pc.planillaHojas.length / 200) + 1) / 50000) * 100).toFixed(4)}%
-                            </span>
-                          </div>
-                        )}
 
                         <label className={`w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border border-slate-200 rounded-xl transition-all hover:text-slate-900 text-center block text-xs ${isVisualLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                           📁 Cargar Nuevo Archivo Excel
@@ -1808,10 +1655,8 @@ export default function App() {
 
             <button
               id="btn-logout"
-              onClick={() => {
-                setIsLoggedIn(false);
-              }}
-              className="px-4 py-2 text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold border border-rose-200 rounded-xl transition-all hover:text-rose-800 cursor-pointer"
+              onClick={handleLogout}
+              className="px-4 py-2 text-xs bg-[#EEF0FB] hover:bg-[#E0E3F7] text-[#312E81] font-bold border border-[#C7CBEF] rounded-xl transition-all hover:text-[#1E1B4B] cursor-pointer"
             >
               Cerrar Sesión
             </button>
@@ -1820,10 +1665,10 @@ export default function App() {
 
         {/* Visual Loading Screen during initial cloud data download */}
         {!pc.fileData && (isVisualLoading || pc.loadingProgress > 0) ? (
-          <div className="bg-white rounded-3xl border border-indigo-100 p-8 md:p-14 shadow-[0_15px_40px_rgba(15,23,42,0.04)] text-center max-w-xl mx-auto space-y-6 animate-fade-in my-8">
+          <div className="bg-white rounded-3xl border border-slate-200 p-8 md:p-14 shadow-[0_15px_40px_rgba(15,23,42,0.04)] text-center max-w-xl mx-auto space-y-6 animate-fade-in my-8">
             <div className="relative flex items-center justify-center mx-auto mb-2">
-              <div className="w-20 h-20 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin shadow-md"></div>
-              <Server className="w-8 h-8 text-indigo-600 absolute animate-pulse" />
+              <div className="w-20 h-20 rounded-full border-4 border-[#F6D5D5] border-t-[#CD0000] animate-spin shadow-md"></div>
+              <Server className="w-8 h-8 text-[#CD0000] absolute animate-pulse" />
             </div>
 
             <div className="space-y-2">
@@ -1838,16 +1683,16 @@ export default function App() {
             <div className="w-full max-w-md mx-auto space-y-2.5 pt-2">
               <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200 p-0.5 shadow-inner">
                 <div 
-                  className="h-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-indigo-700 rounded-full transition-all duration-300 ease-out shadow-sm"
+                  className="h-full bg-gradient-to-r from-[#E53935] via-[#CD0000] to-[#A80000] rounded-full transition-all duration-300 ease-out shadow-sm"
                   style={{ width: `${Math.max(8, Math.round(smoothProgress || pc.loadingProgress))}%` }}
                 />
               </div>
               <div className="flex justify-between items-center text-[11px] font-bold text-slate-400 px-1">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                  Conexión Firestore
+                  <span className="w-2 h-2 rounded-full bg-[#CD0000] animate-pulse"></span>
+                  Conexión a la nube
                 </span>
-                <span className="text-indigo-600 font-extrabold text-xs">{Math.round(smoothProgress || pc.loadingProgress)}%</span>
+                <span className="text-[#CD0000] font-extrabold text-xs">{Math.round(smoothProgress || pc.loadingProgress)}%</span>
               </div>
             </div>
           </div>
@@ -1881,7 +1726,7 @@ export default function App() {
             <div className="space-y-2">
               <h3 className="text-xl font-black text-slate-800 tracking-tight">Sin Datos en la Nube</h3>
               <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                No se ha detectado ningún cronograma de control cargado previamente en la nube de Firebase.
+                No se ha detectado ningún cronograma de control cargado previamente en la nube.
                 {isAdmin ? ' Puedes cargar o arrastrar un archivo Excel (.xlsx) para inicializar y publicar el Master Plan.' : ' Por favor, contacta al administrador para que realice la carga inicial.'}
               </p>
             </div>
@@ -1904,56 +1749,49 @@ export default function App() {
           <>
             {/* Background syncing notification banner if data is already populated and syncing updates */}
             {isVisualLoading && (
-              <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between gap-4 animate-fade-in shadow-xs mb-4">
-                <div className="flex items-center gap-2.5 text-xs text-indigo-900 font-bold min-w-0">
-                  <div className="w-4 h-4 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin shrink-0"></div>
-                  <span className="truncate">{smoothPhase || pc.loadingPhase || 'Sincronizando con Firebase...'}</span>
+              <div className="p-3 bg-[#FDF0F0] border border-[#F3D6D6] rounded-2xl flex items-center justify-between gap-4 animate-fade-in shadow-xs mb-4">
+                <div className="flex items-center gap-2.5 text-xs text-[#7A0000] font-bold min-w-0">
+                  <div className="w-4 h-4 rounded-full border-2 border-[#F6D5D5] border-t-[#CD0000] animate-spin shrink-0"></div>
+                  <span className="truncate">{smoothPhase || pc.loadingPhase || 'Sincronizando con la nube...'}</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <div className="w-32 h-2 bg-indigo-200/60 rounded-full overflow-hidden">
+                  <div className="w-32 h-2 bg-[#F6D5D5] rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-indigo-600 rounded-full transition-all duration-200"
+                      className="h-full bg-[#CD0000] rounded-full transition-all duration-200"
                       style={{ width: `${Math.max(5, smoothProgress || pc.loadingProgress)}%` }}
                     />
                   </div>
-                  <span className="text-[11px] font-extrabold text-indigo-700">{Math.round(smoothProgress || pc.loadingProgress)}%</span>
+                  <span className="text-[11px] font-extrabold text-[#CD0000]">{Math.round(smoothProgress || pc.loadingProgress)}%</span>
                 </div>
               </div>
             )}
 
-            {pc.firebaseQuotaExceeded && (
+            {pc.cloudQuotaExceeded && (
               <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs mb-4 text-xs animate-fade-in">
                 <div className="flex items-center gap-2.5 text-amber-900 font-medium">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
                   <span>
-                    <strong>Límite de lecturas diarias de Firestore alcanzado</strong> (Plan Spark). El aplicativo está funcionando con los datos locales guardados.
+                    <strong>Límite diario de la base de datos alcanzado.</strong> El aplicativo está funcionando con los datos locales guardados.
                   </span>
                 </div>
-                <a
-                  href="https://console.firebase.google.com/project/stoked-catbird-4km1r/firestore/databases/ai-studio-projecttracker-fa5248da-cc8b-432e-8571-4a2efa014a87/data?openUpgradeDialog=true"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-bold text-amber-900 underline hover:text-amber-950 shrink-0 text-[11px]"
-                >
-                  Gestionar cuota en Firebase Console →
-                </a>
               </div>
             )}
 
 
             {/* Tab Selection */}
-            <div className="flex flex-col md:flex-row justify-center relative min-h-[46px] items-center gap-3">
-              {/* Botones a la izquierda: en línea con el toggle y debajo del título Tracker v2.0 */}
-              <div className="md:absolute left-0 mt-3 md:mt-0 flex items-center gap-2 justify-start">
+            {/* Tres columnas en pantallas anchas (botones | pestañas | Master); en estrechas, se reparten en líneas sin montarse */}
+            <div className="flex flex-wrap justify-center items-center gap-3 min-h-[46px] xl:grid xl:grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)]">
+              {/* Botones a la izquierda (Cronograma) */}
+              <div className="flex items-center gap-2 justify-start xl:justify-self-start">
                 {pc.activeTab === 'cronograma' && (
                   <div className="flex items-center gap-2 relative" ref={aiMenuRef}>
                     <button
                       id="btn-crono-avance-partidas"
                       onClick={() => setShowAvancePartidasModal(true)}
-                      className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#442dd7] hover:bg-[#3722b5] text-white border-[#442dd7] shadow-xs transition-all active:scale-95 cursor-pointer"
+                      className="whitespace-nowrap px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#5A6A74] hover:bg-[#45535C] text-white border-[#5A6A74] shadow-xs transition-all active:scale-95 cursor-pointer"
                       title="Abrir panel de Avance de Partidas Estructurales y Resumen Económico"
                     >
-                      <Layers className="w-3.5 h-3.5 text-[#EEECFB]" />
+                      <Layers className="w-3.5 h-3.5 text-[#E2E8EC]" />
                       <span>Avance Partidas</span>
                     </button>
 
@@ -1961,12 +1799,12 @@ export default function App() {
                       <button
                         id="btn-gemini-crono-intel"
                         onClick={() => setShowAIReportMenu(!showAIReportMenu)}
-                        className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#442dd7] hover:bg-[#3722b5] text-white border-[#442dd7] shadow-xs transition-all active:scale-95 cursor-pointer"
+                        className="whitespace-nowrap px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border bg-[#5B21B6] hover:bg-[#4C1D95] text-white border-[#5B21B6] shadow-xs transition-all active:scale-95 cursor-pointer"
                         title="Generar y consultar reporte de inteligencia artificial por área"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
                         <span>Inteligencia</span>
-                        <ChevronDown className={`w-3.5 h-3.5 text-[#EEECFB] transition-transform ${showAIReportMenu ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`w-3.5 h-3.5 text-[#E9D5FF] transition-transform ${showAIReportMenu ? 'rotate-180' : ''}`} />
                       </button>
 
                       {/* DROPDOWN MENU WITH 2 OPTIONS */}
@@ -1974,7 +1812,7 @@ export default function App() {
                         <div className="absolute left-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-[#D5DEE2] p-2 z-50 animate-fade-in space-y-1">
                           <div className="px-3 py-2 border-b border-[#D5DEE2] flex items-center justify-between text-[#14212A] font-bold text-xs">
                             <span className="flex items-center gap-2">
-                              <Sparkles className="w-4 h-4 text-[#442dd7]" />
+                              <Sparkles className="w-4 h-4 text-[#CD0000]" />
                               Reporte AI - Cronograma
                             </span>
                             {aiReportData && (
@@ -1992,15 +1830,15 @@ export default function App() {
                             }}
                             className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#F5F8F9] transition-colors flex items-start gap-2.5 group cursor-pointer"
                           >
-                            <div className="p-1.5 bg-[#EEECFB] rounded-lg text-[#442dd7] group-hover:bg-[#442dd7] group-hover:text-white transition-colors mt-0.5">
+                            <div className="p-1.5 bg-[#FBE9E9] rounded-lg text-[#CD0000] group-hover:bg-[#CD0000] group-hover:text-white transition-colors mt-0.5">
                               <FileText className="w-4 h-4" />
                             </div>
                             <div>
-                              <div className="text-xs font-bold text-[#14212A] group-hover:text-[#442dd7] transition-colors">
+                              <div className="text-xs font-bold text-[#14212A] group-hover:text-[#CD0000] transition-colors">
                                 1. Reporte
                               </div>
                               <div className="text-[11px] text-[#5A6A74] leading-tight">
-                                Consultar análisis por área de retrasos y próximas 4 semanas.
+                                Consultar el reporte estándar más reciente.
                               </div>
                             </div>
                           </button>
@@ -2009,17 +1847,17 @@ export default function App() {
                           <button
                             onClick={handleGenerateAIReport}
                             className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-start gap-2.5 group cursor-pointer ${
-                              isAdmin ? 'hover:bg-[#EEECFB]/50' : 'hover:bg-[#F5F8F9] opacity-80'
+                              isAdmin ? 'hover:bg-[#FBE9E9]/50' : 'hover:bg-[#F5F8F9] opacity-80'
                             }`}
                           >
                             <div className={`p-1.5 rounded-lg transition-colors mt-0.5 ${
-                              isAdmin ? 'bg-[#EEECFB] text-[#442dd7] group-hover:bg-[#442dd7] group-hover:text-white' : 'bg-slate-100 text-slate-400'
+                              isAdmin ? 'bg-[#FBE9E9] text-[#CD0000] group-hover:bg-[#CD0000] group-hover:text-white' : 'bg-slate-100 text-slate-400'
                             }`}>
                               <RefreshCw className="w-4 h-4" />
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center justify-between">
-                                <span className={`text-xs font-bold transition-colors ${isAdmin ? 'text-[#14212A] group-hover:text-[#442dd7]' : 'text-[#5A6A74]'}`}>
+                                <span className={`text-xs font-bold transition-colors ${isAdmin ? 'text-[#14212A] group-hover:text-[#CD0000]' : 'text-[#5A6A74]'}`}>
                                   2. Actualizar
                                 </span>
                                 <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
@@ -2030,8 +1868,29 @@ export default function App() {
                               </div>
                               <div className="text-[11px] text-[#5A6A74] leading-tight mt-0.5">
                                 {isAdmin
-                                  ? 'Generar actualización del análisis con Gemini AI.'
+                                  ? 'Generar actualización del análisis con IA.'
                                   : 'Solo el administrador puede actualizar el reporte.'}
+                              </div>
+                            </div>
+                          </button>
+
+                          {/* Option 3: Reporte de avance por período */}
+                          <button
+                            onClick={() => {
+                              setShowAIReportMenu(false);
+                              setShowReportePeriodo(true);
+                            }}
+                            className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#F5F8F9] transition-colors flex items-start gap-2.5 group cursor-pointer"
+                          >
+                            <div className="p-1.5 bg-[#EEF0FB] rounded-lg text-[#312E81] group-hover:bg-[#312E81] group-hover:text-white transition-colors mt-0.5">
+                              <CalendarRange className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-[#14212A] group-hover:text-[#312E81] transition-colors">
+                                3. Avance por período
+                              </div>
+                              <div className="text-[11px] text-[#5A6A74] leading-tight">
+                                Informe ejecutivo del avance de obra por componente en las semanas que elijas.
                               </div>
                             </div>
                           </button>
@@ -2050,6 +1909,7 @@ export default function App() {
                   ...(pc.planillaInfo ? [{ id: 'planilla', label: '🧾 Certificación' }] : []),
                   { id: 'personal', label: '👷 Personal' },
                   { id: 'proceso', label: '⚙️ Proceso' },
+                  { id: 'gestiona', label: '📋 Gestiona' },
                 ].map(tab => (
                   <button 
                     key={tab.id} 
@@ -2057,7 +1917,7 @@ export default function App() {
                     onClick={() => pc.setActiveTab(tab.id)}
                     className={`px-4 sm:px-5 py-2 text-xs rounded-lg transition-all font-semibold ${
                       pc.activeTab === tab.id
-                        ? 'bg-[#442dd7] text-white shadow-xs font-bold'
+                        ? 'bg-[#312E81] text-white shadow-xs font-bold'
                         : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#EEF2F3]'
                     }`}
                   >
@@ -2067,14 +1927,14 @@ export default function App() {
               </div>
 
               {/* Controles a la derecha: debajo de Cerrar Sesión */}
-              <div className="md:absolute right-0 mt-3 md:mt-0 flex items-center gap-2 justify-end">
+              <div className="flex items-center gap-2 justify-end xl:justify-self-end">
                 {/* Botón separado de Master ubicado a la derecha del toggle, en línea y debajo de Cerrar Sesión */}
                 <button
                   id="tab-selector-master"
                   onClick={() => pc.setActiveTab('master')}
                   className={`px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border transition-all cursor-pointer shadow-xs active:scale-95 ${
                     pc.activeTab === 'master'
-                      ? 'bg-[#442dd7] text-white border-[#442dd7] shadow-xs ring-2 ring-[#C5BDF7]'
+                      ? 'bg-[#312E81] text-white border-[#312E81] shadow-xs ring-2 ring-[#C7CBEF]'
                       : 'bg-white text-[#5A6A74] border-[#D5DEE2] hover:bg-[#F5F8F9] hover:text-[#14212A]'
                   }`}
                   title="Abrir panel CDO Master Plan"
@@ -2082,14 +1942,24 @@ export default function App() {
                   <span className="text-sm leading-none">📊</span>
                   <span>Master</span>
                 </button>
+                <button
+                  id="btn-cronograma-p6"
+                  onClick={() => setShowP6(true)}
+                  className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border transition-all cursor-pointer shadow-xs active:scale-95 bg-white text-[#5A6A74] border-[#D5DEE2] hover:bg-[#F5F8F9] hover:text-[#14212A]"
+                  title="Abrir el cronograma de Primavera P6 (XER): consultar, actualizar, reprogramar y exportar"
+                >
+                  <span className="text-sm leading-none">🗓️</span>
+                  <span>P6</span>
+                </button>
               </div>
             </div>
 
         {/* ACTIVE TAB ROUTING (KEEP-ALIVE CACHING FOR ZERO-LAG TAB SWITCHING) */}
         <div id="active-tab-container" className="space-y-6">
           {visitedTabs.has('caratula') && (
-            <div id="tab-resumen-wrapper" style={{ display: pc.activeTab === 'caratula' ? 'block' : 'none' }}>
+            <div id="tab-resumen-wrapper" className="ht-theme" style={{ display: pc.activeTab === 'caratula' ? 'block' : 'none' }}>
               <CaratulaTab
+                esAdmin={isAdmin}
                 actividades={pc.actividades}
                 stats={pc.stats}
                 baseVenta={pc.baseVenta}
@@ -2100,26 +1970,35 @@ export default function App() {
                 planillaInfo={pc.planillaInfo}
                 planillaTotales={pc.planillaTotales}
                 planillaEnmiendas={pc.planillaEnmiendas}
-                planillaTipRes={pc.planillaTipRes}
+                planillaTipRes={tipologiasAgrupadas}
                 planillaHojas={pc.planillaHojas}
               />
             </div>
           )}
 
           {visitedTabs.has('personal') && (
-            <div style={{ display: pc.activeTab === 'personal' ? 'block' : 'none' }}>
+            <div className="ht-theme" style={{ display: pc.activeTab === 'personal' ? 'block' : 'none' }}>
               <PersonalTab />
             </div>
           )}
 
           {visitedTabs.has('proceso') && (
-            <div style={{ display: pc.activeTab === 'proceso' ? 'block' : 'none' }}>
+            <div className="ht-theme" style={{ display: pc.activeTab === 'proceso' ? 'block' : 'none' }}>
               <ProcesoTab />
             </div>
           )}
 
+          {/* Gestiona: actividades y reuniones de obra. Se monta solo mientras la pestaña está abierta. */}
+          {pc.activeTab === 'gestiona' && (
+            <LimiteDeError nombre="Gestiona">
+              <React.Suspense fallback={<div className="py-16 text-center text-xs text-[#5A6A74]">Cargando Gestiona…</div>}>
+                <GestionaApp esAdmin={isAdmin} />
+              </React.Suspense>
+            </LimiteDeError>
+          )}
+
           {visitedTabs.has('master') && (
-            <div style={{ display: pc.activeTab === 'master' ? 'block' : 'none' }}>
+            <div className="ht-theme" style={{ display: pc.activeTab === 'master' ? 'block' : 'none' }}>
               <MasterTab
                 actividades={pc.actividades}
                 mapaColumnasMes={pc.mapaColumnasMes}
@@ -2159,13 +2038,13 @@ export default function App() {
           )}
 
           {visitedTabs.has('economico') && (
-            <div style={{ display: pc.activeTab === 'economico' ? 'block' : 'none' }}>
+            <div className="ht-theme" style={{ display: pc.activeTab === 'economico' ? 'block' : 'none' }}>
               {renderAvancePartidasContent()}
             </div>
           )}
 
           {visitedTabs.has('cronograma') && (
-            <div id="tab-cronograma-wrapper" style={{ display: pc.activeTab === 'cronograma' ? 'block' : 'none' }}>
+            <div id="tab-cronograma-wrapper" className="ht-theme" style={{ display: pc.activeTab === 'cronograma' ? 'block' : 'none' }}>
               <CronogramaTab
                 actividades={pc.actividades}
                 statsCronograma={pc.statsCronograma}
@@ -2246,13 +2125,13 @@ export default function App() {
           )}
 
           {visitedTabs.has('planilla') && (
-            <div style={{ display: pc.activeTab === 'planilla' ? 'block' : 'none' }}>
+            <div className="ht-theme" style={{ display: pc.activeTab === 'planilla' ? 'block' : 'none' }}>
               <PlanillaTab
                 planillaInfo={pc.planillaInfo}
                 planillaCDOvsS={pc.planillaCDOvsS}
                 planillaTotales={pc.planillaTotales}
                 planillaEnmiendas={pc.planillaEnmiendas}
-                planillaTipRes={pc.planillaTipRes}
+                planillaTipRes={tipologiasAgrupadas}
                 planillaHojas={pc.planillaHojas}
                 planillaPartidas={pc.planillaPartidas}
                 enmExpanded={pc.enmExpanded}
@@ -2268,6 +2147,7 @@ export default function App() {
                 certOpen={pc.certOpen}
                 setCertOpen={pc.setCertOpen}
                 actividades={pc.actividades}
+                mapaColumnasMes={pc.mapaColumnasMes}
                 dataPlanificadoPG004={pc.dataPlanificadoPG004}
                 datosCurvaAvance={pc.datosCurvaAvance}
                 expandedYears={pc.expandedYears}
@@ -2280,6 +2160,22 @@ export default function App() {
         )}
       </div>
 
+      <ClaveAdminDialog
+        abierto={claveReporte.abierto}
+        error={claveReporte.error}
+        verificando={claveReporte.verificando}
+        onConfirmar={confirmarClaveReporte}
+        onCancelar={() => setClaveReporte({ abierto: false, error: '', verificando: false })}
+      />
+      {showP6 && <CronogramaP6 isAdmin={isAdmin} username={username} actividadesMaster={pc.actividades} onClose={() => setShowP6(false)} />}
+      <ReportePeriodoModal
+        isOpen={showReportePeriodo}
+        onClose={() => setShowReportePeriodo(false)}
+        actividades={pc.actividades || []}
+        dataPlanificadoPG004={pc.dataPlanificadoPG004}
+        isAdmin={isAdmin}
+        username={username}
+      />
       <AIReportModal
         isOpen={showAIReportModal}
         onClose={() => setShowAIReportModal(false)}

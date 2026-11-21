@@ -207,8 +207,8 @@ export const TipologiaResumen: React.FC<TipologiaResumenProps> = ({
   const subtotal2 = computeSubtotal(rowsGrupo2, unmatchedItems);
 
   const formatInM = (num: number) => {
-    if (!num && num !== 0) return '$0.00M';
-    return `$${(num / 1000000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
+    if (!num && num !== 0) return '0.00M';
+    return `${(num / 1000000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
   };
 
   const handleRowClick = (primaryKey: string, filterKeys: string[]) => {

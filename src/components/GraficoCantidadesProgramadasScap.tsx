@@ -93,7 +93,7 @@ export interface GraficoCantidadesProgramadasScapProps {
 }
 
 const SCAP_PALETTE = [
-  '#4f46e5', // Indigo
+  '#CD0000', // Indigo
   '#0284c7', // Sky
   '#059669', // Emerald
   '#d97706', // Amber
@@ -900,7 +900,7 @@ export const GraficoCantidadesProgramadasScap: React.FC<GraficoCantidadesProgram
           y={0}
           dy={15}
           textAnchor="middle"
-          fill={isBase ? '#4338ca' : '#1e293b'}
+          fill={isBase ? '#A80000' : '#1e293b'}
           fontSize={12}
           fontWeight={isBase ? 900 : 700}
           fontFamily="inherit"
@@ -912,7 +912,7 @@ export const GraficoCantidadesProgramadasScap: React.FC<GraficoCantidadesProgram
           y={0}
           dy={30}
           textAnchor="middle"
-          fill={isBase ? '#6366f1' : '#94a3b8'}
+          fill={isBase ? '#D93030' : '#94a3b8'}
           fontSize={10}
           fontWeight={isBase ? 800 : 600}
           fontFamily="inherit"
@@ -1469,7 +1469,7 @@ export const GraficoCantidadesProgramadasScap: React.FC<GraficoCantidadesProgram
           {isScapCardsExpanded && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 animate-in fade-in duration-150">
               {scapStageCards.map(card => {
-                const color = scapColorMap[card.scap] || '#6366f1';
+                const color = scapColorMap[card.scap] || '#D93030';
                 const isSelected = selectedScaps.has(card.scap);
                 const cardId = `tarjeta-scap-${card.scap.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
                 const displayUnit = (card.unit === 'und' || card.unit === 'unidad' || card.unit === 'unidades') ? 'u' : card.unit;
