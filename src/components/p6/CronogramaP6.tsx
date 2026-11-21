@@ -15,6 +15,7 @@ import { holguraRelacion, type TipoRel } from '../../utils/p6/cpm';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
 import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, cargarUnidadesMaster, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
+import { calcularUso, compacto, periodosDeEscala, sumarTramo, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
 import { COLUMNAS_DEF, DialogoColumnas, NOMBRE_ESTADO, NOMBRE_RESTR, NOMBRE_TIPO, catalogoColumnas, valoresUdf, type ColumnaP6 } from './columnasP6';
 
 const FILA = 22;
@@ -178,6 +179,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [columnasSel, setColumnasSel] = React.useState<string[]>(() => leerLS('p6.columnas', COLUMNAS_DEF));
   React.useEffect(() => { try { localStorage.setItem('p6.columnas', JSON.stringify(columnasSel)); } catch { /* sin almacenamiento */ } }, [columnasSel]);
   const [verColumnas, setVerColumnas] = React.useState(false);
+  const [verUso, setVerUso] = React.useState(false);
+  const usoRef = React.useRef<HTMLDivElement | null>(null);
   const [ambito, setAmbito] = React.useState<Ambito>(() => leerLS('p6.ambito', 'todo'));
   React.useEffect(() => { try { localStorage.setItem('p6.ambito', JSON.stringify(ambito)); } catch { /* sin almacenamiento */ } }, [ambito]);
   React.useEffect(() => { try { localStorage.setItem('p6.agrupacion', JSON.stringify(agrupacion)); localStorage.setItem('p6.niveles', JSON.stringify(niveles)); } catch { /* sin almacenamiento */ } }, [agrupacion, niveles]);
@@ -1229,6 +1232,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="14" fill="#FFFFFF" stroke="#5A6A74" /><rect x="1" y="1" width="20" height="3.5" fill="#9AA6AD" /><path d="M7 1 V15 M13 1 V15" stroke="#5A6A74" strokeWidth="1" /></svg>
               <span className="text-[8.5px] leading-none">Columns</span>
             </button>
+            <button onClick={() => { setVista('actividades'); setVerUso(v => !v); }} title="Activity Usage: budgeted, actual and remaining units or cost per period"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verUso ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="14" fill="#FFFFFF" stroke="#5A6A74" /><path d="M1 6 H21 M1 10.5 H21 M8 1 V15 M14.5 1 V15" stroke="#9AA6AD" strokeWidth="1" /><rect x="9" y="7" width="4.5" height="2.5" fill="#2B7F52" /><rect x="15.5" y="11.5" width="4.5" height="2.5" fill="#CD0000" /></svg>
+              <span className="text-[8.5px] leading-none">Usage</span>
+            </button>
             {([['criticas', 'Critical Path', 'Critical', 'Only critical activities (Total Float ≤ 0)'], ['longest', 'Longest Path', 'Longest', 'Only the longest path: the chain of activities that drives the project finish']] as const).map(([k, etq, corto, tt]) => (
               <button key={k} onClick={() => { setVista('actividades'); setFiltroEstado(f => (f === k ? 'todas' : k)); setVerRelaciones(true); }} title={`${etq}: ${tt}`}
                 className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroEstado === k && vista === 'actividades' ? 'bg-[#CD0000] border-[#CD0000] text-white shadow-sm' : 'border-transparent text-[#B30000] hover:bg-white/70'}`}>
@@ -1344,7 +1352,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           {vista === 'actividades' ? (
             <>
               {/* Tabla + Gantt (virtualizada) */}
-              <div ref={scroller} onScroll={e => setScrollTop((e.target as HTMLDivElement).scrollTop)} className="flex-1 overflow-auto bg-white relative">
+              <div ref={scroller} onScroll={e => {
+                const el = e.target as HTMLDivElement;
+                setScrollTop(el.scrollTop);
+                // Desplazamiento horizontal sincronizado con el panel Activity Usage
+                if (usoRef.current && Math.abs(usoRef.current.scrollLeft - el.scrollLeft) > 1) usoRef.current.scrollLeft = el.scrollLeft;
+              }} className="flex-1 overflow-auto bg-white relative">
                 <div style={{ width: ANCHO_IZQ + anchoGantt, height: filas.length * FILA + 34, position: 'relative' }}>
                   {/* Encabezado */}
                   <div className="sticky top-0 z-20 flex bg-[#F5F8F9] border-b border-[#D5DEE2] text-[10px] font-semibold text-[#5A6A74]" style={{ height: 34 }}>
@@ -1544,6 +1557,13 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   })}
                 </div>
               </div>
+              {verUso && m && (
+                <PanelUso m={m} filas={filas} ancho={ANCHO_IZQ} anchoGantt={anchoGantt} xDe={xDe} xDatos={xDatos}
+                  desde={rango.desde} hasta={rango.hasta} px={px} version={version} pasa={pasa} filtrando={filtrando}
+                  colorBanda={nivel => (enEjecucion ? paletas.constr : paletas.wbs)[nivel] ?? bandaWbs(nivel)}
+                  usoRef={usoRef} onCerrar={() => setVerUso(false)}
+                  onScrollX={x => { const el = scroller.current; if (el && Math.abs(el.scrollLeft - x) > 1) el.scrollLeft = x; }} />
+              )}
               {sel != null && sel < vts.length && (
                 <PanelActividad m={m} i={sel} editable={editable} cambios={cambios} version={version} onCambio={marcarCambio} onCerrar={() => setSel(null)}
                   nombreWbs={(() => { const n = arbolWbs.nodos.get(vts[sel]?.wbs ?? ''); return n ? `${n.codCompleto} · ${n.nombre}` : ''; })()}
@@ -1827,6 +1847,137 @@ const VistaWbs: React.FC<{
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+};
+
+/** Panel inferior «Activity Usage» (como el Usage Spreadsheet de P6): valores por período de cada fila. */
+const PanelUso: React.FC<{
+  m: ModeloP6; filas: Fila[]; ancho: number; anchoGantt: number; xDe: (t: number) => number; xDatos: number;
+  desde: number; hasta: number; px: number; version: number; pasa: (v: Vt) => boolean; filtrando: boolean;
+  colorBanda: (nivel: number) => [string, string]; usoRef: React.RefObject<HTMLDivElement | null>; onScrollX: (x: number) => void; onCerrar: () => void;
+}> = ({ m, filas, ancho, anchoGantt, xDe, xDatos, desde, hasta, px, version, pasa, filtrando, colorBanda, usoRef, onScrollX, onCerrar }) => {
+  const [medida, setMedida] = React.useState<MedidaUso>('cost');
+  const [series, setSeries] = React.useState<SerieUso[]>(['b', 'r', 'a']);
+  const [acumulado, setAcumulado] = React.useState(false);
+  const [alto, setAlto] = React.useState(280);
+  const [scrollTop, setScrollTop] = React.useState(0);
+  const periodos = React.useMemo(() => periodosDeEscala(desde, hasta, px), [desde, hasta, px]);
+  const lim = React.useMemo(() => periodos.map(p => p.t), [periodos]);
+  const uso = React.useMemo(() => calcularUso(m, lim, medida),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [m, lim, medida, version]);
+  const nPer = Math.max(0, lim.length - 1);
+  // Totales de una banda: suma de sus actividades (las que pasan el filtro si lo hay)
+  const totalNodo = React.useMemo(() => {
+    const cache = new Map<string, Record<SerieUso, Float64Array>>();
+    const calc = (n: Nodo): Record<SerieUso, Float64Array> => {
+      const ya = cache.get(n.id);
+      if (ya) return ya;
+      const r = { b: new Float64Array(nPer), a: new Float64Array(nPer), r: new Float64Array(nPer) };
+      for (const v of n.tareas) {
+        if (filtrando && !pasa(v)) continue;
+        const u = uso.get(v.i);
+        if (!u) continue;
+        sumarTramo(r.b, u.b); sumarTramo(r.a, u.a); sumarTramo(r.r, u.r);
+      }
+      for (const h of n.hijos) { const x = calc(h); for (const k of ['b', 'a', 'r'] as SerieUso[]) for (let j = 0; j < nPer; j++) r[k][j] += x[k][j]; }
+      cache.set(n.id, r);
+      return r;
+    };
+    return calc;
+  }, [uso, nPer, filtrando, pasa]);
+  const serieDeAct = (i: number, k: SerieUso): Float64Array => {
+    const acc = new Float64Array(nPer);
+    sumarTramo(acc, uso.get(i)?.[k]);
+    return acc;
+  };
+  const NOMBRE_SERIE: Record<SerieUso, string> = { b: 'Budgeted Total', a: 'Actual Total', r: 'Remaining Total' };
+  const SUB = 15;
+  const altoFila = Math.max(22, series.length * SUB + 4);
+  const desdeF = Math.max(0, Math.floor(scrollTop / altoFila) - 5);
+  const hastaF = Math.min(filas.length, Math.ceil((scrollTop + alto) / altoFila) + 5);
+  // Arrastrar el borde superior para cambiar la altura
+  const arrastrar = (e: React.MouseEvent) => {
+    const y0 = e.clientY, h0 = alto;
+    const mover = (ev: MouseEvent) => setAlto(Math.max(120, Math.min(640, h0 + (y0 - ev.clientY))));
+    const soltar = () => { window.removeEventListener('mousemove', mover); window.removeEventListener('mouseup', soltar); };
+    window.addEventListener('mousemove', mover); window.addEventListener('mouseup', soltar);
+  };
+  const celdas = (vals: Float64Array, y: number, k: string) => {
+    let acum = 0;
+    const out: React.ReactNode[] = [];
+    for (let j = 0; j < nPer; j++) {
+      acum += vals[j];
+      const v = acumulado ? acum : vals[j];
+      if (Math.abs(v) < 0.005) continue;
+      const x0 = xDe(lim[j]), x1 = xDe(lim[j + 1]);
+      out.push(<div key={`${k}-${j}`} className="absolute text-right pr-1 overflow-hidden whitespace-nowrap" style={{ left: ancho + x0, width: Math.max(0, x1 - x0), top: y, height: SUB, lineHeight: `${SUB}px` }}>{compacto(v)}</div>);
+    }
+    return out;
+  };
+  return (
+    <div className="shrink-0 bg-white border-t-2 border-[#9A9A9A] flex flex-col relative" style={{ height: alto }}>
+      <div onMouseDown={arrastrar} className="absolute -top-1.5 left-0 right-0 h-2 cursor-ns-resize z-30" title="Drag to resize" />
+      <div className="flex items-center gap-3 px-3 py-1 bg-[#ECECEC] border-b border-[#C3C3C3] text-[11px] shrink-0">
+        <b>Activity Usage</b>
+        <div className="inline-flex border border-[#B5B5B5] rounded overflow-hidden">
+          {(['units', 'cost'] as const).map(x => (
+            <button key={x} onClick={() => setMedida(x)} className={`px-2 py-0.5 cursor-pointer ${medida === x ? 'bg-[#312E81] text-white font-bold' : 'bg-white'}`}>{x === 'units' ? 'Units' : 'Cost'}</button>
+          ))}
+        </div>
+        {(['b', 'r', 'a'] as SerieUso[]).map(k => (
+          <label key={k} className="flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" checked={series.includes(k)} onChange={e => setSeries(sx => (e.target.checked ? (['b', 'r', 'a'] as SerieUso[]).filter(z => sx.includes(z) || z === k) : sx.filter(z => z !== k)))} />
+            {NOMBRE_SERIE[k]}
+          </label>
+        ))}
+        <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={acumulado} onChange={e => setAcumulado(e.target.checked)} /> Cumulative</label>
+        <span className="text-[#5A6A74]">Spread evenly over each activity&apos;s dates · periods follow the Gantt timescale</span>
+        <button onClick={onCerrar} className="ml-auto p-0.5 hover:bg-white rounded cursor-pointer" title="Close"><X className="w-3.5 h-3.5" /></button>
+      </div>
+      <div ref={usoRef} className="flex-1 overflow-auto relative" onScroll={e => { const el = e.target as HTMLDivElement; setScrollTop(el.scrollTop); onScrollX(el.scrollLeft); }}>
+        <div style={{ width: ancho + anchoGantt, height: filas.length * altoFila + 22, position: 'relative' }}>
+          {/* Encabezado de períodos */}
+          <div className="sticky top-0 z-20 flex bg-[#F5F8F9] border-b border-[#D5DEE2] text-[10px] font-semibold text-[#5A6A74]" style={{ height: 22 }}>
+            <div className="sticky left-0 z-30 bg-[#F5F8F9] border-r border-[#D5DEE2] px-2 flex items-center" style={{ width: ancho }}>{medida === 'units' ? 'Units' : 'Cost'}</div>
+            <div className="relative" style={{ width: anchoGantt }}>
+              {periodos.slice(0, -1).map((p, j) => (
+                <div key={p.t} className="absolute top-0 bottom-0 border-l border-[#D5DEE2] pl-1 flex items-center overflow-hidden whitespace-nowrap" style={{ left: xDe(p.t), width: xDe(lim[j + 1]) - xDe(p.t) }}>{p.etq}</div>
+              ))}
+            </div>
+          </div>
+          <div className="absolute z-10 w-0.5 bg-[#CD0000]/60 pointer-events-none" style={{ left: ancho + xDatos, top: 22, height: filas.length * altoFila }} />
+          {filas.slice(desdeF, hastaF).map((fl, k) => {
+            const idx = desdeF + k;
+            const top = 22 + idx * altoFila;
+            let etq: React.ReactNode, fondo = '#FFFFFF', texto = '#14212A', datos: Record<SerieUso, Float64Array> | null = null;
+            if (fl.tipo === 'wbs') {
+              [fondo, texto] = colorBanda(fl.nivel);
+              etq = <span className="font-bold truncate">{fl.nodo.codCompleto ? `${fl.nodo.codCompleto}  ` : ''}{fl.nodo.nombre}</span>;
+              datos = totalNodo(fl.nodo);
+            } else if (fl.tipo === 'act') {
+              etq = <span className="truncate"><span className="font-mono text-[10px] mr-2">{fl.vt.cod}</span>{fl.vt.nombre}</span>;
+              datos = { b: serieDeAct(fl.vt.i, 'b'), a: serieDeAct(fl.vt.i, 'a'), r: serieDeAct(fl.vt.i, 'r') };
+            } else {
+              etq = <span className="truncate italic text-[#7A868D]"><span className="font-mono text-[10px] mr-2">{fl.a.activityId}</span>{fl.a.descripcion}</span>;
+            }
+            return (
+              <div key={idx} className="absolute border-b border-[#E6EAEC] text-[10.5px]" style={{ top, height: altoFila, width: ancho + anchoGantt, background: fl.tipo === 'wbs' ? `${fondo}33` : undefined }}>
+                <div className="sticky left-0 z-[5] h-full flex border-r border-[#D5DEE2]" style={{ width: ancho, background: fondo, color: texto }}>
+                  <div className="flex-1 min-w-0 flex items-start pt-0.5 overflow-hidden" style={{ paddingLeft: 4 + fl.nivel * 10 }}>{etq}</div>
+                  {datos && (
+                    <div className="w-[104px] shrink-0 border-l border-black/10">
+                      {series.map(sr => <div key={sr} className="px-1 whitespace-nowrap" style={{ height: SUB, lineHeight: `${SUB}px` }}>{NOMBRE_SERIE[sr]}</div>)}
+                    </div>
+                  )}
+                </div>
+                {datos && series.map((sr, j) => celdas(datos![sr], 2 + j * SUB, sr))}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
