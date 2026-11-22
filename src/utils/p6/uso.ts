@@ -64,7 +64,7 @@ export function periodosDeEscala(desde: number, hasta: number, px: number): { t:
  * Reparte `valor` entre [ini, fin] sobre los períodos `lim` (límites), en proporción al tiempo
  * laborable del calendario `cal` que cae en cada período (si no hay tiempo laborable, por tiempo natural).
  */
-function repartir(valor: number, ini: number, fin: number, lim: number[], cal?: Calendario): TramoUso | undefined {
+export function repartir(valor: number, ini: number, fin: number, lim: number[], cal?: Calendario): TramoUso | undefined {
   if (!valor || !isFinite(ini) || !isFinite(fin)) return undefined;
   if (fin < ini) [ini, fin] = [fin, ini];
   // Período de un instante (búsqueda binaria)

@@ -16,6 +16,8 @@ import { aMinutos, aTexto } from '../../utils/p6/calendario';
 import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, cargarUnidadesMaster, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
 import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseUso, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
+import { DialogoNivelacion } from './nivelacionP6';
+import { aplicarNivelacion } from '../../utils/p6/nivelacion';
 import { COLUMNAS_DEF, DialogoColumnas, NOMBRE_ESTADO, NOMBRE_RESTR, NOMBRE_TIPO, catalogoColumnas, valoresUdf, type ColumnaP6 } from './columnasP6';
 
 const FILA = 22;
@@ -179,6 +181,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [columnasSel, setColumnasSel] = React.useState<string[]>(() => leerLS('p6.columnas', COLUMNAS_DEF));
   React.useEffect(() => { try { localStorage.setItem('p6.columnas', JSON.stringify(columnasSel)); } catch { /* sin almacenamiento */ } }, [columnasSel]);
   const [verColumnas, setVerColumnas] = React.useState(false);
+  const [verNivel, setVerNivel] = React.useState(false);
   const [verUso, setVerUso] = React.useState(true); // el panel Activity Usage se abre por defecto
   const usoRef = React.useRef<HTMLDivElement | null>(null);
   const [ambito, setAmbito] = React.useState<Ambito>(() => leerLS('p6.ambito', 'todo'));
@@ -1127,6 +1130,21 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         </div>
       )}
 
+      {verNivel && m && (
+        <DialogoNivelacion m={m} clasif={clasifXer} master={idxMaster} editable={editable} version={version}
+          onIr={i => { setVerNivel(false); setVista('actividades'); irAActividad(i); }}
+          onCerrar={() => setVerNivel(false)}
+          onAplicar={(prop, resumen) => {
+            const mm = modelo.current;
+            if (!mm || !editable) return;
+            const log = [...cambios];
+            aplicarNivelacion(mm, prop, log);
+            marcarCambio(log);
+            programar();
+            setVerNivel(false);
+            mostrar(`New crew logic applied (${resumen}) and rescheduled. Review it and press Save to keep it.`);
+          }} />
+      )}
       {verColumnas && m && (
         <DialogoColumnas catalogo={catalogo} elegidas={cols.map(c => c.id)} onAplicar={ids => setColumnasSel(ids)} onCerrar={() => setVerColumnas(false)} />
       )}
@@ -1645,6 +1663,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verColumnas ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
               <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="14" fill="#FFFFFF" stroke="#5A6A74" /><rect x="1" y="1" width="20" height="3.5" fill="#9AA6AD" /><path d="M7 1 V15 M13 1 V15" stroke="#5A6A74" strokeWidth="1" /></svg>
               <span className="text-[8.5px] leading-none">Columns</span>
+            </button>
+            <div className="w-7 h-px bg-[#C3C3C3] my-1" />
+            <button onClick={() => { setVista('actividades'); setVerNivel(true); }} title="Level Crews: rebuild the crew logic of a set of activities (subcontractor / SCAP / phase) to level the monthly workload"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verNivel ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="9" width="4" height="6" fill="#B8C0C6" /><rect x="6" y="3" width="4" height="12" fill="#B8C0C6" /><rect x="11" y="7" width="4" height="8" fill="#B8C0C6" /><rect x="16" y="1" width="4" height="14" fill="#B8C0C6" /><path d="M1 6.5 H21" stroke="#312E81" strokeWidth="1.6" strokeDasharray="2 1.2" /></svg>
+              <span className="text-[8.5px] leading-none">Level</span>
             </button>
           </div>
         </div>
