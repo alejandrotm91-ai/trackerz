@@ -19,6 +19,7 @@ import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseU
 import { DialogoNivelacion } from './nivelacionP6';
 import { DialogoCuadrillas, useMatrizPersonal } from './cuadrillasP6';
 import { estimarCuadrillas, POR_DEFECTO } from '../../utils/p6/cuadrillas';
+import { CUADRILLA_DISCIPLINA, FACTOR_LOCAL, esPrecomEq, rendimientoDe, type Disciplina } from '../../utils/p6/rendimientos';
 import { aplicarNivelacion } from '../../utils/p6/nivelacion';
 import { COLUMNAS_DEF, DialogoColumnas, NOMBRE_ESTADO, NOMBRE_RESTR, NOMBRE_TIPO, catalogoColumnas, valoresUdf, type ColumnaP6 } from './columnasP6';
 
@@ -1581,6 +1582,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   colorBanda={nivel => (enEjecucion ? paletas.constr : paletas.wbs)[nivel] ?? bandaWbs(nivel)}
                   usoRef={usoRef} onCerrar={() => setVerUso(false)}
                   campoAct={campoActividad}
+                  masterDe={i => idxMaster.get(celda(m.task, m.task.filas[i], 'task_code'))}
                   onScrollX={x => { const el = scroller.current; if (el && Math.abs(el.scrollLeft - x) > 1) el.scrollLeft = x; }} />
               )}
               {sel != null && sel < vts.length && (
@@ -1892,7 +1894,8 @@ const PanelUso: React.FC<{
   desde: number; hasta: number; px: number; version: number; pasa: (v: Vt) => boolean; filtrando: boolean;
   colorBanda: (nivel: number) => [string, string]; usoRef: React.RefObject<HTMLDivElement | null>; onScrollX: (x: number) => void; onCerrar: () => void;
   campoAct: (i: number, k: CampoAgrupacion) => string;
-}> = ({ m, filas, ancho, anchoGantt, xDe, xDatos, desde, hasta, px, version, pasa, filtrando, colorBanda, usoRef, onScrollX, onCerrar, campoAct }) => {
+  masterDe: (i: number) => Actividad | undefined;
+}> = ({ m, filas, ancho, anchoGantt, xDe, xDatos, desde, hasta, px, version, pasa, filtrando, colorBanda, usoRef, onScrollX, onCerrar, campoAct, masterDe }) => {
   const [medida, setMedida] = React.useState<MedidaUso>('cost');
   // Resources: personal (cuadrillas × personas por cuadrilla de su SubC) o número de cuadrillas
   const [vistaRec, setVistaRec] = React.useState<'personnel' | 'crews'>('personnel');
@@ -1900,6 +1903,24 @@ const PanelUso: React.FC<{
   const [tamDefecto, setTamDefecto] = React.useState<number>(() => leerLocal('p6.cuadrillaDefecto', POR_DEFECTO));
   React.useEffect(() => { try { localStorage.setItem('p6.cuadrillas', JSON.stringify(tamManual)); localStorage.setItem('p6.cuadrillaDefecto', JSON.stringify(tamDefecto)); } catch { /* sin almacenamiento */ } }, [tamManual, tamDefecto]);
   const [verTam, setVerTam] = React.useState(false);
+  // Instalación de equipos (04.Precom_Eq): personas desde horas-hombre (rendimientos × cantidad del Master)
+  const [tamDisc, setTamDisc] = React.useState<Record<Disciplina, number>>(() => ({ ...CUADRILLA_DISCIPLINA, ...leerLocal('p6.cuadrillaDisc', {}) }));
+  const [factorLocal, setFactorLocal] = React.useState<number>(() => leerLocal('p6.factorLocal', FACTOR_LOCAL));
+  React.useEffect(() => { try { localStorage.setItem('p6.cuadrillaDisc', JSON.stringify(tamDisc)); localStorage.setItem('p6.factorLocal', JSON.stringify(factorLocal)); } catch { /* sin almacenamiento */ } }, [tamDisc, factorLocal]);
+  const hhAct = React.useMemo(() => {
+    const out = new Map<number, { H: number; disc: Disciplina }>();
+    if (medida !== 'resources') return out;
+    m.task.filas.forEach((f, i) => {
+      if (!esPrecomEq(campoAct(i, 'grupo'))) return;
+      const a = masterDe(i);
+      const cant = Number(a?.cantidadCdo) || 0;
+      if (!a || cant <= 0) return;
+      const rd = rendimientoDe({ componente: campoAct(i, 'componente'), scap: campoAct(i, 'scap'), unit: campoAct(i, 'unit'), descripcion: a.descripcion || celda(m.task, f, 'task_name'), unidad: a.unidad });
+      out.set(i, { H: cant * rd.hh[1] * factorLocal, disc: rd.disciplina });
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [medida, m, campoAct, masterDe, factorLocal, version]);
   const matriz = useMatrizPersonal(medida === 'resources');
   // Ocupan cuadrilla en obra: Installation y Construction (no compra, flete ni ingeniería)
   const incluirRec = React.useCallback((i: number) => {
@@ -1915,14 +1936,14 @@ const PanelUso: React.FC<{
     const out = new Map<string, number>();
     if (medida !== 'resources') return out;
     m.task.filas.forEach((f, i) => {
-      if (celda(m.task, f, 'status_code') === 'TK_Complete' || !incluirRec(i)) return;
+      if (celda(m.task, f, 'status_code') === 'TK_Complete' || !incluirRec(i) || hhAct.has(i)) return;
       const tt = celda(m.task, f, 'task_type');
       if (tt === 'TT_Mile' || tt === 'TT_FinMile' || tt === 'TT_LOE' || tt === 'TT_WBS') return;
       const s2 = subcDe(i); out.set(s2, (out.get(s2) ?? 0) + 1);
     });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [medida, m, incluirRec, subcDe, version]);
+  }, [medida, m, incluirRec, subcDe, version, hhAct]);
   const personasDe = React.useCallback((i: number) => {
     if (vistaRec === 'crews') return 1;
     const s2 = subcDe(i);
@@ -1943,9 +1964,12 @@ const PanelUso: React.FC<{
   const [scrollTop, setScrollTop] = React.useState(0);
   const periodos = React.useMemo(() => periodosDeEscala(desde, hasta, px), [desde, hasta, px]);
   const lim = React.useMemo(() => periodos.map(p => p.t), [periodos]);
-  const uso = React.useMemo(() => calcularUso(m, lim, medida, medida === 'resources' ? { incluir: incluirRec, personas: personasDe } : undefined),
+  const uso = React.useMemo(() => calcularUso(m, lim, medida, medida === 'resources' ? {
+    incluir: i => incluirRec(i) || hhAct.has(i), personas: personasDe,
+    hh: i => hhAct.get(i)?.H ?? null, porCuadrilla: i => tamDisc[hhAct.get(i)?.disc ?? 'Mecánica'], cuadrillas: vistaRec === 'crews',
+  } : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [m, lim, medida, version, incluirRec, personasDe]);
+    [m, lim, medida, version, incluirRec, personasDe, hhAct, tamDisc, vistaRec]);
   const nPer = Math.max(0, lim.length - 1);
   // Totales de una banda: suma de sus actividades (las que pasan el filtro si lo hay)
   const totalNodo = React.useMemo(() => {
@@ -2000,7 +2024,16 @@ const PanelUso: React.FC<{
     <div className="shrink-0 bg-white border-t-2 border-[#9A9A9A] flex flex-col relative" style={{ height: alto }}>
       {verTam && (
         <DialogoCuadrillas est={estCuad} usados={usadosSubc} manual={tamManual} defecto={tamDefecto} origen={matriz.origen} semanas={SEMANAS}
-          onAplicar={(mm, d) => { setTamManual(mm); setTamDefecto(d); }} onCerrar={() => setVerTam(false)} />
+          tamDisc={tamDisc} factor={factorLocal} equipos={(() => {
+            const out = new Map<Disciplina, { n: number; hh: number }>();
+            for (const [i, x] of hhAct) {
+              const pct = Math.min(1, (Number(celda(m.task, m.task.filas[i], 'phys_complete_pct')) || 0) / 100);
+              if (celda(m.task, m.task.filas[i], 'status_code') === 'TK_Complete') continue;
+              const v = out.get(x.disc) ?? { n: 0, hh: 0 }; v.n++; v.hh += x.H * (1 - pct); out.set(x.disc, v);
+            }
+            return out;
+          })()}
+          onAplicar={(mm, d, td, fl) => { setTamManual(mm); setTamDefecto(d); setTamDisc(td); setFactorLocal(fl); }} onCerrar={() => setVerTam(false)} />
       )}
       <div onMouseDown={arrastrar} className="absolute -top-1.5 left-0 right-0 h-2 cursor-ns-resize z-30" title="Drag to resize" />
       <div className="flex items-center gap-3 px-3 py-1 bg-[#ECECEC] border-b border-[#C3C3C3] text-[11px] shrink-0">

@@ -114,6 +114,16 @@ export interface OpcionesRecursos {
   incluir: (i: number) => boolean;
   /** Personas por cuadrilla de la actividad (1 = contar cuadrillas). */
   personas: (i: number) => number;
+  /**
+   * Horas-hombre estimadas de la actividad completa (rendimientos de montaje), si las tiene: entonces
+   * sus personas salen de sus horas (Budgeted: todas en las fechas planificadas; Actual: las del % de
+   * avance en las fechas reales; Remaining: las que faltan entre el inicio restante y el fin temprano)
+   * en lugar de «una cuadrilla por actividad».
+   */
+  hh?: (i: number) => number | null;
+  /** Con `hh`: personas por cuadrilla para pasar de personas a cuadrillas (si `cuadrillas`). */
+  porCuadrilla?: (i: number) => number;
+  cuadrillas?: boolean;
 }
 
 /** Uso por actividad (índice de fila de TASK) para la medida elegida. */
@@ -134,6 +144,23 @@ export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso, rec?:
       const ps = g('target_start_date') ?? es ?? as, pf = g('target_end_date') ?? ef ?? af;
       const cal = m.calendarios.get(celda(t, f, 'clndr_id'));
       const u: UsoActividad = {};
+      const H = rec?.hh?.(i);
+      if (H != null && H > 0) {
+        // Personas = horas ÷ horas laborables de la ventana (÷ personas por cuadrilla si se cuentan cuadrillas)
+        const pct = Math.min(1, Math.max(0, (Number(celda(t, f, 'phys_complete_pct')) || 0) / 100));
+        const div = rec?.cuadrillas ? Math.max(0.1, rec.porCuadrilla?.(i) ?? 1) : 1;
+        const por = (horas: number, a: number | null, b: number | null) => {
+          if (a == null || b == null || !cal || b <= a || horas <= 0) return undefined;
+          const ventana = cal.entre(a, b) / 60;
+          return ventana > 0 ? ocupar(horas / ventana / div, a, b, lim, cal) : undefined;
+        };
+        u.b = por(H, ps ?? null, pf ?? null);
+        if (as != null) u.a = por(H * pct, as, estado === 'TK_Complete' && af != null ? af : Math.max(as, m.fechaDatos));
+        const rs2 = estado === 'TK_Active' ? Math.max(es ?? m.fechaDatos, m.fechaDatos) : (es ?? as);
+        if (estado !== 'TK_Complete') u.r = por(H * (1 - pct), rs2 ?? null, ef ?? null);
+        if (u.b || u.a || u.r) out.set(i, u);
+        return;
+      }
       if (ps != null && pf != null) u.b = ocupar(k, ps, pf, lim, cal);
       if (as != null) u.a = ocupar(k, as, estado === 'TK_Complete' && af != null ? af : Math.max(as, m.fechaDatos), lim, cal);
       const rs = estado === 'TK_Active' ? Math.max(es ?? m.fechaDatos, m.fechaDatos) : (es ?? as);
