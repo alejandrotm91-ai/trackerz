@@ -1065,9 +1065,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           <div className="flex items-center gap-1.5">
             <div className="relative">
               <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${NOMBRE_FILTRO[filtroEstado] ?? ''}${hayFiltroUdf ? ` · ${condUdf.length} User Defined condition${condUdf.length > 1 ? 's' : ''}` : ''}`}
-                className={`px-2 py-1 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs font-bold ${filtroMenuActivo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
+                className={`px-1.5 py-1 rounded-lg flex items-center cursor-pointer ${filtroMenuActivo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
                 <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><path d="M3 2 H19 L13 8.5 V14 L9 12.5 V8.5 Z" fill={filtroMenuActivo ? '#312E81' : '#9AA6AD'} stroke="#3A3A3A" strokeWidth="0.8" /></svg></span>
-                <span>Filter</span>
               </button>
               {menuFiltro && (
                 <>
@@ -1128,19 +1127,16 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               )}
             </div>
             <button onClick={() => { setVista('actividades'); setVerGrupo(true); }} title="Group & Sort: bands, colors and grouping levels"
-              className={`px-2 py-1 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs font-bold ${verGrupo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
+              className={`px-1.5 py-1 rounded-lg flex items-center cursor-pointer ${verGrupo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
               <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><rect x="1" y="1" width="14" height="3.5" fill="#1F7CC4" /><rect x="4" y="6" width="11" height="3.5" fill="#7CF27C" stroke="#4FA94F" strokeWidth="0.5" /><rect x="7" y="11" width="8" height="3.5" fill="#FFFF66" stroke="#C9C94A" strokeWidth="0.5" /><path d="M18 2 V14 M16 12 L18 14.5 L20 12" fill="none" stroke="#3A3A3A" strokeWidth="1.2" /></svg></span>
-              <span>Group</span>
             </button>
             <button onClick={() => { setVista('actividades'); setVerColumnas(true); }} title="Columns: choose and order the table columns"
-              className={`px-2 py-1 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs font-bold ${verColumnas ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
+              className={`px-1.5 py-1 rounded-lg flex items-center cursor-pointer ${verColumnas ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
               <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="14" fill="#FFFFFF" stroke="#5A6A74" /><rect x="1" y="1" width="20" height="3.5" fill="#9AA6AD" /><path d="M7 1 V15 M13 1 V15" stroke="#5A6A74" strokeWidth="1" /></svg></span>
-              <span>Columns</span>
             </button>
                         <button onClick={() => { setVista('actividades'); setVerNivel(true); }} title="Level Crews: rebuild the crew logic of a set of activities (subcontractor / SCAP / phase) to level the monthly workload"
-              className={`px-2 py-1 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs font-bold ${verNivel ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
+              className={`px-1.5 py-1 rounded-lg flex items-center cursor-pointer ${verNivel ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
               <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><rect x="1" y="9" width="4" height="6" fill="#B8C0C6" /><rect x="6" y="3" width="4" height="12" fill="#B8C0C6" /><rect x="11" y="7" width="4" height="8" fill="#B8C0C6" /><rect x="16" y="1" width="4" height="14" fill="#B8C0C6" /><path d="M1 6.5 H21" stroke="#312E81" strokeWidth="1.6" strokeDasharray="2 1.2" /></svg></span>
-              <span>Level</span>
             </button>
           </div>
         )}
