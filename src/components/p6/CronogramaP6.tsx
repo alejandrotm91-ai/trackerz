@@ -725,8 +725,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   };
 
   const proyecto = m ? celda(m.xer.tablas.get('PROJECT')!, m.xer.tablas.get('PROJECT')!.filas[0], 'proj_short_name') : '';
-  const finProyecto = m ? aMinutos(celda(m.xer.tablas.get('PROJECT')!, m.xer.tablas.get('PROJECT')!.filas[0], 'scd_end_date')) : null;
-  const finLimite = m ? m.finProyecto : null;
 
   const exportar = () => {
     if (!m) return;
@@ -903,8 +901,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const desdeFila = Math.max(0, Math.floor(scrollTop / FILA) - 10);
   const hastaFila = Math.min(filas.length, Math.ceil((scrollTop + altoVista) / FILA) + 10);
   const xDatos = m ? xDe(m.fechaDatos) : 0;
-  const criticas = vts.filter(v => v.tf != null && v.tf <= 0).length;
-  const rutaLarga = vts.filter(v => v.lp).length;
 
   // ── Relaciones para el Gantt ──
   const relsGantt = React.useMemo(() => {
@@ -1066,12 +1062,86 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           </div>
         )}
         {m && (
-          <div className="text-[11px] text-indigo-100 flex items-center gap-3">
-            <span>Finish: <b className="text-white">{fCorta(finProyecto)}</b></span>
-            {finLimite && <span>Must Finish By: <b className="text-white">{fCorta(finLimite)}</b></span>}
-            <span>Critical: <b className="text-red-300">{criticas.toLocaleString('en-US')}</b></span>
-            <span title="Activities on the Longest Path: the chain that drives the project finish">Longest Path: <b className="text-red-300">{rutaLarga.toLocaleString('en-US')}</b></span>
-            <span>{vts.length.toLocaleString('en-US')} activities</span>
+          <div className="flex items-center gap-1.5">
+            <div className="relative">
+              <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${NOMBRE_FILTRO[filtroEstado] ?? ''}${hayFiltroUdf ? ` · ${condUdf.length} User Defined condition${condUdf.length > 1 ? 's' : ''}` : ''}`}
+                className={`px-2 py-1 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs font-bold ${filtroMenuActivo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
+                <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><path d="M3 2 H19 L13 8.5 V14 L9 12.5 V8.5 Z" fill={filtroMenuActivo ? '#312E81' : '#9AA6AD'} stroke="#3A3A3A" strokeWidth="0.8" /></svg></span>
+                <span>Filter</span>
+              </button>
+              {menuFiltro && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setMenuFiltro(false)} />
+                  <div className="absolute left-0 top-full mt-1.5 z-[61] w-[470px] bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-[#F0F0F0] border-b border-[#D5D5D5] rounded-t-lg">
+                      <b>Status Filter</b>
+                      <button onClick={() => setMenuFiltro(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                    <div className="p-2 flex flex-col gap-0.5">
+                      {FILTROS_ESTADO.filter(([k]) => k !== 'soloMaster' || enEjecucion).map(([k, etq]) => (
+                        <label key={k} className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer ${filtroEstado === k ? 'border-[#8A8FC9] bg-[#EEF0FB] font-semibold' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
+                          <input type="radio" name="filtroEstado" checked={filtroEstado === k} onChange={() => setFiltroEstado(k)} />
+                          {etq}
+                        </label>
+                      ))}
+                    </div>
+                    {/* Filtros por campos de usuario */}
+                    <div className="border-t border-[#E2E2E2] p-2">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <b>User Defined</b>
+                        <span className="text-[10.5px] text-[#5A6A74]">all conditions must be met (AND)</span>
+                        {filtrosUdf.length > 0 && <button onClick={() => setFiltrosUdf([])} className="ml-auto text-[#312E81] underline cursor-pointer">Clear</button>}
+                      </div>
+                      {filtrosUdf.map((f, k) => {
+                        const vals = udfFiltroVals.get(f.campo);
+                        const distintos = vals ? [...[...vals.values()].reduce((mm, x) => mm.set(x, (mm.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]).slice(0, 300) : [];
+                        const poner = (cambio: Partial<FiltroUdf>) => setFiltrosUdf(fs => fs.map((x, y) => (y === k ? { ...x, ...cambio } : x)));
+                        return (
+                          <div key={k} className="flex items-center gap-1 mb-1">
+                            <select value={f.campo} onChange={e => poner({ campo: e.target.value, valor: '' })} className="border border-[#D5DEE2] rounded px-1 py-1 w-[150px] bg-white">
+                              <option value="">Field…</option>
+                              {catalogo.filter(c => c.id.startsWith('udf:')).map(c => <option key={c.id} value={c.id.slice(4)}>{c.titulo}</option>)}
+                            </select>
+                            <select value={f.op} onChange={e => poner({ op: e.target.value as FiltroUdf['op'] })} className="border border-[#D5DEE2] rounded px-1 py-1 bg-white">
+                              {OPS_UDF.map(([o, etq]) => <option key={o} value={o}>{etq}</option>)}
+                            </select>
+                            {f.op !== 'vacio' && (
+                              <>
+                                <input list={`udf-vals-${k}`} value={f.valor} onChange={e => poner({ valor: e.target.value })} placeholder={f.campo ? 'Value…' : ''} disabled={!f.campo}
+                                  className="border border-[#D5DEE2] rounded px-1.5 py-1 flex-1 min-w-0" />
+                                <datalist id={`udf-vals-${k}`}>
+                                  {distintos.map(([x, c]) => <option key={x} value={x}>{`${c} activities`}</option>)}
+                                </datalist>
+                              </>
+                            )}
+                            <button onClick={() => setFiltrosUdf(fs => fs.filter((_, y) => y !== k))} title="Remove condition" className="p-1 text-[#5A6A74] hover:text-red-600 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                          </div>
+                        );
+                      })}
+                      <button onClick={() => setFiltrosUdf(fs => [...fs, { campo: '', op: 'igual', valor: '' }])} className="mt-0.5 px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> Add condition
+                      </button>
+                      {hayFiltroUdf && <div className="mt-1.5 text-[10.5px] text-[#5A6A74]">Master-only items are hidden while a User Defined filter is active.</div>}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <button onClick={() => { setVista('actividades'); setVerGrupo(true); }} title="Group & Sort: bands, colors and grouping levels"
+              className={`px-2 py-1 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs font-bold ${verGrupo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
+              <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><rect x="1" y="1" width="14" height="3.5" fill="#1F7CC4" /><rect x="4" y="6" width="11" height="3.5" fill="#7CF27C" stroke="#4FA94F" strokeWidth="0.5" /><rect x="7" y="11" width="8" height="3.5" fill="#FFFF66" stroke="#C9C94A" strokeWidth="0.5" /><path d="M18 2 V14 M16 12 L18 14.5 L20 12" fill="none" stroke="#3A3A3A" strokeWidth="1.2" /></svg></span>
+              <span>Group</span>
+            </button>
+            <button onClick={() => { setVista('actividades'); setVerColumnas(true); }} title="Columns: choose and order the table columns"
+              className={`px-2 py-1 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs font-bold ${verColumnas ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
+              <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="14" fill="#FFFFFF" stroke="#5A6A74" /><rect x="1" y="1" width="20" height="3.5" fill="#9AA6AD" /><path d="M7 1 V15 M13 1 V15" stroke="#5A6A74" strokeWidth="1" /></svg></span>
+              <span>Columns</span>
+            </button>
+                        <button onClick={() => { setVista('actividades'); setVerNivel(true); }} title="Level Crews: rebuild the crew logic of a set of activities (subcontractor / SCAP / phase) to level the monthly workload"
+              className={`px-2 py-1 rounded-lg flex items-center gap-1.5 cursor-pointer text-xs font-bold ${verNivel ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
+              <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><rect x="1" y="9" width="4" height="6" fill="#B8C0C6" /><rect x="6" y="3" width="4" height="12" fill="#B8C0C6" /><rect x="11" y="7" width="4" height="8" fill="#B8C0C6" /><rect x="16" y="1" width="4" height="14" fill="#B8C0C6" /><path d="M1 6.5 H21" stroke="#312E81" strokeWidth="1.6" strokeDasharray="2 1.2" /></svg></span>
+              <span>Level</span>
+            </button>
           </div>
         )}
         <div className="ml-auto flex items-center gap-1.5">
@@ -1084,20 +1154,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           {editable && (
             <>
               <input ref={fileRef} type="file" accept=".xer" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) cargarArchivo(f); e.target.value = ''; }} />
-              <button onClick={() => fileRef.current?.click()} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/15 hover:bg-white/25 flex items-center gap-1.5 cursor-pointer" title="Open an XER exported from Primavera P6">
-                <Upload className="w-3.5 h-3.5" /> Import XER
-              </button>
             </>
           )}
           {editable && m && (
             <button onClick={guardar} disabled={!sinGuardar || !!ocupado}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${sinGuardar ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-white/15'}`}>
               <Save className="w-3.5 h-3.5" /> Save{cambios.length ? ` (${cambios.length})` : ''}
-            </button>
-          )}
-          {m && (
-            <button onClick={exportar} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-[#1E1B4B] hover:bg-indigo-50 flex items-center gap-1.5 cursor-pointer" title="Download the XER to import it into Primavera P6">
-              <Download className="w-3.5 h-3.5" /> Export XER
             </button>
           )}
           <button onClick={cerrar} className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer" title="Close"><X className="w-4 h-4" /></button>
@@ -1588,87 +1650,17 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             <VistaRecursos m={m} version={version} />
           )}
           </div>
-          {/* Barra lateral derecha: filtro, agrupación y columnas de la tabla */}
+          {/* Barra lateral derecha: importar y exportar el XER */}
           <div className="w-[46px] shrink-0 bg-[#ECECEC] border-l border-[#C3C3C3] flex flex-col items-center py-2 gap-1">
-            <div className="relative">
-              <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${NOMBRE_FILTRO[filtroEstado] ?? ''}${hayFiltroUdf ? ` · ${condUdf.length} User Defined condition${condUdf.length > 1 ? 's' : ''}` : ''}`}
-                className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroMenuActivo ? 'bg-[#E4E6F7] border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
-                <svg width="22" height="16" viewBox="0 0 22 16"><path d="M3 2 H19 L13 8.5 V14 L9 12.5 V8.5 Z" fill={filtroMenuActivo ? '#312E81' : '#9AA6AD'} stroke="#3A3A3A" strokeWidth="0.8" /></svg>
-                <span className="text-[8.5px] leading-none">Filter</span>
+            {editable && (
+              <button onClick={() => fileRef.current?.click()} title="Import XER: open an XER exported from Primavera P6"
+                className="w-[38px] h-[36px] rounded flex items-center justify-center cursor-pointer border border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]">
+                <Upload className="w-5 h-5" />
               </button>
-              {menuFiltro && (
-                <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setMenuFiltro(false)} />
-                  <div className="absolute right-[44px] top-0 z-[61] w-[470px] bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
-                    <div className="flex items-center justify-between px-3 py-1.5 bg-[#F0F0F0] border-b border-[#D5D5D5] rounded-t-lg">
-                      <b>Status Filter</b>
-                      <button onClick={() => setMenuFiltro(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
-                    </div>
-                    <div className="p-2 flex flex-col gap-0.5">
-                      {FILTROS_ESTADO.filter(([k]) => k !== 'soloMaster' || enEjecucion).map(([k, etq]) => (
-                        <label key={k} className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer ${filtroEstado === k ? 'border-[#8A8FC9] bg-[#EEF0FB] font-semibold' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
-                          <input type="radio" name="filtroEstado" checked={filtroEstado === k} onChange={() => setFiltroEstado(k)} />
-                          {etq}
-                        </label>
-                      ))}
-                    </div>
-                    {/* Filtros por campos de usuario */}
-                    <div className="border-t border-[#E2E2E2] p-2">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <b>User Defined</b>
-                        <span className="text-[10.5px] text-[#5A6A74]">all conditions must be met (AND)</span>
-                        {filtrosUdf.length > 0 && <button onClick={() => setFiltrosUdf([])} className="ml-auto text-[#312E81] underline cursor-pointer">Clear</button>}
-                      </div>
-                      {filtrosUdf.map((f, k) => {
-                        const vals = udfFiltroVals.get(f.campo);
-                        const distintos = vals ? [...[...vals.values()].reduce((mm, x) => mm.set(x, (mm.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]).slice(0, 300) : [];
-                        const poner = (cambio: Partial<FiltroUdf>) => setFiltrosUdf(fs => fs.map((x, y) => (y === k ? { ...x, ...cambio } : x)));
-                        return (
-                          <div key={k} className="flex items-center gap-1 mb-1">
-                            <select value={f.campo} onChange={e => poner({ campo: e.target.value, valor: '' })} className="border border-[#D5DEE2] rounded px-1 py-1 w-[150px] bg-white">
-                              <option value="">Field…</option>
-                              {catalogo.filter(c => c.id.startsWith('udf:')).map(c => <option key={c.id} value={c.id.slice(4)}>{c.titulo}</option>)}
-                            </select>
-                            <select value={f.op} onChange={e => poner({ op: e.target.value as FiltroUdf['op'] })} className="border border-[#D5DEE2] rounded px-1 py-1 bg-white">
-                              {OPS_UDF.map(([o, etq]) => <option key={o} value={o}>{etq}</option>)}
-                            </select>
-                            {f.op !== 'vacio' && (
-                              <>
-                                <input list={`udf-vals-${k}`} value={f.valor} onChange={e => poner({ valor: e.target.value })} placeholder={f.campo ? 'Value…' : ''} disabled={!f.campo}
-                                  className="border border-[#D5DEE2] rounded px-1.5 py-1 flex-1 min-w-0" />
-                                <datalist id={`udf-vals-${k}`}>
-                                  {distintos.map(([x, c]) => <option key={x} value={x}>{`${c} activities`}</option>)}
-                                </datalist>
-                              </>
-                            )}
-                            <button onClick={() => setFiltrosUdf(fs => fs.filter((_, y) => y !== k))} title="Remove condition" className="p-1 text-[#5A6A74] hover:text-red-600 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
-                          </div>
-                        );
-                      })}
-                      <button onClick={() => setFiltrosUdf(fs => [...fs, { campo: '', op: 'igual', valor: '' }])} className="mt-0.5 px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1">
-                        <Plus className="w-3.5 h-3.5" /> Add condition
-                      </button>
-                      {hayFiltroUdf && <div className="mt-1.5 text-[10.5px] text-[#5A6A74]">Master-only items are hidden while a User Defined filter is active.</div>}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-            <button onClick={() => { setVista('actividades'); setVerGrupo(true); }} title="Group & Sort: bands, colors and grouping levels"
-              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verGrupo ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
-              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="14" height="3.5" fill="#1F7CC4" /><rect x="4" y="6" width="11" height="3.5" fill="#7CF27C" stroke="#4FA94F" strokeWidth="0.5" /><rect x="7" y="11" width="8" height="3.5" fill="#FFFF66" stroke="#C9C94A" strokeWidth="0.5" /><path d="M18 2 V14 M16 12 L18 14.5 L20 12" fill="none" stroke="#3A3A3A" strokeWidth="1.2" /></svg>
-              <span className="text-[8.5px] leading-none">Group</span>
-            </button>
-            <button onClick={() => { setVista('actividades'); setVerColumnas(true); }} title="Columns: choose and order the table columns"
-              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verColumnas ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
-              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="14" fill="#FFFFFF" stroke="#5A6A74" /><rect x="1" y="1" width="20" height="3.5" fill="#9AA6AD" /><path d="M7 1 V15 M13 1 V15" stroke="#5A6A74" strokeWidth="1" /></svg>
-              <span className="text-[8.5px] leading-none">Columns</span>
-            </button>
-            <div className="w-7 h-px bg-[#C3C3C3] my-1" />
-            <button onClick={() => { setVista('actividades'); setVerNivel(true); }} title="Level Crews: rebuild the crew logic of a set of activities (subcontractor / SCAP / phase) to level the monthly workload"
-              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verNivel ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
-              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="9" width="4" height="6" fill="#B8C0C6" /><rect x="6" y="3" width="4" height="12" fill="#B8C0C6" /><rect x="11" y="7" width="4" height="8" fill="#B8C0C6" /><rect x="16" y="1" width="4" height="14" fill="#B8C0C6" /><path d="M1 6.5 H21" stroke="#312E81" strokeWidth="1.6" strokeDasharray="2 1.2" /></svg>
-              <span className="text-[8.5px] leading-none">Level</span>
+            )}
+            <button onClick={exportar} title="Export XER: download the XER to import it into Primavera P6"
+              className="w-[38px] h-[36px] rounded flex items-center justify-center cursor-pointer border border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]">
+              <Download className="w-5 h-5" />
             </button>
           </div>
         </div>
