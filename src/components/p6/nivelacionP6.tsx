@@ -10,7 +10,7 @@ import { celda } from '../../utils/p6/xer';
 import type { ModeloP6 } from '../../utils/p6/modelo';
 import { CAMPOS_AGRUPACION, valorCampo, type CampoAgrupacion, type Clasificacion } from '../../utils/p6/vistaEjecucion';
 import { faseDe, type FaseUso } from '../../utils/p6/uso';
-import { buscarMejor, diagnosticar, histograma, meses, peorHolgura, picoYDesv, proponer, type Diagnostico, type Propuesta } from '../../utils/p6/nivelacion';
+import { buscarMejor, diagnosticar, histograma, meses, negativas, peorHolgura, picoYDesv, proponer, type Diagnostico, type Propuesta } from '../../utils/p6/nivelacion';
 import type { Actividad } from '../../types';
 
 const MES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -58,7 +58,10 @@ export const DialogoNivelacion: React.FC<{
   }, [t, campo, f.subc, f.scap, f.fase, version]);
 
   const [ocupado, setOcupado] = React.useState(false);
-  const [res, setRes] = React.useState<{ d: Diagnostico; prop: Propuesta; auto: { n: number; tope: number } | null; viable: boolean; alcanzado: boolean } | null>(null);
+  const [res, setRes] = React.useState<{ d: Diagnostico; prop: Propuesta; auto: { n: number; tope: number } | null; viable: boolean; alcanzado: boolean; vale: boolean; manual: boolean } | null>(null);
+  /** ¿Merece la pena? Termina antes (o igual), no retrasa el proyecto y no empeora la holgura. */
+  const valeLaPena = (d: Diagnostico, p: Propuesta) => p.despues.finConjunto <= d.antes.finConjunto + 1 && p.despues.finProyecto <= d.antes.finProyecto + 1
+    && negativas(p.despues) <= negativas(d.antes) && peorHolgura(p.despues) >= peorHolgura(d.antes) - 240;
   const [manual, setManual] = React.useState<{ n: number; tope: string }>({ n: 3, tope: '' });
   const [verEnlaces, setVerEnlaces] = React.useState(false);
   const analizar = (op?: { n: number; tope: number }) => {
@@ -68,12 +71,13 @@ export const DialogoNivelacion: React.FC<{
         const d = diagnosticar(m, conjunto, i => campo(i, f.grupo), i => campo(i, f.tipo));
         if (op) {
           const prop = proponer(m, d, { cuadrillas: op.n, tope: op.tope });
-          const viable = prop.deficit.length === 0 && prop.despues.finConjunto <= d.antes.finConjunto && prop.despues.finProyecto <= d.antes.finProyecto;
-          setRes({ d, prop, auto: res?.auto ?? null, viable, alcanzado: res?.alcanzado ?? false });
+          const vale = valeLaPena(d, prop);
+          setRes({ d, prop, auto: res?.auto ?? null, viable: vale && prop.deficit.length === 0, alcanzado: res?.alcanzado ?? false, vale, manual: true });
         } else {
           const { mejor, probadas, objetivoAlcanzado } = buscarMejor(m, d);
-          const elegido = mejor ?? probadas.sort((a, b) => peorHolgura(b.prop.despues) - peorHolgura(a.prop.despues))[0];
-          setRes({ d, prop: elegido.prop, auto: mejor ? { n: mejor.op.cuadrillas, tope: mejor.op.tope ?? Infinity } : null, viable: objetivoAlcanzado, alcanzado: objetivoAlcanzado });
+          // Sin opción que valga la pena: se muestra la más cercana (la que termina antes y, a igualdad, con mejor holgura)
+          const elegido = mejor ?? [...probadas].sort((a, b) => (a.prop.despues.finConjunto - b.prop.despues.finConjunto) || (peorHolgura(b.prop.despues) - peorHolgura(a.prop.despues)))[0];
+          setRes({ d, prop: elegido.prop, auto: mejor ? { n: mejor.op.cuadrillas, tope: mejor.op.tope ?? Infinity } : null, viable: !!mejor && objetivoAlcanzado, alcanzado: objetivoAlcanzado, vale: !!mejor, manual: false });
           setManual({ n: elegido.op.cuadrillas, tope: isFinite(elegido.op.tope ?? Infinity) ? String(elegido.op.tope) : '' });
         }
       } finally { setOcupado(false); }
@@ -167,7 +171,9 @@ export const DialogoNivelacion: React.FC<{
                 <button onClick={() => analizar({ n: manual.n, tope: manual.tope ? Number(manual.tope) : Infinity })} disabled={ocupado}
                   className="px-2 py-1 border border-[#B5B5B5] rounded bg-white hover:bg-[#F5F8F9] cursor-pointer">Recalculate</button>
                 <span className="text-[#5A6A74] pb-1">{res.auto ? `Best found: ${res.auto.n} crews${isFinite(res.auto.tope) ? `, cap ${res.auto.tope}/month` : ''}` : ''}</span>
-                {res.prop.deficit.length === 0
+                {!res.vale
+                  ? <span className="text-red-600 font-semibold pb-1">Not worth leveling: {res.manual ? 'this option does not finish' : 'no tested crew option finishes'} the set by {fCorta(res.d.antes.finConjunto)} (current logic) with a flatter monthly workload, without delaying the project or worsening float. Shown only for reference; it cannot be applied.</span>
+                  : res.prop.deficit.length === 0
                   ? <span className="text-[#2B7F52] font-semibold pb-1">Float target met: every activity ≥ 0{res.d.limitantes.length ? `, except ${res.d.limitantes.length} that arrive too late (at their limit)` : ''}.</span>
                   : <span className="text-red-600 font-semibold pb-1">{res.prop.deficit.length} activities stay below their float target{res.alcanzado ? '' : ' (best reachable by resequencing)'}: {res.prop.deficit.slice(0, 6).map(cod).join(', ')}{res.prop.deficit.length > 6 ? '…' : ''}</span>}
               </div>
@@ -250,7 +256,7 @@ export const DialogoNivelacion: React.FC<{
           {res && editable && <span className="text-[#5A6A74] mr-auto">Applying changes the relationships and reschedules (F9). Nothing is stored until you press Save.</span>}
           <button onClick={onCerrar} className="px-3 py-1 border border-[#B5B5B5] rounded bg-white hover:bg-[#F5F8F9] cursor-pointer">Close</button>
           {editable && (
-            <button disabled={!res || ocupado} onClick={() => res && onAplicar(res.prop, `${res.prop.cuadrillas} crews · peak ${graf?.pa.pico.toFixed(1)} → ${graf?.pb.pico.toFixed(1)} units/month`)}
+            <button disabled={!res || ocupado || !res.vale} title={res && !res.vale ? 'Leveling would not finish earlier or would worsen float' : undefined} onClick={() => res && onAplicar(res.prop, `${res.prop.cuadrillas} crews · peak ${graf?.pa.pico.toFixed(1)} → ${graf?.pb.pico.toFixed(1)} units/month`)}
               className="px-3 py-1 rounded bg-[#2B7F52] text-white font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50">
               <Check className="w-3.5 h-3.5" /> Apply new logic
             </button>
