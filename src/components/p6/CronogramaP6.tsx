@@ -17,6 +17,8 @@ import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, e
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
 import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseUso, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
 import { DialogoNivelacion } from './nivelacionP6';
+import { DialogoCuadrillas, useMatrizPersonal } from './cuadrillasP6';
+import { estimarCuadrillas, POR_DEFECTO } from '../../utils/p6/cuadrillas';
 import { aplicarNivelacion } from '../../utils/p6/nivelacion';
 import { COLUMNAS_DEF, DialogoColumnas, NOMBRE_ESTADO, NOMBRE_RESTR, NOMBRE_TIPO, catalogoColumnas, valoresUdf, type ColumnaP6 } from './columnasP6';
 
@@ -342,6 +344,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const clasifXer = React.useMemo(() => (m ? clasificacionXer(m.xer) : new Map()),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [m, version]);
+  // Campo de clasificación de una actividad (XER y, si no, Master), para el panel de uso
+  const campoActividad = React.useCallback((i: number, k: CampoAgrupacion) => {
+    const c = m ? celda(m.task, m.task.filas[i], 'task_code') : '';
+    return valorCampo(idxMaster.get(c), k, clasifXer.get(c));
+  }, [m, idxMaster, clasifXer]);
 
   // Vista de ejecución: misma programación, agrupada con la clasificación del XER/Master
   const arbolEjec = React.useMemo(() => {
@@ -1573,6 +1580,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   desde={rango.desde} hasta={rango.hasta} px={px} version={version} pasa={pasa} filtrando={filtrando}
                   colorBanda={nivel => (enEjecucion ? paletas.constr : paletas.wbs)[nivel] ?? bandaWbs(nivel)}
                   usoRef={usoRef} onCerrar={() => setVerUso(false)}
+                  campoAct={campoActividad}
                   onScrollX={x => { const el = scroller.current; if (el && Math.abs(el.scrollLeft - x) > 1) el.scrollLeft = x; }} />
               )}
               {sel != null && sel < vts.length && (
@@ -1877,12 +1885,49 @@ const VistaWbs: React.FC<{
 };
 
 /** Panel inferior «Activity Usage» (como el Usage Spreadsheet de P6): valores por período de cada fila. */
+const leerLocal = <T,>(k: string, def: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : def; } catch { return def; } };
+
 const PanelUso: React.FC<{
   m: ModeloP6; filas: Fila[]; ancho: number; anchoGantt: number; xDe: (t: number) => number; xDatos: number;
   desde: number; hasta: number; px: number; version: number; pasa: (v: Vt) => boolean; filtrando: boolean;
   colorBanda: (nivel: number) => [string, string]; usoRef: React.RefObject<HTMLDivElement | null>; onScrollX: (x: number) => void; onCerrar: () => void;
-}> = ({ m, filas, ancho, anchoGantt, xDe, xDatos, desde, hasta, px, version, pasa, filtrando, colorBanda, usoRef, onScrollX, onCerrar }) => {
+  campoAct: (i: number, k: CampoAgrupacion) => string;
+}> = ({ m, filas, ancho, anchoGantt, xDe, xDatos, desde, hasta, px, version, pasa, filtrando, colorBanda, usoRef, onScrollX, onCerrar, campoAct }) => {
   const [medida, setMedida] = React.useState<MedidaUso>('cost');
+  // Resources: personal (cuadrillas × personas por cuadrilla de su SubC) o número de cuadrillas
+  const [vistaRec, setVistaRec] = React.useState<'personnel' | 'crews'>('personnel');
+  const [tamManual, setTamManual] = React.useState<Record<string, number>>(() => leerLocal('p6.cuadrillas', {}));
+  const [tamDefecto, setTamDefecto] = React.useState<number>(() => leerLocal('p6.cuadrillaDefecto', POR_DEFECTO));
+  React.useEffect(() => { try { localStorage.setItem('p6.cuadrillas', JSON.stringify(tamManual)); localStorage.setItem('p6.cuadrillaDefecto', JSON.stringify(tamDefecto)); } catch { /* sin almacenamiento */ } }, [tamManual, tamDefecto]);
+  const [verTam, setVerTam] = React.useState(false);
+  const matriz = useMatrizPersonal(medida === 'resources');
+  // Ocupan cuadrilla en obra: Installation y Construction (no compra, flete ni ingeniería)
+  const incluirRec = React.useCallback((i: number) => {
+    const f = faseDe(celda(m.task, m.task.filas[i], 'task_name'));
+    return (f === 'montaje' || f === 'construccion') && !/ingenier/i.test(campoAct(i, 'grupo'));
+  }, [m, campoAct]);
+  const subcDe = React.useCallback((i: number) => campoAct(i, 'subcontratista'), [campoAct]);
+  const SEMANAS = 8;
+  const estCuad = React.useMemo(() => (medida === 'resources' && matriz.registros ? estimarCuadrillas(m, subcDe, incluirRec, matriz.registros, SEMANAS) : new Map()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [medida, matriz.registros, m, subcDe, incluirRec, version]);
+  const usadosSubc = React.useMemo(() => {
+    const out = new Map<string, number>();
+    if (medida !== 'resources') return out;
+    m.task.filas.forEach((f, i) => {
+      if (celda(m.task, f, 'status_code') === 'TK_Complete' || !incluirRec(i)) return;
+      const tt = celda(m.task, f, 'task_type');
+      if (tt === 'TT_Mile' || tt === 'TT_FinMile' || tt === 'TT_LOE' || tt === 'TT_WBS') return;
+      const s2 = subcDe(i); out.set(s2, (out.get(s2) ?? 0) + 1);
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [medida, m, incluirRec, subcDe, version]);
+  const personasDe = React.useCallback((i: number) => {
+    if (vistaRec === 'crews') return 1;
+    const s2 = subcDe(i);
+    return tamManual[s2] ?? estCuad.get(s2)?.estimado ?? tamDefecto;
+  }, [vistaRec, subcDe, tamManual, estCuad, tamDefecto]);
   const [series, setSeries] = React.useState<SerieUso[]>(['b', 'r', 'a']);
   const [acumulado, setAcumulado] = React.useState(false);
   // Botones de fase (como en el Gantt del Master): ninguno activo = todas; varios = cualquiera de ellos
@@ -1898,9 +1943,9 @@ const PanelUso: React.FC<{
   const [scrollTop, setScrollTop] = React.useState(0);
   const periodos = React.useMemo(() => periodosDeEscala(desde, hasta, px), [desde, hasta, px]);
   const lim = React.useMemo(() => periodos.map(p => p.t), [periodos]);
-  const uso = React.useMemo(() => calcularUso(m, lim, medida),
+  const uso = React.useMemo(() => calcularUso(m, lim, medida, medida === 'resources' ? { incluir: incluirRec, personas: personasDe } : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [m, lim, medida, version]);
+    [m, lim, medida, version, incluirRec, personasDe]);
   const nPer = Math.max(0, lim.length - 1);
   // Totales de una banda: suma de sus actividades (las que pasan el filtro si lo hay)
   const totalNodo = React.useMemo(() => {
@@ -1953,14 +1998,32 @@ const PanelUso: React.FC<{
   };
   return (
     <div className="shrink-0 bg-white border-t-2 border-[#9A9A9A] flex flex-col relative" style={{ height: alto }}>
+      {verTam && (
+        <DialogoCuadrillas est={estCuad} usados={usadosSubc} manual={tamManual} defecto={tamDefecto} origen={matriz.origen} semanas={SEMANAS}
+          onAplicar={(mm, d) => { setTamManual(mm); setTamDefecto(d); }} onCerrar={() => setVerTam(false)} />
+      )}
       <div onMouseDown={arrastrar} className="absolute -top-1.5 left-0 right-0 h-2 cursor-ns-resize z-30" title="Drag to resize" />
       <div className="flex items-center gap-3 px-3 py-1 bg-[#ECECEC] border-b border-[#C3C3C3] text-[11px] shrink-0">
         <b>Activity Usage</b>
         <div className="inline-flex border border-[#B5B5B5] rounded overflow-hidden">
-          {(['units', 'cost'] as const).map(x => (
-            <button key={x} onClick={() => setMedida(x)} className={`px-2 py-0.5 cursor-pointer ${medida === x ? 'bg-[#312E81] text-white font-bold' : 'bg-white'}`}>{x === 'units' ? 'Units' : 'Cost'}</button>
+          {(['units', 'cost', 'resources'] as const).map(x => (
+            <button key={x} onClick={() => setMedida(x)} className={`px-2 py-0.5 cursor-pointer ${medida === x ? 'bg-[#312E81] text-white font-bold' : 'bg-white'}`}
+              title={x === 'resources' ? 'Crews and personnel: each Installation / Construction activity in progress is one crew' : undefined}>{x === 'units' ? 'Units' : x === 'cost' ? 'Cost' : 'Resources'}</button>
           ))}
         </div>
+        {medida === 'resources' && (
+          <>
+            <div className="inline-flex border border-[#B5B5B5] rounded overflow-hidden">
+              {(['personnel', 'crews'] as const).map(x => (
+                <button key={x} onClick={() => setVistaRec(x)} className={`px-2 py-0.5 cursor-pointer ${vistaRec === x ? 'bg-[#2B7F52] text-white font-bold' : 'bg-white'}`}>{x === 'personnel' ? 'Personnel' : 'Crews'}</button>
+              ))}
+            </div>
+            <button onClick={() => setVerTam(true)} className="px-2 py-0.5 border border-[#B5B5B5] rounded bg-white hover:bg-[#F5F8F9] cursor-pointer"
+              title="Persons per crew for each subcontractor (estimated from the personnel matrix; editable)">
+              Crew size{matriz.cargando ? ' (loading staff…)' : Object.keys(tamManual).length ? ` · ${Object.keys(tamManual).length} edited` : ''}
+            </button>
+          </>
+        )}
         {(['b', 'r', 'a'] as SerieUso[]).map(k => (
           <label key={k} className="flex items-center gap-1 cursor-pointer">
             <input type="checkbox" checked={series.includes(k)} onChange={e => setSeries(sx => (e.target.checked ? (['b', 'r', 'a'] as SerieUso[]).filter(z => sx.includes(z) || z === k) : sx.filter(z => z !== k)))} />
@@ -1991,7 +2054,7 @@ const PanelUso: React.FC<{
         <div style={{ width: ancho + anchoGantt, height: filas.length * altoFila + 22, position: 'relative' }}>
           {/* Encabezado de períodos */}
           <div className="sticky top-0 z-20 flex bg-[#F5F8F9] border-b border-[#D5DEE2] text-[10px] font-semibold text-[#5A6A74]" style={{ height: 22 }}>
-            <div className="sticky left-0 z-30 bg-[#F5F8F9] border-r border-[#D5DEE2] px-2 flex items-center" style={{ width: ancho }}>{medida === 'units' ? 'Units' : 'Cost'}</div>
+            <div className="sticky left-0 z-30 bg-[#F5F8F9] border-r border-[#D5DEE2] px-2 flex items-center" style={{ width: ancho }}>{medida === 'units' ? 'Units' : medida === 'cost' ? 'Cost' : vistaRec === 'crews' ? 'Crews (activities in progress)' : 'Personnel (persons/day)'}</div>
             <div className="relative" style={{ width: anchoGantt }}>
               {periodos.slice(0, -1).map((p, j) => (
                 <div key={p.t} className="absolute top-0 bottom-0 border-l border-[#D5DEE2] pl-1 flex items-center overflow-hidden whitespace-nowrap" style={{ left: xDe(p.t), width: xDe(lim[j + 1]) - xDe(p.t) }}>{p.etq}</div>

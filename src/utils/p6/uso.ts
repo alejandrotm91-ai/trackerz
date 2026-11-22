@@ -12,7 +12,7 @@ import { celda } from './xer';
 import type { ModeloP6 } from './modelo';
 import type { Calendario } from './calendario';
 
-export type MedidaUso = 'units' | 'cost';
+export type MedidaUso = 'units' | 'cost' | 'resources';
 
 /**
  * Fase de una actividad por su nombre, con la misma regla que los botones Procura / Flete /
@@ -88,9 +88,60 @@ export function repartir(valor: number, ini: number, fin: number, lim: number[],
   return { desde: p0, vals };
 }
 
+/**
+ * Ocupación de una cuadrilla en cada período: tiempo laborable de la actividad dentro del período ÷
+ * tiempo laborable del período (en el calendario de la actividad), por `factor` (personas por cuadrilla).
+ * Así, tres actividades trabajando todo el mes = 3 cuadrillas; una que trabaja medio mes = 0,5.
+ */
+export function ocupar(factor: number, ini: number, fin: number, lim: number[], cal: Calendario | undefined): TramoUso | undefined {
+  if (!factor || !cal || !isFinite(ini) || !isFinite(fin) || fin <= ini) return undefined;
+  let p0 = -1, p1 = -1;
+  for (let k = 0; k < lim.length - 1; k++) { if (lim[k + 1] > ini && p0 < 0) p0 = k; if (lim[k] < fin) p1 = k; }
+  if (p0 < 0 || p1 < p0) return undefined;
+  const vals = new Float64Array(p1 - p0 + 1);
+  for (let k = p0; k <= p1; k++) {
+    const total = cal.entre(lim[k], lim[k + 1]);
+    if (total <= 0) continue;
+    const a = Math.max(ini, lim[k]), b = Math.min(fin, lim[k + 1]);
+    if (b > a) vals[k - p0] = (factor * cal.entre(a, b)) / total;
+  }
+  return { desde: p0, vals };
+}
+
+/** Opciones de la medida «resources»: qué actividades ocupan cuadrilla y cuántas personas tiene. */
+export interface OpcionesRecursos {
+  /** ¿La actividad (fila de TASK) ocupa una cuadrilla en obra? */
+  incluir: (i: number) => boolean;
+  /** Personas por cuadrilla de la actividad (1 = contar cuadrillas). */
+  personas: (i: number) => number;
+}
+
 /** Uso por actividad (índice de fila de TASK) para la medida elegida. */
-export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso): Map<number, UsoActividad> {
+export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso, rec?: OpcionesRecursos): Map<number, UsoActividad> {
   const out = new Map<number, UsoActividad>();
+  if (medida === 'resources') {
+    const t = m.task;
+    t.filas.forEach((f, i) => {
+      const tipo = celda(t, f, 'task_type');
+      if (tipo === 'TT_Mile' || tipo === 'TT_FinMile' || tipo === 'TT_LOE' || tipo === 'TT_WBS') return;
+      if (rec && !rec.incluir(i)) return;
+      const k = rec ? rec.personas(i) : 1;
+      if (!k) return;
+      const g = (c: string) => aMinutos(celda(t, f, c));
+      const estado = celda(t, f, 'status_code');
+      const es = g('early_start_date'), ef = g('early_end_date');
+      const as = g('act_start_date'), af = g('act_end_date');
+      const ps = g('target_start_date') ?? es ?? as, pf = g('target_end_date') ?? ef ?? af;
+      const cal = m.calendarios.get(celda(t, f, 'clndr_id'));
+      const u: UsoActividad = {};
+      if (ps != null && pf != null) u.b = ocupar(k, ps, pf, lim, cal);
+      if (as != null) u.a = ocupar(k, as, estado === 'TK_Complete' && af != null ? af : Math.max(as, m.fechaDatos), lim, cal);
+      const rs = estado === 'TK_Active' ? Math.max(es ?? m.fechaDatos, m.fechaDatos) : (es ?? as);
+      if (estado !== 'TK_Complete' && rs != null && ef != null) u.r = ocupar(k, rs, ef, lim, cal);
+      if (u.b || u.a || u.r) out.set(i, u);
+    });
+    return out;
+  }
   const tr = m.xer.tablas.get('TASKRSRC');
   if (!tr) return out;
   const n = (f: string[], c: string) => Number(celda(tr, f, c)) || 0;
