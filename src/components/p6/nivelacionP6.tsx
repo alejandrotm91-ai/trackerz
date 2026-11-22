@@ -58,7 +58,7 @@ export const DialogoNivelacion: React.FC<{
   }, [t, campo, f.subc, f.scap, f.fase, version]);
 
   const [ocupado, setOcupado] = React.useState(false);
-  const [res, setRes] = React.useState<{ d: Diagnostico; prop: Propuesta; auto: { n: number; tope: number } | null; viable: boolean } | null>(null);
+  const [res, setRes] = React.useState<{ d: Diagnostico; prop: Propuesta; auto: { n: number; tope: number } | null; viable: boolean; alcanzado: boolean } | null>(null);
   const [manual, setManual] = React.useState<{ n: number; tope: string }>({ n: 3, tope: '' });
   const [verEnlaces, setVerEnlaces] = React.useState(false);
   const analizar = (op?: { n: number; tope: number }) => {
@@ -68,12 +68,12 @@ export const DialogoNivelacion: React.FC<{
         const d = diagnosticar(m, conjunto, i => campo(i, f.grupo), i => campo(i, f.tipo));
         if (op) {
           const prop = proponer(m, d, { cuadrillas: op.n, tope: op.tope });
-          const viable = prop.despues.finConjunto <= d.antes.finConjunto && prop.despues.finProyecto <= d.antes.finProyecto && peorHolgura(prop.despues) >= peorHolgura(d.antes);
-          setRes({ d, prop, auto: res?.auto ?? null, viable });
+          const viable = prop.deficit.length === 0 && prop.despues.finConjunto <= d.antes.finConjunto && prop.despues.finProyecto <= d.antes.finProyecto;
+          setRes({ d, prop, auto: res?.auto ?? null, viable, alcanzado: res?.alcanzado ?? false });
         } else {
-          const { mejor, probadas } = buscarMejor(m, d);
+          const { mejor, probadas, objetivoAlcanzado } = buscarMejor(m, d);
           const elegido = mejor ?? probadas.sort((a, b) => peorHolgura(b.prop.despues) - peorHolgura(a.prop.despues))[0];
-          setRes({ d, prop: elegido.prop, auto: mejor ? { n: mejor.op.cuadrillas, tope: mejor.op.tope ?? Infinity } : null, viable: !!mejor });
+          setRes({ d, prop: elegido.prop, auto: mejor ? { n: mejor.op.cuadrillas, tope: mejor.op.tope ?? Infinity } : null, viable: objetivoAlcanzado, alcanzado: objetivoAlcanzado });
           setManual({ n: elegido.op.cuadrillas, tope: isFinite(elegido.op.tope ?? Infinity) ? String(elegido.op.tope) : '' });
         }
       } finally { setOcupado(false); }
@@ -146,8 +146,9 @@ export const DialogoNivelacion: React.FC<{
             <div className="text-[#5A6A74] leading-relaxed">
               Removes the crew links between the selected activities (their external logic —freight, area release, end milestones— is kept),
               finds when each one can really start, and rebuilds the sequence with N crews that install a whole structure continuously,
-              leveling the monthly Remaining Units within float. It tries 1–6 crews and several monthly caps and keeps the flattest option
-              that does not delay the set, the project or the worst total float.
+              leveling the monthly Remaining Units within float. Priority 1 is total float: every activity must end with float ≥ 0, or at its own
+              limit when its equipment arrives so late that not even unlimited crews could reach 0. Then it must not delay the set or the project,
+              and among those options (1–8 crews, several monthly caps and levels of structure continuity) it keeps the flattest. Durations are never changed.
             </div>
           )}
           {res && graf && (
@@ -165,16 +166,32 @@ export const DialogoNivelacion: React.FC<{
                   <input type="number" min={1} value={manual.tope} onChange={e => setManual({ ...manual, tope: e.target.value })} className={`${sel} w-28`} /></label>
                 <button onClick={() => analizar({ n: manual.n, tope: manual.tope ? Number(manual.tope) : Infinity })} disabled={ocupado}
                   className="px-2 py-1 border border-[#B5B5B5] rounded bg-white hover:bg-[#F5F8F9] cursor-pointer">Recalculate</button>
-                <span className="text-[#5A6A74] pb-1">{res.auto ? `Best found: ${res.auto.n} crews${isFinite(res.auto.tope) ? `, cap ${res.auto.tope}/month` : ''}` : 'No option keeps finish and float; showing the one with the best float.'}</span>
-                {!res.viable && <span className="text-red-600 font-semibold pb-1">This option delays the set, the project or the worst float.</span>}
+                <span className="text-[#5A6A74] pb-1">{res.auto ? `Best found: ${res.auto.n} crews${isFinite(res.auto.tope) ? `, cap ${res.auto.tope}/month` : ''}` : ''}</span>
+                {res.prop.deficit.length === 0
+                  ? <span className="text-[#2B7F52] font-semibold pb-1">Float target met: every activity ≥ 0{res.d.limitantes.length ? `, except ${res.d.limitantes.length} that arrive too late (at their limit)` : ''}.</span>
+                  : <span className="text-red-600 font-semibold pb-1">{res.prop.deficit.length} activities stay below their float target{res.alcanzado ? '' : ' (best reachable by resequencing)'}: {res.prop.deficit.slice(0, 6).map(cod).join(', ')}{res.prop.deficit.length > 6 ? '…' : ''}</span>}
               </div>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-6 gap-2">
                 {metrica('Peak month (units)', graf.pa.pico.toFixed(1), graf.pb.pico.toFixed(1), graf.pb.pico < graf.pa.pico - 0.05 ? true : graf.pb.pico > graf.pa.pico + 0.05 ? false : null)}
                 {metrica('Std. dev. (units/month)', graf.pa.desv.toFixed(1), graf.pb.desv.toFixed(1), graf.pb.desv < graf.pa.desv - 0.05 ? true : graf.pb.desv > graf.pa.desv + 0.05 ? false : null)}
                 {metrica('Set finish', fCorta(res.d.antes.finConjunto), fCorta(res.prop.despues.finConjunto), res.prop.despues.finConjunto < res.d.antes.finConjunto ? true : res.prop.despues.finConjunto > res.d.antes.finConjunto ? false : null)}
+                {(() => { const neg = (h: Map<number, number | null>) => [...h.values()].filter(v => v != null && v < -240).length; const a = neg(res.d.antes.holgura), b = neg(res.prop.despues.holgura); return metrica('Activities with TF < 0', String(a), String(b), b < a ? true : b > a ? false : null); })()}
                 {metrica('Worst total float', tfTxt(peorHolgura(res.d.antes)), tfTxt(peorHolgura(res.prop.despues)), peorHolgura(res.prop.despues) > peorHolgura(res.d.antes) ? true : peorHolgura(res.prop.despues) < peorHolgura(res.d.antes) ? false : null)}
                 {metrica('Project finish', fCorta(res.d.antes.finProyecto), fCorta(res.prop.despues.finProyecto), res.prop.despues.finProyecto < res.d.antes.finProyecto ? true : res.prop.despues.finProyecto > res.d.antes.finProyecto ? false : null)}
               </div>
+              {res.d.limitantes.length > 0 && (
+                <div className="bg-[#FFF8E6] border border-[#F0D48A] rounded p-2">
+                  <div className="font-semibold mb-1">Cannot reach zero float just by resequencing (even with unlimited crews, starting the day the equipment arrives) — only a shorter duration or an earlier arrival would help:</div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10.5px]">
+                    {res.d.limitantes.map(l => (
+                      <div key={l.i} className="cursor-pointer hover:underline" onClick={() => onIr(l.i)}>
+                        <span className="font-mono">{cod(l.i)}</span> · limit <b className="text-red-600">{diasDe(l.i, l.holgura)}d</b>
+                        {l.motivo != null && <span className="text-[#5A6A74]"> · waits for <span className="font-mono">{cod(l.motivo)}</span> {celda(t, t.filas[l.motivo], 'task_name').slice(0, 38)} (start {fCorta(l.inicio)})</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* Histograma */}
               <Histograma a={graf.a} b={graf.b} lim={lim} />
               {/* Cuadrillas */}

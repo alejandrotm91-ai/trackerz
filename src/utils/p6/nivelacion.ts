@@ -46,6 +46,25 @@ export interface Propuesta {
   abiertas: number[];
   /** Resultado del CPM con la nueva lógica. */
   despues: Resultado;
+  /** Enlaces de cuadrilla no creados hacia actividades que llegan tarde (no conducen y arrastrarían su holgura). */
+  sinArrastre: number;
+  /** Actividades por debajo de su holgura objetivo (0, o su límite si llegan tarde). */
+  deficit: number[];
+}
+
+/**
+ * Actividades que quedan por debajo de su holgura objetivo: 0, o su propio límite si ni con cuadrillas
+ * ilimitadas llega a 0 (equipo que llega tarde). Tolerancia: media jornada.
+ */
+export function deficitHolgura(d: Diagnostico, r: Resultado): number[] {
+  const out: number[] = [];
+  for (const [i, h] of r.holgura) {
+    if (h == null) continue;
+    const lib = d.libre.holgura.get(i);
+    const objetivo = Math.min(0, lib ?? 0);
+    if (h < objetivo - 240) out.push(i);
+  }
+  return out;
 }
 
 export interface Resultado {
@@ -66,6 +85,44 @@ export interface Diagnostico {
   tarde: Map<number, number>;
   /** Hallazgos legibles. */
   hallazgos: string[];
+  /** Programación con cuadrillas ilimitadas (sin enlaces internos): el mejor caso posible solo con secuencias. */
+  libre: Resultado;
+  /**
+   * Holgura objetivo de la nivelación: 0 o, si algo llega tan tarde que ni con cuadrillas ilimitadas
+   * se alcanza 0, la mejor posible (la peor holgura del caso ilimitado). En minutos de trabajo.
+   */
+  objetivo: number;
+  /** Actividades que no pueden llegar a holgura 0 solo con secuencias, con lo que las retiene. */
+  limitantes: { i: number; holgura: number; motivo: number | null; inicio: number }[];
+  /** Enlaces que cierran las actividades sin ninguna sucesora externa (a la sucesora común de su estructura). */
+  cierres: Rel[];
+}
+
+/** Cierra las actividades del conjunto sin sucesora externa con la sucesora externa más común de su estructura. */
+function cerrarExtremos(acts: ActividadCpm[], externas: Rel[], elementos: ElementoNivel[], set: Set<number>): Rel[] {
+  const grupo = new Map(elementos.map(e => [e.i, e.grupo]));
+  const conSucc = new Set(externas.map(r => r.pred));
+  const succs: number[][] = acts.map(() => []);
+  for (const r of externas) succs[r.pred].push(r.succ);
+  const alcanza = (desde: number, hasta: number) => {
+    const visto = new Uint8Array(acts.length), pila = [desde];
+    while (pila.length) { const x = pila.pop()!; if (x === hasta) return true; if (visto[x]) continue; visto[x] = 1; for (const y of succs[x]) if (!visto[y]) pila.push(y); }
+    return false;
+  };
+  const out: Rel[] = [];
+  for (const e of elementos) {
+    if (!ACTIVA(acts[e.i]) || conSucc.has(e.i)) continue;
+    const votos = new Map<string, { succ: number; tipo: Rel['tipo']; n: number }>();
+    for (const r of externas) {
+      if (set.has(r.succ) || !set.has(r.pred) || grupo.get(r.pred) !== e.grupo) continue;
+      const k = `${r.succ}|${r.tipo}`;
+      const v = votos.get(k) ?? { succ: r.succ, tipo: r.tipo, n: 0 };
+      v.n++; votos.set(k, v);
+    }
+    const mejor = [...votos.values()].sort((a, b) => b.n - a.n)[0];
+    if (mejor && !alcanza(mejor.succ, e.i)) { out.push({ pred: e.i, succ: mejor.succ, tipo: mejor.tipo, lag: 0 }); succs[e.i].push(mejor.succ); }
+  }
+  return out;
 }
 
 const ACTIVA = (a: ActividadCpm) => a.estado !== 'Terminada';
@@ -105,15 +162,38 @@ export function diagnosticar(m: ModeloP6, conjunto: number[], grupoDe: (i: numbe
     if (a !== undefined && b !== undefined && set.has(a) && set.has(b)) internos.push(k);
   });
   const antes = simular(m, acts, rels, conjunto);
-  const externas = rels.filter(r => !(set.has(r.pred) && set.has(r.succ)));
+  const externasOrig = rels.filter(r => !(set.has(r.pred) && set.has(r.succ)));
+  // Las que no tienen ninguna sucesora fuera del conjunto se cierran ya (antes de calcular el mejor caso)
+  // con la sucesora externa más común de su estructura: si no, su holgura no significa nada
+  const cierres = cerrarExtremos(acts, externasOrig, elementos, set);
+  const externas = [...externasOrig, ...cierres];
   const libre = simular(m, acts, externas, conjunto);
   const disp = libre.ini;
   const tarde = new Map<number, number>();
+  const limitantes: Diagnostico['limitantes'] = [];
   {
     const copia = acts.map(a => ({ ...a }));
     programar(copia, externas, { fechaDatos: m.fechaDatos, finProyecto: m.finProyecto, lagSsDesdeInicioTemprano: lagSsDesdeInicioTemprano(m) });
     for (const i of conjunto) tarde.set(i, copia[i].LS ?? copia[i].ES ?? 0);
+    // Las que aun con cuadrillas ilimitadas quedan con holgura negativa, y qué las retiene (la predecesora conductora)
+    for (const i of conjunto) {
+      const h = copia[i].TF;
+      if (!ACTIVA(acts[i]) || h == null || h >= 0) continue;
+      let motivo: number | null = null, mejor = -Infinity;
+      for (const r of externas) {
+        if (r.succ !== i) continue;
+        const pr = copia[r.pred];
+        const base = r.tipo === 'SS' || r.tipo === 'SF' ? pr.ES : pr.EF;
+        if (base == null) continue;
+        const v = base + r.lag;
+        if (v > mejor) { mejor = v; motivo = r.pred; }
+      }
+      limitantes.push({ i, holgura: h, motivo, inicio: copia[i].ES ?? m.fechaDatos });
+    }
+    limitantes.sort((a, b) => a.holgura - b.holgura);
   }
+  const peorLibre = Math.min(...[...libre.holgura.entries()].filter(([i, v]) => v != null && ACTIVA(acts[i])).map(([, v]) => v as number));
+  const objetivo = Math.min(0, isFinite(peorLibre) ? peorLibre : 0);
 
   // Hallazgos
   const hallazgos: string[] = [];
@@ -144,7 +224,8 @@ export function diagnosticar(m: ModeloP6, conjunto: number[], grupoDe: (i: numbe
   if (sinSucc.length) hallazgos.push(`Open ends (no successor, so their float is meaningless): ${sinSucc.map(i => `${nom(i)} (TF ${antes.holgura.get(i) != null ? diasCal(i, antes.holgura.get(i)!) : '—'}d)`).join(', ')}`);
   const sinCant = elementos.filter(e => !e.cant && ACTIVA(acts[e.i]));
   if (sinCant.length) hallazgos.push(`Without units (Remaining Units = 0), they do not count in the histogram: ${sinCant.map(e => e.cod).join(', ')}`);
-  return { elementos, antes, internos, disp, tarde, hallazgos };
+  if (limitantes.length) hallazgos.push(`${limitantes.length} activities cannot reach zero float just by resequencing (even with unlimited crews, starting as soon as their equipment arrives): ${limitantes.slice(0, 5).map(l => `${nom(l.i)} ${diasCal(l.i, l.holgura)}d${l.motivo != null ? ` (waits for ${nom(l.motivo)})` : ''}`).join(', ')}${limitantes.length > 5 ? '…' : ''}`);
+  return { elementos, antes, internos, disp, tarde, hallazgos, libre, objetivo, limitantes, cierres };
 }
 
 /** Límites mensuales (minutos) desde el mes de la fecha de datos, para el tope de carga y el histograma. */
@@ -212,10 +293,9 @@ export function proponer(m: ModeloP6, d: Diagnostico, op: OpcionesPropuesta): Pr
     const tr = tramoDe(i, ini, fin);
     if (tr) for (let x = 0; x < tr.vals.length; x++) carga[tr.desde + x] += tr.vals[x];
   };
-  // Las actividades en curso siguen con su cuadrilla desde ya (las más urgentes primero)
-  [...pendientes].filter(i => acts[i].estado === 'EnCurso').sort((a, b) => urg(a) - urg(b)).forEach((i, n) => {
-    if (n < cuadrillas) { const f = fechas(i, m.fechaDatos); asignar(i, n, f.ini, f.fin); }
-  });
+  // Las actividades en curso van primero dentro de su estructura, pero si tienen holgura también respetan
+  // el tope (su trabajo restante puede esperar, como con la lógica retenida de P6)
+  const enCurso = (i: number) => acts[i].estado === 'EnCurso';
 
   let vueltas = 0;
   const pend = () => [...pendientes];
@@ -245,7 +325,7 @@ export function proponer(m: ModeloP6, d: Diagnostico, op: OpcionesPropuesta): Pr
     // Una estructura que ya tiene cuadrilla solo recibe otra si es bastante más urgente que las libres
     const ocupada = (gg: string) => grupoActual.some((x, y) => y !== k && x === gg);
     const rango = [...grupos].map(([gg, lista]) => {
-      lista.sort((a, b) => porI.get(a)!.tipo.localeCompare(porI.get(b)!.tipo) || urg(a) - urg(b));
+      lista.sort((a, b) => (enCurso(a) ? 0 : 1) - (enCurso(b) ? 0 : 1) || porI.get(a)!.tipo.localeCompare(porI.get(b)!.tipo) || urg(a) - urg(b));
       const u = Math.min(...lista.map(urg));
       return { gg, lista, u, clave: u + (ocupada(gg) ? contDias * diaDe(lista[0]) : 0) };
     }).sort((a, b) => a.clave - b.clave || a.gg.localeCompare(b.gg));
@@ -279,7 +359,7 @@ export function proponer(m: ModeloP6, d: Diagnostico, op: OpcionesPropuesta): Pr
   }
 
   // Enlaces: cadena FS por cuadrilla (con desfase si la nivelación la hace esperar), evitando ciclos
-  const externas = rels.filter(r => !(set.has(r.pred) && set.has(r.succ)));
+  const externas = [...rels.filter(r => !(set.has(r.pred) && set.has(r.succ))), ...d.cierres];
   const succs: number[][] = acts.map(() => []);
   for (const r of externas) succs[r.pred].push(r.succ);
   const alcanza = (desde: number, hasta: number) => {
@@ -288,9 +368,14 @@ export function proponer(m: ModeloP6, d: Diagnostico, op: OpcionesPropuesta): Pr
     return false;
   };
   const agregar: NuevaRel[] = [], omitidos: [number, number][] = [];
+  const limitada = new Set(d.limitantes.map(l => l.i));
+  let sinArrastre = 0;
   for (const sec of secuencias) for (let n = 1; n < sec.length; n++) {
     const a = sec[n - 1], b = sec[n];
     if (alcanza(b.i, a.i)) { omitidos.push([a.i, b.i]); continue; }
+    // Una actividad que llega tarde (holgura negativa ni con cuadrillas ilimitadas) y empieza en cuanto
+    // llega su equipo no depende de la cuadrilla: el enlace solo arrastraría su holgura negativa hacia atrás
+    if (limitada.has(b.i) && b.ini <= cal(b.i).aInicio(disp(b.i)) + 1 && a.fin <= b.ini) { sinArrastre++; continue; }
     // Espera impuesta por la nivelación (no por la llegada del equipo): se guarda como desfase
     const libre = Math.max(cal(b.i).aInicio(a.fin), cal(b.i).aInicio(disp(b.i)));
     const lag = b.ini > libre + 1 ? cal(a.i).entre(a.fin, b.ini) : 0;
@@ -311,10 +396,11 @@ export function proponer(m: ModeloP6, d: Diagnostico, op: OpcionesPropuesta): Pr
     const mejor = [...votos.values()].sort((a, b) => b.n - a.n)[0];
     if (mejor && !alcanza(mejor.succ, e.i)) { agregar.push({ pred: e.i, succ: mejor.succ, tipo: mejor.tipo, lag: 0, motivo: 'close' }); succs[e.i].push(mejor.succ); conSucc.add(e.i); }
   }
-  const todas: Rel[] = [...externas, ...agregar.map(r => ({ pred: r.pred, succ: r.succ, tipo: r.tipo, lag: r.lag }))];
+  for (const c of d.cierres) agregar.push({ pred: c.pred, succ: c.succ, tipo: c.tipo, lag: 0, motivo: 'close' });
+  const todas: Rel[] = [...externas, ...agregar.filter(r => r.motivo !== 'close').map(r => ({ pred: r.pred, succ: r.succ, tipo: r.tipo, lag: r.lag }))];
   const despues = simular(m, acts, todas, d.elementos.map(e => e.i));
   const abiertas = d.elementos.map(e => e.i).filter(i => ACTIVA(acts[i]) && !conSucc.has(i));
-  return { cuadrillas, tope, secuencias, quitar: d.internos, agregar, omitidos, abiertas, despues };
+  return { cuadrillas, tope, secuencias, quitar: d.internos, agregar, omitidos, abiertas, despues, sinArrastre, deficit: deficitHolgura(d, despues) };
 }
 
 /** Peor holgura total (en minutos de trabajo) de las actividades pendientes del conjunto. */
@@ -324,7 +410,7 @@ export function peorHolgura(r: Resultado): number {
   return x;
 }
 
-export interface Evaluacion { op: OpcionesPropuesta; prop: Propuesta; hist: Float64Array; pico: number; desv: number; viable: boolean }
+export interface Evaluacion { op: OpcionesPropuesta; prop: Propuesta; hist: Float64Array; pico: number; desv: number; viable: boolean; holgura: number }
 
 /** Pico y desviación de los meses con carga. */
 export function picoYDesv(h: Float64Array): { pico: number; desv: number } {
@@ -335,29 +421,59 @@ export function picoYDesv(h: Float64Array): { pico: number; desv: number } {
 }
 
 /**
- * Busca cuántas cuadrillas y qué tope mensual dan el histograma más plano SIN empeorar:
- * el fin del conjunto, el fin del proyecto ni la peor holgura del conjunto.
+ * Busca la mejor nivelación, con este orden de prioridad (solo cambia secuencias, nunca duraciones):
+ *  1. HOLGURA: cada actividad debe quedar con holgura total ≥ 0 o, si su equipo llega tan tarde que ni
+ *     con cuadrillas ilimitadas alcanza 0, en su propio límite (`deficitHolgura` vacío).
+ *  2. Sin retrasar el fin del conjunto ni el del proyecto.
+ *  3. El histograma mensual más plano (pico y desviación), con menos cuadrillas y más continuidad.
+ * Si ninguna opción alcanza la holgura objetivo, se queda con la de mejor holgura.
  */
-export function buscarMejor(m: ModeloP6, d: Diagnostico, maxCuadrillas = 6): { mejor: Evaluacion | null; probadas: Evaluacion[] } {
+export function buscarMejor(m: ModeloP6, d: Diagnostico, maxCuadrillas = 8): { mejor: Evaluacion | null; probadas: Evaluacion[]; objetivoAlcanzado: boolean } {
+  let objetivoAlcanzado = false;
   const lim = meses(m.fechaDatos);
   const total = d.elementos.reduce((a, e) => a + e.cant, 0);
-  const finBase = d.antes.finConjunto, proyBase = d.antes.finProyecto, holgBase = peorHolgura(d.antes);
+  const finBase = d.antes.finConjunto, proyBase = d.antes.finProyecto;
+  const tol = 4 * 60; // media jornada
   const nMeses = Math.max(1, lim.filter(x => x < finBase).length);
   const base = total / nMeses;
   const topes = [Infinity, ...[1, 1.1, 1.2, 1.35, 1.5, 1.75, 2, 2.5].map(f => Math.ceil(base * f))];
+  // Continuidad: de más (la estructura completa) a menos (lo más urgente primero)
+  const variantes = [{ continuidadDias: 10, toleranciaDias: 5 }, { continuidadDias: 5, toleranciaDias: 3 }, { continuidadDias: 0, toleranciaDias: 0 }];
   const probadas: Evaluacion[] = [];
-  let mejor: Evaluacion | null = null;
-  for (let n = 1; n <= maxCuadrillas; n++) for (const tope of topes) {
-    const op = { cuadrillas: n, tope };
+  const evaluar = (op: OpcionesPropuesta): Evaluacion => {
     const prop = proponer(m, d, op);
     const hist = histograma(m, d, prop.despues, lim);
     const { pico, desv } = picoYDesv(hist);
-    const viable = prop.despues.finConjunto <= finBase && prop.despues.finProyecto <= proyBase && peorHolgura(prop.despues) >= holgBase;
-    const ev = { op, prop, hist, pico, desv, viable };
+    const ev = { op, prop, hist, pico, desv, viable: false, holgura: peorHolgura(prop.despues) };
     probadas.push(ev);
-    if (viable && (!mejor || pico < mejor.pico - 0.5 || (Math.abs(pico - mejor.pico) <= 0.5 && (desv < mejor.desv - 0.5 || (Math.abs(desv - mejor.desv) <= 0.5 && n < mejor.op.cuadrillas))))) mejor = ev;
-  }
-  return { mejor, probadas };
+    return ev;
+  };
+  // Fase 1: sin tope (lo más rápido posible), para saber qué holgura se puede alcanzar con N cuadrillas
+  const rapidas: Evaluacion[] = [];
+  for (let n = 1; n <= maxCuadrillas; n++) for (const v of variantes) rapidas.push(evaluar({ cuadrillas: n, tope: Infinity, ...v }));
+  // Objetivo alcanzable: lo ideal es déficit 0 (todas en 0 o en su límite); si no se puede, el mínimo hallado
+  const plazos = (e: Evaluacion) => e.prop.despues.finConjunto <= finBase && e.prop.despues.finProyecto <= proyBase;
+  const conPlazo = rapidas.filter(plazos);
+  const base0 = conPlazo.length ? conPlazo : rapidas;
+  const minDef = Math.min(...base0.map(e => e.prop.deficit.length));
+  const mejorHolg = Math.max(...base0.filter(e => e.prop.deficit.length === minDef).map(e => e.holgura));
+  const cumple = (e: Evaluacion) => e.prop.deficit.length <= minDef && e.holgura >= mejorHolg - tol && (!conPlazo.length || plazos(e));
+  // Fase 2: con las combinaciones que cumplen, probar topes mensuales para aplanar el histograma
+  for (const e of rapidas.filter(cumple)) for (const tope of topes.slice(1)) evaluar({ ...e.op, tope });
+  for (const e of probadas) e.viable = cumple(e);
+  const mejorDe = (a: Evaluacion, b: Evaluacion) => {
+    // Diferencias pequeñas (≤ 5 % del pico) se consideran empate: manda la continuidad por estructura
+    const tp = Math.max(1, 0.05 * Math.max(a.pico, b.pico));
+    if (a.pico < b.pico - tp) return a;
+    if (b.pico < a.pico - tp) return b;
+    if (a.desv < b.desv - 1) return a;
+    if (b.desv < a.desv - 1) return b;
+    if (a.op.cuadrillas !== b.op.cuadrillas) return a.op.cuadrillas < b.op.cuadrillas ? a : b;
+    return (a.op.continuidadDias ?? 10) >= (b.op.continuidadDias ?? 10) ? a : b;
+  };
+  const mejor = probadas.filter(e => e.viable).reduce(mejorDe);
+  objetivoAlcanzado = minDef === 0;
+  return { mejor, probadas, objetivoAlcanzado };
 }
 
 /** Escribe la propuesta en el modelo: quita los enlaces internos y crea las cadenas de cuadrilla. */
