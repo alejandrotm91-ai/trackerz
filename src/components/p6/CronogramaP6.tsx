@@ -15,7 +15,7 @@ import { holguraRelacion, type TipoRel } from '../../utils/p6/cpm';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
 import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, cargarUnidadesMaster, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
-import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseUso, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
+import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseUso, type LineaBaseFilas, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
 import { DialogoNivelacion } from './nivelacionP6';
 import { DialogoCuadrillas, useMatrizPersonal } from './cuadrillasP6';
 import { estimarCuadrillas, POR_DEFECTO } from '../../utils/p6/cuadrillas';
@@ -1583,6 +1583,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   usoRef={usoRef} onCerrar={() => setVerUso(false)}
                   campoAct={campoActividad}
                   masterDe={i => idxMaster.get(celda(m.task, m.task.filas[i], 'task_code'))}
+                  lineaBase={lbPorAct} nombreLB={fuenteEf === 'udf' ? 'P6 baseline (blStartP6 / blFinishP6)' : fuenteEf === 'guardada' ? `saved baseline${lbGuardada ? ` «${lbGuardada.nombre}»` : ''}` : 'XER planned dates'}
                   onScrollX={x => { const el = scroller.current; if (el && Math.abs(el.scrollLeft - x) > 1) el.scrollLeft = x; }} />
               )}
               {sel != null && sel < vts.length && (
@@ -1895,7 +1896,9 @@ const PanelUso: React.FC<{
   colorBanda: (nivel: number) => [string, string]; usoRef: React.RefObject<HTMLDivElement | null>; onScrollX: (x: number) => void; onCerrar: () => void;
   campoAct: (i: number, k: CampoAgrupacion) => string;
   masterDe: (i: number) => Actividad | undefined;
-}> = ({ m, filas, ancho, anchoGantt, xDe, xDatos, desde, hasta, px, version, pasa, filtrando, colorBanda, usoRef, onScrollX, onCerrar, campoAct, masterDe }) => {
+  /** Línea base en uso (la del botón Baseline) por fila de TASK: fechas del Budgeted. */
+  lineaBase: LineaBaseFilas; nombreLB: string;
+}> = ({ m, filas, ancho, anchoGantt, xDe, xDatos, desde, hasta, px, version, pasa, filtrando, colorBanda, usoRef, onScrollX, onCerrar, campoAct, masterDe, lineaBase, nombreLB }) => {
   const [medida, setMedida] = React.useState<MedidaUso>('cost');
   // Resources: personal (cuadrillas × personas por cuadrilla de su SubC) o número de cuadrillas
   const [vistaRec, setVistaRec] = React.useState<'personnel' | 'crews'>('personnel');
@@ -1967,9 +1970,9 @@ const PanelUso: React.FC<{
   const uso = React.useMemo(() => calcularUso(m, lim, medida, medida === 'resources' ? {
     incluir: i => incluirRec(i) || hhAct.has(i), personas: personasDe,
     hh: i => hhAct.get(i)?.H ?? null, porCuadrilla: i => tamDisc[hhAct.get(i)?.disc ?? 'Mecánica'], cuadrillas: vistaRec === 'crews',
-  } : undefined),
+  } : undefined, lineaBase),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [m, lim, medida, version, incluirRec, personasDe, hhAct, tamDisc, vistaRec]);
+    [m, lim, medida, version, incluirRec, personasDe, hhAct, tamDisc, vistaRec, lineaBase]);
   const nPer = Math.max(0, lim.length - 1);
   // Totales de una banda: suma de sus actividades (las que pasan el filtro si lo hay)
   const totalNodo = React.useMemo(() => {
@@ -2060,7 +2063,7 @@ const PanelUso: React.FC<{
         {(['b', 'r', 'a'] as SerieUso[]).map(k => (
           <label key={k} className="flex items-center gap-1 cursor-pointer">
             <input type="checkbox" checked={series.includes(k)} onChange={e => setSeries(sx => (e.target.checked ? (['b', 'r', 'a'] as SerieUso[]).filter(z => sx.includes(z) || z === k) : sx.filter(z => z !== k)))} />
-            {NOMBRE_SERIE[k]}
+            <span title={k === 'b' ? `Spread over the baseline dates in use: ${nombreLB} (activities without baseline: their planned dates)` : undefined}>{NOMBRE_SERIE[k]}</span>
           </label>
         ))}
         <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={acumulado} onChange={e => setAcumulado(e.target.checked)} /> Cumulative</label>

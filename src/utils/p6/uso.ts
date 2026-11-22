@@ -3,7 +3,8 @@
  * actividad repartidos por períodos de la escala de tiempo.
  * Reparto uniforme en el TIEMPO LABORABLE del calendario de cada actividad (los días y horas
  * no laborables no reciben valor), sobre las fechas de cada valor:
- *  - Budgeted (planificado): entre el inicio y el fin planificados (target_start/end_date).
+ *  - Budgeted: entre el inicio y el fin de la LÍNEA BASE en uso (la del botón Baseline; por defecto
+ *    blStartP6/blFinishP6). Sin línea base, las fechas planificadas (target_start/end_date).
  *  - Actual: entre el inicio real y el fin real (o la fecha de datos si sigue en curso).
  *  - Remaining: entre el inicio del trabajo restante y el fin temprano.
  */
@@ -126,8 +127,25 @@ export interface OpcionesRecursos {
   cuadrillas?: boolean;
 }
 
+/** Línea base por fila de TASK: [inicio, fin] en minutos (o null si la actividad no tiene). */
+export type LineaBaseFilas = ([number | null, number | null] | null)[] | null | undefined;
+
+/**
+ * Fechas del Budgeted: las de la línea base; si su inicio y fin coinciden (o falta el fin) en una
+ * actividad con duración, el inicio de la línea base con la duración planificada; sin línea base, las planificadas.
+ */
+function fechasBudget(m: ModeloP6, i: number, ps: number | null, pf: number | null, lb: LineaBaseFilas): [number | null, number | null] {
+  const par = lb?.[i];
+  if (!par || par[0] == null) return [ps, pf];
+  const [a, b] = par;
+  if (b != null && b > a) return [a, b];
+  const cal = m.calendarios.get(celda(m.task, m.task.filas[i], 'clndr_id'));
+  if (cal && ps != null && pf != null && pf > ps) return [a, cal.sumar(a, cal.entre(ps, pf), 'fin')];
+  return [a, b ?? a];
+}
+
 /** Uso por actividad (índice de fila de TASK) para la medida elegida. */
-export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso, rec?: OpcionesRecursos): Map<number, UsoActividad> {
+export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso, rec?: OpcionesRecursos, lb?: LineaBaseFilas): Map<number, UsoActividad> {
   const out = new Map<number, UsoActividad>();
   if (medida === 'resources') {
     const t = m.task;
@@ -141,7 +159,7 @@ export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso, rec?:
       const estado = celda(t, f, 'status_code');
       const es = g('early_start_date'), ef = g('early_end_date');
       const as = g('act_start_date'), af = g('act_end_date');
-      const ps = g('target_start_date') ?? es ?? as, pf = g('target_end_date') ?? ef ?? af;
+      const [ps, pf] = fechasBudget(m, i, g('target_start_date') ?? es ?? as, g('target_end_date') ?? ef ?? af, lb);
       const cal = m.calendarios.get(celda(t, f, 'clndr_id'));
       const u: UsoActividad = {};
       const H = rec?.hh?.(i);
@@ -189,7 +207,7 @@ export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso, rec?:
     const estado = celda(t, f, 'status_code');
     const es = g('early_start_date'), ef = g('early_end_date');
     const as = g('act_start_date'), af = g('act_end_date');
-    const ps = g('target_start_date') ?? es ?? as, pf = g('target_end_date') ?? ef ?? af;
+    const [ps, pf] = fechasBudget(m, i, g('target_start_date') ?? es ?? as, g('target_end_date') ?? ef ?? af, lb);
     const cal = m.calendarios.get(celda(t, f, 'clndr_id'));
     const u: UsoActividad = {};
     if (ps != null && pf != null) u.b = repartir(x.b, ps, pf, lim, cal);
