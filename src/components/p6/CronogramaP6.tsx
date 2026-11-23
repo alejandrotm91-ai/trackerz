@@ -32,7 +32,7 @@ const FILTROS_ESTADO = [
   ['encurso', 'In Progress'],
   ['terminadas', 'Completed'],
   ['pendientes', 'In Progress + Not Started'],
-  ['soloMaster', 'Master Only (not yet in P6)'],
+  ['soloMaster', 'Master Only (not yet in T₃)'],
 ] as const;
 /** Nombre de cada filtro (incluidos Critical y Longest Path, que van en sus botones de la barra lateral). */
 const NOMBRE_FILTRO: Record<string, string> = { ...Object.fromEntries(FILTROS_ESTADO), criticas: 'Critical (Total Float ≤ 0)', longest: 'Longest Path' };
@@ -899,7 +899,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     let grupo: string | undefined = v.wbs;
     if (enEjecucion) {
       grupo = arbolEjec.grupoDeAct.get(i);
-      if (!grupo) { setAgrupacion('wbs'); grupo = v.wbs; mostrar(`${v.cod} is not in the Construction view (no Master data, WBS «.D» or outside the scope): showing it in the P6 WBS.`); }
+      if (!grupo) { setAgrupacion('wbs'); grupo = v.wbs; mostrar(`${v.cod} is not in the Construction view (no Master data, WBS «.D» or outside the scope): showing it in the T₃ WBS.`); }
     }
     const arb = enEjecucion && arbolEjec.grupoDeAct.has(i) ? arbolEjec : arbolWbs;
     const cadena: string[] = [];
@@ -1052,7 +1052,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         <div className="flex items-center gap-2 min-w-0">
           <Layers className="w-4 h-4 text-indigo-200 shrink-0" />
           <div className="min-w-0">
-            <div className="text-sm font-bold leading-tight truncate">P6 Schedule {proyecto && <span className="text-indigo-200 font-normal">· {proyecto}</span>}</div>
+            <div className="text-sm font-bold leading-tight truncate">T<sub className="text-[0.75em]">3</sub> Schedule {proyecto && <span className="text-indigo-200 font-normal">· {proyecto}</span>}</div>
             <div className="text-[10.5px] text-indigo-200 truncate">
               {nombreArchivo || 'No file'}{meta && ` · saved ${new Date(meta.guardadoEn).toLocaleString('en-US', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} by ${meta.guardadoPor}`}
             </div>
@@ -1188,7 +1188,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         <div className="flex-1 flex items-center justify-center">
           <div className="bg-white border border-[#D5DEE2] rounded-2xl p-8 text-center max-w-md space-y-3">
             <Layers className="w-8 h-8 mx-auto text-[#312E81]" />
-            <h3 className="font-bold">There is no P6 schedule yet</h3>
+            <h3 className="font-bold">There is no T<sub className="text-[0.75em]">3</sub> schedule yet</h3>
             <p className="text-xs text-[#5A6A74]">
               {editable ? 'Export the project from Primavera P6 as XER and import it here.' : 'The administrator has not loaded the Primavera P6 XER yet.'}
             </p>
@@ -1226,7 +1226,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           info={enEjecucion ? [
             `${arbolEjec.enMaster.toLocaleString('en-US')} activities linked by Activity ID`,
             arbolEjec.sinMaster ? `${arbolEjec.sinMaster.toLocaleString('en-US')} XER activities without Master data (${arbolEjec.hitosUbicados.toLocaleString('en-US')} milestones placed with their related activities; the rest hidden)` : '',
-            arbolEjec.soloMaster ? `${arbolEjec.soloMaster.toLocaleString('en-US')} Master-only items (not yet in P6)` : '',
+            arbolEjec.soloMaster ? `${arbolEjec.soloMaster.toLocaleString('en-US')} Master-only items (not yet in T₃)` : '',
             arbolEjec.excluidas ? `${arbolEjec.excluidas.toLocaleString('en-US')} activities from WBS «Pending confirmation» (.D) excluded` : '',
           ].filter(Boolean) : []}
           onAplicar={(nv, op, pal) => {
@@ -1289,7 +1289,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                       </label>
                       <div className="text-[10.5px] text-[#5A6A74] mt-1">Baseline to use (also for the «BL Finish Var.» column):</div>
                       {([
-                        ['udf', lbUdf ? `P6 baseline (blStartP6 / blFinishP6)` : '', lbUdf?.provisionales ? `${lbUdf.provisionales.toLocaleString('en-US')} activities with finish 30-Apr-27 have no baseline` : ''],
+                        ['udf', lbUdf ? `T₃ baseline (blStartP6 / blFinishP6)` : '', lbUdf?.provisionales ? `${lbUdf.provisionales.toLocaleString('en-US')} activities with finish 30-Apr-27 have no baseline` : ''],
                         ['guardada', lbGuardada ? `Saved: ${lbGuardada.nombre}` : '', lbGuardada ? `set on ${new Date(lbGuardada.creadaEn).toLocaleDateString('en-US')} by ${lbGuardada.creadaPor}` : ''],
                         ['planificada', 'XER planned dates', 'planned start and finish of each activity'],
                       ] as const).filter(([, etq]) => etq).map(([k, etq, det]) => (
@@ -1329,7 +1329,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 <select value={enEjecucion ? 'ejecucion' : 'wbs'} onChange={e => { setAgrupacion(e.target.value as 'wbs' | 'ejecucion'); setAbiertos(new Set([RAIZ_CONSTRUCTIVA, ...arbolWbs.raices.map(x => x.id)])); }}
                   disabled={!hayMaster} title={hayMaster ? 'How activities are grouped' : 'Load the Master to use the Construction view'}
                   className={`border rounded-lg px-2 py-1.5 font-semibold ${enEjecucion ? 'bg-[#312E81] border-[#312E81] text-white' : 'bg-white border-[#D5DEE2]'}`}>
-                  <option value="wbs">Group by: P6 WBS</option>
+                  <option value="wbs">Group by: T₃ WBS</option>
                   <option value="ejecucion">Group by: Construction</option>
                 </select>
                 {enEjecucion && (
@@ -1527,7 +1527,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                               if (c.id === 'nombre') return (
                                 <div key={c.id} className={`${base} flex items-center gap-1`} style={{ width: c.ancho }} title={a.descripcion}>
                                   <span className="truncate">{a.descripcion}</span>
-                                  <span className="shrink-0 px-1 rounded bg-[#FFF3C4] text-[#7A5B00] text-[9.5px] font-semibold not-italic">Master only · not in P6</span>
+                                  <span className="shrink-0 px-1 rounded bg-[#FFF3C4] text-[#7A5B00] text-[9.5px] font-semibold not-italic">Master only · not in T₃</span>
                                 </div>
                               );
                               const txt = c.id === 'ini' || c.id === 'es' ? fCorta(ini) : c.id === 'fin' || c.id === 'ef' ? fCorta(fin) : '';
@@ -1589,7 +1589,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   usoRef={usoRef} onCerrar={() => setVerUso(false)}
                   campoAct={campoActividad}
                   masterDe={i => idxMaster.get(celda(m.task, m.task.filas[i], 'task_code'))}
-                  lineaBase={lbPorAct} nombreLB={fuenteEf === 'udf' ? 'P6 baseline (blStartP6 / blFinishP6)' : fuenteEf === 'guardada' ? `saved baseline${lbGuardada ? ` «${lbGuardada.nombre}»` : ''}` : 'XER planned dates'}
+                  lineaBase={lbPorAct} nombreLB={fuenteEf === 'udf' ? 'T₃ baseline (blStartP6 / blFinishP6)' : fuenteEf === 'guardada' ? `saved baseline${lbGuardada ? ` «${lbGuardada.nombre}»` : ''}` : 'XER planned dates'}
                   onScrollX={x => { const el = scroller.current; if (el && Math.abs(el.scrollLeft - x) > 1) el.scrollLeft = x; }} />
               )}
               {sel != null && sel < vts.length && (
@@ -2173,7 +2173,7 @@ const DialogoGrupo: React.FC<{
     <div className="fixed inset-0 z-[90] bg-black/30 flex items-center justify-center p-4" onClick={onCerrar}>
       <div className="w-[860px] max-w-full max-h-[90vh] overflow-auto bg-[#F0F0F0] border border-[#9A9A9A] shadow-2xl text-[11.5px] text-[#1A1A1A]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-3 py-1.5 bg-white border-b border-[#C3C3C3]">
-          <b>Group and Sort{constructiva ? ' · Construction view' : ' · P6 WBS'}</b>
+          <b>Group and Sort{constructiva ? ' · Construction view' : ' · T₃ WBS'}</b>
           <button onClick={onCerrar} className="p-1 hover:bg-[#F0F0F0] rounded cursor-pointer"><X className="w-4 h-4" /></button>
         </div>
         <div className="flex gap-3 p-3">
