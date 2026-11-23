@@ -7,6 +7,7 @@
 import React from 'react';
 import { Check, Star, Trash2, X, Save, Share2, Users } from 'lucide-react';
 import { apiFetch } from '../../utils/api';
+import { NOMBRES_VISTA_DEF, type ClaveVista } from './nombresVistas';
 
 /** Lo que guarda una vista (todo opcional: lo que falte no se toca al aplicarla). */
 export interface AjustesVista {
@@ -55,10 +56,10 @@ async function escribirCompartidas(vistas: VistaGuardada[]) {
 }
 
 /** Resumen legible de una vista, para el menú. */
-function resumen(a: AjustesVista): string {
+function resumen(a: AjustesVista, nombre: (k: ClaveVista) => string = k => NOMBRES_VISTA_DEF[k]): string {
   const partes: string[] = [];
-  partes.push(a.agrupacion === 'ejecucion' ? 'Construction view' : 'T₃ WBS');
-  if (a.agrupacion === 'ejecucion' && a.ambito && a.ambito !== 'todo') partes.push(a.ambito === 'construccion' ? 'Construction' : a.ambito === 'equipamiento' ? 'Equipment' : a.ambito === 'aereas' ? 'Obras Aéreas' : a.ambito);
+  partes.push(a.agrupacion === 'ejecucion' ? `${nombre('ejecucion')} view` : nombre('wbs'));
+  if (a.agrupacion === 'ejecucion' && a.ambito && a.ambito !== 'todo') partes.push(a.ambito in NOMBRES_VISTA_DEF ? nombre(a.ambito as ClaveVista) : a.ambito);
   if (a.orden) partes.push(`sorted by ${a.orden.col === 'ini' ? 'Start' : 'Finish'} ${a.orden.dir === 1 ? '↑' : '↓'}`);
   const F: Record<string, string> = { pendientes: 'In Progress + Not Started', noiniciadas: 'Not Started', encurso: 'In Progress', terminadas: 'Completed', criticas: 'Critical', longest: 'Longest Path', soloMaster: 'Master Only' };
   if (a.filtroEstado && a.filtroEstado !== 'todas') partes.push(F[a.filtroEstado] ?? a.filtroEstado);
@@ -77,7 +78,9 @@ export const MenuVistas: React.FC<{
   inicio: React.MutableRefObject<{ aplicada: boolean; activa: string | null }>;
   /** El admin puede compartir sus layouts; los demás los ven en «Shared by admin». */
   esAdmin: boolean;
-}> = ({ actual, onAplicar, mostrar, inicio, esAdmin }) => {
+  /** Nombres de las vistas que el usuario puso (para el resumen de cada layout). */
+  nombreVista?: (k: ClaveVista) => string;
+}> = ({ actual, onAplicar, mostrar, inicio, esAdmin, nombreVista }) => {
   const [doc, setDoc] = React.useState<DocVistas | null>(null);
   const [compartidas, setCompartidas] = React.useState<VistaGuardada[]>([]);
   const compartida = (n: string) => compartidas.some(x => x.nombre === n);
@@ -165,7 +168,7 @@ export const MenuVistas: React.FC<{
                 <div key={v.nombre} className={`flex items-center gap-1 px-2 py-1.5 rounded border ${activa === v.nombre ? 'border-[#8A8FC9] bg-[#EEF0FB]' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
                   <button onClick={() => aplicar(v)} className="flex-1 min-w-0 text-left cursor-pointer" title="Apply this layout">
                     <div className="font-semibold truncate">{v.nombre}{doc.porDefecto === v.nombre && <span className="ml-1.5 text-[10px] font-normal text-[#7A5B00] bg-[#FFF3C4] rounded px-1">default</span>}{esAdmin && compartida(v.nombre) && <span className="ml-1.5 text-[10px] font-normal text-[#2B7F52] bg-[#E3F4EA] rounded px-1">shared</span>}</div>
-                    <div className="text-[10.5px] text-[#5A6A74] truncate">{resumen(v.ajustes)}</div>
+                    <div className="text-[10.5px] text-[#5A6A74] truncate">{resumen(v.ajustes, nombreVista)}</div>
                   </button>
                   {esAdmin && (
                     <button onClick={() => alternarCompartir(v.nombre)} disabled={guardando} title={compartida(v.nombre) ? 'Stop sharing this layout' : 'Share this layout with the visitor (and everyone)'} className="p-1 rounded hover:bg-white cursor-pointer">
@@ -188,7 +191,7 @@ export const MenuVistas: React.FC<{
                       <div key={clave} className={`flex items-center gap-1 px-2 py-1.5 rounded border ${activa === v.nombre ? 'border-[#8A8FC9] bg-[#EEF0FB]' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
                         <button onClick={() => aplicar(v)} className="flex-1 min-w-0 text-left cursor-pointer" title="Apply this layout (shared by the admin; read-only)">
                           <div className="font-semibold truncate">{v.nombre}{doc.porDefecto === clave && <span className="ml-1.5 text-[10px] font-normal text-[#7A5B00] bg-[#FFF3C4] rounded px-1">default</span>}</div>
-                          <div className="text-[10.5px] text-[#5A6A74] truncate">{resumen(v.ajustes)}</div>
+                          <div className="text-[10.5px] text-[#5A6A74] truncate">{resumen(v.ajustes, nombreVista)}</div>
                         </button>
                         <button onClick={() => predeterminar(clave, v.nombre)} disabled={guardando} title={doc.porDefecto === clave ? 'Stop opening this layout by default' : 'Open this layout by default'} className="p-1 rounded hover:bg-white cursor-pointer">
                           <Star className={`w-3.5 h-3.5 ${doc.porDefecto === clave ? 'fill-[#E3B505] text-[#C99F00]' : 'text-[#9AA6AD]'}`} />

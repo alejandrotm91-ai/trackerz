@@ -18,6 +18,7 @@ import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xe
 import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseUso, type LineaBaseFilas, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
 import { DialogoNivelacion } from './nivelacionP6';
 import { MenuVistas, type AjustesVista } from './vistasP6';
+import { BotonNombresVistas, useNombresVistas } from './nombresVistas';
 import { DialogoCuadrillas, useMatrizPersonal } from './cuadrillasP6';
 import { estimarCuadrillas, POR_DEFECTO } from '../../utils/p6/cuadrillas';
 import { CUADRILLA_DISCIPLINA, FACTOR_LOCAL, esPrecomEq, rendimientoDe, type Disciplina } from '../../utils/p6/rendimientos';
@@ -192,6 +193,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const inicioVistas = React.useRef<{ aplicada: boolean; activa: string | null }>({ aplicada: false, activa: null });
   const usoRef = React.useRef<HTMLDivElement | null>(null);
   const [ambito, setAmbito] = React.useState<Ambito>(() => leerLS('p6.ambito', 'todo'));
+  // Nombres de las vistas que el usuario puede cambiar (solo el texto en pantalla)
+  const nombresVista = useNombresVistas();
+  const nv = nombresVista.nombre;
   React.useEffect(() => { try { localStorage.setItem('p6.ambito', JSON.stringify(ambito)); } catch { /* sin almacenamiento */ } }, [ambito]);
   React.useEffect(() => { try { localStorage.setItem('p6.agrupacion', JSON.stringify(agrupacion)); localStorage.setItem('p6.niveles', JSON.stringify(niveles)); } catch { /* sin almacenamiento */ } }, [agrupacion, niveles]);
   const idxMaster = React.useMemo(() => indiceMaster(actividadesMaster), [actividadesMaster]);
@@ -1348,20 +1352,21 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 <select value={enEjecucion ? 'ejecucion' : 'wbs'} onChange={e => { setAgrupacion(e.target.value as 'wbs' | 'ejecucion'); setAbiertos(new Set([RAIZ_CONSTRUCTIVA, ...arbolWbs.raices.map(x => x.id)])); }}
                   disabled={!hayMaster} title={hayMaster ? 'How activities are grouped' : 'Load the Master to use the Construction view'}
                   className={`border rounded-lg px-2 py-1.5 font-semibold ${enEjecucion ? 'bg-[#312E81] border-[#312E81] text-white' : 'bg-white border-[#D5DEE2]'}`}>
-                  <option value="wbs">Group by: T₃ WBS</option>
-                  <option value="ejecucion">Group by: Construction</option>
+                  <option value="wbs">Group by: {nv('wbs')}</option>
+                  <option value="ejecucion">Group by: {nv('ejecucion')}</option>
                 </select>
                 {enEjecucion && (
                   <select value={ambito} onChange={e => { setAmbito(e.target.value as Ambito); setAbiertos(new Set([RAIZ_CONSTRUCTIVA])); }}
-                    title="Construction: Master groups with «Construccion» or «Constr.»; Equipment: the rest; Obras Aéreas: SCAP Soport.Tub.Aerea, Tub.Aerea and Valvulas"
+                    title={`${nv('construccion')}: Master groups with «Construccion» or «Constr.»; ${nv('equipamiento')}: the rest; ${nv('aereas')}: SCAP Soport.Tub.Aerea, Tub.Aerea and Valvulas`}
                     className={`border rounded-lg px-2 py-1.5 font-semibold ${ambito !== 'todo' ? 'bg-[#EEF0FB] border-[#312E81] text-[#312E81]' : 'bg-white border-[#D5DEE2]'}`}>
-                    <option value="todo">Construction & Equipment</option>
-                    <option value="construccion">Construction</option>
-                    <option value="equipamiento">Equipment</option>
-                    <option value="aereas">Obras Aéreas</option>
+                    <option value="todo">{nv('todo')}</option>
+                    <option value="construccion">{nv('construccion')}</option>
+                    <option value="equipamiento">{nv('equipamiento')}</option>
+                    <option value="aereas">{nv('aereas')}</option>
                   </select>
                 )}
-                <MenuVistas inicio={inicioVistas} mostrar={mostrar} esAdmin={editable}
+                {hayMaster && <BotonNombresVistas propios={nombresVista.propios} guardar={nombresVista.guardar} mostrar={mostrar} />}
+                <MenuVistas inicio={inicioVistas} mostrar={mostrar} esAdmin={editable} nombreVista={nv}
                   actual={(): AjustesVista => ({ agrupacion, niveles, ambito, opcGrupo, paletas, columnas: columnasSel, orden, filtroEstado, filtrosUdf, px, verUso, verRelaciones, verLB, uso: usoCfg })}
                   onAplicar={a => {
                     if (a.agrupacion === 'wbs' || a.agrupacion === 'ejecucion') {
