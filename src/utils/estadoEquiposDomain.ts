@@ -140,8 +140,7 @@ export const CABLE_RE = /^\s*(?:conductor|cables?\b|alimentador de cable|enlace 
 export const isCable = (it: Equipo): boolean => /^conductor aislado$/i.test(it.fam) || CABLE_RE.test(it.desc || '');
 
 /** Activity ID que no se cuentan como equipos en la pestaña Proceso: base sin .D/.E/.F, o en
- *  válvulas el rubro o su .p6. (Los .p6 de purga y control 11.x y el 15.3.4 ya no se excluyen:
- *  con la regla de válvulas cuentan sus rubros, no la cantidad de la .p6.) */
+ *  válvulas el rubro o su .p6 (con la .p6 quedan fuera todos sus rubros). */
 export const EQUIPOS_EXCLUIDOS = new Set<string>([
   '12.7.4.2', // Iluminación exterior
   '3.13.3.4',
@@ -153,6 +152,16 @@ export const EQUIPOS_EXCLUIDOS = new Set<string>([
   '16.3.3.3.3.5',
   '16.3.3.3.3.6',
   '16.3.3.3.3.7',
+  // Válvulas de edificaciones (purga y control), sin proveedor: fuera con todos sus rubros
+  '11.1.4.16.p6',
+  '11.6.3.12.p6',
+  '11.12.3.2.7.p6',
+  '11.3.3.6.p6',
+  '11.4.3.9.p6',
+  '11.2.3.15.p6',
+  '11.12.1.4.5.p6',
+  '11.13.4.1.p6',
+  '15.3.4.p6',
 ]);
 
 export const eqU = (it: Equipo): number => it.und === 'u' ? it.qty : it.und === 'glb' ? 1 : 0;
