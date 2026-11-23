@@ -17,6 +17,7 @@ import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, e
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
 import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseUso, type LineaBaseFilas, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
 import { DialogoNivelacion } from './nivelacionP6';
+import { MenuVistas, type AjustesVista } from './vistasP6';
 import { DialogoCuadrillas, useMatrizPersonal } from './cuadrillasP6';
 import { estimarCuadrillas, POR_DEFECTO } from '../../utils/p6/cuadrillas';
 import { CUADRILLA_DISCIPLINA, FACTOR_LOCAL, esPrecomEq, rendimientoDe, type Disciplina } from '../../utils/p6/rendimientos';
@@ -186,6 +187,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [verColumnas, setVerColumnas] = React.useState(false);
   const [verNivel, setVerNivel] = React.useState(false);
   const [verUso, setVerUso] = React.useState(true); // el panel Activity Usage se abre por defecto
+  // Layouts guardados por el usuario (vistasP6): la predeterminada se aplica una vez al abrir T₃
+  const inicioVistas = React.useRef<{ aplicada: boolean; activa: string | null }>({ aplicada: false, activa: null });
   const usoRef = React.useRef<HTMLDivElement | null>(null);
   const [ambito, setAmbito] = React.useState<Ambito>(() => leerLS('p6.ambito', 'todo'));
   React.useEffect(() => { try { localStorage.setItem('p6.ambito', JSON.stringify(ambito)); } catch { /* sin almacenamiento */ } }, [ambito]);
@@ -1357,6 +1360,26 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     <option value="aereas">Obras Aéreas</option>
                   </select>
                 )}
+                <MenuVistas inicio={inicioVistas} mostrar={mostrar}
+                  actual={(): AjustesVista => ({ agrupacion, niveles, ambito, opcGrupo, paletas, columnas: columnasSel, orden, filtroEstado, filtrosUdf, px, verUso, verRelaciones, verLB })}
+                  onAplicar={a => {
+                    if (a.agrupacion === 'wbs' || a.agrupacion === 'ejecucion') {
+                      setAgrupacion(a.agrupacion);
+                      setAbiertos(new Set([RAIZ_CONSTRUCTIVA, ...arbolWbs.raices.map(x => x.id)]));
+                    }
+                    if (Array.isArray(a.niveles) && a.niveles.length) setNiveles(a.niveles as CampoAgrupacion[]);
+                    if (a.ambito === 'todo' || a.ambito === 'construccion' || a.ambito === 'equipamiento' || a.ambito === 'aereas') setAmbito(a.ambito);
+                    if (a.opcGrupo && typeof a.opcGrupo === 'object') setOpcGrupo({ ...OPC_GRUPO_DEF, ...(a.opcGrupo as Partial<OpcionesGrupo>) });
+                    if (a.paletas && typeof a.paletas === 'object') setPaletas({ ...PALETAS_DEF, ...(a.paletas as Partial<Paletas>) });
+                    if (Array.isArray(a.columnas) && a.columnas.length) setColumnasSel(a.columnas);
+                    if (a.orden !== undefined) setOrden(a.orden);
+                    if (typeof a.filtroEstado === 'string' && (a.filtroEstado in NOMBRE_FILTRO || a.filtroEstado === 'todas')) setFiltroEstado(a.filtroEstado as typeof filtroEstado);
+                    if (Array.isArray(a.filtrosUdf)) setFiltrosUdf(a.filtrosUdf as FiltroUdf[]);
+                    if (typeof a.px === 'number' && a.px > 0) setPx(a.px);
+                    if (typeof a.verUso === 'boolean') setVerUso(a.verUso);
+                    if (typeof a.verRelaciones === 'boolean') setVerRelaciones(a.verRelaciones);
+                    if (typeof a.verLB === 'boolean') setVerLB(a.verLB);
+                  }} />
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-[#5A6A74]" />
                   <input value={filtroTmp} onChange={e => setFiltroTmp(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') setFiltro(filtroTmp.trim()); }}

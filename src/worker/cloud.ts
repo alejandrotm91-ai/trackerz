@@ -91,3 +91,29 @@ docRoutes.put("/:key", requireAdmin, async (c) => {
   ).bind(key, value, new Date().toISOString()).run();
   return c.json({ ok: true });
 });
+
+// Preferencias de cada usuario (p. ej. las vistas guardadas de T₃): cualquiera con sesión lee y
+// escribe SOLO las suyas; la clave en kv_docs lleva su nombre de usuario.
+export const prefRoutes = new Hono<AppEnv>();
+const MAX_PREF_CHARS = 300_000;
+const clavePref = (usuario: string, key: string) => `pref_${usuario.replace(/[^A-Za-z0-9_-]/g, "_")}_${key}`;
+
+prefRoutes.get("/:key", requireAuth, async (c) => {
+  const key = c.req.param("key");
+  if (!ID_RE.test(key)) return c.json({ error: "Clave inválida." }, 400);
+  const row = await c.env.DB.prepare("SELECT value FROM kv_docs WHERE key = ?").bind(clavePref(c.get("user").username, key)).first<{ value: string }>();
+  if (!row) return c.json({ error: "No encontrado." }, 404);
+  return c.body(row.value, 200, { "Content-Type": "application/json" });
+});
+
+prefRoutes.put("/:key", requireAuth, async (c) => {
+  const key = c.req.param("key");
+  if (!ID_RE.test(key)) return c.json({ error: "Clave inválida." }, 400);
+  const value = await c.req.text();
+  if (!value || value.length > MAX_PREF_CHARS) return c.json({ error: "Preferencias vacías o demasiado grandes." }, 413);
+  try { JSON.parse(value); } catch { return c.json({ error: "JSON inválido." }, 400); }
+  await c.env.DB.prepare(
+    "INSERT OR REPLACE INTO kv_docs (key, value, updated_at) VALUES (?, ?, ?)"
+  ).bind(clavePref(c.get("user").username, key), value, new Date().toISOString()).run();
+  return c.json({ ok: true });
+});
