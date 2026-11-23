@@ -1360,7 +1360,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     <option value="aereas">Obras Aéreas</option>
                   </select>
                 )}
-                <MenuVistas inicio={inicioVistas} mostrar={mostrar}
+                <MenuVistas inicio={inicioVistas} mostrar={mostrar} esAdmin={editable}
                   actual={(): AjustesVista => ({ agrupacion, niveles, ambito, opcGrupo, paletas, columnas: columnasSel, orden, filtroEstado, filtrosUdf, px, verUso, verRelaciones, verLB })}
                   onAplicar={a => {
                     if (a.agrupacion === 'wbs' || a.agrupacion === 'ejecucion') {
