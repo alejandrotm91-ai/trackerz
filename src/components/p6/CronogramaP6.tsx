@@ -904,20 +904,25 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const cargarUnidades = () => {
     if (!m) return;
     const cantidad = new Map<string, number | null>();
-    for (const [id, a] of idxMaster) cantidad.set(id, a.cantidadCdo ?? null);
-    const prev = cargarUnidadesMaster(m, cantidad, false, []);
+    // «p6» de válvulas: su Cantidad (columna F del Master) ya suma la cantidad prevista de sus rubros
+    const p6Valv = new Set<string>();
+    for (const [id, a] of idxMaster) {
+      cantidad.set(id, a.cantidadCdo ?? null);
+      if (/p6/i.test(id) && /valvul/i.test(valorCampo(a, 'scap', clasifXer.get(id)))) p6Valv.add(id);
+    }
+    const prev = cargarUnidadesMaster(m, cantidad, false, [], p6Valv);
     if (!prev.cambian) { mostrar(`Budgeted Units already match the Master (${prev.iguales.toLocaleString('en-US')} activities). Nothing to load.`); return; }
     const est = (k: string) => (prev.porEstado[k] ?? 0).toLocaleString('en-US');
     if (!window.confirm(`Load Budgeted Units from the Master «Cantidad» column?\n\n`
       + `• ${prev.cambian.toLocaleString('en-US')} activities will change (Not Started ${est('TK_NotStart')} · In Progress ${est('TK_Active')} · Completed ${est('TK_Complete')})\n`
       + `• ${prev.iguales.toLocaleString('en-US')} already match\n`
-      + `• ${prev.conP6.toLocaleString('en-US')} Activity IDs with «p6» are left out\n`
+      + `• ${prev.p6Valvulas.toLocaleString('en-US')} valve «p6» activities included (their «Cantidad» already sums their items) · ${prev.conP6.toLocaleString('en-US')} other «p6» left out\n`
       + `• ${prev.sinMaster.toLocaleString('en-US')} not in the Master · ${prev.sinCantidad.toLocaleString('en-US')} without quantity · ${prev.sinAsignacion.toLocaleString('en-US')} without resource assignment\n\n`
       + `Not started activities also get Remaining Units = Budgeted Units. Actual units and costs are not changed.`)) return;
     const log = [...cambios];
-    const res = cargarUnidadesMaster(m, cantidad, true, log);
+    const res = cargarUnidadesMaster(m, cantidad, true, log, p6Valv);
     marcarCambio(log);
-    mostrar(`Budgeted Units loaded from the Master in ${res.cambian.toLocaleString('en-US')} activities (${res.conP6.toLocaleString('en-US')} «p6» left out). Press «Save» to keep them.`);
+    mostrar(`Budgeted Units loaded from the Master in ${res.cambian.toLocaleString('en-US')} activities (${res.p6Valvulas.toLocaleString('en-US')} valve «p6» included, ${res.conP6.toLocaleString('en-US')} other «p6» left out). Press «Save» to keep them.`);
   };
 
   // El botón Filter se resalta solo con los filtros de su menú (Critical y Longest tienen sus botones)
@@ -1469,7 +1474,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 {filtro && <button onClick={() => { setFiltro(''); setFiltroTmp(''); }} className="text-[#5A6A74] hover:text-red-600 cursor-pointer">Clear search ✕</button>}
                 {editable && hayMaster && (
                   <button onClick={cargarUnidades} className="px-2 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1"
-                    title="Load the Budgeted Units of each activity's material resource («Venta») from the Master «Cantidad» column, linked by Activity ID (IDs with «p6» are left out)">
+                    title="Load the Budgeted Units of each activity's material resource («Venta») from the Master «Cantidad» column, linked by Activity ID (valve «p6» activities included; other IDs with «p6» are left out)">
                     <Download className="w-3.5 h-3.5" /> Units ← Master
                   </button>
                 )}
