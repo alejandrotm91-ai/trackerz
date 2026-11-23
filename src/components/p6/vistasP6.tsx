@@ -23,6 +23,8 @@ export interface AjustesVista {
   verUso?: boolean;
   verRelaciones?: boolean;
   verLB?: boolean;
+  /** Panel Activity Usage: Units/Cost/Resources, Personnel/Crews, series, acumulado, fases y altura. */
+  uso?: { medida?: string; vistaRec?: string; series?: string[]; acumulado?: boolean; fases?: string[]; alto?: number };
 }
 export interface VistaGuardada { nombre: string; ajustes: AjustesVista; guardada: string }
 interface DocVistas { vistas: VistaGuardada[]; porDefecto: string | null }
@@ -61,6 +63,11 @@ function resumen(a: AjustesVista): string {
   const F: Record<string, string> = { pendientes: 'In Progress + Not Started', noiniciadas: 'Not Started', encurso: 'In Progress', terminadas: 'Completed', criticas: 'Critical', longest: 'Longest Path', soloMaster: 'Master Only' };
   if (a.filtroEstado && a.filtroEstado !== 'todas') partes.push(F[a.filtroEstado] ?? a.filtroEstado);
   if (a.filtrosUdf?.length) partes.push(`${a.filtrosUdf.length} UDF filter${a.filtrosUdf.length > 1 ? 's' : ''}`);
+  if (a.verUso !== false && a.uso) {
+    const M: Record<string, string> = { units: 'Units', cost: 'Cost', resources: a.uso.vistaRec === 'crews' ? 'Crews' : 'Personnel' };
+    const FA: Record<string, string> = { procura: 'Procurement', flete: 'Freight', montaje: 'Installation', construccion: 'Construction' };
+    partes.push(`Usage: ${M[a.uso.medida ?? 'cost'] ?? a.uso.medida}${a.uso.fases?.length ? ` (${a.uso.fases.map(f => FA[f] ?? f).join(' + ')})` : ''}${a.uso.acumulado ? ', cumulative' : ''}`);
+  }
   return partes.join(' · ');
 }
 
@@ -197,7 +204,7 @@ export const MenuVistas: React.FC<{
                 placeholder="Name for the current view…" className="flex-1 min-w-0 border border-[#D5DEE2] rounded px-2 py-1" />
               <button onClick={guardarComo} disabled={!nombre.trim() || guardando || !doc} className="px-2 py-1 rounded bg-[#312E81] text-white font-semibold cursor-pointer disabled:opacity-50">Save layout</button>
             </div>
-            <div className="px-3 pb-2 text-[10.5px] text-[#5A6A74]">Saved for your user on the server: grouping and levels, Group and Sort, colors, columns, sort, status and User Defined filters, scope, timescale and the Usage / Relations / Baseline panels.{esAdmin ? ' Use the share icon to make a layout available to the visitor.' : ''}</div>
+            <div className="px-3 pb-2 text-[10.5px] text-[#5A6A74]">Saved for your user on the server: grouping and levels, Group and Sort, colors, columns, sort, status and User Defined filters, scope, timescale, the Relations / Baseline panels and the Activity Usage panel (Units / Cost / Resources, Personnel / Crews, series, cumulative, phase buttons and height).{esAdmin ? ' Use the share icon to make a layout available to the visitor.' : ''}</div>
           </div>
         </>
       )}

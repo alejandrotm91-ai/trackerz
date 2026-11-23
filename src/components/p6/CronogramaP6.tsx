@@ -187,6 +187,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [verColumnas, setVerColumnas] = React.useState(false);
   const [verNivel, setVerNivel] = React.useState(false);
   const [verUso, setVerUso] = React.useState(true); // el panel Activity Usage se abre por defecto
+  const [usoCfg, setUsoCfg] = React.useState<CfgUso>(CFG_USO_DEF);
   // Layouts guardados por el usuario (vistasP6): la predeterminada se aplica una vez al abrir T₃
   const inicioVistas = React.useRef<{ aplicada: boolean; activa: string | null }>({ aplicada: false, activa: null });
   const usoRef = React.useRef<HTMLDivElement | null>(null);
@@ -1361,7 +1362,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   </select>
                 )}
                 <MenuVistas inicio={inicioVistas} mostrar={mostrar} esAdmin={editable}
-                  actual={(): AjustesVista => ({ agrupacion, niveles, ambito, opcGrupo, paletas, columnas: columnasSel, orden, filtroEstado, filtrosUdf, px, verUso, verRelaciones, verLB })}
+                  actual={(): AjustesVista => ({ agrupacion, niveles, ambito, opcGrupo, paletas, columnas: columnasSel, orden, filtroEstado, filtrosUdf, px, verUso, verRelaciones, verLB, uso: usoCfg })}
                   onAplicar={a => {
                     if (a.agrupacion === 'wbs' || a.agrupacion === 'ejecucion') {
                       setAgrupacion(a.agrupacion);
@@ -1379,6 +1380,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     if (typeof a.verUso === 'boolean') setVerUso(a.verUso);
                     if (typeof a.verRelaciones === 'boolean') setVerRelaciones(a.verRelaciones);
                     if (typeof a.verLB === 'boolean') setVerLB(a.verLB);
+                    if (a.uso && typeof a.uso === 'object') setUsoCfg({ ...CFG_USO_DEF, ...(a.uso as Partial<CfgUso>) });
                   }} />
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-[#5A6A74]" />
@@ -1627,6 +1629,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   usoRef={usoRef} onCerrar={() => setVerUso(false)}
                   campoAct={campoActividad}
                   masterDe={i => idxMaster.get(celda(m.task, m.task.filas[i], 'task_code'))}
+                  cfg={usoCfg} setCfg={setUsoCfg}
                   lineaBase={lbPorAct} nombreLB={fuenteEf === 'udf' ? 'T₃ baseline (blStartP6 / blFinishP6)' : fuenteEf === 'guardada' ? `saved baseline${lbGuardada ? ` «${lbGuardada.nombre}»` : ''}` : 'XER planned dates'}
                   onScrollX={x => { const el = scroller.current; if (el && Math.abs(el.scrollLeft - x) > 1) el.scrollLeft = x; }} />
               )}
@@ -1940,6 +1943,10 @@ const VistaWbs: React.FC<{
 };
 
 /** Panel inferior «Activity Usage» (como el Usage Spreadsheet de P6): valores por período de cada fila. */
+/** Configuración del panel Activity Usage (vive en el componente principal para guardarla en los Layouts). */
+export interface CfgUso { medida: MedidaUso; vistaRec: 'personnel' | 'crews'; series: SerieUso[]; acumulado: boolean; fases: FaseUso[]; alto: number }
+export const CFG_USO_DEF: CfgUso = { medida: 'cost', vistaRec: 'personnel', series: ['b', 'r', 'a'], acumulado: false, fases: [], alto: 280 };
+
 const leerLocal = <T,>(k: string, def: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : def; } catch { return def; } };
 
 const PanelUso: React.FC<{
@@ -1950,10 +1957,14 @@ const PanelUso: React.FC<{
   masterDe: (i: number) => Actividad | undefined;
   /** Línea base en uso (la del botón Baseline) por fila de TASK: fechas del Budgeted. */
   lineaBase: LineaBaseFilas; nombreLB: string;
-}> = ({ m, filas, ancho, anchoGantt, xDe, xDatos, desde, hasta, px, version, pasa, filtrando, colorBanda, usoRef, onScrollX, onCerrar, campoAct, masterDe, lineaBase, nombreLB }) => {
-  const [medida, setMedida] = React.useState<MedidaUso>('cost');
+  /** Configuración del panel (controlada desde el principal para guardarla en los Layouts). */
+  cfg: CfgUso; setCfg: React.Dispatch<React.SetStateAction<CfgUso>>;
+}> = ({ m, filas, ancho, anchoGantt, xDe, xDatos, desde, hasta, px, version, pasa, filtrando, colorBanda, usoRef, onScrollX, onCerrar, campoAct, masterDe, lineaBase, nombreLB, cfg, setCfg }) => {
+  const medida = cfg.medida;
+  const setMedida = (x: MedidaUso) => setCfg(c => ({ ...c, medida: x }));
   // Resources: personal (cuadrillas × personas por cuadrilla de su SubC) o número de cuadrillas
-  const [vistaRec, setVistaRec] = React.useState<'personnel' | 'crews'>('personnel');
+  const vistaRec = cfg.vistaRec;
+  const setVistaRec = (x: 'personnel' | 'crews') => setCfg(c => ({ ...c, vistaRec: x }));
   const [tamManual, setTamManual] = React.useState<Record<string, number>>(() => leerLocal('p6.cuadrillas', {}));
   const [tamDefecto, setTamDefecto] = React.useState<number>(() => leerLocal('p6.cuadrillaDefecto', POR_DEFECTO));
   React.useEffect(() => { try { localStorage.setItem('p6.cuadrillas', JSON.stringify(tamManual)); localStorage.setItem('p6.cuadrillaDefecto', JSON.stringify(tamDefecto)); } catch { /* sin almacenamiento */ } }, [tamManual, tamDefecto]);
@@ -2004,10 +2015,13 @@ const PanelUso: React.FC<{
     const s2 = subcDe(i);
     return tamManual[s2] ?? estCuad.get(s2)?.estimado ?? tamDefecto;
   }, [vistaRec, subcDe, tamManual, estCuad, tamDefecto]);
-  const [series, setSeries] = React.useState<SerieUso[]>(['b', 'r', 'a']);
-  const [acumulado, setAcumulado] = React.useState(false);
+  const series = cfg.series;
+  const setSeries = (f: SerieUso[] | ((s: SerieUso[]) => SerieUso[])) => setCfg(c => ({ ...c, series: typeof f === 'function' ? f(c.series) : f }));
+  const acumulado = cfg.acumulado;
+  const setAcumulado = (x: boolean) => setCfg(c => ({ ...c, acumulado: x }));
   // Botones de fase (como en el Gantt del Master): ninguno activo = todas; varios = cualquiera de ellos
-  const [fases, setFases] = React.useState<Set<FaseUso>>(new Set());
+  const fases = React.useMemo(() => new Set<FaseUso>(cfg.fases), [cfg.fases]);
+  const setFases = (f: (s: Set<FaseUso>) => Set<FaseUso>) => setCfg(c => ({ ...c, fases: [...f(new Set(c.fases))] }));
   const faseDeAct = React.useMemo(() => new Map<number, FaseUso>(), [m, version]);
   const pasaFase = React.useCallback((v: Vt) => {
     if (!fases.size) return true;
@@ -2015,7 +2029,8 @@ const PanelUso: React.FC<{
     if (!f) { f = faseDe(v.nombre); faseDeAct.set(v.i, f); }
     return fases.has(f);
   }, [fases, faseDeAct]);
-  const [alto, setAlto] = React.useState(280);
+  const alto = cfg.alto;
+  const setAlto = (x: number) => setCfg(c => ({ ...c, alto: x }));
   const [scrollTop, setScrollTop] = React.useState(0);
   const periodos = React.useMemo(() => periodosDeEscala(desde, hasta, px), [desde, hasta, px]);
   const lim = React.useMemo(() => periodos.map(p => p.t), [periodos]);
