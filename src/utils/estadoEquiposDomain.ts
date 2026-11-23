@@ -128,6 +128,7 @@ export const isCable = (it: Equipo): boolean => /^conductor aislado$/i.test(it.f
 export const EQUIPOS_EXCLUIDOS = new Set<string>([
   '12.7.4.2', // Iluminación exterior
   '3.13.3.4',
+  '3.5.8', // Plataforma metálica de pretratamiento (no es un equipo)
   '16.3.3.3.3.1',
   '16.3.3.3.3.2',
   '16.3.3.3.3.3',
