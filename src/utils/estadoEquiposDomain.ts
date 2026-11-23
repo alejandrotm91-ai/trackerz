@@ -91,9 +91,23 @@ export const KFS = [
   ['none', 'Sin iniciar']
 ] as const;
 
+/** El equipo tiene subcontratista (proveedor) asignado en alguna de sus etapas. */
+export function tieneSubc(it: Equipo): boolean {
+  return !!it.prov && it.prov !== '(sin proveedor)';
+}
+
+/**
+ * Estado de una etapa. Regla del SubC: un equipo con SubC asignado tiene la compra y
+ * fabricación al menos «En curso» (ya está adjudicado); sin SubC ninguna etapa puede estar
+ * «En curso» (queda «Sin iniciar»). Flete e instalación con SubC siguen su avance real.
+ * Lo terminado sigue terminado.
+ */
 export function stSt(it: Equipo, k: StageKey): 'done' | 'cur' | 'none' {
   const s = it.s[k];
-  return s.done ? 'done' : ((s.ex || 0) > 0 || s.status === 'In Progress') ? 'cur' : 'none';
+  if (s.done) return 'done';
+  if (!tieneSubc(it)) return 'none';
+  if (k === 'D' && !s.missing) return 'cur';
+  return ((s.ex || 0) > 0 || s.status === 'In Progress') ? 'cur' : 'none';
 }
 
 export function isCrit(it: Equipo): boolean {
@@ -593,6 +607,17 @@ export function stateOf(a: Agg, mode: 'ex' | 'done' | 'open'): [string, string, 
   if (f.D >= 0.999) return ['st-D', 'text-[#A86B12] bg-[#F6E9D3] border-transparent', 'Fabricado'];
   if (f.D > 0) return ['st-D', 'text-[#A86B12] bg-[#F6E9D3] border-transparent', 'En fabricación'];
   return ['st-0', 'text-slate-500 bg-slate-100 border-slate-200', 'Sin iniciar'];
+}
+
+/** Etiqueta de estado de un grupo de equipos, coherente con la regla del SubC de `stSt`. */
+export function stateOfItems(a: Agg, mode: 'ex' | 'done' | 'open', items: Equipo[]): [string, string, string] {
+  const r = stateOf(a, mode);
+  const enCompra = items.some(it => stSt(it, 'D') === 'cur');
+  if (r[2] === 'Sin iniciar' && enCompra) return ['st-D', 'text-[#A86B12] bg-[#F6E9D3] border-transparent', 'En fabricación'];
+  if (r[2] === 'En fabricación' && items.every(it => stSt(it, 'D') === 'none')) {
+    return ['st-0', 'text-slate-500 bg-slate-100 border-slate-200', 'Sin iniciar'];
+  }
+  return r;
 }
 
 export function sentence(a: Agg, label: string, mode: 'ex' | 'done' | 'open'): string {

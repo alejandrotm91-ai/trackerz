@@ -23,6 +23,7 @@ import {
   agg,
   fracs,
   stateOf,
+  stateOfItems,
   sentence,
   readMaster,
   P5,
@@ -1689,7 +1690,7 @@ export const ProcesoTab: React.FC = () => {
                               const [p1, fam] = rk.split('¦');
                               const rowKey = `${gk}¦${rk}`;
                               const isRowOpen = openRows.has(rowKey);
-                              const [chipClass, chipBg, chipText] = stateOf(rAgg, mode);
+                              const [chipClass, chipBg, chipText] = stateOfItems(rAgg, mode, rl);
                               const [riskClass, riskText] = riskOf(rAgg.tf);
                               const late = rAgg.maxLate;
                               const subInst =
@@ -1854,7 +1855,7 @@ export const ProcesoTab: React.FC = () => {
                                                     {STG.map(k => {
                                                       const s = it.s[k];
                                                       const dotFilled = s.done;
-                                                      const dotHalf = (s.ex || 0) > 0 || s.status === 'In Progress';
+                                                      const dotHalf = stSt(it, k) === 'cur';
                                                       const dotColor =
                                                         k === 'D' ? 'text-[#A86B12]' : k === 'E' ? 'text-[#2C67A6]' : 'text-[#2B7F52]';
 
