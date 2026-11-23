@@ -337,9 +337,25 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     }
     for (const v of vts) nodos.get(v.wbs)?.tareas.push(v);
     raices.sort((a, b) => a.seq - b.seq);
+    // Rubros del Master que aún no están en T₃: al WBS más profundo que coincida con su código de WBS
+    // (el del Master sin su prefijo de proyecto, con el del XER delante). Se ven con el filtro «Master Only».
+    if (idxMaster.size) {
+      const porCodigo = new Map<string, Nodo>();
+      const completar = (n: Nodo, padre?: Nodo) => { const c = padre ? `${padre.codCompleto}.${n.cod}` : n.cod; n.codCompleto = c; porCodigo.set(c, n); n.hijos.forEach(h => completar(h, n)); };
+      raices.forEach(r => completar(r));
+      const raizCod = raices[0]?.codCompleto ?? '';
+      const codigos = new Set(vts.map(v => v.cod));
+      for (const [id, a] of idxMaster) {
+        if (codigos.has(id)) continue;
+        const segs = String(a.wbs || a.wbsRaw || '').split('.').slice(1);
+        let destino: Nodo | undefined;
+        for (let k = segs.length; k >= 0 && !destino; k--) destino = porCodigo.get([raizCod, ...segs.slice(0, k)].join('.'));
+        if (destino) (destino.soloMaster ??= []).push(a);
+      }
+    }
     raices.forEach(r => resumirNodo(r, 0, undefined, true));
     return { raices, nodos };
-  }, [m, vts]);
+  }, [m, vts, idxMaster]);
 
   // Clasificación que trae el propio XER en sus campos de usuario (se actualiza al editarlos)
   const clasifXer = React.useMemo(() => (m ? clasificacionXer(m.xer) : new Map()),
@@ -507,7 +523,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const sangriaBanda = (nivel: number) => 4 + nivel * 4;
   // Al entrar en la vista constructiva, el proyecto (nivel superior) se ve abierto
   React.useEffect(() => { if (enEjecucion) setAbiertos(prev => (prev.has(RAIZ_CONSTRUCTIVA) ? prev : new Set([...prev, RAIZ_CONSTRUCTIVA]))); }, [enEjecucion]);
-  React.useEffect(() => { if (!enEjecucion) setFiltroEstado(f => (f === 'soloMaster' ? 'todas' : f)); }, [enEjecucion]);
   const arbol: { raices: Nodo[]; nodos: Map<string, Nodo> } = enEjecucion ? arbolEjec : arbolWbs;
 
   const condUdf = React.useMemo(() => filtrosUdf.filter(f => f.campo && (f.op === 'vacio' || f.valor.trim())), [filtrosUdf]);
@@ -563,14 +578,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (contiene.has(n.id)) return contiene.get(n.id)!;
       const q = filtro.toLowerCase();
       const r = n.tareas.some(pasa) || n.hijos.some(tiene)
-        || (!hayFiltroUdf && !!n.soloMaster?.some(a => String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)));
+        || (!hayFiltroUdf && (enEjecucion || filtroEstado === 'soloMaster') && !!n.soloMaster?.some(a => String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)));
       contiene.set(n.id, r);
       return r;
     };
     const recorrer = (n: Nodo) => {
       if (filtrando && !tiene(n)) return;
       // Hide if empty: bandas sin actividades (ni rubros solo del Master)
-      if (opcGrupo.ocultarVacios && !filtrando && n.n === 0 && !n.nSolo && n.nivel > 0) return;
+      if (opcGrupo.ocultarVacios && !filtrando && n.n === 0 && (!n.nSolo || !enEjecucion) && n.nivel > 0) return;
       out.push({ tipo: 'wbs', nodo: n, nivel: n.nivel });
       if (filtrando ? cerradosF.has(n.id) : !abiertos.has(n.id)) return;
       // Primero las actividades propias del WBS y después los sub-WBS.
@@ -582,7 +597,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       for (const v of tareas) if (!filtrando || pasa(v)) out.push({ tipo: 'act', vt: v, nivel: n.nivel + 1 });
       // Rubros del Master que todavía no están en Primavera (sin programación): se muestran
       // también con filtros de estado; la búsqueda por texto sí los filtra.
-      if (n.soloMaster && !hayFiltroUdf) {
+      if (n.soloMaster && !hayFiltroUdf && (enEjecucion || filtroEstado === 'soloMaster')) {
         const q = filtro.toLowerCase();
         const fechaM = (a: Actividad) => minutosDeFecha(orden?.col === 'fin' ? a.finish ?? a.blFinish : a.start ?? a.blStart);
         const solo = orden ? [...n.soloMaster].sort((a, b) => {
@@ -1078,8 +1093,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           <div className="flex items-center gap-1.5">
             <div className="relative">
               <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${NOMBRE_FILTRO[filtroEstado] ?? ''}${hayFiltroUdf ? ` · ${condUdf.length} User Defined condition${condUdf.length > 1 ? 's' : ''}` : ''}`}
-                className={`px-1.5 py-1 rounded-lg flex items-center cursor-pointer ${filtroMenuActivo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
+                className={`px-1.5 pt-1 pb-0.5 rounded-lg flex flex-col items-center gap-0.5 cursor-pointer ${filtroMenuActivo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
                 <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><path d="M3 2 H19 L13 8.5 V14 L9 12.5 V8.5 Z" fill={filtroMenuActivo ? '#312E81' : '#9AA6AD'} stroke="#3A3A3A" strokeWidth="0.8" /></svg></span>
+                <span className="text-[8.5px] leading-none">Filter</span>
               </button>
               {menuFiltro && (
                 <>
@@ -1090,7 +1106,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                       <button onClick={() => setMenuFiltro(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                     </div>
                     <div className="p-2 flex flex-col gap-0.5">
-                      {FILTROS_ESTADO.filter(([k]) => k !== 'soloMaster' || enEjecucion).map(([k, etq]) => (
+                      {FILTROS_ESTADO.map(([k, etq]) => (
                         <label key={k} className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer ${filtroEstado === k ? 'border-[#8A8FC9] bg-[#EEF0FB] font-semibold' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
                           <input type="radio" name="filtroEstado" checked={filtroEstado === k} onChange={() => setFiltroEstado(k)} />
                           {etq}
@@ -1139,18 +1155,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 </>
               )}
             </div>
-            <button onClick={() => { setVista('actividades'); setVerGrupo(true); }} title="Group & Sort: bands, colors and grouping levels"
-              className={`px-1.5 py-1 rounded-lg flex items-center cursor-pointer ${verGrupo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
-              <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><rect x="1" y="1" width="14" height="3.5" fill="#1F7CC4" /><rect x="4" y="6" width="11" height="3.5" fill="#7CF27C" stroke="#4FA94F" strokeWidth="0.5" /><rect x="7" y="11" width="8" height="3.5" fill="#FFFF66" stroke="#C9C94A" strokeWidth="0.5" /><path d="M18 2 V14 M16 12 L18 14.5 L20 12" fill="none" stroke="#3A3A3A" strokeWidth="1.2" /></svg></span>
-            </button>
-            <button onClick={() => { setVista('actividades'); setVerColumnas(true); }} title="Columns: choose and order the table columns"
-              className={`px-1.5 py-1 rounded-lg flex items-center cursor-pointer ${verColumnas ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
-              <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="14" fill="#FFFFFF" stroke="#5A6A74" /><rect x="1" y="1" width="20" height="3.5" fill="#9AA6AD" /><path d="M7 1 V15 M13 1 V15" stroke="#5A6A74" strokeWidth="1" /></svg></span>
-            </button>
-                        <button onClick={() => { setVista('actividades'); setVerNivel(true); }} title="Level Crews: rebuild the crew logic of a set of activities (subcontractor / SCAP / phase) to level the monthly workload"
-              className={`px-1.5 py-1 rounded-lg flex items-center cursor-pointer ${verNivel ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
-              <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><rect x="1" y="9" width="4" height="6" fill="#B8C0C6" /><rect x="6" y="3" width="4" height="12" fill="#B8C0C6" /><rect x="11" y="7" width="4" height="8" fill="#B8C0C6" /><rect x="16" y="1" width="4" height="14" fill="#B8C0C6" /><path d="M1 6.5 H21" stroke="#312E81" strokeWidth="1.6" strokeDasharray="2 1.2" /></svg></span>
-            </button>
           </div>
         )}
         <div className="ml-auto flex items-center gap-1.5">
@@ -1239,7 +1243,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         <>
         <div className="flex-1 flex min-h-0">
           {/* Barra lateral vertical (como la de P6): vistas y rutas */}
-          <div className="w-[46px] shrink-0 bg-[#ECECEC] border-r border-[#C3C3C3] flex flex-col items-center py-2 gap-1">
+          <div className="w-[46px] shrink-0 bg-[#ECECEC] border-r border-[#C3C3C3] flex flex-col items-center py-2 gap-1 overflow-y-auto">
             {(['actividades', 'wbs', 'recursos'] as const).map(v => {
               const etq = v === 'actividades' ? 'Activities' : v === 'wbs' ? 'WBS' : 'Resources';
               return (
@@ -1320,6 +1324,17 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 <span className="text-[8.5px] leading-none">{abrir ? 'Expand' : 'Collapse'}</span>
               </button>
             ))}
+            <div className="w-7 h-px bg-[#C3C3C3] my-1" />
+            <button onClick={() => { setVista('actividades'); setVerGrupo(true); }} title="Group & Sort: bands, colors and grouping levels"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verGrupo ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="14" height="3.5" fill="#1F7CC4" /><rect x="4" y="6" width="11" height="3.5" fill="#7CF27C" stroke="#4FA94F" strokeWidth="0.5" /><rect x="7" y="11" width="8" height="3.5" fill="#FFFF66" stroke="#C9C94A" strokeWidth="0.5" /><path d="M18 2 V14 M16 12 L18 14.5 L20 12" fill="none" stroke="#3A3A3A" strokeWidth="1.2" /></svg>
+              <span className="text-[8.5px] leading-none">Group</span>
+            </button>
+            <button onClick={() => { setVista('actividades'); setVerColumnas(true); }} title="Columns: choose and order the table columns"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verColumnas ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="20" height="14" fill="#FFFFFF" stroke="#5A6A74" /><rect x="1" y="1" width="20" height="3.5" fill="#9AA6AD" /><path d="M7 1 V15 M13 1 V15" stroke="#5A6A74" strokeWidth="1" /></svg>
+              <span className="text-[8.5px] leading-none">Columns</span>
+            </button>
           </div>
           <div className="flex-1 flex flex-col min-h-0 min-w-0">
           {/* Herramientas (solo en la vista de actividades) */}
@@ -1663,17 +1678,25 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             <VistaRecursos m={m} version={version} />
           )}
           </div>
-          {/* Barra lateral derecha: importar y exportar el XER */}
+          {/* Barra lateral derecha: importar y exportar el XER, y nivelar cuadrillas */}
           <div className="w-[46px] shrink-0 bg-[#ECECEC] border-l border-[#C3C3C3] flex flex-col items-center py-2 gap-1">
             {editable && (
               <button onClick={() => fileRef.current?.click()} title="Import XER: open an XER exported from Trakciona T₃"
-                className="w-[38px] h-[36px] rounded flex items-center justify-center cursor-pointer border border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]">
+                className="w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]">
                 <Upload className="w-5 h-5" />
+                <span className="text-[8.5px] leading-none text-[#4A4A4A]">Import</span>
               </button>
             )}
             <button onClick={exportar} title="Export XER: download the XER to import it into Trakciona T₃"
-              className="w-[38px] h-[36px] rounded flex items-center justify-center cursor-pointer border border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]">
+              className="w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]">
               <Download className="w-5 h-5" />
+              <span className="text-[8.5px] leading-none text-[#4A4A4A]">Export</span>
+            </button>
+            <div className="w-7 h-px bg-[#C3C3C3] my-1" />
+            <button onClick={() => { setVista('actividades'); setVerNivel(true); }} title="Level Crews: rebuild the crew logic of a set of activities (subcontractor / SCAP / phase) to level the monthly workload"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verNivel ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+              <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="9" width="4" height="6" fill="#B8C0C6" /><rect x="6" y="3" width="4" height="12" fill="#B8C0C6" /><rect x="11" y="7" width="4" height="8" fill="#B8C0C6" /><rect x="16" y="1" width="4" height="14" fill="#B8C0C6" /><path d="M1 6.5 H21" stroke="#312E81" strokeWidth="1.6" strokeDasharray="2 1.2" /></svg>
+              <span className="text-[8.5px] leading-none">Level</span>
             </button>
           </div>
         </div>
