@@ -5,7 +5,7 @@
  * Todos consultan; solo el administrador edita, programa y guarda.
  */
 import React from 'react';
-import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat, Filter } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
 import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, etiquetaUbicacion, ordenUbicacion, type Clasificacion, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, A_HITOS_CONTRACTUALES, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
@@ -1175,11 +1175,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 );
               })}
             </div>
-            <div className="relative">
-              <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${NOMBRE_FILTRO[filtroEstado] ?? ''}${hayFiltroUdf ? ` · ${condUdf.length} User Defined condition${condUdf.length > 1 ? 's' : ''}` : ''}`}
-                className={`px-1.5 pt-1 pb-0.5 rounded-lg flex flex-col items-center gap-0.5 cursor-pointer ${filtroMenuActivo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
-                <span className="bg-white rounded px-0.5 flex"><svg width="20" height="15" viewBox="0 0 22 16"><path d="M3 2 H19 L13 8.5 V14 L9 12.5 V8.5 Z" fill={filtroMenuActivo ? '#312E81' : '#9AA6AD'} stroke="#3A3A3A" strokeWidth="0.8" /></svg></span>
-                <span className="text-[8.5px] leading-none">Filter</span>
+            <div className="relative bg-white/10 rounded-lg p-0.5 flex">
+              <button id="p6-filtro" onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Filter · status: ${NOMBRE_FILTRO[filtroEstado] ?? ''}${hayFiltroUdf ? ` · ${condUdf.length} User Defined condition${condUdf.length > 1 ? 's' : ''}` : ''}`} aria-pressed={filtroMenuActivo}
+                className={`p-1.5 rounded-md cursor-pointer ${filtroMenuActivo ? 'bg-white text-[#312E81] shadow-sm' : 'text-indigo-100 hover:bg-white/20'}`}>
+                <Filter className="w-4 h-4" />
               </button>
               {menuFiltro && (
                 <>
