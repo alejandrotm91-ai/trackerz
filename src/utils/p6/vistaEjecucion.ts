@@ -122,6 +122,10 @@ export function enAmbito(a: Actividad | undefined, ambito: Ambito, udf?: Clasifi
  * Válvulas de guillotina 16.8.4.8 a 16.8.4.11.
  */
 const BASES_OCULTAS = new Set(['16.8.4.8', '16.8.4.9', '16.8.4.10', '16.8.4.11']);
+/** Hitos que en la vista constructiva se muestran en «.B» Hitos contractuales aunque en el XER
+ *  cuelguen de otro WBS (16.Fin está en «Eventos Clave - E.B. Progreso» del WBS 16). */
+export const A_HITOS_CONTRACTUALES = new Set(['16.Fin']);
+
 export function ocultoEnEjecucion(cod: string): boolean {
   const m = /^(.*)\.([ADEF])$/i.exec(String(cod).trim());
   return !!m && BASES_OCULTAS.has(m[1]);

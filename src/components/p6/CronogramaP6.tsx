@@ -7,7 +7,7 @@
 import React from 'react';
 import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
-import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, etiquetaUbicacion, ordenUbicacion, type Clasificacion, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
+import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, etiquetaUbicacion, ordenUbicacion, type Clasificacion, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, A_HITOS_CONTRACTUALES, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, entradasCpm, lagSsDesdeInicioTemprano, type ModeloP6 } from '../../utils/p6/modelo';
@@ -398,7 +398,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     // Hitos del proyecto (WBS «.A» Eventos clave y «.B» Hitos contractuales, con sus sub-WBS):
     // en la vista de ejecución se muestran con la misma jerarquía que en la WBS de P6, al principio.
     const wbsEspejo = new Set<string>();
+    let wbsContractuales: string | undefined;
     for (const raiz of arbolWbs.raices) {
+      wbsContractuales ??= raiz.hijos.find(x => x.cod.toUpperCase() === 'B')?.id;
       for (const h of raiz.hijos.filter(x => ['A', 'B'].includes(x.cod.toUpperCase()))) {
         const pila = [h];
         while (pila.length) { const x = pila.pop()!; wbsEspejo.add(x.id); pila.push(...x.hijos); }
@@ -410,7 +412,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (ya) return ya;
       const w = arbolWbs.nodos.get(wbsId)!;
       const padre = wbsEspejo.has(w.padre) ? nodoEspejo(w.padre) : undefined;
-      const n: Nodo = { id, padre: padre?.id ?? '', cod: w.cod, codCompleto: w.codCompleto, nombre: w.nombre, seq: w.seq, hijos: [], tareas: [], nivel: 0, ini: null, fin: null, n: 0, criticas: 0, fijo: true };
+      // Sin el código del proyecto delante (p1126.B → B): el proyecto ya es el nivel superior
+      const raizCod = arbolWbs.raices.find(r => w.codCompleto.startsWith(`${r.codCompleto}.`))?.codCompleto;
+      const cod = raizCod ? w.codCompleto.slice(raizCod.length + 1) : w.codCompleto;
+      const n: Nodo = { id, padre: padre?.id ?? '', cod: w.cod, codCompleto: cod, nombre: w.nombre, seq: w.seq, hijos: [], tareas: [], nivel: 0, ini: null, fin: null, n: 0, criticas: 0, fijo: true };
       nodos.set(id, n);
       if (padre) padre.hijos.push(n); else raices.push(n);
       return n;
@@ -440,7 +445,9 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       codigos.add(v.cod);
       if (wbsExcluidos.has(v.wbs)) { excluidas++; continue; }
       if (ocultoEnEjecucion(v.cod)) continue;
-      if (wbsEspejo.has(v.wbs)) { if (ambito === 'aereas') continue; const n = nodoEspejo(v.wbs); n.tareas.push(v); grupoDeAct.set(v.i, n.id); continue; }
+      // Hitos que van a «.B» Hitos contractuales aunque estén en otro WBS del XER
+      const wbsHito = wbsContractuales && A_HITOS_CONTRACTUALES.has(v.cod) ? wbsContractuales : wbsEspejo.has(v.wbs) ? v.wbs : undefined;
+      if (wbsHito) { if (ambito === 'aereas') continue; const n = nodoEspejo(wbsHito); n.tareas.push(v); grupoDeAct.set(v.i, n.id); continue; }
       const a = idxMaster.get(v.cod);
       const udf = clasifXer.get(v.cod);
       // Las actividades del XER sin datos en el Master no tienen grupo propio; los hitos se ubican abajo
