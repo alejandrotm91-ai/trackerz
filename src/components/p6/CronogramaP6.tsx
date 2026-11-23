@@ -1473,11 +1473,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     <Download className="w-3.5 h-3.5" /> Units ← Master
                   </button>
                 )}
-                {editable && (
-                  <button onClick={() => setCreando(true)} className="px-2 py-1.5 rounded-lg bg-[#312E81] text-white font-bold flex items-center gap-1 cursor-pointer" title="Add an activity to the selected WBS">
-                    <Plus className="w-3.5 h-3.5" /> Add Activity
-                  </button>
-                )}
                 <div className="ml-auto flex items-center gap-1 text-[#5A6A74]">
                   Timescale
                   {[[0.4, 'Years'], [1, 'Quarters'], [3, 'Months'], [8, 'Weeks']].map(([v, l]) => (
@@ -1783,8 +1778,18 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             <VistaRecursos m={m} version={version} />
           )}
           </div>
-          {/* Barra lateral derecha: importar y exportar el XER, y nivelar cuadrillas */}
+          {/* Barra lateral derecha: añadir actividad, importar y exportar el XER, y nivelar cuadrillas */}
           <div className="w-[46px] shrink-0 bg-[#ECECEC] border-l border-[#C3C3C3] flex flex-col items-center py-2 gap-1">
+            {editable && (
+              <>
+                <button id="p6-add-activity" onClick={() => { setVista('actividades'); setCreando(true); }} title="Add Activity: add an activity to the selected WBS"
+                  className="w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]">
+                  <Plus className="w-5 h-5" />
+                  <span className="text-[8.5px] leading-none text-[#4A4A4A]">Add</span>
+                </button>
+                <div className="w-7 h-px bg-[#C3C3C3] my-1" />
+              </>
+            )}
             {editable && (
               <button onClick={() => fileRef.current?.click()} title="Import XER: open an XER exported from Trakciona T₃"
                 className="w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]">
