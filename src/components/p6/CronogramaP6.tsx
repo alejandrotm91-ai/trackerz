@@ -198,6 +198,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const nv = nombresVista.nombre;
   React.useEffect(() => { try { localStorage.setItem('p6.ambito', JSON.stringify(ambito)); } catch { /* sin almacenamiento */ } }, [ambito]);
   React.useEffect(() => { try { localStorage.setItem('p6.agrupacion', JSON.stringify(agrupacion)); localStorage.setItem('p6.niveles', JSON.stringify(niveles)); } catch { /* sin almacenamiento */ } }, [agrupacion, niveles]);
+  // Filtros globales de la barra superior (tabla, Gantt y Activity Usage): fase por el nombre y ubicación
+  const [fasesG, setFasesG] = React.useState<FaseUso[]>(() => leerLS('p6.fases', [] as FaseUso[]));
+  const [ubicG, setUbicG] = React.useState<UbicFiltro[]>(() => leerLS('p6.ubicaciones', [] as UbicFiltro[]));
+  React.useEffect(() => { try { localStorage.setItem('p6.fases', JSON.stringify(fasesG)); localStorage.setItem('p6.ubicaciones', JSON.stringify(ubicG)); } catch { /* sin almacenamiento */ } }, [fasesG, ubicG]);
+  const hayFiltroGlobal = fasesG.length > 0 || ubicG.length > 0;
   const idxMaster = React.useMemo(() => indiceMaster(actividadesMaster), [actividadesMaster]);
   const hayMaster = idxMaster.size > 0;
   const [scrollTop, setScrollTop] = React.useState(0);
@@ -550,7 +555,45 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     }
     return true;
   }), [condUdf, udfFiltroVals]);
+  /** Ubicación de cada actividad (Merinos / Progreso / Guayacanes): su clasificación (XER o Master);
+   *  si no tiene, el nombre de sus WBS en el XER (p. ej. «P16-Construccion EB Progreso»). */
+  const ubicDeAct = React.useMemo(() => {
+    const r = new Map<number, UbicFiltro | ''>();
+    if (!ubicG.length) return r;
+    const porWbs = new Map<string, UbicFiltro | ''>();
+    const deWbs = (id: string): UbicFiltro | '' => {
+      if (porWbs.has(id)) return porWbs.get(id)!;
+      const n = arbolWbs.nodos.get(id);
+      const u = !n ? '' : (claveUbicacion(n.nombre) || (n.padre ? deWbs(n.padre) : ''));
+      porWbs.set(id, u);
+      return u;
+    };
+    for (const v of vts) {
+      const u = claveUbicacion(valorCampo(idxMaster.get(v.cod), 'ubicacion', clasifXer.get(v.cod)));
+      r.set(v.i, u || deWbs(v.wbs));
+    }
+    return r;
+  }, [ubicG.length > 0, vts, idxMaster, clasifXer, arbolWbs]);
+  const fasesSet = React.useMemo(() => new Set(fasesG), [fasesG]);
+  const ubicSet = React.useMemo(() => new Set(ubicG), [ubicG]);
+  const faseCache = React.useMemo(() => new Map<number, FaseUso>(), [m, version]);
+  const pasaGlobal = React.useCallback((v: Vt) => {
+    if (fasesSet.size) {
+      let f = faseCache.get(v.i);
+      if (!f) { f = faseDe(v.nombre); faseCache.set(v.i, f); }
+      if (!fasesSet.has(f)) return false;
+    }
+    if (ubicSet.size) { const u = ubicDeAct.get(v.i); if (!u || !ubicSet.has(u)) return false; }
+    return true;
+  }, [fasesSet, ubicSet, faseCache, ubicDeAct]);
+  /** Lo mismo para los rubros solo del Master (sin programación en el XER). */
+  const pasaGlobalMaster = React.useCallback((a: Actividad) => {
+    if (fasesSet.size && !fasesSet.has(faseDe(a.descripcion))) return false;
+    if (ubicSet.size) { const u = claveUbicacion(valorCampo(a, 'ubicacion')); if (!u || !ubicSet.has(u)) return false; }
+    return true;
+  }, [fasesSet, ubicSet]);
   const pasa = React.useCallback((v: Vt) => {
+    if (hayFiltroGlobal && !pasaGlobal(v)) return false;
     if (hayFiltroUdf && !pasaUdf(v)) return false;
     if (filtroEstado === 'pendientes' && v.estado === 'TK_Complete') return false;
     if (filtroEstado === 'encurso' && v.estado !== 'TK_Active') return false;
@@ -564,7 +607,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (!v.cod.toLowerCase().includes(q) && !v.nombre.toLowerCase().includes(q)) return false;
     }
     return true;
-  }, [filtro, filtroEstado, hayFiltroUdf, pasaUdf]);
+  }, [filtro, filtroEstado, hayFiltroUdf, pasaUdf, hayFiltroGlobal, pasaGlobal]);
 
   const filas = React.useMemo<Fila[]>(() => {
     const out: Fila[] = [];
@@ -580,13 +623,13 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
       return (x - y) * orden.dir || a.nombre.localeCompare(b.nombre, 'es', { numeric: true });
     }));
-    const filtrando = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf;
+    const filtrando = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf || hayFiltroGlobal;
     const contiene = new Map<string, boolean>();
     const tiene = (n: Nodo): boolean => {
       if (contiene.has(n.id)) return contiene.get(n.id)!;
       const q = filtro.toLowerCase();
       const r = n.tareas.some(pasa) || n.hijos.some(tiene)
-        || (!hayFiltroUdf && (enEjecucion || filtroEstado === 'soloMaster') && !!n.soloMaster?.some(a => String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)));
+        || (!hayFiltroUdf && (enEjecucion || filtroEstado === 'soloMaster') && !!n.soloMaster?.some(a => pasaGlobalMaster(a) && (String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q))));
       contiene.set(n.id, r);
       return r;
     };
@@ -613,13 +656,13 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
           return (x - y) * orden.dir;
         }) : n.soloMaster;
-        for (const a of solo) if (!q || String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q)) out.push({ tipo: 'master', a, nivel: n.nivel + 1 });
+        for (const a of solo) if (pasaGlobalMaster(a) && (!q || String(a.activityId).toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q))) out.push({ tipo: 'master', a, nivel: n.nivel + 1 });
       }
       ordenarGrupos(n.hijos).forEach(recorrer);
     };
     ordenarGrupos(arbol.raices).forEach(recorrer);
     return out;
-  }, [arbol, abiertos, cerradosF, filtro, filtroEstado, pasa, orden, enEjecucion, opcGrupo]);
+  }, [arbol, abiertos, cerradosF, filtro, filtroEstado, pasa, pasaGlobalMaster, hayFiltroGlobal, orden, enEjecucion, opcGrupo]);
 
   // ── Escala del Gantt ──
   const rango = React.useMemo(() => {
@@ -872,7 +915,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
 
   // El botón Filter se resalta solo con los filtros de su menú (Critical y Longest tienen sus botones)
   const filtroMenuActivo = (filtroEstado !== 'todas' && filtroEstado !== 'criticas' && filtroEstado !== 'longest') || hayFiltroUdf;
-  const filtrando = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf;
+  const filtrando = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf || hayFiltroGlobal;
   // Cada filtro nuevo empieza desplegado
   React.useEffect(() => { setCerradosF(new Set()); }, [filtro, filtroEstado, condUdf]);
   const alternarEn = (set: React.Dispatch<React.SetStateAction<Set<string>>>) => (id: string) =>
@@ -915,7 +958,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     const v = vts[i];
     if (!v) return;
     // Si el filtro la oculta, se quita el filtro
-    if ((filtro || filtroEstado !== 'todas' || hayFiltroUdf) && !pasa(v)) {
+    if ((filtro || filtroEstado !== 'todas' || hayFiltroUdf || hayFiltroGlobal) && !pasa(v)) {
       setFiltro(''); setFiltroTmp(''); setFiltroEstado('todas'); setFiltrosUdf([]);
       mostrar(`Filter cleared to show ${v.cod}.`);
     }
@@ -977,7 +1020,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     type R = { ini: number | null; fin: number | null; realIni: number | null; realFin: number | null; restIni: number | null; restFin: number | null; roja: boolean; lbIni: number | null; lbFin: number | null; qb: number; qa: number; qr: number; hayQ: boolean };
     const out = new Map<string, R>();
     if (!m) return out;
-    const filtrandoR = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf;
+    const filtrandoR = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf || hayFiltroGlobal;
     const mn = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.min(a, b));
     const mx = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.max(a, b));
     const ver = (n: Nodo): R => {
@@ -993,6 +1036,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       for (const h of n.hijos) juntar(ver(h));
       // Con el filtro «Solo en Master», el grupo resume las fechas del Master de esos rubros
       if (filtroEstado === 'soloMaster') for (const a of n.soloMaster ?? []) {
+        if (!pasaGlobalMaster(a)) continue;
         r.ini = mn(r.ini, minutosDeFecha(a.start ?? a.blStart)); r.fin = mx(r.fin, minutosDeFecha(a.finish ?? a.blFinish));
       }
       for (const v of n.tareas) {
@@ -1020,7 +1064,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     };
     arbol.raices.forEach(ver);
     return out;
-  }, [m, arbol, filtro, filtroEstado, pasa, enRojo, lbPorAct, unidadesRsrc]);
+  }, [m, arbol, filtro, filtroEstado, pasa, pasaGlobalMaster, hayFiltroGlobal, enRojo, lbPorAct, unidadesRsrc]);
   const barrasLB = verLB ? lbPorAct : null;
 
   const lineasRelacion = React.useMemo(() => {
@@ -1099,6 +1143,31 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         )}
         {m && (
           <div className="flex items-center gap-1.5">
+            {/* Filtros globales: fase (solo iconos) y ubicación; valen para la tabla, el Gantt y Activity Usage */}
+            <div className="flex items-center gap-0.5 bg-white/10 rounded-lg p-0.5" title="Phase filter (name starts with compr / flete / inst / the rest); several = any of them">
+              {FASES_GLOBALES.map(([k, etq, Icono, on, tt]) => {
+                const activo = fasesG.includes(k);
+                return (
+                  <button key={k} id={`p6-fase-${k}`} title={`${etq}: ${tt}${activo ? ' (on)' : ''}`} aria-pressed={activo}
+                    onClick={() => { setVista('actividades'); setFasesG(fs => (fs.includes(k) ? fs.filter(x => x !== k) : [...fs, k])); }}
+                    className={`p-1.5 rounded-md cursor-pointer ${activo ? `${on} text-white shadow-sm` : 'text-indigo-100 hover:bg-white/20'}`}>
+                    <Icono className="w-4 h-4" />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-0.5 bg-white/10 rounded-lg p-0.5" title="Location filter; several = any of them">
+              {UBICACIONES_FILTRO.map(([k, etq]) => {
+                const activo = ubicG.includes(k);
+                return (
+                  <button key={k} id={`p6-ubic-${k}`} title={`Only ${etq}${activo ? ' (on)' : ''}`} aria-pressed={activo}
+                    onClick={() => { setVista('actividades'); setUbicG(us => (us.includes(k) ? us.filter(x => x !== k) : [...us, k])); }}
+                    className={`px-1.5 py-1 rounded-md text-[10px] font-semibold leading-none cursor-pointer ${activo ? 'bg-white text-[#1E1B4B] shadow-sm' : 'text-indigo-100 hover:bg-white/20'}`}>
+                    {etq}
+                  </button>
+                );
+              })}
+            </div>
             <div className="relative">
               <button onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Status filter: ${NOMBRE_FILTRO[filtroEstado] ?? ''}${hayFiltroUdf ? ` · ${condUdf.length} User Defined condition${condUdf.length > 1 ? 's' : ''}` : ''}`}
                 className={`px-1.5 pt-1 pb-0.5 rounded-lg flex flex-col items-center gap-0.5 cursor-pointer ${filtroMenuActivo ? 'bg-white text-[#1E1B4B]' : 'bg-white/15 hover:bg-white/25 text-white'}`}>
@@ -1362,7 +1431,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     activo={ambito !== 'todo' ? 'bg-[#EEF0FB] border-[#312E81] text-[#312E81]' : undefined} />
                 )}
                 <MenuVistas inicio={inicioVistas} mostrar={mostrar} esAdmin={editable} nombreVista={nv}
-                  actual={(): AjustesVista => ({ agrupacion, niveles, ambito, opcGrupo, paletas, columnas: columnasSel, orden, filtroEstado, filtrosUdf, px, verUso, verRelaciones, verLB, uso: usoCfg })}
+                  actual={(): AjustesVista => ({ agrupacion, niveles, ambito, opcGrupo, paletas, columnas: columnasSel, orden, filtroEstado, filtrosUdf, px, verUso, verRelaciones, verLB, uso: usoCfg, fases: fasesG, ubicaciones: ubicG })}
                   onAplicar={a => {
                     if (a.agrupacion === 'wbs' || a.agrupacion === 'ejecucion') {
                       setAgrupacion(a.agrupacion);
@@ -1381,6 +1450,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     if (typeof a.verRelaciones === 'boolean') setVerRelaciones(a.verRelaciones);
                     if (typeof a.verLB === 'boolean') setVerLB(a.verLB);
                     if (a.uso && typeof a.uso === 'object') setUsoCfg({ ...CFG_USO_DEF, ...(a.uso as Partial<CfgUso>) });
+                    // Fase y ubicación (los layouts antiguos traían la fase dentro del panel Usage)
+                    const fasesL = Array.isArray(a.fases) ? a.fases : Array.isArray(a.uso?.fases) ? a.uso!.fases : [];
+                    setFasesG(fasesL.filter((x): x is FaseUso => FASES_GLOBALES.some(([k]) => k === x)));
+                    setUbicG(Array.isArray(a.ubicaciones) ? a.ubicaciones.filter((x): x is UbicFiltro => UBICACIONES_FILTRO.some(([k]) => k === x)) : []);
                   }} />
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-[#5A6A74]" />
@@ -1944,8 +2017,20 @@ const VistaWbs: React.FC<{
 
 /** Panel inferior «Activity Usage» (como el Usage Spreadsheet de P6): valores por período de cada fila. */
 /** Configuración del panel Activity Usage (vive en el componente principal para guardarla en los Layouts). */
-export interface CfgUso { medida: MedidaUso; vistaRec: 'personnel' | 'crews'; series: SerieUso[]; acumulado: boolean; fases: FaseUso[]; alto: number }
-export const CFG_USO_DEF: CfgUso = { medida: 'cost', vistaRec: 'personnel', series: ['b', 'r', 'a'], acumulado: false, fases: [], alto: 280 };
+export interface CfgUso { medida: MedidaUso; vistaRec: 'personnel' | 'crews'; series: SerieUso[]; acumulado: boolean; alto: number }
+export const CFG_USO_DEF: CfgUso = { medida: 'cost', vistaRec: 'personnel', series: ['b', 'r', 'a'], acumulado: false, alto: 280 };
+
+/** Filtro global de fase (barra superior): misma regla que Procura / Flete / Montaje / Construcción del Gantt del Master. */
+const FASES_GLOBALES = [
+  ['procura', 'Procurement', ShoppingCart, 'bg-blue-600', 'activities whose name starts with "compr"'],
+  ['flete', 'Freight', Truck, 'bg-purple-600', 'activities whose name starts with "flete"'],
+  ['montaje', 'Installation', Wrench, 'bg-amber-600', 'activities whose name starts with "inst"'],
+  ['construccion', 'Construction', HardHat, 'bg-emerald-600', 'all other activities (not Procurement, Freight or Installation)'],
+] as const;
+/** Filtro global de ubicación (02.Ubicacion). */
+type UbicFiltro = 'progreso' | 'merinos' | 'guayacanes';
+const UBICACIONES_FILTRO: [UbicFiltro, string][] = [['progreso', 'Progreso'], ['merinos', 'Merinos'], ['guayacanes', 'Guayacanes']];
+const claveUbicacion = (t: string): UbicFiltro | '' => (/merinos/i.test(t) ? 'merinos' : /progreso/i.test(t) ? 'progreso' : /guayacanes/i.test(t) ? 'guayacanes' : '');
 
 const leerLocal = <T,>(k: string, def: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : def; } catch { return def; } };
 
@@ -2019,16 +2104,6 @@ const PanelUso: React.FC<{
   const setSeries = (f: SerieUso[] | ((s: SerieUso[]) => SerieUso[])) => setCfg(c => ({ ...c, series: typeof f === 'function' ? f(c.series) : f }));
   const acumulado = cfg.acumulado;
   const setAcumulado = (x: boolean) => setCfg(c => ({ ...c, acumulado: x }));
-  // Botones de fase (como en el Gantt del Master): ninguno activo = todas; varios = cualquiera de ellos
-  const fases = React.useMemo(() => new Set<FaseUso>(cfg.fases), [cfg.fases]);
-  const setFases = (f: (s: Set<FaseUso>) => Set<FaseUso>) => setCfg(c => ({ ...c, fases: [...f(new Set(c.fases))] }));
-  const faseDeAct = React.useMemo(() => new Map<number, FaseUso>(), [m, version]);
-  const pasaFase = React.useCallback((v: Vt) => {
-    if (!fases.size) return true;
-    let f = faseDeAct.get(v.i);
-    if (!f) { f = faseDe(v.nombre); faseDeAct.set(v.i, f); }
-    return fases.has(f);
-  }, [fases, faseDeAct]);
   const alto = cfg.alto;
   const setAlto = (x: number) => setCfg(c => ({ ...c, alto: x }));
   const [scrollTop, setScrollTop] = React.useState(0);
@@ -2050,7 +2125,6 @@ const PanelUso: React.FC<{
       const r = { b: new Float64Array(nPer), a: new Float64Array(nPer), r: new Float64Array(nPer) };
       for (const v of n.tareas) {
         if (filtrando && !pasa(v)) continue;
-        if (!pasaFase(v)) continue;
         const u = uso.get(v.i);
         if (!u) continue;
         sumarTramo(r.b, u.b); sumarTramo(r.a, u.a); sumarTramo(r.r, u.r);
@@ -2060,7 +2134,7 @@ const PanelUso: React.FC<{
       return r;
     };
     return calc;
-  }, [uso, nPer, filtrando, pasa, pasaFase]);
+  }, [uso, nPer, filtrando, pasa]);
   const serieDeAct = (i: number, k: SerieUso): Float64Array => {
     const acc = new Float64Array(nPer);
     sumarTramo(acc, uso.get(i)?.[k]);
@@ -2134,22 +2208,6 @@ const PanelUso: React.FC<{
           </label>
         ))}
         <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={acumulado} onChange={e => setAcumulado(e.target.checked)} /> Cumulative</label>
-        <div className="flex items-center gap-1">
-          {([
-            ['procura', 'Procurement', ShoppingCart, 'bg-blue-600 border-blue-600', 'bg-blue-50 text-blue-900 border-blue-300', 'Activities whose name starts with "compr"'],
-            ['flete', 'Freight', Truck, 'bg-purple-600 border-purple-600', 'bg-purple-50 text-purple-900 border-purple-300', 'Activities whose name starts with "flete"'],
-            ['montaje', 'Installation', Wrench, 'bg-amber-600 border-amber-600', 'bg-amber-50 text-amber-900 border-amber-300', 'Activities whose name starts with "inst"'],
-            ['construccion', 'Construction', HardHat, 'bg-emerald-600 border-emerald-600', 'bg-emerald-50 text-emerald-900 border-emerald-300', 'All other activities (not Procurement, Freight or Installation)'],
-          ] as const).map(([k, etq, Icono, on, off, tt]) => {
-            const activo = fases.has(k);
-            return (
-              <button key={k} title={tt} onClick={() => setFases(fs => { const n = new Set(fs); if (n.has(k)) n.delete(k); else n.add(k); return n; })}
-                className={`px-2 py-0.5 rounded border font-semibold flex items-center gap-1 cursor-pointer ${activo ? `${on} text-white` : off}`}>
-                <Icono className="w-3 h-3" />{etq}
-              </button>
-            );
-          })}
-        </div>
         <span className="text-[#5A6A74] truncate min-w-0" title="Spread over the working time of each activity's calendar · periods follow the Gantt timescale">Spread over each activity&apos;s working calendar</span>
         <button onClick={onCerrar} className="ml-auto p-0.5 hover:bg-white rounded cursor-pointer" title="Close"><X className="w-3.5 h-3.5" /></button>
       </div>
@@ -2175,9 +2233,7 @@ const PanelUso: React.FC<{
               datos = totalNodo(fl.nodo);
             } else if (fl.tipo === 'act') {
               etq = <span className="truncate"><span className="font-mono text-[10px] mr-2">{fl.vt.cod}</span>{fl.vt.nombre}</span>;
-              // Las actividades de otra fase se dejan en gris y sin valores
-              if (pasaFase(fl.vt)) datos = { b: serieDeAct(fl.vt.i, 'b'), a: serieDeAct(fl.vt.i, 'a'), r: serieDeAct(fl.vt.i, 'r') };
-              else texto = '#A3ADB3';
+              datos = { b: serieDeAct(fl.vt.i, 'b'), a: serieDeAct(fl.vt.i, 'a'), r: serieDeAct(fl.vt.i, 'r') };
             } else {
               etq = <span className="truncate italic text-[#7A868D]"><span className="font-mono text-[10px] mr-2">{fl.a.activityId}</span>{fl.a.descripcion}</span>;
             }

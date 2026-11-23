@@ -26,6 +26,9 @@ export interface AjustesVista {
   verLB?: boolean;
   /** Panel Activity Usage: Units/Cost/Resources, Personnel/Crews, series, acumulado, fases y altura. */
   uso?: { medida?: string; vistaRec?: string; series?: string[]; acumulado?: boolean; fases?: string[]; alto?: number };
+  /** Filtros globales de la barra superior: fase (procura/flete/montaje/construccion) y ubicación. */
+  fases?: string[];
+  ubicaciones?: string[];
 }
 export interface VistaGuardada { nombre: string; ajustes: AjustesVista; guardada: string }
 interface DocVistas { vistas: VistaGuardada[]; porDefecto: string | null }
