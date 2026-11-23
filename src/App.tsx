@@ -1946,7 +1946,7 @@ export default function App() {
                   id="btn-cronograma-p6"
                   onClick={() => setShowP6(true)}
                   className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border transition-all cursor-pointer shadow-xs active:scale-95 bg-white text-[#5A6A74] border-[#D5DEE2] hover:bg-[#F5F8F9] hover:text-[#14212A]"
-                  title="Abrir T₃: el cronograma (XER de Primavera) para consultar, actualizar, reprogramar y exportar"
+                  title="Abrir Trakciona T₃: el cronograma (XER) para consultar, actualizar, reprogramar y exportar"
                 >
                   <span className="text-sm leading-none">🗓️</span>
                   <span>T<sub className="text-[0.75em] leading-none">3</sub></span>

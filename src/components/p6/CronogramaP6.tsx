@@ -777,7 +777,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     setOcupado('Reading the XER…');
     try {
       const texto = decodificarXer(new Uint8Array(await file.arrayBuffer()));
-      if (!texto.startsWith('ERMHDR')) throw new Error('The file does not look like a Primavera P6 XER.');
+      if (!texto.startsWith('ERMHDR')) throw new Error('The file does not look like a Trakciona T₃ XER.');
       setNombreArchivo(file.name);
       abrirTexto(texto);
       setSinGuardar(true);
@@ -1190,7 +1190,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             <Layers className="w-8 h-8 mx-auto text-[#312E81]" />
             <h3 className="font-bold">There is no T<sub className="text-[0.75em]">3</sub> schedule yet</h3>
             <p className="text-xs text-[#5A6A74]">
-              {editable ? 'Export the project from Primavera P6 as XER and import it here.' : 'The administrator has not loaded the Primavera P6 XER yet.'}
+              {editable ? 'Export the project from Trakciona T₃ as XER and import it here.' : 'The administrator has not loaded the Trakciona T₃ XER yet.'}
             </p>
             {editable && (
               <button onClick={() => fileRef.current?.click()} className="px-4 py-2 rounded-xl bg-[#312E81] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer">
@@ -1519,7 +1519,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                       const ini = minutosDeFecha(a.start ?? a.blStart), fin = minutosDeFecha(a.finish ?? a.blFinish);
                       return (
                         <div key={`m${a.activityId}`} className="absolute flex text-[11px] border-b border-[#F0F2F4] bg-[#FAFAF7] text-[#7A868D] italic"
-                          style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt }} title="Item created in the Master that does not exist in the Primavera XER yet">
+                          style={{ top, height: FILA, width: ANCHO_IZQ + anchoGantt }} title="Item created in the Master that does not exist in the Trakciona T₃ XER yet">
                           <div className="sticky left-0 z-[5] flex items-center border-r border-[#D5DEE2] bg-[#FAFAF7]" style={{ width: ANCHO_IZQ }}>
                             {cols.map(c => {
                               const base = `px-1 truncate shrink-0 ${c.der ? 'text-right' : ''}`;
@@ -1666,12 +1666,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           {/* Barra lateral derecha: importar y exportar el XER */}
           <div className="w-[46px] shrink-0 bg-[#ECECEC] border-l border-[#C3C3C3] flex flex-col items-center py-2 gap-1">
             {editable && (
-              <button onClick={() => fileRef.current?.click()} title="Import XER: open an XER exported from Primavera P6"
+              <button onClick={() => fileRef.current?.click()} title="Import XER: open an XER exported from Trakciona T₃"
                 className="w-[38px] h-[36px] rounded flex items-center justify-center cursor-pointer border border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]">
                 <Upload className="w-5 h-5" />
               </button>
             )}
-            <button onClick={exportar} title="Export XER: download the XER to import it into Primavera P6"
+            <button onClick={exportar} title="Export XER: download the XER to import it into Trakciona T₃"
               className="w-[38px] h-[36px] rounded flex items-center justify-center cursor-pointer border border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]">
               <Download className="w-5 h-5" />
             </button>

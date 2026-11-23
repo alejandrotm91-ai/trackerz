@@ -1211,7 +1211,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                       </div>
                       <h4 className="text-sm font-bold text-white mb-1">Analizando Base de Datos de Planificación...</h4>
                       <p className="text-xs text-slate-405 max-w-sm mx-auto leading-relaxed">
-                        Transmitiendo métricas agregadas del WBS, estados de Primavera P6 y coeficientes de holgura total al agente de Gemini...
+                        Transmitiendo métricas agregadas del WBS, estados de Trakciona T₃ y coeficientes de holgura total al agente de Gemini...
                       </p>
                     </div>
                   ) : aiError ? (
@@ -3564,7 +3564,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
                       }
                     }}
                     className="bg-white border border-emerald-300 rounded px-1 py-0.5 text-[9.5px] font-bold text-slate-800 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer min-w-[85px] max-w-[95px]"
-                    title="Modificar fecha de corte de Primavera"
+                    title="Modificar fecha de corte de Trakciona T₃"
                   />
                 ) : (
                   <span className="text-[10px] font-extrabold text-emerald-900 bg-white border border-emerald-200/50 px-2 py-0.5 rounded-lg">
@@ -5024,7 +5024,7 @@ export const CronogramaTab: React.FC<CronogramaTabProps> = ({
           
           if (!s || !f) {
             return {
-              phase: "Fechas no definidas en Primavera P6",
+              phase: "Fechas no definidas en Trakciona T₃",
               badge: "bg-slate-100 text-slate-600",
               percent: 0,
               colorClass: "text-slate-500",
