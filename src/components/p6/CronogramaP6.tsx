@@ -501,8 +501,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs, ambito, clasifXer]);
 
   const enEjecucion = agrupacion === 'ejecucion' && hayMaster;
-  /** Sangría del Activity ID: en la Constructiva, mínima (los niveles ya los marcan las bandas) para ver el código entero. */
-  const sangriaId = (nivel: number) => (enEjecucion ? 4 : 4 + nivel * 10);
+  /** Sangría del Activity ID: mínima en todas las vistas (los niveles ya los marcan las bandas) para ver el código entero. */
+  const sangriaId = (_nivel: number) => 4;
+  /** Sangría de la etiqueta de una banda (WBS o grupo): poca por nivel, para que el nombre se lea entero. */
+  const sangriaBanda = (nivel: number) => 4 + nivel * 4;
   // Al entrar en la vista constructiva, el proyecto (nivel superior) se ve abierto
   React.useEffect(() => { if (enEjecucion) setAbiertos(prev => (prev.has(RAIZ_CONSTRUCTIVA) ? prev : new Set([...prev, RAIZ_CONSTRUCTIVA]))); }, [enEjecucion]);
   React.useEffect(() => { if (!enEjecucion) setFiltroEstado(f => (f === 'soloMaster' ? 'todas' : f)); }, [enEjecucion]);
@@ -1462,7 +1464,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                               };
                               return (
                                 <>
-                                  <div className="flex items-center gap-1 min-w-0 shrink-0 pr-1" style={{ paddingLeft: 4 + fl.nivel * 10, width: anchoEtq }}>
+                                  <div className="flex items-center gap-1 min-w-0 shrink-0 pr-1" style={{ paddingLeft: sangriaBanda(fl.nivel), width: anchoEtq }}>
                                     {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
                                     <span className="truncate" title={`${n.codCompleto} · ${n.nombre}`}>{opcGrupo.codigo && n.codCompleto && <><span className={claro ? 'opacity-70' : 'opacity-80'}>{n.codCompleto}</span>&nbsp; </>}{(opcGrupo.nombre || !n.codCompleto) && n.nombre}</span>
                                     <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({filtroEstado === 'soloMaster' ? `${n.nSolo ?? 0} Master only` : n.n})</span>
