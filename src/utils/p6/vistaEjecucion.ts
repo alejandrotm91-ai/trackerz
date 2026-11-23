@@ -99,13 +99,20 @@ export function minutosDeFecha(d: Date | string | null | undefined): number | nu
 }
 
 /** Ámbito de la vista de ejecución: construcción (grupos con «Construccion»/«Constr.») o equipamiento (el resto). */
-export type Ambito = 'todo' | 'construccion' | 'equipamiento';
+export type Ambito = 'todo' | 'construccion' | 'equipamiento' | 'aereas';
+
+/** SCAP de la vista «Obras Aéreas» (tubería aérea, sus soportes y las válvulas, en todas sus fases). */
+export const SCAP_OBRAS_AEREAS = ['Soport.Tub.Aerea', 'Tub.Aerea', 'Valvulas'];
+const normScap = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+const SCAP_AEREAS_N = new Set(SCAP_OBRAS_AEREAS.map(normScap));
+export const esObraAerea = (scap: string | null | undefined) => SCAP_AEREAS_N.has(normScap(String(scap ?? '')));
 
 export const esConstruccion = (grupo: string | null | undefined) => /constr/i.test(String(grupo ?? ''));
 
 /** ¿La actividad entra en el ámbito elegido? (grupo según el XER o el Master; sin datos del Master → equipamiento) */
 export function enAmbito(a: Actividad | undefined, ambito: Ambito, udf?: Clasificacion): boolean {
   if (ambito === 'todo') return true;
+  if (ambito === 'aereas') return !!a && esObraAerea(valorCampo(a, 'scap', udf));
   const constr = !!a && esConstruccion(valorCampo(a, 'grupo', udf));
   return ambito === 'construccion' ? constr : !constr;
 }

@@ -411,7 +411,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       codigos.add(v.cod);
       if (wbsExcluidos.has(v.wbs)) { excluidas++; continue; }
       if (ocultoEnEjecucion(v.cod)) continue;
-      if (wbsEspejo.has(v.wbs)) { const n = nodoEspejo(v.wbs); n.tareas.push(v); grupoDeAct.set(v.i, n.id); continue; }
+      if (wbsEspejo.has(v.wbs)) { if (ambito === 'aereas') continue; const n = nodoEspejo(v.wbs); n.tareas.push(v); grupoDeAct.set(v.i, n.id); continue; }
       const a = idxMaster.get(v.cod);
       const udf = clasifXer.get(v.cod);
       // Las actividades del XER sin datos en el Master no tienen grupo propio; los hitos se ubican abajo
@@ -471,6 +471,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           if (constr === undefined) constr = ambitoPorNombre(v.nombre) ?? mayoria(prim) ?? mayoria(seg);
           if (constr === undefined) { quedan.push(v); continue; }
           esConstr.set(v.i, constr);
+          if (ambito === 'aereas') continue; // Obras Aéreas: solo sus SCAP, sin hitos sueltos
           if (ambito !== 'todo' && constr !== (ambito === 'construccion')) continue; // de otro ámbito: no se muestra
           // En la vista combinada, si no hay relacionadas de su ámbito, va con cualquiera de ellas
           const g = grupoMasComun(prim, constr) ?? grupoMasComun(seg, constr)
@@ -1331,11 +1332,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 </select>
                 {enEjecucion && (
                   <select value={ambito} onChange={e => { setAmbito(e.target.value as Ambito); setAbiertos(new Set([RAIZ_CONSTRUCTIVA])); }}
-                    title="Construction: Master groups with «Construccion» or «Constr.»; Equipment: the rest"
+                    title="Construction: Master groups with «Construccion» or «Constr.»; Equipment: the rest; Obras Aéreas: SCAP Soport.Tub.Aerea, Tub.Aerea and Valvulas"
                     className={`border rounded-lg px-2 py-1.5 font-semibold ${ambito !== 'todo' ? 'bg-[#EEF0FB] border-[#312E81] text-[#312E81]' : 'bg-white border-[#D5DEE2]'}`}>
                     <option value="todo">Construction & Equipment</option>
                     <option value="construccion">Construction</option>
                     <option value="equipamiento">Equipment</option>
+                    <option value="aereas">Obras Aéreas</option>
                   </select>
                 )}
                 <div className="relative">
