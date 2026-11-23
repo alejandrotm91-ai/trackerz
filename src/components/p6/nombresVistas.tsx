@@ -2,11 +2,12 @@
  * Nombres de las vistas de T₃ que cada usuario puede cambiar: las agrupaciones (T₃ WBS /
  * Construction) y los ámbitos de la Constructiva (Construction & Equipment, Construction,
  * Equipment, Obras Aéreas). Solo cambia el texto en pantalla; los valores internos siguen igual.
+ * Se renombran en el propio desplegable (lápiz en cada opción).
  * Se guardan en el servidor por usuario (`/api/prefs/p6_nombres_vistas`) y, para mostrarlos al
  * instante al abrir, también en este navegador (localStorage `p6.nombresVistas`).
  */
 import React from 'react';
-import { Pencil, RotateCcw, X } from 'lucide-react';
+import { Check, ChevronDown, Pencil, RotateCcw } from 'lucide-react';
 import { apiFetch } from '../../utils/api';
 
 export type ClaveVista = 'wbs' | 'ejecucion' | 'todo' | 'construccion' | 'equipamiento' | 'aereas';
@@ -71,66 +72,99 @@ export function useNombresVistas() {
   return { nombre, propios, guardar };
 }
 
-/** Botón de lápiz con la ventana para renombrar las vistas. */
-export const BotonNombresVistas: React.FC<{
+/**
+ * Desplegable de vistas que se renombra en el propio desplegable: cada opción tiene un lápiz; al
+ * pulsarlo, su nombre se edita en el sitio (Enter o clic fuera guarda, Esc cancela, ↺ vuelve al
+ * nombre por defecto). El nombre se guarda para el usuario.
+ */
+export const DesplegableVistas = <V extends ClaveVista>({
+  id, valor, opciones, prefijo = '', onCambiar, nombre, propios, guardar, mostrar, title, disabled, activo,
+}: {
+  id: string;
+  valor: V;
+  opciones: V[];
+  prefijo?: string;
+  onCambiar: (v: V) => void;
+  nombre: (k: ClaveVista) => string;
   propios: NombresVistas;
   guardar: (n: NombresVistas) => Promise<void>;
   mostrar: (t: string) => void;
-}> = ({ propios, guardar, mostrar }) => {
+  title?: string;
+  disabled?: boolean;
+  /** Clases del botón cuando la vista elegida está «activa» (resaltada). */
+  activo?: string;
+}) => {
   const [abierto, setAbierto] = React.useState(false);
-  const [borrador, setBorrador] = React.useState<NombresVistas>({});
-  const [guardando, setGuardando] = React.useState(false);
+  const [editando, setEditando] = React.useState<V | null>(null);
+  const [texto, setTexto] = React.useState('');
   const caja = React.useRef<HTMLDivElement>(null);
-  React.useEffect(() => {
-    if (!abierto) return;
-    const fuera = (e: MouseEvent) => { if (caja.current && !caja.current.contains(e.target as Node)) setAbierto(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAbierto(false); };
-    document.addEventListener('mousedown', fuera);
-    document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('mousedown', fuera); document.removeEventListener('keydown', esc); };
-  }, [abierto]);
-  const ok = async () => {
-    setGuardando(true);
+  const cerrar = () => { setAbierto(false); setEditando(null); };
+  const renombrar = async (k: V, nuevo: string) => {
+    setEditando(null);
+    const limpio = nuevo.trim();
+    if ((propios[k] || '') === (limpio === NOMBRES_VISTA_DEF[k] ? '' : limpio)) return;
     try {
-      await guardar(borrador);
-      mostrar('View names saved');
-      setAbierto(false);
+      await guardar({ ...propios, [k]: limpio });
+      mostrar(limpio && limpio !== NOMBRES_VISTA_DEF[k] ? `View renamed to «${limpio}»` : `View name back to «${NOMBRES_VISTA_DEF[k]}»`);
     } catch (e) {
-      mostrar(`Could not save the view names: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setGuardando(false);
+      mostrar(`Could not save the view name: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
+  const editRef = React.useRef<{ k: V; texto: string } | null>(null);
+  editRef.current = editando ? { k: editando, texto } : null;
+  React.useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e: MouseEvent) => {
+      if (caja.current && !caja.current.contains(e.target as Node)) {
+        const ed = editRef.current;
+        if (ed) renombrar(ed.k, ed.texto);
+        cerrar();
+      }
+    };
+    document.addEventListener('mousedown', fuera);
+    return () => document.removeEventListener('mousedown', fuera);
+  }, [abierto, propios]);
   return (
-    <div className="relative" ref={caja}>
-      <button type="button" title="Rename views (only the names you see; saved for your user)"
-        onClick={() => { setBorrador({ ...propios }); setAbierto(v => !v); }}
-        className={`border rounded-lg p-1.5 ${abierto ? 'bg-[#EEF0FB] border-[#312E81] text-[#312E81]' : 'bg-white border-[#D5DEE2] text-[#5A6A74] hover:text-[#312E81]'}`}>
-        <Pencil size={14} />
+    <div className="relative" ref={caja} id={id}>
+      <button type="button" disabled={disabled} title={title}
+        onClick={() => (abierto ? cerrar() : setAbierto(true))}
+        onKeyDown={e => { if (e.key === 'Escape') cerrar(); }}
+        className={`border rounded-lg pl-2 pr-1.5 py-1.5 font-semibold flex items-center gap-1 disabled:opacity-50 ${activo || 'bg-white border-[#D5DEE2] text-[#14212A]'}`}>
+        <span className="whitespace-nowrap">{prefijo}{nombre(valor)}</span>
+        <ChevronDown size={14} className="shrink-0" />
       </button>
       {abierto && (
-        <div className="absolute z-50 mt-1 left-0 w-[340px] bg-white border border-[#D5DEE2] rounded-xl shadow-xl p-3 text-xs">
-          <div className="flex items-center justify-between mb-2">
-            <b className="text-[#14212A]">Rename views</b>
-            <button type="button" title="Close" onClick={() => setAbierto(false)} className="text-[#5A6A74] hover:text-[#14212A]"><X size={14} /></button>
-          </div>
-          <div className="space-y-2">
-            {FILAS.map(([k, desc]) => (
-              <label key={k} className="block">
-                <span className="text-[10.5px] text-[#5A6A74]">{desc}</span>
-                <input id={`p6-nombre-vista-${k}`} value={borrador[k] ?? ''} maxLength={MAX} placeholder={NOMBRES_VISTA_DEF[k]}
-                  onChange={e => setBorrador(b => ({ ...b, [k]: e.target.value }))}
-                  onKeyDown={e => { if (e.key === 'Enter') ok(); }}
-                  className="mt-0.5 w-full border border-[#D5DEE2] rounded-md px-2 py-1 focus:outline-none focus:border-[#312E81]" />
-              </label>
-            ))}
-          </div>
-          <div className="flex items-center justify-between mt-3">
-            <button type="button" onClick={() => setBorrador({})} title="Back to the default names"
-              className="flex items-center gap-1 text-[#5A6A74] hover:text-[#14212A]"><RotateCcw size={12} /> Default names</button>
-            <button type="button" disabled={guardando} onClick={ok}
-              className="bg-[#312E81] text-white font-semibold rounded-lg px-3 py-1.5 disabled:opacity-50">Save</button>
-          </div>
+        <div role="listbox" className="absolute z-50 mt-1 left-0 min-w-full w-max max-w-[360px] bg-white border border-[#D5DEE2] rounded-lg shadow-xl py-1 text-xs text-[#14212A]">
+          {opciones.map(k => (
+            <div key={k} role="option" aria-selected={k === valor} data-vista={k}
+              className={`group flex items-center gap-1 px-2 py-1 ${k === valor ? 'bg-[#EEF0FB]' : 'hover:bg-[#F4F6F8]'}`}>
+              {editando === k ? (
+                <>
+                  <input autoFocus value={texto} maxLength={MAX} placeholder={NOMBRES_VISTA_DEF[k]}
+                    onChange={e => setTexto(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') renombrar(k, texto);
+                      if (e.key === 'Escape') { e.stopPropagation(); setEditando(null); }
+                    }}
+                    className="flex-1 min-w-[160px] border border-[#312E81] rounded px-1.5 py-0.5 focus:outline-none" />
+                  <button type="button" title="Save name (Enter)" onMouseDown={e => e.preventDefault()} onClick={() => renombrar(k, texto)}
+                    className="p-0.5 text-[#312E81] hover:bg-[#EEF0FB] rounded"><Check size={13} /></button>
+                  <button type="button" title={`Back to the default name «${NOMBRES_VISTA_DEF[k]}»`} onMouseDown={e => e.preventDefault()} onClick={() => renombrar(k, '')}
+                    className="p-0.5 text-[#5A6A74] hover:bg-[#F4F6F8] rounded"><RotateCcw size={12} /></button>
+                </>
+              ) : (
+                <>
+                  <button type="button" className="flex-1 text-left py-0.5 whitespace-nowrap font-medium"
+                    onClick={() => { onCambiar(k); cerrar(); }}>
+                    {prefijo}{nombre(k)}
+                  </button>
+                  <button type="button" title="Rename this view (only for you)"
+                    onClick={() => { setTexto(propios[k] || nombre(k)); setEditando(k); }}
+                    className="p-0.5 text-[#94A3AD] hover:text-[#312E81] hover:bg-[#EEF0FB] rounded"><Pencil size={12} /></button>
+                </>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

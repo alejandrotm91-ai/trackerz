@@ -18,7 +18,7 @@ import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xe
 import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseUso, type LineaBaseFilas, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
 import { DialogoNivelacion } from './nivelacionP6';
 import { MenuVistas, type AjustesVista } from './vistasP6';
-import { BotonNombresVistas, useNombresVistas } from './nombresVistas';
+import { DesplegableVistas, useNombresVistas } from './nombresVistas';
 import { DialogoCuadrillas, useMatrizPersonal } from './cuadrillasP6';
 import { estimarCuadrillas, POR_DEFECTO } from '../../utils/p6/cuadrillas';
 import { CUADRILLA_DISCIPLINA, FACTOR_LOCAL, esPrecomEq, rendimientoDe, type Disciplina } from '../../utils/p6/rendimientos';
@@ -1349,23 +1349,18 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           <div className={`px-4 py-2 bg-white border-b border-[#D5DEE2] flex items-center gap-2 flex-wrap shrink-0 text-xs ${vista === 'actividades' ? '' : 'hidden'}`}>
             {vista === 'actividades' && (
               <>
-                <select value={enEjecucion ? 'ejecucion' : 'wbs'} onChange={e => { setAgrupacion(e.target.value as 'wbs' | 'ejecucion'); setAbiertos(new Set([RAIZ_CONSTRUCTIVA, ...arbolWbs.raices.map(x => x.id)])); }}
-                  disabled={!hayMaster} title={hayMaster ? 'How activities are grouped' : 'Load the Master to use the Construction view'}
-                  className={`border rounded-lg px-2 py-1.5 font-semibold ${enEjecucion ? 'bg-[#312E81] border-[#312E81] text-white' : 'bg-white border-[#D5DEE2]'}`}>
-                  <option value="wbs">Group by: {nv('wbs')}</option>
-                  <option value="ejecucion">Group by: {nv('ejecucion')}</option>
-                </select>
+                <DesplegableVistas id="p6-agrupacion" valor={enEjecucion ? 'ejecucion' : 'wbs'} opciones={['wbs', 'ejecucion']} prefijo="Group by: "
+                  onCambiar={v => { setAgrupacion(v); setAbiertos(new Set([RAIZ_CONSTRUCTIVA, ...arbolWbs.raices.map(x => x.id)])); }}
+                  disabled={!hayMaster} title={hayMaster ? 'How activities are grouped (pencil: rename a view)' : 'Load the Master to use the Construction view'}
+                  nombre={nv} propios={nombresVista.propios} guardar={nombresVista.guardar} mostrar={mostrar}
+                  activo={enEjecucion ? 'bg-[#312E81] border-[#312E81] text-white' : undefined} />
                 {enEjecucion && (
-                  <select value={ambito} onChange={e => { setAmbito(e.target.value as Ambito); setAbiertos(new Set([RAIZ_CONSTRUCTIVA])); }}
-                    title={`${nv('construccion')}: Master groups with «Construccion» or «Constr.»; ${nv('equipamiento')}: the rest; ${nv('aereas')}: SCAP Soport.Tub.Aerea, Tub.Aerea and Valvulas`}
-                    className={`border rounded-lg px-2 py-1.5 font-semibold ${ambito !== 'todo' ? 'bg-[#EEF0FB] border-[#312E81] text-[#312E81]' : 'bg-white border-[#D5DEE2]'}`}>
-                    <option value="todo">{nv('todo')}</option>
-                    <option value="construccion">{nv('construccion')}</option>
-                    <option value="equipamiento">{nv('equipamiento')}</option>
-                    <option value="aereas">{nv('aereas')}</option>
-                  </select>
+                  <DesplegableVistas id="p6-ambito" valor={ambito} opciones={['todo', 'construccion', 'equipamiento', 'aereas']}
+                    onCambiar={v => { setAmbito(v); setAbiertos(new Set([RAIZ_CONSTRUCTIVA])); }}
+                    title={`${nv('construccion')}: Master groups with «Construccion» or «Constr.»; ${nv('equipamiento')}: the rest; ${nv('aereas')}: SCAP Soport.Tub.Aerea, Tub.Aerea and Valvulas (pencil: rename a view)`}
+                    nombre={nv} propios={nombresVista.propios} guardar={nombresVista.guardar} mostrar={mostrar}
+                    activo={ambito !== 'todo' ? 'bg-[#EEF0FB] border-[#312E81] text-[#312E81]' : undefined} />
                 )}
-                {hayMaster && <BotonNombresVistas propios={nombresVista.propios} guardar={nombresVista.guardar} mostrar={mostrar} />}
                 <MenuVistas inicio={inicioVistas} mostrar={mostrar} esAdmin={editable} nombreVista={nv}
                   actual={(): AjustesVista => ({ agrupacion, niveles, ambito, opcGrupo, paletas, columnas: columnasSel, orden, filtroEstado, filtrosUdf, px, verUso, verRelaciones, verLB, uso: usoCfg })}
                   onAplicar={a => {
