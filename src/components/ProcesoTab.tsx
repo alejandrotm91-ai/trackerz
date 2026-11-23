@@ -24,6 +24,8 @@ import {
   fracs,
   stateOf,
   stateOfItems,
+  revisionValvulas,
+  pctValvula,
   sentence,
   readMaster,
   P5,
@@ -74,6 +76,8 @@ export const ProcesoTab: React.FC = () => {
 
   // Built domain model (869 equipments from Master)
   const model = useMemo(() => build(raw), [raw]);
+  // Datos de válvulas que conviene corregir en el Master (regla de válvulas)
+  const revValv = useMemo(() => revisionValvulas(raw), [raw]);
 
   // UI state (Default to 'Todos los procesos' upon entering the tab)
   const [proc, setProc] = useState<string>('*');
@@ -1143,6 +1147,21 @@ export const ProcesoTab: React.FC = () => {
                     No incluye {fourthCardData.materialPartidas} partidas de material (m, kg, ton, m²)
                   </div>
                 )}
+                {(revValv.sobre100.length > 0 || revValv.sinRubros.length > 0) && (
+                  <div
+                    className="text-[11px] text-[#C9701E] mt-0.5"
+                    title={[
+                      ...revValv.sobre100.map(x => `${x.id}: % Ex ${Math.round(x.pex * 100)} % (${fq(x.qty)} u) — se cuenta con el tope de 100 %`),
+                      ...revValv.sinRubros.map(x => `${x.id}${x.qty != null ? ` (${fq(x.qty)} u)` : ''}: .p6 sin rubros — no suma`),
+                    ].join('\n')}
+                  >
+                    Válvulas a revisar en el Master:{' '}
+                    {[
+                      revValv.sobre100.length ? `${revValv.sobre100.length} con % Ex > 100 %` : '',
+                      revValv.sinRubros.length ? `${revValv.sinRubros.length} .p6 sin rubros` : '',
+                    ].filter(Boolean).join(' · ')}
+                  </div>
+                )}
               </div>
 
               {/* Montos de la selección (las tres etapas; válvulas una sola vez) */}
@@ -1831,9 +1850,17 @@ export const ProcesoTab: React.FC = () => {
                                                       {it.valv && (
                                                         <span
                                                           className="inline-block mt-0.5 ml-1 text-[10.5px] font-semibold text-[#C9701E] border border-[#C9701E] px-1 py-0.5 rounded whitespace-nowrap"
-                                                          title="Rubro .p6 de válvulas sin desglose D/E/F: suministro e instalación en una sola actividad; su avance se aplica igual a las 3 etapas"
+                                                          title={`Rubro de válvulas del paquete ${it.valv} (${it.nv} rubros), suministro e instalación en una sola actividad. Su % Ex da el estado: fabricación terminada desde 60 % (si no, en curso), flete 60–80 %, instalación 80–100 %.`}
                                                         >
-                                                          S+I · {it.nv} partidas
+                                                          S+I · {it.valv} · {Math.round(pctValvula(it.pexValv) * 100)} %
+                                                        </span>
+                                                      )}
+                                                      {it.valv && it.pexValv != null && it.pexValv > 1.005 && (
+                                                        <span
+                                                          className="inline-block mt-0.5 ml-1 text-[10.5px] font-semibold text-[#B83227] border border-[#B83227] px-1 py-0.5 rounded whitespace-nowrap"
+                                                          title="El Master trae un % Ex sobre 100 %; se cuenta con el tope de 100 %. Probablemente es un error de carga."
+                                                        >
+                                                          % Ex {Math.round(it.pexValv * 100)} % en el Master
                                                         </span>
                                                       )}
                                                       {it.valv && it.provs && (

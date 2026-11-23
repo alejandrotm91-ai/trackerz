@@ -40,6 +40,7 @@ export interface Equipo {
   valv?: string;         // (new v32) rubro .p6 de válvulas
   nv?: number;           // (new v32) cantidad de partidas de válvulas
   provs?: string;        // (new v32) desglose de proveedores por unidades
+  pexValv?: number | null; // % Ex del rubro de válvulas tal como viene en el Master (sin tope)
 }
 
 export interface StageAgg {

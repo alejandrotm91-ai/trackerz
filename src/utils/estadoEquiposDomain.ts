@@ -105,6 +105,8 @@ export function tieneSubc(it: Equipo): boolean {
 export function stSt(it: Equipo, k: StageKey): 'done' | 'cur' | 'none' {
   const s = it.s[k];
   if (s.done) return 'done';
+  // Válvulas: su estado sale del % Ex del rubro (regla de válvulas en buildValves)
+  if (it.valv) return s.status === 'In Progress' ? 'cur' : 'none';
   if (!tieneSubc(it)) return 'none';
   if (k === 'D' && !s.missing) return 'cur';
   return ((s.ex || 0) > 0 || s.status === 'In Progress') ? 'cur' : 'none';
@@ -137,8 +139,9 @@ export function kfAny(kf: Record<string, string[]>): boolean {
 export const CABLE_RE = /^\s*(?:conductor|cables?\b|alimentador de cable|enlace de fibra|fibra [oó]ptica|punto de (?:datos cable|fibra)|patch cord|pigtail|fusi[oó]n de pigtail)/i;
 export const isCable = (it: Equipo): boolean => /^conductor aislado$/i.test(it.fam) || CABLE_RE.test(it.desc || '');
 
-/** Activity ID que no se cuentan como equipos en la pestaña Proceso: base sin .D/.E/.F, o el
- *  rubro .p6 completo en las válvulas. */
+/** Activity ID que no se cuentan como equipos en la pestaña Proceso: base sin .D/.E/.F, o en
+ *  válvulas el rubro o su .p6. (Los .p6 de purga y control 11.x y el 15.3.4 ya no se excluyen:
+ *  con la regla de válvulas cuentan sus rubros, no la cantidad de la .p6.) */
 export const EQUIPOS_EXCLUIDOS = new Set<string>([
   '12.7.4.2', // Iluminación exterior
   '3.13.3.4',
@@ -150,15 +153,6 @@ export const EQUIPOS_EXCLUIDOS = new Set<string>([
   '16.3.3.3.3.5',
   '16.3.3.3.3.6',
   '16.3.3.3.3.7',
-  '11.1.4.16.p6', // Válvulas de purga y control
-  '11.6.3.12.p6', // Válvulas de purga y control
-  '11.12.3.2.7.p6',
-  '11.3.3.6.p6',
-  '11.4.3.9.p6',
-  '11.2.3.15.p6',
-  '11.12.1.4.5.p6',
-  '11.13.4.1.p6',
-  '15.3.4.p6',
 ]);
 
 export const eqU = (it: Equipo): number => it.und === 'u' ? it.qty : it.und === 'glb' ? 1 : 0;
@@ -295,115 +289,130 @@ export const isValvulaScap = (scap: string | null | undefined): boolean => {
 /** Reparto del monto de los paquetes de válvulas entre etapas. */
 export const VALV_PARTE: Record<StageKey, number> = { D: 0.6, E: 0.2, F: 0.2 };
 
-export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
-  const par = new Map<string, { r: any[]; q: number; ex: number; v: number; vx: number; vp: number; hayPlan: boolean; n: number; sub: Map<string, number> }>();
+/**
+ * Regla de válvulas (memoria «Regla válvulas – pestaña Proceso»). Se cuenta cada rubro que cuelga
+ * de una `.p6` de válvulas: Activity ID con el prefijo de la `.p6` sin «.p6» más un punto (el
+ * prefijo más largo gana), SCAP Válvulas, Unidad «u» y Cantidad > 0. Su % Ex (no numérico o vacío
+ * = 0; redondeado a 2 decimales; tope 100 %) da el estado de cada etapa:
+ * - Compra y fabricación: ≥ 60 % terminada; si no, en curso (toda la valvulería está en
+ *   fabricación aunque el avance no se refleje). Nunca «Sin iniciar».
+ * - Flete: ≥ 80 % terminada; 60–80 % en curso; < 60 % sin iniciar.
+ * - Instalación: 100 % terminada; 80–100 % en curso; < 80 % sin iniciar.
+ * Lo ejecutado equivalente de cada etapa es la parte de su tramo de % Ex (0–60, 60–80, 80–100):
+ * en fabricación, Cantidad × min(% Ex, 60 %) / 60 %. No se usa la columna p6 de la `.p6`
+ * (mezcla suministro e instalación). Esta regla manda sobre la del SubC.
+ */
+export const VALV_TRAMO: Record<StageKey, [number, number]> = { D: [0, 0.6], E: [0.6, 0.8], F: [0.8, 1] };
+
+/** % Ex de un rubro de válvulas según la regla: 0..1, redondeado a 2 decimales. */
+export const pctValvula = (v: any): number => Math.min(Math.round((isN(v) ? v : 0) * 100) / 100, 1);
+
+export interface RevisionValvulas {
+  /** Rubros con % Ex sobre 100 % en el Master (se cuentan con el tope). */
+  sobre100: { id: string; pex: number; qty: number }[];
+  /** `.p6` de válvulas sin rubros: no suman. */
+  sinRubros: { id: string; qty: number | null }[];
+  /** Rubros cuyo % Ex no es numérico (p. ej. «Adicional»): cuentan como 0. */
+  noNumericos: number;
+}
+
+/** Paquetes `.p6` de válvulas y sus rubros, según la regla de la memoria. */
+function rubrosValvulas(raw: RawSnapshot) {
   const T = (v: any) => v == null ? '' : String(v).trim();
-
-  for (const r of raw.m) {
-    if (r[14] === 'VP') {
-      par.set(T(r[0]), { r, q: 0, ex: 0, v: 0, vx: 0, vp: 0, hayPlan: false, n: 0, sub: new Map() });
-    }
-  }
-
+  const p6 = new Map<string, any[]>();
+  for (const r of raw.m) if (r[14] === 'VP') p6.set(T(r[0]), r);
+  const prefijos = [...p6.keys()].map(id => id.slice(0, -3)).sort((a, b) => b.length - a.length);
+  const padre = (aid: string) => prefijos.find(p => aid.startsWith(p + '.'));
+  const rubros: { r: any[]; padre: string; q: number; p: number }[] = [];
   for (const r of raw.m) {
     if (r[14] !== 'V') continue;
-    const P = par.get(T(r[23]));
-    if (!P) continue;
-    if (T(r[2]).toLowerCase() !== 'u') continue;
+    const aid = T(r[0]);
+    if (/\.p6$/i.test(aid) || !isValvulaScap(T(r[11])) || T(r[2]).toLowerCase() !== 'u') continue;
     const q = isN(r[3]) ? r[3] : 0;
-    if (!(q > 0)) continue;
-    const st = r[7] && r[7] !== 'p6' ? T(r[7]) : null;
-    let ex = isN(r[16]) ? r[16] : (isN(r[15]) ? r[15] * q : 0);
-    if (st === 'Completed' || ex > q) ex = q;
-    P.q += q;
-    P.ex += ex;
-    P.v += isN(r[4]) ? r[4] : 0;
-    P.vx += isN(r[17]) ? r[17] : 0;
-    if (isN(r[24])) { P.vp += r[24]; P.hayPlan = true; }
-    P.n++;
-    const sc = T(r[5]) || '(sin proveedor)';
-    P.sub.set(sc, (P.sub.get(sc) || 0) + q);
+    const pp = padre(aid);
+    if (!(q > 0) || !pp) continue;
+    rubros.push({ r, padre: pp + '.p6', q, p: pctValvula(r[15]) });
   }
+  return { p6, rubros };
+}
 
-  for (const [pid, P] of par) {
-    if (EQUIPOS_EXCLUIDOS.has(String(pid).trim())) continue;
-    const r = P.r;
-    let [id, name, und, qty, venta, subc, contrato, p6m, ubic, proc, cap, scap, unit, obs, gr, pex, cex, vex, ms, mf, mbl, mtf, comp] = r;
-    const status = p6m && p6m !== 'p6' ? T(p6m) : null;
-    const q = isN(qty) && qty > 0 ? qty : P.q;
-    let ex = isN(cex) ? cex : P.ex;
-    if (ex > q) ex = q;
-    const done = status === 'Completed' || (q > 0 && ex >= q * 0.999);
-    const S: Stage = {
-      id: pid,
-      name,
-      qty: q,
-      venta: isN(venta) && venta > 0 ? venta : P.v,
-      vex: isN(vex) && vex > 0 ? vex : P.vx,
-      vplan: isN(r[24]) && r[24] > 0 ? r[24] : P.hayPlan ? P.vp : null,
-      pex: isN(pex) ? pex : null,
-      ex,
-      done,
-      status,
-      subc: '',
-      start: ms || null,
-      startA: status === 'Completed' || status === 'In Progress',
-      fin: mf || null,
-      finA: status === 'Completed',
-      blf: mbl || null,
-      tf: isN(mtf) ? mtf : null
+export function revisionValvulas(raw: RawSnapshot): RevisionValvulas {
+  const { p6, rubros } = rubrosValvulas(raw);
+  const conRubros = new Set(rubros.map(x => x.padre));
+  return {
+    sobre100: rubros.filter(x => isN(x.r[15]) && x.r[15] > 1.005)
+      .map(x => ({ id: String(x.r[0]).trim(), pex: x.r[15], qty: x.q })),
+    sinRubros: [...p6.entries()].filter(([id]) => !conRubros.has(id) && !EQUIPOS_EXCLUIDOS.has(id))
+      .map(([id, r]) => ({ id, qty: isN(r[3]) ? r[3] : null })),
+    noNumericos: rubros.filter(x => !isN(x.r[15])).length
+  };
+}
+
+export function buildValves(raw: RawSnapshot, items: Map<string, Equipo>) {
+  const T = (v: any) => v == null ? '' : String(v).trim();
+  const { p6, rubros } = rubrosValvulas(raw);
+  const porPaquete = new Map<string, number>();
+  for (const x of rubros) porPaquete.set(x.padre, (porPaquete.get(x.padre) || 0) + 1);
+
+  for (const { r, padre, q, p } of rubros) {
+    const id = T(r[0]);
+    if (EQUIPOS_EXCLUIDOS.has(id) || EQUIPOS_EXCLUIDOS.has(padre)) continue;
+    const P = p6.get(padre) || [];
+    const de = (i: number) => (r[i] != null && r[i] !== '' ? r[i] : P[i]);
+    const venta = isN(r[4]) ? r[4] : 0;
+    const vplan = isN(r[24]) ? r[24] : null;
+    // Venta Ex del Master repartida en cascada (60 % fabricación, 20 % flete, 20 % instalación);
+    // si no la trae, Venta × % Ex.
+    let vex = isN(r[17]) ? r[17] : venta * p;
+    const subc = T(r[5]) || T(P[5]);
+    const etapa = (k: StageKey): Stage => {
+      const [a, b] = VALV_TRAMO[k];
+      const parte = VALV_PARTE[k];
+      const vx = Math.min(Math.max(vex, 0), venta * parte);
+      vex -= vx;
+      const f = Math.min(Math.max((p - a) / (b - a), 0), 1);
+      const done = p >= b - 1e-9;
+      const cur = !done && (k === 'D' || p >= a - 1e-9);
+      return {
+        id,
+        name: String(r[1] || ''),
+        qty: q,
+        venta: venta * parte,
+        vex: k === 'F' ? vx + Math.max(vex, 0) : vx,
+        vplan: vplan == null ? null : vplan * parte,
+        pex: f,
+        ex: q * f,
+        done,
+        status: done ? 'Completed' : cur ? 'In Progress' : null,
+        subc,
+        start: de(18) || null,
+        startA: done || cur,
+        fin: de(19) || null,
+        finA: done,
+        blf: de(20) || null,
+        tf: isN(de(21)) ? de(21) : null
+      };
     };
-    const subs = [...P.sub.entries()].sort((a, b) => b[1] - a[1]);
-    // Con avance de ejecución (cantidad, % o monto) la válvula ya está fabricada
-    const conAvance = ex > 0 || (isN(pex) && pex > 0) || S.vex > 0;
-    const ventaD = S.venta * VALV_PARTE.D;
-    const vexD = Math.min(S.vex, ventaD);
+    const s = { D: etapa('D'), E: etapa('E'), F: etapa('F') };
     const it: Equipo = {
-      base: pid,
-      // El monto del paquete (suministro e instalación) se reparte 60 % compra y fabricación,
-      // 20 % flete y 20 % instalación, en Venta y V. Plan. A la fecha ninguna válvula está
-      // instalada: la instalación queda sin avance (mantiene sus fechas planificadas).
-      // Revisar cuando empiece el montaje de válvulas.
-      s: conAvance ? {
-        // Válvulas con avance: ya fabricadas y esperando embarque. Compra y fabricación terminada;
-        // flete en curso (aún sin unidades en obra). Lo ejecutado va a fabricación y, si lo supera,
-        // el resto a flete.
-        D: {
-          ...S, venta: ventaD, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.D,
-          ex: q, pex: 1, vex: vexD, done: true, status: 'Completed', startA: true, finA: true
-        },
-        E: {
-          ...S, venta: S.venta * VALV_PARTE.E, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.E,
-          ex: 0, pex: 0, vex: S.vex - vexD, done: false, status: 'In Progress', startA: true, finA: false
-        },
-        F: {
-          ...S, venta: S.venta * VALV_PARTE.F, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.F,
-          ex: 0, pex: 0, vex: 0, done: false, status: null, startA: false, finA: false
-        }
-      } : {
-        D: { ...S, venta: S.venta * VALV_PARTE.D, vex: S.vex * VALV_PARTE.D, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.D },
-        E: { ...S, venta: S.venta * VALV_PARTE.E, vex: S.vex * VALV_PARTE.E, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.E },
-        F: {
-          ...S, venta: S.venta * VALV_PARTE.F, vplan: S.vplan == null ? null : S.vplan * VALV_PARTE.F,
-          ex: 0, pex: 0, vex: 0, done: false, status: null, startA: false, finA: false
-        }
-      },
-      valv: pid,
-      nv: P.n,
-      proc: T(proc) || '(sin proceso)',
-      cap: T(cap) || '(sin CAP)',
-      ubic: T(ubic),
-      scap: T(scap),
-      fam: T(scap) || 'Valvulas',
+      base: id,
+      s,
+      valv: padre,
+      nv: porPaquete.get(padre) || 1,
+      pexValv: isN(r[15]) ? r[15] : null,
+      proc: T(de(9)) || '(sin proceso)',
+      cap: T(de(10)) || '(sin CAP)',
+      ubic: T(de(8)),
+      scap: T(de(11)),
+      fam: T(r[12]) || T(de(11)) || 'Valvulas',
       und: 'u',
       qty: q,
-      contrato: T(contrato),
-      comp: T(comp),
+      contrato: T(de(6)),
+      comp: T(de(22)),
       pend: false,
-      desc: String(name || '').replace(/^\s*suministro\s+e\s+instalaci[oó]n\s+de\s+/i, '').trim() || String(name || ''),
-      prov: T(subc) || (subs.length ? subs[0][0] : '(sin proveedor)'),
-      inst: '',
-      provs: subs.map(([k, v]) => `${k} ${fq(v)}`).join(' · ')
+      desc: String(r[1] || '').replace(/^\s*suministro\s*,?\s*(?:e\s+|y\s+)?instalaci[oó]n\s*(?:y\s+prueba\s+)?(?:de\s+)?/i, '').trim() || String(r[1] || ''),
+      prov: subc || '(sin proveedor)',
+      inst: ''
     };
     items.set(it.base, it);
   }
@@ -721,7 +730,9 @@ export function leerEquiposDeLibro(wb: XLSX.WorkBook, name: string): { rows: any
     /* (new v31-v32) válvulas: filas .p6 con SCAP Válvulas (VP) y sus partidas, enlazadas por la columna WBS (V) */
     if (VALV_RE.test(String(cellV(ws, r, C[11]) ?? '')) && !/^0[1234]\./.test(String(g || ''))) {
       if (/\.p6$/.test(aid)) gk = 'VP';
-      else if (/\.p6$/.test(wbs)) gk = 'V';
+      // Rubros: se enlazan con su .p6 por el Activity ID (buildValves); se guardan los de la
+      // columna WBS .p6 y los de unidad «u» con cantidad, por si su WBS no apunta a la .p6
+      else if (/\.p6$/.test(wbs) || (String(cellV(ws, r, C[2]) ?? '').trim() === 'u' && Number(cellV(ws, r, C[3])) > 0)) gk = 'V';
       else continue;
     } else {
       if (!/^0[234]\./.test(String(g || ''))) continue;
