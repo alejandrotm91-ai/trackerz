@@ -500,6 +500,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   }, [m, vts, idxMaster, hayMaster, niveles, arbolWbs, ambito, clasifXer]);
 
   const enEjecucion = agrupacion === 'ejecucion' && hayMaster;
+  /** Sangría del Activity ID: en la Constructiva, mínima (los niveles ya los marcan las bandas) para ver el código entero. */
+  const sangriaId = (nivel: number) => (enEjecucion ? 4 : 4 + nivel * 10);
   // Al entrar en la vista constructiva, el proyecto (nivel superior) se ve abierto
   React.useEffect(() => { if (enEjecucion) setAbiertos(prev => (prev.has(RAIZ_CONSTRUCTIVA) ? prev : new Set([...prev, RAIZ_CONSTRUCTIVA]))); }, [enEjecucion]);
   React.useEffect(() => { if (!enEjecucion) setFiltroEstado(f => (f === 'soloMaster' ? 'todas' : f)); }, [enEjecucion]);
@@ -669,7 +671,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     let clase = '';
     let title: string | undefined;
     switch (c.id) {
-      case 'id': return <div key={c.id} className="px-2 font-mono text-[10px] truncate shrink-0" style={{ width: c.ancho, paddingLeft: 4 + nivel * 10 }} title={v.cod}>{v.cod}</div>;
+      case 'id': return <div key={c.id} className="px-2 font-mono text-[10px] truncate shrink-0" style={{ width: c.ancho, paddingLeft: sangriaId(nivel) }} title={v.cod}>{v.cod}</div>;
       case 'nombre': txt = v.nombre; title = v.nombre; break;
       case 'tipo': txt = NOMBRE_TIPO[v.tipo] ?? v.tipo; break;
       case 'estado': txt = NOMBRE_ESTADO[v.estado] ?? v.estado; break;
@@ -1517,7 +1519,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                           <div className="sticky left-0 z-[5] flex items-center border-r border-[#D5DEE2] bg-[#FAFAF7]" style={{ width: ANCHO_IZQ }}>
                             {cols.map(c => {
                               const base = `px-1 truncate shrink-0 ${c.der ? 'text-right' : ''}`;
-                              if (c.id === 'id') return <div key={c.id} className="px-2 font-mono text-[10px] truncate not-italic shrink-0" style={{ width: c.ancho, paddingLeft: 4 + fl.nivel * 10 }}>{a.activityId}</div>;
+                              if (c.id === 'id') return <div key={c.id} className="px-2 font-mono text-[10px] truncate not-italic shrink-0" style={{ width: c.ancho, paddingLeft: sangriaId(fl.nivel) }} title={String(a.activityId ?? '')}>{a.activityId}</div>;
                               if (c.id === 'nombre') return (
                                 <div key={c.id} className={`${base} flex items-center gap-1`} style={{ width: c.ancho }} title={a.descripcion}>
                                   <span className="truncate">{a.descripcion}</span>
