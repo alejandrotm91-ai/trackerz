@@ -1042,14 +1042,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const enRojo = React.useCallback((v: Vt) => (filtroEstado === 'longest' ? v.lp && v.estado !== 'TK_Complete' : v.tf != null && v.tf <= 0), [filtroEstado]);
   // Resumen de cada WBS para su barra (solo las actividades que pasan el filtro)
   const resumenWbs = React.useMemo(() => {
-    type R = { ini: number | null; fin: number | null; realIni: number | null; realFin: number | null; restIni: number | null; restFin: number | null; roja: boolean; lbIni: number | null; lbFin: number | null; qb: number; qa: number; qr: number; hayQ: boolean };
+    type R = { ini: number | null; fin: number | null; realIni: number | null; realFin: number | null; restIni: number | null; restFin: number | null; roja: boolean; lbIni: number | null; lbFin: number | null; qb: number; qa: number; qr: number; hayQ: boolean; tf: number | null; hdTf: number };
     const out = new Map<string, R>();
     if (!m) return out;
     const filtrandoR = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf || hayFiltroGlobal;
     const mn = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.min(a, b));
     const mx = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.max(a, b));
     const ver = (n: Nodo): R => {
-      const r: R = { ini: null, fin: null, realIni: null, realFin: null, restIni: null, restFin: null, roja: false, lbIni: null, lbFin: null, qb: 0, qa: 0, qr: 0, hayQ: false };
+      const r: R = { ini: null, fin: null, realIni: null, realFin: null, restIni: null, restFin: null, roja: false, lbIni: null, lbFin: null, qb: 0, qa: 0, qr: 0, hayQ: false, tf: null, hdTf: 8 };
       const juntar = (o: R) => {
         r.ini = mn(r.ini, o.ini); r.fin = mx(r.fin, o.fin);
         r.realIni = mn(r.realIni, o.realIni); r.realFin = mx(r.realFin, o.realFin);
@@ -1057,6 +1057,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         r.roja ||= o.roja;
         r.lbIni = mn(r.lbIni, o.lbIni); r.lbFin = mx(r.lbFin, o.lbFin);
         r.qb += o.qb; r.qa += o.qa; r.qr += o.qr; r.hayQ ||= o.hayQ;
+        if (o.tf != null && (r.tf == null || o.tf < r.tf)) { r.tf = o.tf; r.hdTf = o.hdTf; }
       };
       for (const h of n.hijos) juntar(ver(h));
       // Con el filtro «Solo en Master», el grupo resume las fechas del Master de esos rubros
@@ -1067,6 +1068,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       for (const v of n.tareas) {
         if (filtrandoR && !pasa(v)) continue;
         r.ini = mn(r.ini, v.ini); r.fin = mx(r.fin, v.fin);
+        // Total Float del grupo: la menor (más negativa) de sus actividades no terminadas, como «BL Finish Var.»
+        if (v.tf != null && v.estado !== 'TK_Complete' && (r.tf == null || v.tf < r.tf)) { r.tf = v.tf; r.hdTf = v.hd; }
         const lb = lbPorAct?.[v.i];
         if (lb) { r.lbIni = mn(r.lbIni, lb[0]); r.lbFin = mx(r.lbFin, lb[1]); }
         // Subtotales de unidades (asignaciones de recursos)
@@ -1587,6 +1590,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                                       : vfDe(n);
                                     return vf == null ? '' : dias(vf, 8);
                                   }
+                                  case 'tf': {
+                                    // La holgura más negativa de sus actividades (en el proyecto, la de sus grupos)
+                                    if (rs?.tf == null) return '';
+                                    return <span className={rs.tf <= 0 ? (claro ? 'text-[#B30000]' : 'text-[#FFD2D2]') : undefined}>{dias(rs.tf, rs.hdTf)}</span>;
+                                  }
                                   case 'qBud': case 'qAct': case 'qRem': case 'qAtC': {
                                     if (!rs?.hayQ) return '';
                                     const q = id === 'qBud' ? rs.qb : id === 'qAct' ? rs.qa : id === 'qRem' ? rs.qr : rs.qa + rs.qr;
@@ -1607,7 +1615,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                                   </div>
                                   {cols.slice(k).map(c => (
                                     <div key={c.id} className={`px-1 shrink-0 truncate ${c.der ? 'text-right' : ''}`} style={{ width: c.ancho }}
-                                      title={c.id === 'varFin' && n.id === RAIZ_CONSTRUCTIVA ? 'The most negative finish variance of its groups' : undefined}>{total(c.id)}</div>
+                                      title={c.id === 'varFin' && n.id === RAIZ_CONSTRUCTIVA ? 'The most negative finish variance of its groups' : c.id === 'tf' ? 'Total Float of the group: the lowest of its activities not completed' : undefined}>{total(c.id)}</div>
                                   ))}
                                 </>
                               );
