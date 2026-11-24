@@ -1948,8 +1948,18 @@ export default function App() {
                   className="px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 border transition-all cursor-pointer shadow-xs active:scale-95 bg-white text-[#5A6A74] border-[#D5DEE2] hover:bg-[#F5F8F9] hover:text-[#14212A]"
                   title="Abrir Trakciona T₃: el cronograma (XER) para consultar, actualizar, reprogramar y exportar"
                 >
-                  <span className="text-sm leading-none">🗓️</span>
-                  <span>T<sub className="text-[0.75em] leading-none">3</sub></span>
+                  {/* T₃: T roja y el 3 en estilo cyberpunk (Orbitron, neón y desdoble cian/magenta) */}
+                  <span className="leading-none text-[#CD0000] font-extrabold text-[15px] tracking-tight">
+                    T<sub
+                      className="leading-none text-[0.72em] ml-[1px]"
+                      style={{
+                        fontFamily: "'Orbitron', 'IBM Plex Mono', monospace",
+                        fontWeight: 900,
+                        color: '#FF1F3D',
+                        textShadow: '-1px 0 rgba(0, 240, 255, 0.85), 1px 0 rgba(255, 0, 170, 0.75), 0 0 4px rgba(255, 31, 61, 0.9), 0 0 9px rgba(255, 31, 61, 0.55)',
+                      }}
+                    >3</sub>
+                  </span>
                 </button>
               </div>
             </div>
