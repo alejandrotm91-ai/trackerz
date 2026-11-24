@@ -2164,7 +2164,10 @@ const PanelUso: React.FC<{
     const soltar = () => { window.removeEventListener('mousemove', mover); window.removeEventListener('mouseup', soltar); };
     window.addEventListener('mousemove', mover); window.addEventListener('mouseup', soltar);
   };
-  const celdas = (vals: Float64Array, y: number, k: string) => {
+  // Valor exacto (miles con coma, 2 decimales): en las bandas resumen se muestra así si cabe en la celda;
+  // en las actividades (y cuando no cabe) va abreviado (1.1K) y el exacto en el tooltip.
+  const exacto = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const celdas = (vals: Float64Array, y: number, k: string, resumen = false) => {
     let acum = 0;
     const out: React.ReactNode[] = [];
     for (let j = 0; j < nPer; j++) {
@@ -2172,7 +2175,11 @@ const PanelUso: React.FC<{
       const v = acumulado ? acum : vals[j];
       if (Math.abs(v) < 0.005) continue;
       const x0 = xDe(lim[j]), x1 = xDe(lim[j + 1]);
-      out.push(<div key={`${k}-${j}`} className="absolute text-right pr-1 overflow-hidden whitespace-nowrap" style={{ left: ancho + x0, width: Math.max(0, x1 - x0), top: y, height: SUB, lineHeight: `${SUB}px` }}>{compacto(v)}</div>);
+      const ancho0 = Math.max(0, x1 - x0);
+      const txt = exacto(v);
+      // ~5.6 px por carácter con la letra de 10.5 px, más el margen derecho
+      const cabe = resumen && txt.length * 5.6 + 6 <= ancho0;
+      out.push(<div key={`${k}-${j}`} title={txt} className="absolute text-right pr-1 overflow-hidden whitespace-nowrap" style={{ left: ancho + x0, width: ancho0, top: y, height: SUB, lineHeight: `${SUB}px` }}>{cabe ? txt : compacto(v)}</div>);
     }
     return out;
   };
@@ -2259,7 +2266,7 @@ const PanelUso: React.FC<{
                     </div>
                   )}
                 </div>
-                {datos && series.map((sr, j) => celdas(datos![sr], 2 + j * SUB, sr))}
+                {datos && series.map((sr, j) => celdas(datos![sr], 2 + j * SUB, sr, fl.tipo === 'wbs'))}
               </div>
             );
           })}
