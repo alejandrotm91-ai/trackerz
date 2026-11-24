@@ -1728,11 +1728,11 @@ export function MasterXlsSheetView({
                 </th>
 
                 {/* DYNAMIC WEEKLY COLUMNS (Hidden when in attribute view) */}
-                {!showAttributeCols && weeksShown.map((sem, sIdx) => (
+                {!showAttributeCols && weeksShown.map(sem => (
+                  <React.Fragment key={sem.id}>
                   <th
-                    key={sem.id}
-                    className={`py-1.5 px-2 border-r border-b border-slate-300 text-center group bg-[#f1f5f9] hover:bg-emerald-50 transition-colors ${
-                      viewMode === 'dual' ? 'min-w-[150px]' : 'min-w-[95px]'
+                    className={`py-1.5 px-2 border-b border-slate-300 text-center group bg-[#f1f5f9] hover:bg-emerald-50 transition-colors min-w-[95px] ${
+                      viewMode === 'dual' ? 'border-r border-r-slate-200' : 'border-r'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
@@ -1753,14 +1753,16 @@ export function MasterXlsSheetView({
                     <div className="text-[9px] text-slate-400 font-normal lowercase tracking-normal flex justify-around mt-0.5">
                       {viewMode === 'qty' && <span>Cant. Obra</span>}
                       {viewMode === 'econ' && <span>Avance</span>}
-                      {viewMode === 'dual' && (
-                        <>
-                          <span>Cant.</span>
-                          <span>Monto</span>
-                        </>
-                      )}
+                      {viewMode === 'dual' && <span>Cant.</span>}
                     </div>
                   </th>
+                  {viewMode === 'dual' && (
+                    <th className="py-1.5 px-2 border-r border-b border-slate-300 text-center bg-[#eef2ff] min-w-[95px]">
+                      <span className="font-black text-indigo-900 truncate block" title={sem.label}>{sem.label}</span>
+                      <div className="text-[9px] text-indigo-400 font-normal lowercase tracking-normal mt-0.5">Venta</div>
+                    </th>
+                  )}
+                  </React.Fragment>
                 ))}
               </tr>
             </thead>
@@ -1769,7 +1771,7 @@ export function MasterXlsSheetView({
             <tbody className="divide-y divide-slate-200">
               {filteredNodes.length === 0 ? (
                 <tr>
-                  <td colSpan={5 + 10 + (showAttributeCols ? 12 : weeksShown.length)} className="py-16 text-center text-slate-400 font-sans">
+                  <td colSpan={5 + 10 + (showAttributeCols ? 12 : weeksShown.length * (viewMode === 'dual' ? 2 : 1))} className="py-16 text-center text-slate-400 font-sans">
                     <FileSpreadsheet className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                     <p className="font-bold text-slate-600 text-sm">No hay partidas que coincidan con los filtros.</p>
                   </td>
@@ -1903,8 +1905,8 @@ export function MasterXlsSheetView({
                       const wQty = summaryTotals.weeklyQtyTotals[sem.id] || 0;
 
                       return (
+                        <React.Fragment key={`xls-total-week-${sem.id}`}>
                         <td
-                          key={`xls-total-week-${sem.id}`}
                           className={`py-1 px-2 text-right border-r border-indigo-200 transition-colors ${
                             viewMode === 'qty'
                               ? 'bg-emerald-100/60'
@@ -1932,16 +1934,20 @@ export function MasterXlsSheetView({
                             </div>
                           )}
                           {viewMode === 'dual' && (
-                            <div className="flex items-center justify-between w-full px-0.5 text-xs font-mono">
-                              <span className="text-emerald-800 font-bold text-[9.5px]">
-                                {wQty > 0 ? wQty.toLocaleString('es-ES', { maximumFractionDigits: 0 }) : '0'}
-                              </span>
-                              <span className="text-indigo-950 font-black text-[11px]">
-                                {wEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
-                              </span>
-                            </div>
+                            <span className="text-emerald-800 font-black text-[11px]">
+                              {wQty > 0 ? wQty.toLocaleString('es-ES', { maximumFractionDigits: 1 }) : '0'}
+                            </span>
                           )}
                         </td>
+                        {viewMode === 'dual' && (
+                          <td className="py-1 px-2 text-right border-r border-indigo-200 bg-indigo-100/70"
+                            title={`Venta semana ${sem.label}: ${wEcon.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}>
+                            <span className="text-[11px] font-black text-indigo-950">
+                              {wEcon > 0 ? wEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 }) : '0'}
+                            </span>
+                          </td>
+                        )}
+                        </React.Fragment>
                       );
                     })}
                   </tr>
@@ -2493,8 +2499,8 @@ export function MasterXlsSheetView({
                           copiedCell?.weekId === sem.id;
 
                         return (
+                          <React.Fragment key={sem.id}>
                           <td
-                            key={sem.id}
                             onClick={(e) => {
                               e.stopPropagation();
                               selectCell(node.key, 'qty', sem.id);
@@ -2551,14 +2557,9 @@ export function MasterXlsSheetView({
                                     {vVal > 0 ? `${vVal.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '—'}
                                   </span>
                                 ) : (
-                                  <div className="flex flex-col text-[10px] leading-tight">
-                                    <span className={qVal > 0 ? (isP6 ? 'text-orange-950 font-black' : 'text-emerald-800 font-bold') : (isP6 ? 'text-orange-300' : 'text-slate-300')}>
-                                      {qVal > 0 ? qVal.toLocaleString('es-ES', { maximumFractionDigits: 2 }) : '0'}
-                                    </span>
-                                    <span className={vVal > 0 ? (isP6 ? 'text-orange-900 font-bold text-[9px]' : 'text-indigo-800 text-[9px]') : (isP6 ? 'text-orange-300 text-[9px]' : 'text-slate-300 text-[9px]')}>
-                                      {vVal > 0 ? `${vVal.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '0'}
-                                    </span>
-                                  </div>
+                                  <span className={qVal > 0 ? (isP6 ? 'text-orange-950 font-black' : 'text-emerald-800 font-bold') : (isP6 ? 'text-orange-300' : 'text-slate-300')}>
+                                    {qVal > 0 ? qVal.toLocaleString('es-ES', { maximumFractionDigits: 3 }) : '—'}
+                                  </span>
                                 )}
                                 {isWeeklyCellActive && (
                                   <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
@@ -2566,6 +2567,19 @@ export function MasterXlsSheetView({
                               </>
                             )}
                           </td>
+                          {viewMode === 'dual' && (
+                            <td
+                              className={`${rowPaddingCls} px-2 border-r text-right ${
+                                isP6 ? 'border-orange-200 bg-[#ffedd5]' : !isLeaf ? 'border-slate-300 bg-black/5 font-bold' : 'border-slate-300 bg-indigo-50/30'
+                              }`}
+                              title={`Venta semana ${sem.label}: ${vVal.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
+                            >
+                              <span className={vVal > 0 ? (isP6 ? 'text-orange-950 font-black' : 'text-indigo-900 font-bold') : (isP6 ? 'text-orange-300' : 'text-slate-300')}>
+                                {vVal > 0 ? vVal.toLocaleString('es-ES', { maximumFractionDigits: 0 }) : '—'}
+                              </span>
+                            </td>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </tr>

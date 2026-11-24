@@ -207,10 +207,13 @@ export function MasterTab({
     });
   };
 
+  // Las actividades p6 (agrupan sus rubros) se muestran plegadas aunque se desplieguen todos los niveles
+  const esGrupoP6 = (n: { activityId?: string; itemRef?: { activityId?: string } }) =>
+    /p6/i.test(String(n.activityId || n.itemRef?.activityId || ''));
   const expandAllNodes = () => {
     const allKeys = new Set<string>();
     nodes.forEach(n => {
-      if (!n.esHoja) {
+      if (!n.esHoja && !esGrupoP6(n)) {
         allKeys.add(n.key);
       }
     });
@@ -708,7 +711,7 @@ export function MasterTab({
       const newExpanded = new Set<string>();
       
       nodes.forEach(n => {
-        if (!n.esHoja && n.depth < targetDepth) {
+        if (!n.esHoja && n.depth < targetDepth && !esGrupoP6(n)) {
           newExpanded.add(n.key);
         }
       });
