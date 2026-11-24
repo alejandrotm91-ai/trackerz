@@ -406,9 +406,11 @@ export const CertificacionCard: React.FC<CertificacionCardProps> = ({
                   id={`${idPrefix}-tipologia-box`}
                   className="w-full p-2.5 sm:p-3 bg-white border border-slate-100 rounded-2xl shadow-mini"
                 >
-                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-2">
-                    {tipologiaTitle}
-                  </h3>
+                  {tipologiaTitle && (
+                    <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 uppercase tracking-wider mb-2">
+                      {tipologiaTitle}
+                    </h3>
+                  )}
                   <div className="w-full overflow-x-auto">
                     <table className="w-full text-[10.5px] sm:text-xs text-left border-collapse">
                       <thead>

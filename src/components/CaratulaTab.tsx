@@ -848,6 +848,7 @@ export const CaratulaTab: React.FC<CaratulaTabProps> = ({
             planillaTipRes={planillaTipRes}
             planillaHojas={planillaHojas}
             idPrefix="certificacion-caratula"
+            tipologiaTitle=""
             showHeader={false}
             showKpis={false}
             showEnmiendas={false}
