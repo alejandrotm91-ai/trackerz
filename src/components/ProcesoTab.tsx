@@ -323,12 +323,16 @@ export const ProcesoTab: React.FC = () => {
       const ex = eqL.reduce((t, it) => t + exU(it, k), 0);
       const diff = Math.max(0, N - ex);
       const cnt = { done: 0, cur: 0, none: 0 };
+      // Parte del avance (equipos ejecutados) que aporta cada estado
+      const exPor = { done: 0, cur: 0, none: 0 };
       for (const it of list) {
-        cnt[stSt(it, k)] += eqU(it);
+        const st = stSt(it, k);
+        cnt[st] += eqU(it);
+        if (eqU(it) > 0) exPor[st] += exU(it, k);
       }
       const sel = kf[k] || [];
       const dinero = montosPorEstado(list, k);
-      return { k, a, N, ex, diff, cnt, sel, dinero };
+      return { k, a, N, ex, diff, cnt, exPor, sel, dinero };
     });
   }, [baseFiltered, kf, mode]);
 
@@ -1018,7 +1022,7 @@ export const ProcesoTab: React.FC = () => {
 
         {/* 4. KPI Cards Grid (4 cards) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {stageCardData.map(({ k, a, N, ex, diff, cnt, sel, dinero }) => {
+          {stageCardData.map(({ k, a, N, ex, diff, cnt, exPor, sel, dinero }) => {
             const isStageOn = sel.length > 0;
             const stageColor = k === 'D' ? '#A86B12' : k === 'E' ? '#2C67A6' : '#2B7F52';
             return (
@@ -1061,7 +1065,13 @@ export const ProcesoTab: React.FC = () => {
 
                 <div className="mt-2.5 space-y-2">
                   <div className="text-xs text-[#5A6A74] leading-tight">
-                    {pc(N ? ex / N : null)} de los equipos · {pc(a.st[k].pv)} de avance en valor
+                    {pc(N ? ex / N : null)} de avance
+                    {N > 0 && (
+                      <span title="Parte del avance que aporta cada estado (equipos ejecutados ÷ equipos de la etapa)">
+                        {' '}· terminados {pc(exPor.done / N)} · en curso {pc(exPor.cur / N)}
+                        {exPor.none / N >= 0.005 && <> · sin iniciar {pc(exPor.none / N)}</>}
+                      </span>
+                    )}
                   </div>
 
                   {/* Botones de estado de tarjeta: Terminados, En curso, Sin iniciar */}
