@@ -11,6 +11,34 @@ export function stepDeFila(step: any): number {
   return step === null || step === undefined || step === '' ? 1 : (Number(step) || 0);
 }
 
+/** Venta de una semana = columna «Total» del cdo: =IFERROR(ROUND(Cantidad × Precio × Step, 2), 0). */
+export function ventaSemanal(cantidad: any, precio: any, step: any): number {
+  const v = Math.round((Number(cantidad) || 0) * (Number(precio) || 0) * stepDeFila(step) * 100) / 100;
+  return Number.isFinite(v) ? v : 0;
+}
+
+/**
+ * Completa la venta de las semanas con cantidad pero sin venta (avances cargados en M₃ antes de que la venta
+ * semanal se calculara sola). No toca ventas ya guardadas. Devuelve el mismo arreglo si no hay nada que completar.
+ */
+export function completarVentasSemanales<T extends { cantidadesSemanales?: Record<string, number>; ventasSemanales?: Record<string, number>; precio?: any; step?: any }>(items: T[]): T[] {
+  let cambio = false;
+  const out = items.map(it => {
+    let ventas: Record<string, number> | null = null;
+    for (const [w, q] of Object.entries(it.cantidadesSemanales || {})) {
+      if (!Number(q) || (it.ventasSemanales && it.ventasSemanales[w] !== undefined)) continue;
+      const v = ventaSemanal(q, it.precio, it.step);
+      if (!v) continue;
+      if (!ventas) ventas = { ...(it.ventasSemanales || {}) };
+      ventas[w] = v;
+    }
+    if (!ventas) return it;
+    cambio = true;
+    return { ...it, ventasSemanales: ventas };
+  });
+  return cambio ? out : items;
+}
+
 /** Venta de una fila = Col I del CDO tal cual. Solo se calcula si la fila no trae venta. */
 export function ventaDeFila(item: { venta?: any; cantidadPresupuesto?: any; precio?: any; step?: any }): number {
   if (item.venta !== null && item.venta !== undefined && item.venta !== '') return Number(item.venta) || 0;

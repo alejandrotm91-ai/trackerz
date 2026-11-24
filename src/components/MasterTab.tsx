@@ -52,6 +52,8 @@ import {
   MasterHierarchyNode,
   buildMasterHierarchyTree,
   calcularVenta,
+  ventaSemanal,
+  completarVentasSemanales,
   getVisibleHierarchyNodes,
   getMatchingLeafNodes,
   getHierarchyRowStyles,
@@ -335,7 +337,7 @@ export function MasterTab({
       // Priority 1: If local draft exists with items, use it immediately
       if (localDraft && localDraft.items && localDraft.items.length > 0) {
         if (!isMounted) return;
-        setItems(localDraft.items);
+        setItems(completarVentasSemanales(localDraft.items));
         setSemanas(localDraft.semanas || []);
         setFileName(localDraft.fileName || 'Master_CDO_Online.xlsx');
         setPlanId(localDraft.planId || 'master_cdo_default');
@@ -388,7 +390,7 @@ export function MasterTab({
             semanas: cloudData.planDoc.semanas || [],
             fileName: cloudData.planDoc.fileName || 'Master_CDO_Online.xlsx'
           });
-          setItems(cloudData.items);
+          setItems(completarVentasSemanales(cloudData.items));
           setSemanas(cloudData.planDoc.semanas || []);
           setFileName(cloudData.planDoc.fileName || 'Master_CDO_Online.xlsx');
           setPlanId(cloudData.planDoc.id || 'master_cdo_default');
@@ -563,12 +565,18 @@ export function MasterTab({
     
     const newItems = items.map(item => {
       if (item.id !== itemId) return item;
+      // Venta de la semana como la columna «Total» del cdo del Master:
+      // =IFERROR(ROUND(Cantidad × Precio (G) × Step (H), 2), 0)
+      const ventasSemanales = { ...(item.ventasSemanales || {}) };
+      const v = ventaSemanal(qty, item.precio, item.step);
+      if (v) ventasSemanales[weekId] = v; else delete ventasSemanales[weekId];
       return {
         ...item,
         cantidadesSemanales: {
           ...item.cantidadesSemanales,
           [weekId]: qty
-        }
+        },
+        ventasSemanales
       };
     });
     setItems(newItems);
