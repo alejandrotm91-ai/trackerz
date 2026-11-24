@@ -2095,6 +2095,8 @@ export function useMasterPlan(isLoggedIn = false) {
           ventaPlan: findHeaderCol(h => (h.includes('venta') && h.includes('plan')) || h === 'v. plan' || h === 'v plan', isNewLayoutWithoutJKLM ? 40 : 44),
           avanceAt: findHeaderCol(h => h.includes('avance at') || h.includes('a.t.') || h === 'at', isNewLayoutWithoutJKLM ? 41 : 45),
           ventaEx: findHeaderCol(h => (h.includes('venta') && (h.includes('ex') || h.includes('ejecut'))) || h === 'v. ex' || h === 'v ex' || h === 'v. ejec', isNewLayoutWithoutJKLM ? 43 : 47),
+          // % Ex (columna AP): avance de cada partida; lo usa el corte de obra de T₃
+          pctEx: findHeaderCol(h => h === '% ex' || h === '%ex' || h === '% ejec' || h === '% ejecutado', -1),
           weeklyStart: detectedWeeklyStartCol > 0 ? detectedWeeklyStartCol : (isNewLayoutWithoutJKLM ? 44 : 48)
         };
 
@@ -2784,6 +2786,7 @@ export function useMasterPlan(isLoggedIn = false) {
             avanceAT: avanceATVal,
             idOrig: idOrig ? String(idOrig).trim() : null,
             cantidadCdo: cantidadCdoVal,
+            pctEx: colIndices.pctEx >= 0 && typeof row[colIndices.pctEx] === 'number' && isFinite(row[colIndices.pctEx]) ? row[colIndices.pctEx] : null,
             precio: precioVal,
             step: stepVal
           });

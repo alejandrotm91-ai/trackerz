@@ -5,7 +5,7 @@
  * Todos consultan; solo el administrador edita, programa y guarda.
  */
 import React from 'react';
-import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat, Filter } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat, Filter, Scissors } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
 import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, etiquetaUbicacion, ordenUbicacion, type Clasificacion, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, A_HITOS_CONTRACTUALES, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
@@ -19,6 +19,7 @@ import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseU
 import { DialogoNivelacion } from './nivelacionP6';
 import { MenuVistas, type AjustesVista } from './vistasP6';
 import { DesplegableVistas, useNombresVistas } from './nombresVistas';
+import { DialogoCorte } from './corteP6';
 import { DialogoCuadrillas, useMatrizPersonal } from './cuadrillasP6';
 import { estimarCuadrillas, POR_DEFECTO } from '../../utils/p6/cuadrillas';
 import { CUADRILLA_DISCIPLINA, FACTOR_LOCAL, esPrecomEq, rendimientoDe, type Disciplina } from '../../utils/p6/rendimientos';
@@ -191,6 +192,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   React.useEffect(() => { try { localStorage.setItem('p6.columnas', JSON.stringify(columnasSel)); } catch { /* sin almacenamiento */ } }, [columnasSel]);
   const [verColumnas, setVerColumnas] = React.useState(false);
   const [verNivel, setVerNivel] = React.useState(false);
+  const [verCorte, setVerCorte] = React.useState(false);
   const [verUso, setVerUso] = React.useState(true); // el panel Activity Usage se abre por defecto
   const [usoCfg, setUsoCfg] = React.useState<CfgUso>(CFG_USO_DEF);
   // Layouts guardados por el usuario (vistasP6): la predeterminada se aplica una vez al abrir T₃
@@ -1261,6 +1263,31 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             mostrar(`New crew logic applied (${resumen}) and rescheduled. Review it and press Save to keep it.`);
           }} />
       )}
+      {verCorte && m && (
+        <DialogoCorte m={m} master={actividadesMaster ?? []} clasif={clasifXer} editable={editable} version={version}
+          proyecto={celda(m.xer.tablas.get('PROJECT')!, m.xer.tablas.get('PROJECT')!.filas[0], 'proj_short_name')}
+          onIr={i => { setVerCorte(false); setVista('actividades'); irAActividad(i); }} onCerrar={() => setVerCorte(false)}
+          onAplicar={(filas, fechaDatos) => {
+            const mm = modelo.current;
+            if (!mm || !editable) return;
+            const log = [...cambios];
+            ponerFechaDatos(mm, fechaDatos, log);
+            let ini = 0, fin = 0;
+            for (const f of filas) {
+              if (f.i === undefined) continue;
+              if (f.accion === 'iniciar' && f.inicioReal) {
+                editarActividad(mm, f.i, { inicioReal: f.inicioReal }, log); ini++;
+                if (f.finReal) { editarActividad(mm, f.i, { finReal: f.finReal, ...(f.avance != null ? { avance: f.avance } : {}) }, log); fin++; }
+              } else if (f.accion === 'cerrar' && f.finReal) {
+                editarActividad(mm, f.i, { finReal: f.finReal, ...(f.avance != null ? { avance: f.avance } : {}) }, log); fin++;
+              }
+            }
+            marcarCambio(log);
+            programar();
+            setVerCorte(false);
+            mostrar(`Progress cut applied: Data Date ${fechaDatos}, ${ini} started, ${fin} finished, rescheduled. Review it, press Save and export the XER to Primavera.`);
+          }} />
+      )}
       {verColumnas && m && (
         <DialogoColumnas catalogo={catalogo} elegidas={cols.map(c => c.id)} onAplicar={ids => setColumnasSel(ids)} onCerrar={() => setVerColumnas(false)} />
       )}
@@ -1834,6 +1861,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verNivel ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
               <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="9" width="4" height="6" fill="#B8C0C6" /><rect x="6" y="3" width="4" height="12" fill="#B8C0C6" /><rect x="11" y="7" width="4" height="8" fill="#B8C0C6" /><rect x="16" y="1" width="4" height="14" fill="#B8C0C6" /><path d="M1 6.5 H21" stroke="#312E81" strokeWidth="1.6" strokeDasharray="2 1.2" /></svg>
               <span className="text-[8.5px] leading-none">Level</span>
+            </button>
+            <button id="p6-corte" onClick={() => { setVista('actividades'); setVerCorte(true); }} title="Progress Cut: start and finish activities from the Master weekly execution (NotStarted / DEF_100) and move the Data Date"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verCorte ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]'}`}>
+              <Scissors className="w-5 h-5" />
+              <span className="text-[8.5px] leading-none text-[#4A4A4A]">Cut</span>
             </button>
           </div>
         </div>

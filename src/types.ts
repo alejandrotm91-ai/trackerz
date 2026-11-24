@@ -54,6 +54,8 @@ export interface Actividad {
   avanceAT?: number | null;
   idOrig?: string | null;
   cantidadCdo?: number | null;
+  /** % Ex del Master (columna AP), en fracción (1 = 100 %); null si no es numérico. */
+  pctEx?: number | null;
   precio?: number | null;
   step?: number | null;
   unitAgregado?: any;
