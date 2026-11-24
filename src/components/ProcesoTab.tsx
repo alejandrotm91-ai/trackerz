@@ -352,13 +352,8 @@ export const ProcesoTab: React.FC = () => {
       tot.v += m.tot.v; tot.p += m.tot.p; tot.e += m.tot.e;
       hayPlan = hayPlan || m.hayPlan;
     }
-    // Avance de la selección: promedio de las tres etapas (compra y fabricación, flete, instalación),
-    // con la parte que aporta cada estado, igual que en las tarjetas de etapa
-    const exPor = { done: 0, cur: 0, none: 0 };
-    for (const it of eqF) for (const k of STG) exPor[stSt(it, k)] += exU(it, k);
-    const avance = NF > 0 ? (exPor.done + exPor.cur + exPor.none) / (3 * NF) : null;
-    return { a, NF, materialPartidas, critCount: critList.length, isCritActive, dinero: { ...tot, hayPlan }, avance, exPor };
-  }, [baseFiltered, finalFiltered, kf, mode]);
+    return { a, NF, materialPartidas, critCount: critList.length, isCritActive, dinero: { ...tot, hayPlan } };
+  }, [baseFiltered, finalFiltered, kf]);
 
   // Handle toggling filter chips in the 4 KPI cards (v22)
   const handleToggleKf = (key: string, sv: string, multi: boolean) => {
@@ -1157,12 +1152,6 @@ export const ProcesoTab: React.FC = () => {
                   {fourthCardData.a.n} partidas · {new Set(finalFiltered.map(i => i.cap)).size} estructuras ·{' '}
                   {new Set(finalFiltered.map(i => i.prov)).size} proveedores
                 </div>
-                {fourthCardData.avance != null && (
-                  <div className="mt-0.5" title="Promedio de las tres etapas (compra y fabricación, flete e instalación) y la parte que aporta cada estado">
-                    {pc(fourthCardData.avance)} de avance · terminados {pc(fourthCardData.exPor.done / (3 * fourthCardData.NF))} · en curso {pc(fourthCardData.exPor.cur / (3 * fourthCardData.NF))}
-                    {fourthCardData.exPor.none / (3 * fourthCardData.NF) >= 0.005 && <> · sin iniciar {pc(fourthCardData.exPor.none / (3 * fourthCardData.NF))}</>}
-                  </div>
-                )}
                 {fourthCardData.materialPartidas > 0 && (
                   <div className="text-[11px] text-slate-400 mt-0.5">
                     No incluye {fourthCardData.materialPartidas} partidas de material (m, kg, ton, m²)
