@@ -357,7 +357,37 @@ export function MasterXlsSheetView({
   onSaveLocal
 }: MasterXlsSheetViewProps) {
   // XLS View-specific layout states
-  const [density, setDensity] = useState<'compact' | 'normal'>('compact');
+  // Siempre en modo compacto (se quitó el botón de densidad)
+  const density: 'compact' | 'normal' = 'compact';
+  // Semana a avanzar: 'all' = las del año elegido; si no, solo esa semana
+  const [semanaSel, setSemanaSel] = useState<string>('all');
+  const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const fechaDe = (w: MasterCdoWeek) => (w.fecha || w.id || '').slice(0, 10);
+  /** «Sem. 08-nov → 14-nov» (la semana va de domingo a sábado). */
+  const etiquetaSemana = (w: MasterCdoWeek) => {
+    const f = fechaDe(w);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return w.label || w.id;
+    const [y, m, d] = f.split('-').map(Number);
+    const fin = new Date(Date.UTC(y, m - 1, d + 6));
+    return `Sem. ${String(d).padStart(2, '0')}-${MES_CORTO[m - 1]} → ${String(fin.getUTCDate()).padStart(2, '0')}-${MES_CORTO[fin.getUTCMonth()]}${w.cerrada ? ' · cerrada' : ''}`;
+  };
+  const gruposSemanas = useMemo(() => {
+    const g = new Map<string, { clave: string; etiqueta: string; semanas: MasterCdoWeek[] }>();
+    for (const w of [...semanas].sort((a, b) => fechaDe(b).localeCompare(fechaDe(a)))) {
+      const f = fechaDe(w);
+      const clave = /^\d{4}-\d{2}/.test(f) ? f.slice(0, 7) : 'otras';
+      const etiqueta = clave === 'otras' ? 'Otras' : `${clave.slice(0, 4)} · ${MESES_ES[Number(clave.slice(5, 7)) - 1]}`;
+      if (!g.has(clave)) g.set(clave, { clave, etiqueta, semanas: [] });
+      g.get(clave)!.semanas.push(w);
+    }
+    return [...g.values()];
+  }, [semanas]);
+  const weeksShown = useMemo(() => {
+    if (semanaSel === 'all') return displayedWeeks;
+    const w = semanas.filter(x => x.id === semanaSel);
+    return w.length ? w : displayedWeeks;
+  }, [semanaSel, semanas, displayedWeeks]);
   const [internalShowAttributeCols, setInternalShowAttributeCols] = useState<boolean>(false);
   const showAttributeCols = propShowAttributeCols !== undefined ? propShowAttributeCols : internalShowAttributeCols;
   const setShowAttributeCols = propSetShowAttributeCols || setInternalShowAttributeCols;
@@ -668,9 +698,9 @@ export function MasterXlsSheetView({
       ? ['macro', 'grupo', 'tipo', 'partidas', 'cap', 'scap', 'unit', 'componente', 'ubicacion', 'proceso', 'resp']
       : [];
     const metrics = ['cantPres', 'precio', 'step', 'venta', 'subcontratista', 'cantAcum', 'avanceEcon', 'saldoEcon', 'pctAvance'];
-    const weeks = !showAttributeCols ? displayedWeeks.map(w => `week_${w.id}`) : [];
+    const weeks = !showAttributeCols ? weeksShown.map(w => `week_${w.id}`) : [];
     return [...base, ...attrs, ...metrics, ...weeks];
-  }, [showAttributeCols, displayedWeeks]);
+  }, [showAttributeCols, weeksShown]);
 
   // Smooth keyboard navigation across the entire grid
   const navigateActiveCell = useCallback((direction: 'down' | 'up' | 'right' | 'left') => {
@@ -1170,7 +1200,8 @@ export function MasterXlsSheetView({
         </div>
 
         {/* 2. EXCEL COMMAND TOOLBAR (Ribbon Controls) */}
-        <div className="bg-white border-b border-slate-200 px-4 py-2 flex flex-wrap items-center gap-2 text-xs shrink-0 shadow-2xs">
+        <div className="bg-white border-b border-slate-200 px-4 py-2 flex flex-col gap-1.5 text-xs shrink-0 shadow-2xs">
+          <div className="flex flex-wrap items-center gap-2">
             {/* View Mode (Q / $ / Dual) */}
             <div className="inline-flex bg-[#F5F8F9] rounded-lg p-0.5 border border-[#D5DEE2] text-xs font-bold text-[#5A6A74] shadow-xs">
               <button
@@ -1265,27 +1296,6 @@ export function MasterXlsSheetView({
               </span>
             </button>
 
-            {/* Density toggle */}
-            <button
-              type="button"
-              onClick={() => setDensity(d => d === 'compact' ? 'normal' : 'compact')}
-              className="px-2 py-1 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
-              title="Alternar densidad visual de filas"
-            >
-              {density === 'compact' ? '📏 Modo Compacto' : '📐 Modo Normal'}
-            </button>
-
-            {/* P6 Items Indicator */}
-            {items.some(it => (it.activityId || '').toLowerCase().includes('p6')) && (
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-100 border border-orange-300 text-orange-950 font-bold text-xs shadow-2xs select-none"
-                title="Las partidas cuyo Activity ID contiene 'P6' se destacan automáticamente en naranja claro en todas las columnas"
-              >
-                <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
-                <span>P6: Naranja claro ({items.filter(it => (it.activityId || '').toLowerCase().includes('p6')).length})</span>
-              </div>
-            )}
-
             {/* Year Selector Tabs (hidden when in attribute view) */}
             {!showAttributeCols && availableYears.length > 0 && (
               <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-0.5 border border-slate-200">
@@ -1334,6 +1344,39 @@ export function MasterXlsSheetView({
                 </div>
             )}
 
+            {/* Add week button */}
+            <button
+              type="button"
+              onClick={onAddWeek}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-black text-xs transition-colors cursor-pointer"
+              title="Añadir una nueva semana de corte"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Semana</span>
+            </button>
+          </div>
+          {/* Filtros, debajo del selector Q / V / Q&V */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Semana a avanzar: deja visible solo esa semana (desplegable por año › mes › semana) */}
+            {!showAttributeCols && semanas.length > 0 && (
+              <select
+                id="m3-semana"
+                value={semanaSel}
+                onChange={e => setSemanaSel(e.target.value)}
+                className="border rounded-xl px-2 py-1 text-xs font-semibold outline-none"
+                style={semanaSel !== 'all'
+                  ? { backgroundColor: '#047857', borderColor: '#065F46', color: '#FFFFFF' }
+                  : { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', color: '#334155' }}
+                title="Semana a avanzar: deja visible solo esa semana (domingo a sábado)"
+              >
+                <option value="all">📅 Todas las semanas</option>
+                {gruposSemanas.map(g => (
+                  <optgroup key={g.clave} label={g.etiqueta}>
+                    {g.semanas.map(w => <option key={w.id} value={w.id}>{etiquetaSemana(w)}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            )}
             {/* Search Input */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -1400,16 +1443,7 @@ export function MasterXlsSheetView({
               </span>
             )}
 
-            {/* Add week button */}
-            <button
-              type="button"
-              onClick={onAddWeek}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-black text-xs transition-colors cursor-pointer"
-              title="Añadir una nueva semana de corte"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ Semana</span>
-            </button>
+          </div>
         </div>
 
         {/* 3. EXCEL FORMULA BAR (Authentic Excel Formula Input & Copy/Paste Controls) */}
@@ -1727,7 +1761,7 @@ export function MasterXlsSheetView({
                 </th>
 
                 {/* DYNAMIC WEEKLY COLUMNS (Hidden when in attribute view) */}
-                {!showAttributeCols && displayedWeeks.map((sem, sIdx) => (
+                {!showAttributeCols && weeksShown.map((sem, sIdx) => (
                   <th
                     key={sem.id}
                     className={`py-1.5 px-2 border-r border-b border-slate-300 text-center group bg-[#f1f5f9] hover:bg-emerald-50 transition-colors ${
@@ -1738,7 +1772,7 @@ export function MasterXlsSheetView({
                       <span className="font-black text-slate-800 truncate" title={sem.label}>
                         {sem.label}
                       </span>
-                      {displayedWeeks.length > 1 && (
+                      {weeksShown.length > 1 && (
                         <button
                           type="button"
                           onClick={() => onRemoveWeek(sem.id, sem.label)}
@@ -1768,7 +1802,7 @@ export function MasterXlsSheetView({
             <tbody className="divide-y divide-slate-200">
               {filteredNodes.length === 0 ? (
                 <tr>
-                  <td colSpan={5 + 10 + (showAttributeCols ? 12 : displayedWeeks.length)} className="py-16 text-center text-slate-400 font-sans">
+                  <td colSpan={5 + 10 + (showAttributeCols ? 12 : weeksShown.length)} className="py-16 text-center text-slate-400 font-sans">
                     <FileSpreadsheet className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                     <p className="font-bold text-slate-600 text-sm">No hay partidas que coincidan con los filtros.</p>
                   </td>
@@ -1897,7 +1931,7 @@ export function MasterXlsSheetView({
                     </td>
 
                     {/* Dynamic Weekly Columns: VALORES ECONÓMICOS SEMANALES TOTALIZADOS */}
-                    {!showAttributeCols && displayedWeeks.map(sem => {
+                    {!showAttributeCols && weeksShown.map(sem => {
                       const wEcon = summaryTotals.weeklyEconomicTotals[sem.id] || 0;
                       const wQty = summaryTotals.weeklyQtyTotals[sem.id] || 0;
 
@@ -2473,7 +2507,7 @@ export function MasterXlsSheetView({
                       </td>
 
                       {/* DYNAMIC WEEKLY CELLS (Hidden when in attribute view) */}
-                      {!showAttributeCols && displayedWeeks.map(sem => {
+                      {!showAttributeCols && weeksShown.map(sem => {
                         const qVal = node.cantidadesSemanales?.[sem.id] || 0;
                         const vVal = node.avanceEconSemanales?.[sem.id] || 0;
                         const isEditingThis =
