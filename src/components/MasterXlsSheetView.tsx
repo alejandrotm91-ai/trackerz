@@ -39,6 +39,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { MasterCdoItem, MasterCdoWeek, MasterCdoTotals } from '../types/masterCdo';
+import { SelectorSemana } from './SelectorSemana';
 import { Actividad } from '../types';
 import {
   MasterHierarchyMode,
@@ -361,33 +362,15 @@ export function MasterXlsSheetView({
   const density: 'compact' | 'normal' = 'compact';
   // Semana a avanzar: 'all' = las del año elegido; si no, solo esa semana
   const [semanaSel, setSemanaSel] = useState<string>('all');
-  const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-  const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-  const fechaDe = (w: MasterCdoWeek) => (w.fecha || w.id || '').slice(0, 10);
-  /** «Sem. 08-nov → 14-nov» (la semana va de domingo a sábado). */
-  const etiquetaSemana = (w: MasterCdoWeek) => {
-    const f = fechaDe(w);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return w.label || w.id;
-    const [y, m, d] = f.split('-').map(Number);
-    const fin = new Date(Date.UTC(y, m - 1, d + 6));
-    return `Sem. ${String(d).padStart(2, '0')}-${MES_CORTO[m - 1]} → ${String(fin.getUTCDate()).padStart(2, '0')}-${MES_CORTO[fin.getUTCMonth()]}${w.cerrada ? ' · cerrada' : ''}`;
-  };
-  const gruposSemanas = useMemo(() => {
-    const g = new Map<string, { clave: string; etiqueta: string; semanas: MasterCdoWeek[] }>();
-    for (const w of [...semanas].sort((a, b) => fechaDe(b).localeCompare(fechaDe(a)))) {
-      const f = fechaDe(w);
-      const clave = /^\d{4}-\d{2}/.test(f) ? f.slice(0, 7) : 'otras';
-      const etiqueta = clave === 'otras' ? 'Otras' : `${clave.slice(0, 4)} · ${MESES_ES[Number(clave.slice(5, 7)) - 1]}`;
-      if (!g.has(clave)) g.set(clave, { clave, etiqueta, semanas: [] });
-      g.get(clave)!.semanas.push(w);
-    }
-    return [...g.values()];
-  }, [semanas]);
+  // Solo semanas del año elegido: si la elegida no es de ese año, se vuelve a todas
+  useEffect(() => {
+    if (semanaSel !== 'all' && !displayedWeeks.some(x => x.id === semanaSel)) setSemanaSel('all');
+  }, [displayedWeeks, semanaSel]);
   const weeksShown = useMemo(() => {
     if (semanaSel === 'all') return displayedWeeks;
-    const w = semanas.filter(x => x.id === semanaSel);
+    const w = displayedWeeks.filter(x => x.id === semanaSel);
     return w.length ? w : displayedWeeks;
-  }, [semanaSel, semanas, displayedWeeks]);
+  }, [semanaSel, displayedWeeks]);
   const [internalShowAttributeCols, setInternalShowAttributeCols] = useState<boolean>(false);
   const showAttributeCols = propShowAttributeCols !== undefined ? propShowAttributeCols : internalShowAttributeCols;
   const setShowAttributeCols = propSetShowAttributeCols || setInternalShowAttributeCols;
@@ -1359,23 +1342,7 @@ export function MasterXlsSheetView({
           <div className="flex flex-wrap items-center gap-2">
             {/* Semana a avanzar: deja visible solo esa semana (desplegable por año › mes › semana) */}
             {!showAttributeCols && semanas.length > 0 && (
-              <select
-                id="m3-semana"
-                value={semanaSel}
-                onChange={e => setSemanaSel(e.target.value)}
-                className="border rounded-xl px-2 py-1 text-xs font-semibold outline-none"
-                style={semanaSel !== 'all'
-                  ? { backgroundColor: '#047857', borderColor: '#065F46', color: '#FFFFFF' }
-                  : { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', color: '#334155' }}
-                title="Semana a avanzar: deja visible solo esa semana (domingo a sábado)"
-              >
-                <option value="all">📅 Todas las semanas</option>
-                {gruposSemanas.map(g => (
-                  <optgroup key={g.clave} label={g.etiqueta}>
-                    {g.semanas.map(w => <option key={w.id} value={w.id}>{etiquetaSemana(w)}</option>)}
-                  </optgroup>
-                ))}
-              </select>
+              <SelectorSemana semanas={displayedWeeks} valor={semanaSel} onCambiar={setSemanaSel} />
             )}
             {/* Search Input */}
             <div className="relative">
