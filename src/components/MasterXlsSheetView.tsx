@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { MasterCdoItem, MasterCdoWeek, MasterCdoTotals } from '../types/masterCdo';
 import { SelectorSemana } from './SelectorSemana';
+import { BotonFiltroColumna, ColumnaFiltrable, FiltroCol, construirPredicado, filtroActivo, resumenFiltro } from './FiltroColumnaM3';
 import { Actividad } from '../types';
 import {
   MasterHierarchyMode,
@@ -48,8 +49,6 @@ import {
   extractWeekYear,
   calculateMasterTableSummary,
   MasterTableSummaryTotals,
-  HierarchyTextFilter,
-  TextFilterOperator,
   getVisibleHierarchyNodes,
   getMatchingLeafNodes
 } from '../utils/masterCdoHierarchy';
@@ -105,208 +104,37 @@ interface MasterXlsSheetViewProps {
   onSaveLocal?: () => void;
 }
 
-interface ColumnFilterPopoverProps {
-  title: string;
-  isOpen: boolean;
-  filter: HierarchyTextFilter;
-  onClose: () => void;
-  onApply: (appliedFilter: HierarchyTextFilter) => void;
-  onClear: () => void;
-}
-
-/**
- * Isolated popover for column text filters.
- * Maintains an internal draft state so typing does NOT trigger
- * expensive re-renders or searches across the entire dataset.
- * The filter only applies when the user clicks 'Aplicar' or presses Enter.
- */
-const ColumnFilterPopover: React.FC<ColumnFilterPopoverProps> = ({
-  title,
-  isOpen,
-  filter,
-  onClose,
-  onApply,
-  onClear,
-}) => {
-  const [draft, setDraft] = useState<HierarchyTextFilter>(filter);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const input1Ref = useRef<HTMLInputElement>(null);
-
-  // Sync draft state with external filter whenever the popover is opened
-  useEffect(() => {
-    if (isOpen) {
-      setDraft(filter);
-      const timer = setTimeout(() => {
-        input1Ref.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, filter]);
-
-  // Handle click outside and Escape key to close without applying uncommitted changes
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  const handleApply = () => {
-    const val1Clean = draft.val1?.trim() || '';
-    const val2Clean = draft.val2?.trim() || '';
-    const hasValue = Boolean(val1Clean || val2Clean);
-    onApply({
-      ...draft,
-      val1: val1Clean,
-      val2: val2Clean,
-      active: hasValue,
-    });
-    onClose();
-  };
-
-  const handleClear = () => {
-    onClear();
-    onClose();
-  };
-
-  const handleKeyDownInInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleApply();
-    }
-  };
-
-  return (
-    <div
-      ref={popoverRef}
-      className="ht-dd absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-slate-300 p-3 z-50 text-slate-800 font-sans normal-case tracking-normal text-left select-text"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100">
-        <span className="font-bold text-xs text-slate-800">{title}</span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer transition-colors"
-          title="Cerrar (Esc)"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      <div className="space-y-3">
-        {/* Condition 1 */}
-        <div className="space-y-1">
-          <label className="text-[10.5px] font-semibold text-slate-500 block">Condición 1</label>
-          <select
-            value={draft.op1}
-            onChange={(e) => setDraft((prev) => ({ ...prev, op1: e.target.value as TextFilterOperator }))}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs outline-none focus:border-indigo-500 focus:bg-white transition-colors"
-          >
-            <option value="contains">contiene</option>
-            <option value="not_contains">no contiene</option>
-            <option value="starts_with">comienza por</option>
-            <option value="ends_with">termina con</option>
-            <option value="equals">es igual a</option>
-            <option value="not_equals">no es igual a</option>
-          </select>
-          <input
-            ref={input1Ref}
-            type="text"
-            value={draft.val1}
-            placeholder="Escribe texto a buscar..."
-            onChange={(e) => setDraft((prev) => ({ ...prev, val1: e.target.value }))}
-            onKeyDown={handleKeyDownInInput}
-            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-          />
-        </div>
-
-        {/* Logic Operator */}
-        <div className="flex items-center gap-3 py-0.5">
-          <span className="text-[10.5px] font-semibold text-slate-400">Operador:</span>
-          <label className="flex items-center gap-1 text-xs font-semibold text-slate-700 cursor-pointer">
-            <input
-              type="radio"
-              name={`logic_${title}`}
-              checked={draft.logic === 'and'}
-              onChange={() => setDraft((prev) => ({ ...prev, logic: 'and' }))}
-              className="accent-indigo-600 cursor-pointer"
-            />
-            <span>Y</span>
-          </label>
-          <label className="flex items-center gap-1 text-xs font-semibold text-slate-700 cursor-pointer">
-            <input
-              type="radio"
-              name={`logic_${title}`}
-              checked={draft.logic === 'or'}
-              onChange={() => setDraft((prev) => ({ ...prev, logic: 'or' }))}
-              className="accent-indigo-600 cursor-pointer"
-            />
-            <span>O</span>
-          </label>
-        </div>
-
-        {/* Condition 2 */}
-        <div className="space-y-1">
-          <label className="text-[10.5px] font-semibold text-slate-500 block">Condición 2 (opcional)</label>
-          <select
-            value={draft.op2}
-            onChange={(e) => setDraft((prev) => ({ ...prev, op2: e.target.value as TextFilterOperator }))}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs outline-none focus:border-indigo-500 focus:bg-white transition-colors"
-          >
-            <option value="contains">contiene</option>
-            <option value="not_contains">no contiene</option>
-            <option value="starts_with">comienza por</option>
-            <option value="ends_with">termina con</option>
-            <option value="equals">es igual a</option>
-            <option value="not_equals">no es igual a</option>
-          </select>
-          <input
-            type="text"
-            value={draft.val2}
-            placeholder="Segunda condición..."
-            onChange={(e) => setDraft((prev) => ({ ...prev, val2: e.target.value }))}
-            onKeyDown={handleKeyDownInInput}
-            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-          />
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-2 pt-2 border-t border-slate-200">
-          <button
-            type="button"
-            onClick={handleClear}
-            className="flex-1 py-1 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-          >
-            Borrar Filtro
-          </button>
-          <button
-            type="button"
-            onClick={handleApply}
-            className="flex-1 py-1 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer"
-          >
-            Aplicar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+const attrDe = (n: MasterHierarchyNode, k: 'macro' | 'grupo' | 'tipo' | 'partidas' | 'cap' | 'scap' | 'unit' | 'componente' | 'ubicacion' | 'proceso' | 'resp') =>
+  String((n as any)[k] || (n.itemRef as any)?.[k] || '');
+/** Columnas de la hoja M₃ que se pueden filtrar (todas menos las semanales de cantidad y venta). */
+const COLUMNAS_FILTRO: ColumnaFiltrable[] = [
+  { key: 'wbs', titulo: 'WBS / Jerarquía', tipo: 'texto', valor: n => n.wbs || n.itemRef?.wbs || '' },
+  { key: 'idOrig', titulo: 'id.Orig', tipo: 'texto', valor: n => n.idOrig || n.itemRef?.idOrig || '' },
+  { key: 'activityId', titulo: 'Activity ID', tipo: 'texto', valor: n => n.activityId || n.itemRef?.activityId || '' },
+  { key: 'descripcion', titulo: 'Descripción Partida', tipo: 'texto', valor: n => n.descripcion || '' },
+  { key: 'macro', titulo: 'Macro', tipo: 'texto', valor: n => attrDe(n, 'macro') },
+  { key: 'grupo', titulo: 'Grupo', tipo: 'texto', valor: n => attrDe(n, 'grupo') },
+  { key: 'tipo', titulo: 'Tipo', tipo: 'texto', valor: n => attrDe(n, 'tipo') },
+  { key: 'partidas', titulo: 'Partidas', tipo: 'texto', valor: n => attrDe(n, 'partidas') },
+  { key: 'cap', titulo: 'CAP', tipo: 'texto', valor: n => attrDe(n, 'cap') },
+  { key: 'scap', titulo: 'SCAP', tipo: 'texto', valor: n => attrDe(n, 'scap') },
+  { key: 'unit', titulo: 'Unit', tipo: 'texto', valor: n => attrDe(n, 'unit') },
+  { key: 'componente', titulo: 'Componente', tipo: 'texto', valor: n => attrDe(n, 'componente') },
+  { key: 'ubicacion', titulo: 'Ubicación', tipo: 'texto', valor: n => attrDe(n, 'ubicacion') },
+  { key: 'proceso', titulo: 'Proceso', tipo: 'texto', valor: n => attrDe(n, 'proceso') },
+  { key: 'resp', titulo: 'Resp', tipo: 'texto', valor: n => attrDe(n, 'resp') },
+  { key: 'unidad', titulo: 'UND', tipo: 'texto', valor: n => n.unidad || '' },
+  { key: 'cantPres', titulo: 'Cant. Presup.', tipo: 'numero', valor: n => n.cantidadPresupuesto },
+  { key: 'precio', titulo: 'Precio', tipo: 'numero', valor: n => n.precio },
+  { key: 'step', titulo: 'Step', tipo: 'numero', valor: n => n.step },
+  { key: 'venta', titulo: 'Venta', tipo: 'numero', valor: n => n.venta },
+  { key: 'subcontratista', titulo: 'Subcontratista', tipo: 'texto', valor: n => n.subcontratista || '' },
+  { key: 'cantAcum', titulo: 'Cant. Acum.', tipo: 'numero', valor: n => n.cantAcum },
+  { key: 'avanceEcon', titulo: 'Avance', tipo: 'numero', valor: n => n.avanceEcon },
+  { key: 'saldoEcon', titulo: 'Saldo', tipo: 'numero', valor: n => n.saldoEcon },
+  { key: 'pctAvance', titulo: '% Av.', tipo: 'numero', valor: n => n.pctAvance },
+];
+const COLUMNA_POR_KEY = new Map(COLUMNAS_FILTRO.map(c => [c.key, c]));
 
 export function MasterXlsSheetView({
   isOpen,
@@ -407,25 +235,35 @@ export function MasterXlsSheetView({
     }, 2500);
   }, []);
 
-  const [idOrigFilter, setIdOrigFilter] = useState<HierarchyTextFilter>({
-    op1: 'contains',
-    val1: '',
-    logic: 'and',
-    op2: 'contains',
-    val2: '',
-    active: false
-  });
-  const [isIdOrigFilterOpen, setIsIdOrigFilterOpen] = useState(false);
-
-  const [activityIdFilter, setActivityIdFilter] = useState<HierarchyTextFilter>({
-    op1: 'contains',
-    val1: '',
-    logic: 'and',
-    op2: 'contains',
-    val2: '',
-    active: false
-  });
-  const [isActivityIdFilterOpen, setIsActivityIdFilterOpen] = useState(false);
+  // Filtros por columna tipo Excel (texto y número), sobre las partidas
+  const [filtrosCol, setFiltrosCol] = useState<Record<string, FiltroCol>>({});
+  const [filtroAbierto, setFiltroAbierto] = useState<string | null>(null);
+  const ponerFiltro = useCallback((key: string, f: FiltroCol | null) => {
+    setFiltrosCol(prev => { const n = { ...prev }; if (f) n[key] = f; else delete n[key]; return n; });
+  }, []);
+  const hojasTodas = useMemo(() => (nodeMap ? Array.from(nodeMap.values()) : nodes).filter(n => n.esHoja), [nodeMap, nodes]);
+  // Una partida pasa si pasa ella o si pasa su actividad p6 (el grupo con Activity ID del que cuelga):
+  // así, p. ej., «Activity ID contiene p6» muestra las actividades p6 con sus rubros.
+  const predicadoHoja = useMemo(() => {
+    const p = construirPredicado(filtrosCol, COLUMNAS_FILTRO, hojasTodas);
+    if (!p) return undefined;
+    return (n: MasterHierarchyNode) => {
+      if (p(n)) return true;
+      const padre = n.parentKey ? nodeMap?.get(n.parentKey) : undefined;
+      return !!(padre && !padre.esHoja && padre.activityId && p(padre));
+    };
+  }, [filtrosCol, hojasTodas, nodeMap]);
+  const filtrosActivos = Object.entries(filtrosCol).filter(([k, f]) => COLUMNA_POR_KEY.has(k) && filtroActivo(f));
+  const cabeceraFiltro = (key: string, contenido: React.ReactNode, alinear: 'izq' | 'der' | 'centro' = 'izq') => {
+    const col = COLUMNA_POR_KEY.get(key)!;
+    return (
+      <div className={`flex items-center gap-1 ${alinear === 'der' ? 'justify-end' : alinear === 'centro' ? 'justify-center' : 'justify-between'}`}>
+        <span className="truncate">{contenido}</span>
+        <BotonFiltroColumna columna={col} filtro={filtrosCol[key]} abierto={filtroAbierto === key}
+          onAbrir={a => setFiltroAbierto(a ? key : null)} onAplicar={f => ponerFiltro(key, f)} />
+      </div>
+    );
+  };
 
   // Computes visible nodes across the full tree hierarchy,
   // working seamlessly whether the tree was collapsed or expanded.
@@ -438,51 +276,15 @@ export function MasterXlsSheetView({
         filterSubc,
         filterAvance,
         searchTerm,
-        { idOrigFilter, activityIdFilter }
+        { predicadoHoja }
       );
     }
     
     // Fallback if nodeMap is not provided
     let result = nodes;
-    const checkOp = (cellValue: string, op: TextFilterOperator, val: string) => {
-      if (!val) return true;
-      const lowerVal = val.toLowerCase();
-      switch (op) {
-        case 'contains': return cellValue.includes(lowerVal);
-        case 'not_contains': return !cellValue.includes(lowerVal);
-        case 'starts_with': return cellValue.startsWith(lowerVal);
-        case 'ends_with': return cellValue.endsWith(lowerVal);
-        case 'equals': return cellValue === lowerVal;
-        case 'not_equals': return cellValue !== lowerVal;
-        default: return true;
-      }
-    };
-
-    if (idOrigFilter.active && (idOrigFilter.val1 || idOrigFilter.val2)) {
-      result = result.filter(n => {
-        const cellValue = String(n.idOrig || n.itemRef?.idOrig || '').toLowerCase();
-        const match1 = idOrigFilter.val1 ? checkOp(cellValue, idOrigFilter.op1, idOrigFilter.val1) : true;
-        const match2 = idOrigFilter.val2 ? checkOp(cellValue, idOrigFilter.op2, idOrigFilter.val2) : true;
-        if (!idOrigFilter.val1 && !idOrigFilter.val2) return true;
-        if (!idOrigFilter.val2) return match1;
-        if (!idOrigFilter.val1) return match2;
-        return idOrigFilter.logic === 'and' ? (match1 && match2) : (match1 || match2);
-      });
-    }
-
-    if (activityIdFilter.active && (activityIdFilter.val1 || activityIdFilter.val2)) {
-      result = result.filter(n => {
-        const cellValue = String(n.activityId || n.itemRef?.activityId || '').toLowerCase();
-        const match1 = activityIdFilter.val1 ? checkOp(cellValue, activityIdFilter.op1, activityIdFilter.val1) : true;
-        const match2 = activityIdFilter.val2 ? checkOp(cellValue, activityIdFilter.op2, activityIdFilter.val2) : true;
-        if (!activityIdFilter.val1 && !activityIdFilter.val2) return true;
-        if (!activityIdFilter.val2) return match1;
-        if (!activityIdFilter.val1) return match2;
-        return activityIdFilter.logic === 'and' ? (match1 && match2) : (match1 || match2);
-      });
-    }
+    if (predicadoHoja) result = result.filter(n => !n.esHoja || predicadoHoja(n));
     return result;
-  }, [nodeMap, rootKeys, expandedKeys, filterSubc, filterAvance, searchTerm, idOrigFilter, activityIdFilter, nodes]);
+  }, [nodeMap, rootKeys, expandedKeys, filterSubc, filterAvance, searchTerm, predicadoHoja, nodes]);
 
   // High performance infinite scrolling in XLS view
   const [renderLimit, setRenderLimit] = useState<number>(100);
@@ -490,7 +292,7 @@ export function MasterXlsSheetView({
   // Reset limit when filters or expansion changes
   useEffect(() => {
     setRenderLimit(100);
-  }, [searchTerm, filterSubc, filterAvance, hierarchyMode, filteredNodes.length, expandedKeys]);
+  }, [searchTerm, filterSubc, filterAvance, hierarchyMode, filteredNodes.length, expandedKeys, predicadoHoja]);
 
   const paginatedNodes = useMemo(() => {
     return filteredNodes.slice(0, renderLimit);
@@ -515,13 +317,13 @@ export function MasterXlsSheetView({
         filterSubc,
         filterAvance,
         searchTerm,
-        { idOrigFilter, activityIdFilter }
+        { predicadoHoja }
       );
       return calculateMasterTableSummary(matchingLeaves, semanas, items);
     }
     const leafNodes = filteredNodes.filter(n => n.esHoja);
     return calculateMasterTableSummary(leafNodes, semanas, items);
-  }, [nodeMap, rootKeys, filterSubc, filterAvance, searchTerm, idOrigFilter, activityIdFilter, semanas, items, filteredNodes]);
+  }, [nodeMap, rootKeys, filterSubc, filterAvance, searchTerm, predicadoHoja, semanas, items, filteredNodes]);
 
   // In-cell editing
   const [editingCell, setEditingCell] = useState<{
@@ -1382,32 +1184,24 @@ export function MasterXlsSheetView({
               <option value="saldo_pendiente">📉 Con saldo</option>
             </select>
 
-            {/* Active Column Filters Badges */}
-            {idOrigFilter.active && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-bold">
-                <span>id.Orig: &quot;{idOrigFilter.val1 || idOrigFilter.val2}&quot;</span>
-                <button
-                  type="button"
-                  onClick={() => setIdOrigFilter(prev => ({ ...prev, active: false, val1: '', val2: '' }))}
-                  className="text-indigo-400 hover:text-indigo-800 p-0.5 rounded cursor-pointer"
-                  title="Quitar filtro de id.Orig"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {activityIdFilter.active && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-bold">
-                <span>Act.ID: &quot;{activityIdFilter.val1 || activityIdFilter.val2}&quot;</span>
-                <button
-                  type="button"
-                  onClick={() => setActivityIdFilter(prev => ({ ...prev, active: false, val1: '', val2: '' }))}
-                  className="text-indigo-400 hover:text-indigo-800 p-0.5 rounded cursor-pointer"
-                  title="Quitar filtro de Activity ID"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
+            {/* Filtros de columna activos */}
+            {filtrosActivos.map(([k, f]) => {
+              const col = COLUMNA_POR_KEY.get(k)!;
+              return (
+                <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-bold">
+                  <span>{col.titulo}: {resumenFiltro(f, col.tipo)}</span>
+                  <button type="button" onClick={() => ponerFiltro(k, null)}
+                    className="text-indigo-400 hover:text-indigo-800 p-0.5 rounded cursor-pointer" title={`Quitar filtro de ${col.titulo}`}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              );
+            })}
+            {filtrosActivos.length > 1 && (
+              <button type="button" onClick={() => setFiltrosCol({})}
+                className="text-[11px] font-bold text-slate-500 hover:text-rose-700 underline cursor-pointer">
+                Quitar filtros de columna
+              </button>
             )}
 
           </div>
@@ -1563,131 +1357,59 @@ export function MasterXlsSheetView({
 
                 {/* Col B: WBS */}
                 <th className="py-1.5 px-2.5 sticky left-10 z-40 bg-[#e2e8f0] border-r border-b border-slate-300 min-w-[130px]">
-                  WBS / Jerarquía
+                  {cabeceraFiltro('wbs', 'WBS / Jerarquía')}
                 </th>
 
                 {/* Col C: id.Orig */}
                 <th className="py-1.5 px-2 sticky left-[170px] z-40 bg-[#e2e8f0] border-r border-b border-slate-300 min-w-[85px]">
-                  <div className="flex items-center justify-between gap-1 relative">
-                    <span>id.Orig</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsIdOrigFilterOpen((prev) => !prev);
-                        setIsActivityIdFilterOpen(false);
-                      }}
-                      className={`p-0.5 rounded transition-colors cursor-pointer ${
-                        idOrigFilter.active
-                          ? 'text-indigo-700 bg-indigo-100/50 hover:bg-indigo-200/50'
-                          : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
-                      }`}
-                      title="Filtrar por id.Orig"
-                    >
-                      <Filter className="w-3.5 h-3.5" />
-                    </button>
-
-                    <ColumnFilterPopover
-                      title="Filtro: id.Orig"
-                      isOpen={isIdOrigFilterOpen}
-                      filter={idOrigFilter}
-                      onClose={() => setIsIdOrigFilterOpen(false)}
-                      onApply={(applied) => setIdOrigFilter(applied)}
-                      onClear={() =>
-                        setIdOrigFilter({
-                          op1: 'contains',
-                          val1: '',
-                          logic: 'and',
-                          op2: 'contains',
-                          val2: '',
-                          active: false,
-                        })
-                      }
-                    />
-                  </div>
+                  {cabeceraFiltro('idOrig', 'id.Orig')}
                 </th>
 
                 {/* Col D: Activity ID */}
                 <th className="py-1.5 px-2 sticky left-[255px] z-40 bg-[#e2e8f0] border-r border-b border-slate-300 min-w-[90px]">
-                  <div className="flex items-center justify-between gap-1 relative">
-                    <span>Activity ID</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsActivityIdFilterOpen((prev) => !prev);
-                        setIsIdOrigFilterOpen(false);
-                      }}
-                      className={`p-0.5 rounded transition-colors cursor-pointer ${
-                        activityIdFilter.active
-                          ? 'text-indigo-700 bg-indigo-100/50 hover:bg-indigo-200/50'
-                          : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
-                      }`}
-                      title="Filtrar por Activity ID"
-                    >
-                      <Filter className="w-3.5 h-3.5" />
-                    </button>
-
-                    <ColumnFilterPopover
-                      title="Filtro: Activity ID"
-                      isOpen={isActivityIdFilterOpen}
-                      filter={activityIdFilter}
-                      onClose={() => setIsActivityIdFilterOpen(false)}
-                      onApply={(applied) => setActivityIdFilter(applied)}
-                      onClear={() =>
-                        setActivityIdFilter({
-                          op1: 'contains',
-                          val1: '',
-                          logic: 'and',
-                          op2: 'contains',
-                          val2: '',
-                          active: false,
-                        })
-                      }
-                    />
-                  </div>
+                  {cabeceraFiltro('activityId', 'Activity ID')}
                 </th>
 
                 {/* Col E: Descripción */}
                 <th className="py-1.5 px-3 sticky left-[345px] z-40 bg-[#e2e8f0] border-r border-b border-slate-300 min-w-[240px] max-w-[340px]">
-                  Descripción Partida
+                  {cabeceraFiltro('descripcion', 'Descripción Partida')}
                 </th>
 
                 {/* Optional Attribute Columns (Macro, Grupo, Tipo, Partidas, CAP, SCAP, Unit, Componente, Ubicación, Proceso, Resp, Editar) */}
                 {showAttributeCols && (
                   <>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[95px] bg-blue-50 text-blue-900">
-                      Macro
+                      {cabeceraFiltro('macro', 'Macro', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[95px] bg-indigo-50 text-indigo-900">
-                      Grupo
+                      {cabeceraFiltro('grupo', 'Grupo', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[90px] bg-purple-50 text-purple-900">
-                      Tipo
+                      {cabeceraFiltro('tipo', 'Tipo', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[95px] bg-slate-50 text-slate-900">
-                      Partidas
+                      {cabeceraFiltro('partidas', 'Partidas', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[70px] bg-amber-50 text-amber-900 text-center">
-                      CAP
+                      {cabeceraFiltro('cap', 'CAP', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[80px] bg-emerald-50 text-emerald-900 text-center">
-                      SCAP
+                      {cabeceraFiltro('scap', 'SCAP', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[85px] bg-teal-50 text-teal-900 text-center font-black">
-                      Unit
+                      {cabeceraFiltro('unit', 'Unit', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[110px] bg-cyan-50 text-cyan-900 font-black">
-                      Componente
+                      {cabeceraFiltro('componente', 'Componente', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[85px] bg-slate-100 text-slate-800">
-                      Ubicación
+                      {cabeceraFiltro('ubicacion', 'Ubicación', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[85px] bg-slate-100 text-slate-800">
-                      Proceso
+                      {cabeceraFiltro('proceso', 'Proceso', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[85px] bg-slate-100 text-slate-800">
-                      Resp
+                      {cabeceraFiltro('resp', 'Resp', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[80px] bg-indigo-100/90 text-indigo-950 text-center">
                       Editar
@@ -1696,35 +1418,35 @@ export function MasterXlsSheetView({
                 )}
 
                 {/* Standard Data Columns */}
-                <th className="py-1.5 px-2 border-r border-b border-slate-300 text-center w-14">
-                  UND
+                <th className="py-1.5 px-2 border-r border-b border-slate-300 text-center min-w-[64px]">
+                  {cabeceraFiltro('unidad', 'UND', 'centro')}
                 </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[80px]">
-                  Cant. Presup.
+                  {cabeceraFiltro('cantPres', 'Cant. Presup.', 'der')}
                 </th>
                 <th className="py-1.5 px-2 border-r border-b border-slate-300 text-right min-w-[75px]">
-                  Precio
+                  {cabeceraFiltro('precio', 'Precio', 'der')}
                 </th>
-                <th className="py-1.5 px-1.5 border-r border-b border-slate-300 text-center w-12">
-                  Step
+                <th className="py-1.5 px-1.5 border-r border-b border-slate-300 text-center min-w-[60px]">
+                  {cabeceraFiltro('step', 'Step', 'centro')}
                 </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[90px]">
-                  Venta
+                  {cabeceraFiltro('venta', 'Venta', 'der')}
                 </th>
                 <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[95px]">
-                  Subcontratista
+                  {cabeceraFiltro('subcontratista', 'Subcontratista', 'izq')}
                 </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[85px] bg-indigo-50/70 text-indigo-900">
-                  Cant. Acum.
+                  {cabeceraFiltro('cantAcum', 'Cant. Acum.', 'der')}
                 </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[95px] bg-indigo-50/70 text-indigo-900">
-                  Avance
+                  {cabeceraFiltro('avanceEcon', 'Avance', 'der')}
                 </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[85px] text-slate-600">
-                  Saldo
+                  {cabeceraFiltro('saldoEcon', 'Saldo', 'der')}
                 </th>
-                <th className="py-1.5 px-1.5 border-r border-b border-slate-300 text-center w-14">
-                  % Av.
+                <th className="py-1.5 px-1.5 border-r border-b border-slate-300 text-center min-w-[64px]">
+                  {cabeceraFiltro('pctAvance', '% Av.', 'centro')}
                 </th>
 
                 {/* DYNAMIC WEEKLY COLUMNS (Hidden when in attribute view) */}

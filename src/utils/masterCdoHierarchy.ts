@@ -1513,6 +1513,8 @@ export function getVisibleHierarchyNodes(
   columnFilters?: {
     idOrigFilter?: HierarchyTextFilter;
     activityIdFilter?: HierarchyTextFilter;
+    /** Filtros por columna (tipo Excel) sobre las partidas */
+    predicadoHoja?: (n: MasterHierarchyNode) => boolean;
   }
 ): MasterHierarchyNode[] {
   const visibleList: MasterHierarchyNode[] = [];
@@ -1526,7 +1528,8 @@ export function getVisibleHierarchyNodes(
     filterAvance !== 'all' || 
     normalizedSearch !== '' ||
     isIdOrigActive ||
-    isActivityIdActive;
+    isActivityIdActive ||
+    !!columnFilters?.predicadoHoja;
 
   // Set of node keys that should be included in the visible tree
   const matchingNodeKeys = new Set<string>();
@@ -1549,6 +1552,8 @@ export function getVisibleHierarchyNodes(
         const actIdVal = node.activityId || node.itemRef?.activityId || '';
         if (!evaluateHierarchyTextFilter(actIdVal, columnFilters?.activityIdFilter)) return false;
       }
+
+      if (columnFilters?.predicadoHoja && !columnFilters.predicadoHoja(node)) return false;
 
       return true;
     };
@@ -1637,6 +1642,8 @@ export function getMatchingLeafNodes(
   columnFilters?: {
     idOrigFilter?: HierarchyTextFilter;
     activityIdFilter?: HierarchyTextFilter;
+    /** Filtros por columna (tipo Excel) sobre las partidas */
+    predicadoHoja?: (n: MasterHierarchyNode) => boolean;
   }
 ): MasterHierarchyNode[] {
   const allLeafNodes = Array.from(nodeMap.values()).filter(n => n.esHoja);
@@ -1650,7 +1657,8 @@ export function getMatchingLeafNodes(
     filterAvance !== 'all' || 
     normalizedSearch !== '' ||
     isIdOrigActive ||
-    isActivityIdActive;
+    isActivityIdActive ||
+    !!columnFilters?.predicadoHoja;
 
   if (!isFilterActive) return allLeafNodes;
 
@@ -1698,6 +1706,8 @@ export function getMatchingLeafNodes(
       const actIdVal = node.activityId || node.itemRef?.activityId || '';
       if (!evaluateHierarchyTextFilter(actIdVal, columnFilters?.activityIdFilter)) return false;
     }
+
+    if (columnFilters?.predicadoHoja && !columnFilters.predicadoHoja(node)) return false;
 
     if (normalizedSearch) {
       if (!doesNodeOrAncestorMatchSearch(node.key)) return false;
