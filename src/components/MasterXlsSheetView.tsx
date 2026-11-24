@@ -36,7 +36,8 @@ import {
   Pencil,
   Copy,
   ClipboardPaste,
-  ChevronUp
+  ChevronUp,
+  TrendingUp,
 } from 'lucide-react';
 import { MasterCdoItem, MasterCdoWeek, MasterCdoTotals } from '../types/masterCdo';
 import { SelectorSemana } from './SelectorSemana';
@@ -202,6 +203,8 @@ export function MasterXlsSheetView({
   const [internalShowAttributeCols, setInternalShowAttributeCols] = useState<boolean>(false);
   const showAttributeCols = propShowAttributeCols !== undefined ? propShowAttributeCols : internalShowAttributeCols;
   const setShowAttributeCols = propSetShowAttributeCols || setInternalShowAttributeCols;
+  // Vista «Avanza»: solo Cant. Presup., Subcontratista, Cant. Acum., Avance, Saldo y % Av. (más las semanas)
+  const [avanza, setAvanza] = useState<boolean>(false);
   const [activeCell, setActiveCell] = useState<{
     nodeKey: string;
     field: string;
@@ -482,10 +485,12 @@ export function MasterXlsSheetView({
     const attrs = showAttributeCols
       ? ['macro', 'grupo', 'tipo', 'partidas', 'cap', 'scap', 'unit', 'componente', 'ubicacion', 'proceso', 'resp']
       : [];
-    const metrics = ['cantPres', 'precio', 'step', 'venta', 'subcontratista', 'cantAcum', 'avanceEcon', 'saldoEcon', 'pctAvance'];
+    const metrics = avanza
+      ? ['cantPres', 'subcontratista', 'cantAcum', 'avanceEcon', 'saldoEcon', 'pctAvance']
+      : ['cantPres', 'precio', 'step', 'venta', 'subcontratista', 'cantAcum', 'avanceEcon', 'saldoEcon', 'pctAvance'];
     const weeks = !showAttributeCols ? weeksShown.map(w => `week_${w.id}`) : [];
     return [...base, ...attrs, ...metrics, ...weeks];
-  }, [showAttributeCols, weeksShown]);
+  }, [showAttributeCols, weeksShown, avanza]);
 
   // Smooth keyboard navigation across the entire grid
   const navigateActiveCell = useCallback((direction: 'down' | 'up' | 'right' | 'left') => {
@@ -1060,11 +1065,27 @@ export function MasterXlsSheetView({
               </div>
             )}
 
+            {/* Vista Avanza: solo las columnas para avanzar */}
+            <button
+              id="btn-xls-avanza"
+              type="button"
+              onClick={() => { const v = !avanza; setAvanza(v); if (v && showAttributeCols) setShowAttributeCols(false); }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
+                avanza
+                  ? 'bg-emerald-700 border-emerald-800 text-white shadow-sm font-black ring-2 ring-emerald-400/40'
+                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
+              }`}
+              title="Avanza: muestra solo Cant. Presup., Subcontratista, Cant. Acum., Avance, Saldo y % Av. (y las semanas)"
+            >
+              <TrendingUp className={`w-3.5 h-3.5 ${avanza ? 'text-white' : 'text-emerald-700'}`} />
+              <span>Avanza</span>
+            </button>
+
             {/* Toggle Attribute View (Unit, Componente, Macro, Grupo, Tipo, CAP, SCAP) - hides execution weeks */}
             <button
               id="btn-xls-toggle-attributes"
               type="button"
-              onClick={() => setShowAttributeCols(!showAttributeCols)}
+              onClick={() => { const v = !showAttributeCols; setShowAttributeCols(v); if (v) setAvanza(false); }}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
                 showAttributeCols
                   ? 'bg-indigo-600 border-indigo-700 text-white shadow-sm font-black ring-2 ring-indigo-400/40'
@@ -1418,12 +1439,15 @@ export function MasterXlsSheetView({
                 )}
 
                 {/* Standard Data Columns */}
+                {!avanza && (
                 <th className="py-1.5 px-2 border-r border-b border-slate-300 text-center min-w-[64px]">
                   {cabeceraFiltro('unidad', 'UND', 'centro')}
                 </th>
-                <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[80px]">
+                )}
+                <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[104px]">
                   {cabeceraFiltro('cantPres', 'Cant. Presup.', 'der')}
                 </th>
+                {!avanza && (<>
                 <th className="py-1.5 px-2 border-r border-b border-slate-300 text-right min-w-[75px]">
                   {cabeceraFiltro('precio', 'Precio', 'der')}
                 </th>
@@ -1433,6 +1457,7 @@ export function MasterXlsSheetView({
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[90px]">
                   {cabeceraFiltro('venta', 'Venta', 'der')}
                 </th>
+                </>)}
                 <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[95px]">
                   {cabeceraFiltro('subcontratista', 'Subcontratista', 'izq')}
                 </th>
@@ -1493,7 +1518,7 @@ export function MasterXlsSheetView({
             <tbody className="divide-y divide-slate-200">
               {filteredNodes.length === 0 ? (
                 <tr>
-                  <td colSpan={5 + 10 + (showAttributeCols ? 12 : weeksShown.length * (viewMode === 'dual' ? 2 : 1))} className="py-16 text-center text-slate-400 font-sans">
+                  <td colSpan={5 + (avanza ? 6 : 10) + (showAttributeCols ? 12 : weeksShown.length * (viewMode === 'dual' ? 2 : 1))} className="py-16 text-center text-slate-400 font-sans">
                     <FileSpreadsheet className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                     <p className="font-bold text-slate-600 text-sm">No hay partidas que coincidan con los filtros.</p>
                   </td>
@@ -1562,14 +1587,17 @@ export function MasterXlsSheetView({
                       </>
                     )}
 
+                    {!avanza && (<>
                     {/* Col E: UND */}
                     <td className="py-1 px-2 text-center border-r border-indigo-200 text-slate-400 text-[10px] font-sans bg-indigo-50/95">—</td>
+                    </>)}
 
                     {/* Col F: Cant. Presupuesto */}
-                    <td className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-800 bg-indigo-50/95" title="Total Cantidad Presupuestada">
-                      {summaryTotals.totalCantPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 1 })}
+                    <td className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-800 bg-indigo-50/95" title="Sin total: las cantidades tienen unidades distintas">
+                      {/* Sin total de cantidades: mezclan unidades */}
                     </td>
 
+                    {!avanza && (<>
                     {/* Col G: Precio */}
                     <td className="py-1 px-2 text-right border-r border-indigo-200 text-slate-400 bg-indigo-50/95">—</td>
 
@@ -1583,6 +1611,7 @@ export function MasterXlsSheetView({
                     >
                       {summaryTotals.totalVentaPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
                     </td>
+                    </>)}
 
                     {/* Col J: Subcontratista */}
                     <td className="py-1 px-2 border-r border-indigo-200 text-center text-slate-400 text-[10px] font-sans bg-indigo-50/95">—</td>
@@ -1590,9 +1619,9 @@ export function MasterXlsSheetView({
                     {/* Col K: Cant. Acum. */}
                     <td
                       className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-800 bg-indigo-50/95"
-                      title="Total Cantidad Física Acumulada"
+                      title="Sin total: las cantidades tienen unidades distintas"
                     >
-                      {summaryTotals.totalCantAcumulada > 0 ? summaryTotals.totalCantAcumulada.toLocaleString('es-ES', { maximumFractionDigits: 1 }) : '—'}
+                      {/* Sin total de cantidades: mezclan unidades */}
                     </td>
 
                     {/* Col L: Avance Econ. ($) - TOTALIZADO */}
@@ -1936,6 +1965,7 @@ export function MasterXlsSheetView({
                         </>
                       )}
 
+                      {!avanza && (<>
                       {/* Col E: UND */}
                       <td
                         onClick={(e) => { e.stopPropagation(); setActiveCell({ nodeKey: node.key, field: 'unidad' }); }}
@@ -1950,6 +1980,7 @@ export function MasterXlsSheetView({
                           <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                         )}
                       </td>
+                      </>)}
 
                       {/* Col F: Cant. Presupuesto */}
                       <td
@@ -2002,6 +2033,7 @@ export function MasterXlsSheetView({
                         )}
                       </td>
 
+                      {!avanza && (<>
                       {/* Col G: Precio */}
                       <td
                         onClick={(e) => {
@@ -2116,6 +2148,7 @@ export function MasterXlsSheetView({
                           <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                         )}
                       </td>
+                      </>)}
 
                       {/* Col J: Subcontratista */}
                       <td
