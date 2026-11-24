@@ -171,6 +171,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [fuenteLB, setFuenteLB] = React.useState<'udf' | 'guardada' | 'planificada'>('udf');
   const lbFileRef = React.useRef<HTMLInputElement>(null);
   const [menuLB, setMenuLB] = React.useState(false);
+  // Los menús de la barra lateral izquierda se dibujan fijos en pantalla: la barra tiene scroll
+  // vertical y recortaría un menú posicionado dentro de ella (pasaba con Baseline).
+  const [posMenu, setPosMenu] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const posJunto = (el: HTMLElement) => { const r = el.getBoundingClientRect(); return { top: Math.max(8, Math.min(r.top, window.innerHeight - 320)), left: r.right + 6 }; };
   const [menuFiltro, setMenuFiltro] = React.useState(false);
   React.useEffect(() => { leerLineaBase().then(lb => setLbGuardada(lb)); }, []);
   // Agrupación: WBS de P6 o vista de ejecución (clasificación del Master)
@@ -1185,69 +1189,6 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 );
               })}
             </div>
-            <div className="relative bg-white/10 rounded-lg p-0.5 flex">
-              <button id="p6-filtro" onClick={() => { setVista('actividades'); setMenuFiltro(v => !v); }} title={`Filter · status: ${NOMBRE_FILTRO[filtroEstado] ?? ''}${hayFiltroUdf ? ` · ${condUdf.length} User Defined condition${condUdf.length > 1 ? 's' : ''}` : ''}`} aria-pressed={filtroMenuActivo}
-                className={`p-1.5 rounded-md cursor-pointer ${filtroMenuActivo ? 'bg-white text-[#312E81] shadow-sm' : 'text-indigo-100 hover:bg-white/20'}`}>
-                <Filter className="w-4 h-4" />
-              </button>
-              {menuFiltro && (
-                <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setMenuFiltro(false)} />
-                  <div className="absolute left-0 top-full mt-1.5 z-[61] w-[470px] bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
-                    <div className="flex items-center justify-between px-3 py-1.5 bg-[#F0F0F0] border-b border-[#D5D5D5] rounded-t-lg">
-                      <b>Status Filter</b>
-                      <button onClick={() => setMenuFiltro(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
-                    </div>
-                    <div className="p-2 flex flex-col gap-0.5">
-                      {FILTROS_ESTADO.map(([k, etq]) => (
-                        <label key={k} className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer ${filtroEstado === k ? 'border-[#8A8FC9] bg-[#EEF0FB] font-semibold' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
-                          <input type="radio" name="filtroEstado" checked={filtroEstado === k} onChange={() => setFiltroEstado(k)} />
-                          {etq}
-                        </label>
-                      ))}
-                    </div>
-                    {/* Filtros por campos de usuario */}
-                    <div className="border-t border-[#E2E2E2] p-2">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <b>User Defined</b>
-                        <span className="text-[10.5px] text-[#5A6A74]">all conditions must be met (AND)</span>
-                        {filtrosUdf.length > 0 && <button onClick={() => setFiltrosUdf([])} className="ml-auto text-[#312E81] underline cursor-pointer">Clear</button>}
-                      </div>
-                      {filtrosUdf.map((f, k) => {
-                        const vals = udfFiltroVals.get(f.campo);
-                        const distintos = vals ? [...[...vals.values()].reduce((mm, x) => mm.set(x, (mm.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]).slice(0, 300) : [];
-                        const poner = (cambio: Partial<FiltroUdf>) => setFiltrosUdf(fs => fs.map((x, y) => (y === k ? { ...x, ...cambio } : x)));
-                        return (
-                          <div key={k} className="flex items-center gap-1 mb-1">
-                            <select value={f.campo} onChange={e => poner({ campo: e.target.value, valor: '' })} className="border border-[#D5DEE2] rounded px-1 py-1 w-[150px] bg-white">
-                              <option value="">Field…</option>
-                              {catalogo.filter(c => c.id.startsWith('udf:')).map(c => <option key={c.id} value={c.id.slice(4)}>{c.titulo}</option>)}
-                            </select>
-                            <select value={f.op} onChange={e => poner({ op: e.target.value as FiltroUdf['op'] })} className="border border-[#D5DEE2] rounded px-1 py-1 bg-white">
-                              {OPS_UDF.map(([o, etq]) => <option key={o} value={o}>{etq}</option>)}
-                            </select>
-                            {f.op !== 'vacio' && (
-                              <>
-                                <input list={`udf-vals-${k}`} value={f.valor} onChange={e => poner({ valor: e.target.value })} placeholder={f.campo ? 'Value…' : ''} disabled={!f.campo}
-                                  className="border border-[#D5DEE2] rounded px-1.5 py-1 flex-1 min-w-0" />
-                                <datalist id={`udf-vals-${k}`}>
-                                  {distintos.map(([x, c]) => <option key={x} value={x}>{`${c} activities`}</option>)}
-                                </datalist>
-                              </>
-                            )}
-                            <button onClick={() => setFiltrosUdf(fs => fs.filter((_, y) => y !== k))} title="Remove condition" className="p-1 text-[#5A6A74] hover:text-red-600 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
-                          </div>
-                        );
-                      })}
-                      <button onClick={() => setFiltrosUdf(fs => [...fs, { campo: '', op: 'igual', valor: '' }])} className="mt-0.5 px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1">
-                        <Plus className="w-3.5 h-3.5" /> Add condition
-                      </button>
-                      {hayFiltroUdf && <div className="mt-1.5 text-[10.5px] text-[#5A6A74]">Master-only items are hidden while a User Defined filter is active.</div>}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
           </div>
         )}
         <div className="ml-auto flex items-center gap-1.5">
@@ -1367,7 +1308,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               <span className="text-[8.5px] leading-none">Relations</span>
             </button>
             <div className="relative">
-              <button onClick={() => { setVista('actividades'); if (menuLB) setMenuLB(false); else { setVerLB(true); setMenuLB(true); } }} title="Baseline: show it and choose which one to use"
+              <button id="p6-baseline" onClick={e => { setVista('actividades'); if (menuLB) setMenuLB(false); else { setPosMenu(posJunto(e.currentTarget)); setVerLB(true); setMenuLB(true); } }} title="Baseline: show it and choose which one to use"
                 className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verLB ? 'bg-[#FFF3C4] border-[#C99F00] text-[#7A5B00] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
                 <svg width="22" height="16" viewBox="0 0 22 16"><rect x="2" y="3" width="16" height="5" rx="1.5" fill="#2E9E3A" stroke="#1C6B25" /><rect x="2" y="10" width="13" height="3" rx="1" fill="#E3B505" stroke="#9C7C00" /></svg>
                 <span className="text-[8.5px] leading-none">Baseline</span>
@@ -1375,7 +1316,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               {menuLB && (
                 <>
                   <div className="fixed inset-0 z-[60]" onClick={() => setMenuLB(false)} />
-                  <div className="absolute left-[44px] top-0 z-[61] w-[330px] bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
+                  <div style={{ top: posMenu.top, left: posMenu.left, maxHeight: `calc(100vh - ${posMenu.top + 8}px)` }} className="fixed z-[61] w-[330px] overflow-y-auto bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
                     <div className="flex items-center justify-between px-3 py-1.5 bg-[#F0F0F0] border-b border-[#D5D5D5] rounded-t-lg">
                       <b>Baseline</b>
                       <button onClick={() => setMenuLB(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
@@ -1418,6 +1359,70 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               </button>
             ))}
             <div className="w-7 h-px bg-[#C3C3C3] my-1" />
+            <div>
+              <button id="p6-filtro" onClick={e => { setVista('actividades'); if (menuFiltro) setMenuFiltro(false); else { setPosMenu(posJunto(e.currentTarget)); setMenuFiltro(true); } }} title={`Filter · status: ${NOMBRE_FILTRO[filtroEstado] ?? ''}${hayFiltroUdf ? ` · ${condUdf.length} User Defined condition${condUdf.length > 1 ? 's' : ''}` : ''}`} aria-pressed={filtroMenuActivo}
+                className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${filtroMenuActivo || menuFiltro ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
+                <Filter className={`w-[18px] h-[18px] ${filtroMenuActivo ? 'fill-[#312E81]/25' : ''}`} />
+                <span className="text-[8.5px] leading-none">Filter</span>
+              </button>
+              {menuFiltro && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setMenuFiltro(false)} />
+                  <div style={{ top: posMenu.top, left: posMenu.left, maxHeight: `calc(100vh - ${posMenu.top + 8}px)` }} className="fixed z-[61] w-[470px] overflow-y-auto bg-white border border-[#B5B5B5] rounded-lg shadow-xl text-[11.5px] text-[#14212A]">
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-[#F0F0F0] border-b border-[#D5D5D5] rounded-t-lg">
+                      <b>Status Filter</b>
+                      <button onClick={() => setMenuFiltro(false)} className="p-0.5 hover:bg-white rounded cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                    <div className="p-2 flex flex-col gap-0.5">
+                      {FILTROS_ESTADO.map(([k, etq]) => (
+                        <label key={k} className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer ${filtroEstado === k ? 'border-[#8A8FC9] bg-[#EEF0FB] font-semibold' : 'border-transparent hover:bg-[#F5F8F9]'}`}>
+                          <input type="radio" name="filtroEstado" checked={filtroEstado === k} onChange={() => setFiltroEstado(k)} />
+                          {etq}
+                        </label>
+                      ))}
+                    </div>
+                    {/* Filtros por campos de usuario */}
+                    <div className="border-t border-[#E2E2E2] p-2">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <b>User Defined</b>
+                        <span className="text-[10.5px] text-[#5A6A74]">all conditions must be met (AND)</span>
+                        {filtrosUdf.length > 0 && <button onClick={() => setFiltrosUdf([])} className="ml-auto text-[#312E81] underline cursor-pointer">Clear</button>}
+                      </div>
+                      {filtrosUdf.map((f, k) => {
+                        const vals = udfFiltroVals.get(f.campo);
+                        const distintos = vals ? [...[...vals.values()].reduce((mm, x) => mm.set(x, (mm.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]).slice(0, 300) : [];
+                        const poner = (cambio: Partial<FiltroUdf>) => setFiltrosUdf(fs => fs.map((x, y) => (y === k ? { ...x, ...cambio } : x)));
+                        return (
+                          <div key={k} className="flex items-center gap-1 mb-1">
+                            <select value={f.campo} onChange={e => poner({ campo: e.target.value, valor: '' })} className="border border-[#D5DEE2] rounded px-1 py-1 w-[150px] bg-white">
+                              <option value="">Field…</option>
+                              {catalogo.filter(c => c.id.startsWith('udf:')).map(c => <option key={c.id} value={c.id.slice(4)}>{c.titulo}</option>)}
+                            </select>
+                            <select value={f.op} onChange={e => poner({ op: e.target.value as FiltroUdf['op'] })} className="border border-[#D5DEE2] rounded px-1 py-1 bg-white">
+                              {OPS_UDF.map(([o, etq]) => <option key={o} value={o}>{etq}</option>)}
+                            </select>
+                            {f.op !== 'vacio' && (
+                              <>
+                                <input list={`udf-vals-${k}`} value={f.valor} onChange={e => poner({ valor: e.target.value })} placeholder={f.campo ? 'Value…' : ''} disabled={!f.campo}
+                                  className="border border-[#D5DEE2] rounded px-1.5 py-1 flex-1 min-w-0" />
+                                <datalist id={`udf-vals-${k}`}>
+                                  {distintos.map(([x, c]) => <option key={x} value={x}>{`${c} activities`}</option>)}
+                                </datalist>
+                              </>
+                            )}
+                            <button onClick={() => setFiltrosUdf(fs => fs.filter((_, y) => y !== k))} title="Remove condition" className="p-1 text-[#5A6A74] hover:text-red-600 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                          </div>
+                        );
+                      })}
+                      <button onClick={() => setFiltrosUdf(fs => [...fs, { campo: '', op: 'igual', valor: '' }])} className="mt-0.5 px-2 py-1 border border-[#D5DEE2] rounded hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> Add condition
+                      </button>
+                      {hayFiltroUdf && <div className="mt-1.5 text-[10.5px] text-[#5A6A74]">Master-only items are hidden while a User Defined filter is active.</div>}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <button onClick={() => { setVista('actividades'); setVerGrupo(true); }} title="Group & Sort: bands, colors and grouping levels"
               className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verGrupo ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
               <svg width="22" height="16" viewBox="0 0 22 16"><rect x="1" y="1" width="14" height="3.5" fill="#1F7CC4" /><rect x="4" y="6" width="11" height="3.5" fill="#7CF27C" stroke="#4FA94F" strokeWidth="0.5" /><rect x="7" y="11" width="8" height="3.5" fill="#FFFF66" stroke="#C9C94A" strokeWidth="0.5" /><path d="M18 2 V14 M16 12 L18 14.5 L20 12" fill="none" stroke="#3A3A3A" strokeWidth="1.2" /></svg>
