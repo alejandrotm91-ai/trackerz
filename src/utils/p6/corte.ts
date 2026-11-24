@@ -11,7 +11,8 @@
  * - Fila de corte: todo lo que está por debajo de «p.D Actividades Pendientes de confirmar…» queda fuera.
  * - El estado de referencia es el del XER de T₃ (la columna p6 del Master va un ciclo por detrás).
  * - Iniciar (pestaña NotStarted): Venta Ex > 0, sin iniciar en el XER → inicio real = 1ª semana con
- *   ejecución + 1 día 08:00 (solo el inicio, sin tocar el avance). Si la 1ª ejecución no es del año en
+ *   ejecución + 1 día 08:00, sin tocar el % físico; duración restante = original − tiempo laborable
+ *   entre el inicio real y la fecha de datos (calendario de la actividad), mínimo 1 día. Si la 1ª ejecución no es del año en
  *   curso, además fin real = última semana + 4 días 16:00 y % físico = % Ex.
  * - Cerrar (pestaña DEF_100): paquetes .D (compra y fabricación), .E (flete) y .F (instalación) en curso
  *   en el XER con % Ex ≥ 99,5 % (.D/.E) o ≥ 95 % (.F) → fin real = última semana + 4 días 16:00 y
@@ -23,6 +24,7 @@
 import type { Actividad } from '../../types';
 import { celda } from './xer';
 import type { ModeloP6 } from './modelo';
+import { aMinutos } from './calendario';
 import { valorCampo, type Clasificacion } from './vistaEjecucion';
 
 export type AccionCorte = 'iniciar' | 'cerrar';
@@ -54,6 +56,11 @@ export interface FilaCorte {
   finReal: string | null;
   /** % físico a poner (0–100), solo al cerrar. */
   avance: number | null;
+  /** Duración restante a poner al iniciar (horas): original − tiempo laborable entre el inicio real y la fecha de datos, mínimo 1 día. */
+  restanteH: number | null;
+  /** Duración original y días por hora de su calendario (para mostrar). */
+  originalH: number | null;
+  horasDia: number;
   /** Se puede aplicar; si no, el motivo. */
   ok: boolean;
   motivo: string;
@@ -147,13 +154,24 @@ export function calcularCorte(m: ModeloP6, master: Actividad[], clasif: Map<stri
       const inicioReal = primera ? masDias(primera, 1, '08:00') : null;
       const cierraYa = !!(primera && Number(primera.slice(0, 4)) !== anio && ultima);
       const finReal = cierraYa && ultima ? masDias(ultima, 4, '16:00') : null;
+      // Duración restante: original − tiempo laborable ya transcurrido (calendario de la actividad), mínimo 1 día
+      let restanteH: number | null = null, originalH: number | null = null, horasDia = 8;
+      if (i !== undefined && inicioReal && dd && !finReal) {
+        const fl = t.filas[i];
+        const cal = m.calendarios.get(celda(t, fl, 'clndr_id'));
+        horasDia = cal?.horasDia || 8;
+        originalH = Number(celda(t, fl, 'target_drtn_hr_cnt')) || 0;
+        const a = aMinutos(inicioReal), b = aMinutos(dd);
+        const transcurrido = cal && a != null && b != null && b > a ? cal.entre(a, b) / 60 : 0;
+        restanteH = Math.max(originalH - transcurrido, horasDia);
+      }
       let motivo = '';
       if (i === undefined) motivo = 'Not in the T₃ XER';
       else if (esValvula) motivo = 'Valves are not started by the cut';
       else if (!primera) motivo = 'No week with execution';
       else if (tarde(inicioReal) || tarde(finReal)) motivo = 'Date after the data date';
       iniciar.push({
-        ...base, accion: 'iniciar', paquete: paqueteDe, inicioReal, finReal,
+        ...base, accion: 'iniciar', paquete: paqueteDe, inicioReal, finReal, restanteH, originalH, horasDia,
         avance: finReal && pct != null ? Math.min(100, Math.max(0, pct * 100)) : null, ok: !motivo, motivo,
       });
     } else if ((a.ventaEjecutada || 0) > 0 && sinEsp(a.p6Status) === 'notstarted' && (estadoXer === 'TK_Active' || estadoXer === 'TK_Complete')) {
@@ -173,7 +191,7 @@ export function calcularCorte(m: ModeloP6, master: Actividad[], clasif: Map<stri
       else if (tarde(finReal)) motivo = 'Date after the data date';
       else if (iniXer && finReal && finReal < iniXer.slice(0, 16)) motivo = `Finish before its actual start (${iniXer.slice(0, 10)})`;
       cerrar.push({
-        ...base, accion: 'cerrar', paquete: paqueteDe, inicioReal: null, finReal,
+        ...base, accion: 'cerrar', paquete: paqueteDe, inicioReal: null, finReal, restanteH: null, originalH: null, horasDia: 8,
         avance: Math.min(100, Math.max(0, pct * 100)), ok: !motivo, motivo,
       });
     }

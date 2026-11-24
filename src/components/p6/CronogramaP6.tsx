@@ -5,7 +5,7 @@
  * Todos consultan; solo el administrador edita, programa y guarda.
  */
 import React from 'react';
-import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat, Filter, Scissors } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat, Filter, Scissors, CalendarDays } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
 import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, etiquetaUbicacion, ordenUbicacion, type Clasificacion, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, A_HITOS_CONTRACTUALES, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
@@ -20,6 +20,7 @@ import { DialogoNivelacion } from './nivelacionP6';
 import { MenuVistas, type AjustesVista } from './vistasP6';
 import { DesplegableVistas, useNombresVistas } from './nombresVistas';
 import { DialogoCorte } from './corteP6';
+import { DialogoCalendarios } from './calendariosP6';
 import { DialogoCuadrillas, useMatrizPersonal } from './cuadrillasP6';
 import { estimarCuadrillas, POR_DEFECTO } from '../../utils/p6/cuadrillas';
 import { CUADRILLA_DISCIPLINA, FACTOR_LOCAL, esPrecomEq, rendimientoDe, type Disciplina } from '../../utils/p6/rendimientos';
@@ -193,6 +194,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [verColumnas, setVerColumnas] = React.useState(false);
   const [verNivel, setVerNivel] = React.useState(false);
   const [verCorte, setVerCorte] = React.useState(false);
+  const [verCalendarios, setVerCalendarios] = React.useState(false);
   const [verUso, setVerUso] = React.useState(true); // el panel Activity Usage se abre por defecto
   const [usoCfg, setUsoCfg] = React.useState<CfgUso>(CFG_USO_DEF);
   // Layouts guardados por el usuario (vistasP6): la predeterminada se aplica una vez al abrir T₃
@@ -1263,6 +1265,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             mostrar(`New crew logic applied (${resumen}) and rescheduled. Review it and press Save to keep it.`);
           }} />
       )}
+      {verCalendarios && m && <DialogoCalendarios m={m} onCerrar={() => setVerCalendarios(false)} />}
       {verCorte && m && (
         <DialogoCorte m={m} master={actividadesMaster ?? []} clasif={clasifXer} editable={editable} version={version}
           proyecto={celda(m.xer.tablas.get('PROJECT')!, m.xer.tablas.get('PROJECT')!.filas[0], 'proj_short_name')}
@@ -1276,7 +1279,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             for (const f of filas) {
               if (f.i === undefined) continue;
               if (f.accion === 'iniciar' && f.inicioReal) {
-                editarActividad(mm, f.i, { inicioReal: f.inicioReal }, log); ini++;
+                editarActividad(mm, f.i, { inicioReal: f.inicioReal, ...(f.restanteH != null ? { durRestante: f.restanteH } : {}) }, log); ini++;
                 if (f.finReal) { editarActividad(mm, f.i, { finReal: f.finReal, ...(f.avance != null ? { avance: f.avance } : {}) }, log); fin++; }
               } else if (f.accion === 'cerrar' && f.finReal) {
                 editarActividad(mm, f.i, { finReal: f.finReal, ...(f.avance != null ? { avance: f.avance } : {}) }, log); fin++;
@@ -1866,6 +1869,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verCorte ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]'}`}>
               <Scissors className="w-5 h-5" />
               <span className="text-[8.5px] leading-none text-[#4A4A4A]">Cut</span>
+            </button>
+            <button id="p6-calendarios" onClick={() => setVerCalendarios(true)} title="Calendars: the project calendars (work week, holidays and how many activities use each)"
+              className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verCalendarios ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]'}`}>
+              <CalendarDays className="w-5 h-5" />
+              <span className="text-[8.5px] leading-none text-[#4A4A4A]">Calendar</span>
             </button>
           </div>
         </div>

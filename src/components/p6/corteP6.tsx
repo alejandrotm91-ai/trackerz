@@ -131,7 +131,7 @@ export const DialogoCorte: React.FC<{
           ))}
           <span className="ml-3 text-[#5A6A74]">
             {tab === 'iniciar'
-              ? 'Venta Ex > 0 and Not Started in T₃ → Actual Start = 1st week with execution + 1 day 08:00 (start only). If the 1st execution is not this year, also Actual Finish = last week + 4 days 16:00 with % = % Ex.'
+              ? 'Venta Ex > 0 and Not Started in T₃ → Actual Start = 1st week with execution + 1 day 08:00 (Physical % untouched); Remaining Duration = Original − working time from the Actual Start to the new Data Date (at least 1 day). If the 1st execution is not this year, also Actual Finish = last week + 4 days 16:00 with % = % Ex.'
               : '.D / .E with % Ex ≥ 99.5 % and .F with % Ex ≥ 95 %, In Progress in T₃ → Actual Finish = last week with execution + 4 days 16:00 and Physical % = % Ex.'}
           </span>
         </div>
@@ -146,6 +146,7 @@ export const DialogoCorte: React.FC<{
               <th className={`${th} text-right`}>Venta Ex</th><th className={`${th} text-right`}>% Ex</th>
               <th className={th}>1st week</th><th className={th}>Last week</th>
               <th className={th}>{tab === 'iniciar' ? 'Actual Start' : 'Actual Finish'}</th>
+              {tab === 'iniciar' && <th className={`${th} text-right`} title="Original Duration → Remaining Duration: original − working time between the Actual Start and the new Data Date (activity calendar), at least 1 day">Orig → Rem (d)</th>}
               {tab === 'iniciar' && <th className={th}>Actual Finish</th>}
               {tab === 'cerrar' && <th className={`${th} text-right`}>Physical %</th>}
               <th className={th}>Note</th>
@@ -165,6 +166,7 @@ export const DialogoCorte: React.FC<{
                   <td className={`${td} text-right`}>{f.pctEx == null ? '—' : `${(f.pctEx * 100).toFixed(1)} %`}</td>
                   <td className={td}>{fP6(f.primera)}</td><td className={td}>{fP6(f.ultima)}</td>
                   <td className={`${td} font-semibold`}>{fP6(tab === 'iniciar' ? f.inicioReal : f.finReal)}</td>
+                  {tab === 'iniciar' && <td className={`${td} text-right`}>{f.originalH != null && f.restanteH != null ? `${+(f.originalH / f.horasDia).toFixed(1)} → ${+(f.restanteH / f.horasDia).toFixed(1)}` : ''}</td>}
                   {tab === 'iniciar' && <td className={td}>{f.finReal ? fP6(f.finReal) : ''}</td>}
                   {tab === 'cerrar' && <td className={`${td} text-right`}>{f.avance == null ? '' : `${f.avance.toFixed(1)} %`}</td>}
                   <td className={`${td} ${f.ok ? '' : 'text-[#C9701E]'}`}>{f.motivo}</td>

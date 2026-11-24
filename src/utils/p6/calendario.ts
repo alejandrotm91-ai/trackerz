@@ -53,6 +53,10 @@ export class Calendario {
   readonly horasDia: number;
   private dias: Intervalo[][] = [];
   private acum: Float64Array;
+  /** Semana laboral: índice 1 (domingo) a 7 (sábado), intervalos [inicio, fin) en minutos del día. */
+  readonly semana: [number, number][][];
+  /** Excepciones (día → intervalos; vacío = feriado). Día = días desde 1970. */
+  readonly excepciones: Map<number, [number, number][]>;
 
   constructor(id: string, nombre: string, horasDia: number, data: string) {
     this.id = id;
@@ -85,6 +89,8 @@ export class Calendario {
         excepciones.set(dia, intervalos(trozo.slice(trozo.indexOf(')') + 1)));
       });
     }
+    this.semana = semana;
+    this.excepciones = excepciones;
     const n = HASTA - DESDE;
     this.acum = new Float64Array(n + 1);
     for (let i = 0; i < n; i++) {
