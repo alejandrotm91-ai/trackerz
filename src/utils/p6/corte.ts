@@ -27,7 +27,8 @@ import type { ModeloP6 } from './modelo';
 import { aMinutos } from './calendario';
 import { valorCampo, type Clasificacion } from './vistaEjecucion';
 
-export type AccionCorte = 'iniciar' | 'cerrar';
+/** «restante»: en curso iniciada por un corte anterior (inicio = 1ª semana + 1 día 08:00) cuya duración restante sigue igual a la original. */
+export type AccionCorte = 'iniciar' | 'cerrar' | 'restante';
 
 export interface FilaCorte {
   accion: AccionCorte;
@@ -107,6 +108,17 @@ const fechaCorta = (v: unknown): string | null => {
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
 };
 
+/** Duración restante (h) = original − tiempo laborable entre el inicio real y la fecha de datos, mínimo 1 día. */
+function restanteDe(m: ModeloP6, i: number, inicioReal: string, dd: string) {
+  const t = m.task, fl = t.filas[i];
+  const cal = m.calendarios.get(celda(t, fl, 'clndr_id'));
+  const horasDia = cal?.horasDia || 8;
+  const originalH = Number(celda(t, fl, 'target_drtn_hr_cnt')) || 0;
+  const a = aMinutos(inicioReal), b = aMinutos(dd);
+  const transcurrido = cal && a != null && b != null && b > a ? cal.entre(a, b) / 60 : 0;
+  return { originalH, horasDia, restanteH: Math.max(originalH - transcurrido, horasDia) };
+}
+
 export function calcularCorte(m: ModeloP6, master: Actividad[], clasif: Map<string, Clasificacion>, fechaDatos?: string | null): Corte {
   const t = m.task;
   const porCod = new Map<string, number>();
@@ -156,15 +168,7 @@ export function calcularCorte(m: ModeloP6, master: Actividad[], clasif: Map<stri
       const finReal = cierraYa && ultima ? masDias(ultima, 4, '16:00') : null;
       // Duración restante: original − tiempo laborable ya transcurrido (calendario de la actividad), mínimo 1 día
       let restanteH: number | null = null, originalH: number | null = null, horasDia = 8;
-      if (i !== undefined && inicioReal && dd && !finReal) {
-        const fl = t.filas[i];
-        const cal = m.calendarios.get(celda(t, fl, 'clndr_id'));
-        horasDia = cal?.horasDia || 8;
-        originalH = Number(celda(t, fl, 'target_drtn_hr_cnt')) || 0;
-        const a = aMinutos(inicioReal), b = aMinutos(dd);
-        const transcurrido = cal && a != null && b != null && b > a ? cal.entre(a, b) / 60 : 0;
-        restanteH = Math.max(originalH - transcurrido, horasDia);
-      }
+      if (i !== undefined && inicioReal && dd && !finReal) ({ restanteH, originalH, horasDia } = restanteDe(m, i, inicioReal, dd));
       let motivo = '';
       if (i === undefined) motivo = 'Not in the T₃ XER';
       else if (esValvula) motivo = 'Valves are not started by the cut';
@@ -174,6 +178,22 @@ export function calcularCorte(m: ModeloP6, master: Actividad[], clasif: Map<stri
         ...base, accion: 'iniciar', paquete: paqueteDe, inicioReal, finReal, restanteH, originalH, horasDia,
         avance: finReal && pct != null ? Math.min(100, Math.max(0, pct * 100)) : null, ok: !motivo, motivo,
       });
+    } else if (i !== undefined && estadoXer === 'TK_Active' && primera && dd && !esValvula) {
+      // Iniciada por un corte anterior sin descontar lo transcurrido: se ajusta solo la duración restante
+      const fl = t.filas[i];
+      const inicioCorte = masDias(primera, 1, '08:00');
+      const ini = celda(t, fl, 'act_start_date').slice(0, 16);
+      const orig = Number(celda(t, fl, 'target_drtn_hr_cnt')) || 0, rem = Number(celda(t, fl, 'remain_drtn_hr_cnt')) || 0;
+      if (ini === inicioCorte && orig > 0 && Math.abs(rem - orig) < 0.01 && !(Number(celda(t, fl, 'phys_complete_pct')) > 0)) {
+        const r = restanteDe(m, i, ini, dd);
+        if (r.restanteH < orig - 0.01) {
+          iniciar.push({
+            ...base, accion: 'restante', paquete: paqueteDe, inicioReal: ini, finReal: null, avance: null, ...r,
+            ok: true, motivo: 'Started by a previous cut: only the Remaining Duration is adjusted',
+          });
+        }
+      }
+      if ((a.ventaEjecutada || 0) > 0 && sinEsp(a.p6Status) === 'notstarted') yaIniciadas++;
     } else if ((a.ventaEjecutada || 0) > 0 && sinEsp(a.p6Status) === 'notstarted' && (estadoXer === 'TK_Active' || estadoXer === 'TK_Complete')) {
       yaIniciadas++;
     }

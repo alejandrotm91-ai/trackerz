@@ -1275,12 +1275,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             if (!mm || !editable) return;
             const log = [...cambios];
             ponerFechaDatos(mm, fechaDatos, log);
-            let ini = 0, fin = 0;
+            let ini = 0, fin = 0, rem = 0;
             for (const f of filas) {
               if (f.i === undefined) continue;
               if (f.accion === 'iniciar' && f.inicioReal) {
                 editarActividad(mm, f.i, { inicioReal: f.inicioReal, ...(f.restanteH != null ? { durRestante: f.restanteH } : {}) }, log); ini++;
                 if (f.finReal) { editarActividad(mm, f.i, { finReal: f.finReal, ...(f.avance != null ? { avance: f.avance } : {}) }, log); fin++; }
+              } else if (f.accion === 'restante' && f.restanteH != null) {
+                editarActividad(mm, f.i, { durRestante: f.restanteH }, log); rem++;
               } else if (f.accion === 'cerrar' && f.finReal) {
                 editarActividad(mm, f.i, { finReal: f.finReal, ...(f.avance != null ? { avance: f.avance } : {}) }, log); fin++;
               }
@@ -1288,7 +1290,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             marcarCambio(log);
             programar();
             setVerCorte(false);
-            mostrar(`Progress cut applied: Data Date ${fechaDatos}, ${ini} started, ${fin} finished, rescheduled. Review it, press Save and export the XER to Primavera.`);
+            mostrar(`Progress cut applied: Data Date ${fechaDatos}, ${ini} started, ${fin} finished${rem ? `, ${rem} remaining durations adjusted` : ''}, rescheduled. Review it, press Save and export the XER to Primavera.`);
           }} />
       )}
       {verColumnas && m && (
