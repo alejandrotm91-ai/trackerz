@@ -44,6 +44,25 @@ export const DialogoNivelacion: React.FC<{
     const orden = (x: Map<string, number>) => [...x].sort((a, b) => a[0].localeCompare(b[0], 'es', { numeric: true }));
     return { subc: orden(subc), scap: orden(scap) };
   }, [t, campo, f.subc, version]);
+  /** Actividades (no hitos ni LOE) de un subcontratista por fase, para no dejar el conjunto vacío. */
+  const fasesDeSubc = React.useCallback((subc: string, scap = '') => {
+    const n = new Map<FaseUso, number>();
+    t.filas.forEach((fl, i) => {
+      if (subc && campo(i, 'subcontratista') !== subc) return;
+      if (scap && campo(i, 'scap') !== scap) return;
+      const tipo = celda(t, fl, 'task_type');
+      if (tipo === 'TT_Mile' || tipo === 'TT_FinMile' || tipo === 'TT_LOE' || tipo === 'TT_WBS') return;
+      const fa = faseDe(celda(t, fl, 'task_name'));
+      n.set(fa, (n.get(fa) ?? 0) + 1);
+    });
+    return n;
+  }, [t, campo]);
+  // Al cambiar de subcontratista se mantiene la fase solo si tiene actividades en ella (p. ej. Tesco
+  // solo tiene «Suministro e Instalación…», que por el nombre son Construction, no Installation)
+  const cambiarSubc = (subc: string) => {
+    const n = fasesDeSubc(subc);
+    setF({ ...f, subc, scap: '', fase: f.fase && (n.get(f.fase) ?? 0) > 0 ? f.fase : '' });
+  };
   const conjunto = React.useMemo(() => {
     const out: number[] = [];
     t.filas.forEach((fl, i) => {
@@ -121,7 +140,7 @@ export const DialogoNivelacion: React.FC<{
           {/* Conjunto */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold">Activities:</span>
-            <select value={f.subc} onChange={e => setF({ ...f, subc: e.target.value, scap: '' })} className={sel} title="Subcontractor (11.SubC)">
+            <select value={f.subc} onChange={e => cambiarSubc(e.target.value)} className={sel} title="Subcontractor (11.SubC)">
               <option value="">Any subcontractor</option>
               {valores.subc.map(([v, n]) => <option key={v} value={v}>{v} ({n})</option>)}
             </select>
@@ -141,6 +160,12 @@ export const DialogoNivelacion: React.FC<{
               {CAMPOS_AGRUPACION.map(c => <option key={c.k} value={c.k}>{c.etq}</option>)}
             </select>
             <span className="text-[#5A6A74]">{conjunto.length} activities</span>
+            {!conjunto.length && f.fase && (() => {
+              // Sin actividades en la fase elegida: dice en qué fases sí tiene
+              const n = fasesDeSubc(f.subc, f.scap);
+              const hay = FASES.filter(([k]) => k && (n.get(k as FaseUso) ?? 0) > 0).map(([k, etq]) => `${etq} (${n.get(k as FaseUso)})`);
+              return hay.length ? <span className="text-[#C9701E]">None in this phase; it has: {hay.join(', ')}</span> : null;
+            })()}
             <button onClick={() => analizar()} disabled={ocupado || !conjunto.length}
               className="ml-auto px-3 py-1 rounded bg-[#312E81] text-white font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50">
               <Play className="w-3.5 h-3.5" /> {ocupado ? 'Analyzing…' : 'Analyze & find best'}
