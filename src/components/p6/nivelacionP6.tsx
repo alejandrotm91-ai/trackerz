@@ -57,11 +57,13 @@ export const DialogoNivelacion: React.FC<{
     });
     return n;
   }, [t, campo]);
-  // Al cambiar de subcontratista se mantiene la fase solo si tiene actividades en ella (p. ej. Tesco
-  // solo tiene «Suministro e Instalación…», que por el nombre son Construction, no Installation)
+  // Al cambiar de subcontratista se mantiene la fase solo si tiene actividades en ella; si no, la fase donde
+  // más tiene (p. ej. Tesco: «Suministro e Instalación…», que por el nombre son Construction, no Installation)
   const cambiarSubc = (subc: string) => {
     const n = fasesDeSubc(subc);
-    setF({ ...f, subc, scap: '', fase: f.fase && (n.get(f.fase) ?? 0) > 0 ? f.fase : '' });
+    // Si no tiene actividades en la fase actual, la fase donde más tiene (p. ej. Tesco → Construction, sin su compra)
+    const masUsada = [...n].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+    setF({ ...f, subc, scap: '', fase: f.fase && (n.get(f.fase) ?? 0) > 0 ? f.fase : subc ? masUsada : '' });
   };
   const conjunto = React.useMemo(() => {
     const out: number[] = [];

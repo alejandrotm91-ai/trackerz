@@ -931,7 +931,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       + `• Every activity in the Master is overwritten by Activity ID, «p6» included (${prev.conP6.toLocaleString('en-US')}: sum of the «Cantidad» of the rows whose column A is that ID, as in Control de Ejecución; SCAP Tub.Aerea: only rows in «m»)\n`
       + `• ${prev.aCero.toLocaleString('en-US')} have no «Cantidad» in the Master and will get 0 Budgeted Units\n`
       + `• ${prev.sinMaster.toLocaleString('en-US')} not in the Master (not changed) · ${prev.sinAsignacion.toLocaleString('en-US')} without resource assignment\n\n`
-      + `Not started activities also get Remaining Units = Budgeted Units. Actual units and costs are not changed.`)) return;
+      + `Remaining Units: Not Started = Budgeted; In Progress = Budgeted − Actual, or Budgeted × (1 − Physical %) when no actual units are recorded (${prev.enCursoRem.toLocaleString('en-US')} in progress adjusted); Completed unchanged. Actual units and costs are not changed.`)) return;
     const log = [...cambios];
     const res = cargarUnidadesMaster(m, cantidad, true, log);
     marcarCambio(log);

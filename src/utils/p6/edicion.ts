@@ -542,6 +542,8 @@ export interface ResumenUnidades {
   sinMaster: number;
   /** En el Master pero sin Cantidad: se ponen en 0 (el botón sobrescribe todo por Activity ID). */
   aCero: number;
+  /** En curso cuyo Remaining Units pasa a Budgeted − Actual. */
+  enCursoRem: number;
   sinAsignacion: number;
   porEstado: Record<string, number>;
 }
@@ -549,12 +551,12 @@ export interface ResumenUnidades {
 /**
  * Carga en la asignación de recurso material de cada actividad (el recurso «Venta», campo
  * Budgeted Units = TASKRSRC.target_qty) la cantidad del Master, enlazando por Activity ID.
- * Como P6: en las no iniciadas Remaining = Budgeted (y unidades/hora); en las iniciadas o
- * terminadas se conservan las unidades reales y restantes. Los costos no se tocan.
+ * Remaining Units: en las no iniciadas = Budgeted; en las en curso = Budgeted − Actual (mínimo 0) o,
+ * sin unidades reales registradas, Budgeted × (1 − % físico); en las terminadas no se tocan. Las unidades reales y los costos no se tocan.
  * Con `aplicar = false` solo cuenta lo que cambiaría.
  */
 export function cargarUnidadesMaster(m: ModeloP6, cantidad: Map<string, number | null>, aplicar: boolean, log: Cambio[]): ResumenUnidades {
-  const r: ResumenUnidades = { cambian: 0, iguales: 0, conP6: 0, sinMaster: 0, aCero: 0, sinAsignacion: 0, porEstado: {} };
+  const r: ResumenUnidades = { cambian: 0, iguales: 0, conP6: 0, sinMaster: 0, aCero: 0, sinAsignacion: 0, enCursoRem: 0, porEstado: {} };
   const tr = m.xer.tablas.get('TASKRSRC');
   const t = m.task;
   const asignacion = new Map<string, string[]>();
@@ -575,20 +577,31 @@ export function cargarUnidadesMaster(m: ModeloP6, cantidad: Map<string, number |
     const fa = asignacion.get(celda(t, f, 'task_id'));
     if (!fa || !tr) { r.sinAsignacion++; continue; }
     const antes = Number(celda(tr, fa, 'target_qty')) || 0;
-    if (Math.abs(antes - q) < 1e-6) { r.iguales++; continue; }
     const estado = celda(t, f, 'status_code');
+    // Remaining Units: no iniciadas = Budgeted; en curso = Budgeted − Actual (mínimo 0) y, si no tiene
+    // unidades reales registradas (casi ninguna las tiene), Budgeted × (1 − % físico); terminadas, sin tocar
+    const real = (Number(celda(tr, fa, 'act_reg_qty')) || 0) + (Number(celda(tr, fa, 'act_ot_qty')) || 0);
+    const pct = Math.min(Math.max(Number(celda(t, f, 'phys_complete_pct')) || 0, 0), 100);
+    const restoAntes = Number(celda(tr, fa, 'remain_qty')) || 0;
+    const resto = estado === 'TK_NotStart' ? q : estado === 'TK_Active' ? (real > 0 ? Math.max(q - real, 0) : q * (1 - pct / 100)) : restoAntes;
+    const cambiaBud = Math.abs(antes - q) >= 1e-6, cambiaRem = Math.abs(restoAntes - resto) >= 1e-6;
+    if (!cambiaBud && !cambiaRem) { r.iguales++; continue; }
     r.cambian++;
     r.porEstado[estado] = (r.porEstado[estado] ?? 0) + 1;
+    if (estado === 'TK_Active' && cambiaRem) r.enCursoRem++;
     if (!aplicar) continue;
-    ponerCelda(tr, fa, 'target_qty', numQ(q));
-    const durO = Number(celda(t, f, 'target_drtn_hr_cnt')) || 0;
-    if (durO > 0) ponerCelda(tr, fa, 'target_qty_per_hr', numQ(q / durO));
-    if (estado === 'TK_NotStart') {
-      ponerCelda(tr, fa, 'remain_qty', numQ(q));
-      const durR = Number(celda(t, f, 'remain_drtn_hr_cnt')) || 0;
-      if (durR > 0) ponerCelda(tr, fa, 'remain_qty_per_hr', numQ(q / durR));
+    if (cambiaBud) {
+      ponerCelda(tr, fa, 'target_qty', numQ(q));
+      const durO = Number(celda(t, f, 'target_drtn_hr_cnt')) || 0;
+      if (durO > 0) ponerCelda(tr, fa, 'target_qty_per_hr', numQ(q / durO));
+      registrar(log, cod, 'Budgeted Units', numQ(antes), numQ(q));
     }
-    registrar(log, cod, 'Budgeted Units', numQ(antes), numQ(q));
+    if (cambiaRem) {
+      ponerCelda(tr, fa, 'remain_qty', numQ(resto));
+      const durR = Number(celda(t, f, 'remain_drtn_hr_cnt')) || 0;
+      if (durR > 0) ponerCelda(tr, fa, 'remain_qty_per_hr', numQ(resto / durR));
+      registrar(log, cod, 'Remaining Units', numQ(restoAntes), numQ(resto));
+    }
   }
   return r;
 }
