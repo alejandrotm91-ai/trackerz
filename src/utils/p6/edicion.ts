@@ -537,12 +537,11 @@ const numQ = (v: number) => (Math.round(v * 1e6) / 1e6).toString();
 export interface ResumenUnidades {
   cambian: number;
   iguales: number;
-  /** Activity ID con «p6» que se dejan fuera (las que no son de válvulas: trato aparte, pendiente). */
+  /** Activity ID con «p6» (se cargan igual que el resto; en las válvulas la Cantidad ya suma sus rubros). */
   conP6: number;
-  /** Activity ID con «p6» de válvulas: su Cantidad (columna F) ya suma la cantidad prevista de sus rubros. */
-  p6Valvulas: number;
   sinMaster: number;
-  sinCantidad: number;
+  /** En el Master pero sin Cantidad: se ponen en 0 (el botón sobrescribe todo por Activity ID). */
+  aCero: number;
   sinAsignacion: number;
   porEstado: Record<string, number>;
 }
@@ -554,8 +553,8 @@ export interface ResumenUnidades {
  * terminadas se conservan las unidades reales y restantes. Los costos no se tocan.
  * Con `aplicar = false` solo cuenta lo que cambiaría.
  */
-export function cargarUnidadesMaster(m: ModeloP6, cantidad: Map<string, number | null>, aplicar: boolean, log: Cambio[], p6Directos: Set<string> = new Set()): ResumenUnidades {
-  const r: ResumenUnidades = { cambian: 0, iguales: 0, conP6: 0, p6Valvulas: 0, sinMaster: 0, sinCantidad: 0, sinAsignacion: 0, porEstado: {} };
+export function cargarUnidadesMaster(m: ModeloP6, cantidad: Map<string, number | null>, aplicar: boolean, log: Cambio[]): ResumenUnidades {
+  const r: ResumenUnidades = { cambian: 0, iguales: 0, conP6: 0, sinMaster: 0, aCero: 0, sinAsignacion: 0, porEstado: {} };
   const tr = m.xer.tablas.get('TASKRSRC');
   const t = m.task;
   const asignacion = new Map<string, string[]>();
@@ -567,11 +566,12 @@ export function cargarUnidadesMaster(m: ModeloP6, cantidad: Map<string, number |
   }
   for (const f of t.filas) {
     const cod = celda(t, f, 'task_code');
-    // Los «p6» se dejan fuera salvo los de válvulas (`p6Directos`), cuya Cantidad ya es la suma de sus rubros
-    if (/p6/i.test(cod)) { if (!p6Directos.has(cod)) { r.conP6++; continue; } r.p6Valvulas++; }
+    // Sobrescribe todo lo que esté en el Master por Activity ID, también los «p6»; sin Cantidad = 0
     if (!cantidad.has(cod)) { r.sinMaster++; continue; }
-    const q = cantidad.get(cod);
-    if (q == null || !Number.isFinite(q)) { r.sinCantidad++; continue; }
+    if (/p6/i.test(cod)) r.conP6++;
+    const q0 = cantidad.get(cod);
+    const q = q0 == null || !Number.isFinite(q0) ? 0 : q0;
+    if (q0 == null || !Number.isFinite(q0)) r.aCero++;
     const fa = asignacion.get(celda(t, f, 'task_id'));
     if (!fa || !tr) { r.sinAsignacion++; continue; }
     const antes = Number(celda(tr, fa, 'target_qty')) || 0;
