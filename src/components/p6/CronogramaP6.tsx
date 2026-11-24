@@ -901,17 +901,26 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   };
 
   // Budgeted Units desde la cantidad del Master (enlazando por Activity ID; sin los «p6»)
+  /**
+   * Cantidad del Master para «Units ← Master». En los «p6», como en Control de Ejecución: SUMAR.SI por
+   * la columna A (WBS) = suma de la Cantidad (columna F) de las filas cuya columna A es ese Activity ID
+   * (`hijosP6`); si no tiene filas, su propia Cantidad. El resto, su Cantidad.
+   */
+  const cantidadParaUnits = (id: string, a: Actividad): number | null => {
+    if (/p6/i.test(id) && a.hijosP6?.length) return a.hijosP6.reduce((t, h) => t + (Number.isFinite(h.cantidadCdo) ? h.cantidadCdo : 0), 0);
+    return a.cantidadCdo ?? null;
+  };
   const cargarUnidades = () => {
     if (!m) return;
     const cantidad = new Map<string, number | null>();
-    for (const [id, a] of idxMaster) cantidad.set(id, a.cantidadCdo ?? null);
+    for (const [id, a] of idxMaster) cantidad.set(id, cantidadParaUnits(id, a));
     const prev = cargarUnidadesMaster(m, cantidad, false, []);
     if (!prev.cambian) { mostrar(`Budgeted Units already match the Master (${prev.iguales.toLocaleString('en-US')} activities). Nothing to load.`); return; }
     const est = (k: string) => (prev.porEstado[k] ?? 0).toLocaleString('en-US');
     if (!window.confirm(`Load Budgeted Units from the Master «Cantidad» column?\n\n`
       + `• ${prev.cambian.toLocaleString('en-US')} activities will change (Not Started ${est('TK_NotStart')} · In Progress ${est('TK_Active')} · Completed ${est('TK_Complete')})\n`
       + `• ${prev.iguales.toLocaleString('en-US')} already match\n`
-      + `• Every activity in the Master is overwritten by Activity ID, «p6» included (${prev.conP6.toLocaleString('en-US')})\n`
+      + `• Every activity in the Master is overwritten by Activity ID, «p6» included (${prev.conP6.toLocaleString('en-US')}: sum of the «Cantidad» of the rows whose column A is that ID, as in Control de Ejecución)\n`
       + `• ${prev.aCero.toLocaleString('en-US')} have no «Cantidad» in the Master and will get 0 Budgeted Units\n`
       + `• ${prev.sinMaster.toLocaleString('en-US')} not in the Master (not changed) · ${prev.sinAsignacion.toLocaleString('en-US')} without resource assignment\n\n`
       + `Not started activities also get Remaining Units = Budgeted Units. Actual units and costs are not changed.`)) return;
