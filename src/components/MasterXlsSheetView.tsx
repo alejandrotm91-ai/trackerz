@@ -1993,7 +1993,8 @@ export function MasterXlsSheetView({
                           />
                         ) : (
                           <>
-                            {cantPres.toLocaleString('es-ES', { maximumFractionDigits: 3 })}
+                            {/* Sin subtotales de cantidad en la jerarquía (mezclan unidades) */}
+                            {isLeaf ? cantPres.toLocaleString('es-ES', { maximumFractionDigits: 3 }) : ''}
                             {activeCell?.nodeKey === node.key && activeCell?.field === 'cantPres' && (
                               <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                             )}
@@ -2125,7 +2126,8 @@ export function MasterXlsSheetView({
                             : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950' : 'border-slate-300 text-slate-600 hover:bg-slate-100'
                         }`}
                       >
-                        {node.subcontratista || (isLeaf ? '—' : '')}
+                        {/* Los niveles de la jerarquía no muestran SubC; las partidas y las actividades p6 sí */}
+                        {isLeaf || isP6 ? (node.subcontratista || (isLeaf ? '—' : '')) : ''}
                         {activeCell?.nodeKey === node.key && activeCell?.field === 'subcontratista' && (
                           <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                         )}
@@ -2140,7 +2142,7 @@ export function MasterXlsSheetView({
                             : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950 font-black' : 'border-slate-300 text-indigo-900 bg-indigo-50/30 hover:bg-indigo-50/60'
                         }`}
                       >
-                        {cantAcum > 0 ? cantAcum.toLocaleString('es-ES', { maximumFractionDigits: 3 }) : '—'}
+                        {!isLeaf ? '' : cantAcum > 0 ? cantAcum.toLocaleString('es-ES', { maximumFractionDigits: 3 }) : '—'}
                         {activeCell?.nodeKey === node.key && activeCell?.field === 'cantAcum' && (
                           <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                         )}
