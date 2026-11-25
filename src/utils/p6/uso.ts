@@ -187,11 +187,27 @@ export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso, rec?:
     });
     return out;
   }
-  const tr = m.xer.tablas.get('TASKRSRC');
-  if (!tr) return out;
-  const n = (f: string[], c: string) => Number(celda(tr, f, c)) || 0;
-  // Totales por actividad
+  const tot = totalesCosto(m, medida === 'units' ? 'units' : 'cost');
+  const t = m.task;
+  t.filas.forEach((f, i) => {
+    const x = tot.get(celda(t, f, 'task_id'));
+    if (!x) return;
+    const w = ventanasCosto(m, i, lb);
+    const u: UsoActividad = {};
+    if (w.b) u.b = repartir(x.b, w.b[0], w.b[1], lim, w.cal);
+    if (w.a) u.a = repartir(x.a, w.a[0], w.a[1], lim, w.cal);
+    if (w.r) u.r = repartir(x.r, w.r[0], w.r[1], lim, w.cal);
+    if (u.b || u.a || u.r) out.set(i, u);
+  });
+  return out;
+}
+
+/** Totales Budgeted / Actual / Remaining de las asignaciones (TASKRSRC) de cada actividad, por task_id. */
+export function totalesCosto(m: ModeloP6, medida: 'units' | 'cost'): Map<string, { b: number; a: number; r: number }> {
   const tot = new Map<string, { b: number; a: number; r: number }>();
+  const tr = m.xer.tablas.get('TASKRSRC');
+  if (!tr) return tot;
+  const n = (f: string[], c: string) => Number(celda(tr, f, c)) || 0;
   for (const f of tr.filas) {
     const id = celda(tr, f, 'task_id');
     const x = tot.get(id) ?? { b: 0, a: 0, r: 0 };
@@ -199,24 +215,32 @@ export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso, rec?:
     else { x.b += n(f, 'target_cost'); x.a += n(f, 'act_reg_cost') + n(f, 'act_ot_cost'); x.r += n(f, 'remain_cost'); }
     tot.set(id, x);
   }
-  const t = m.task;
-  t.filas.forEach((f, i) => {
-    const x = tot.get(celda(t, f, 'task_id'));
-    if (!x) return;
-    const g = (c: string) => aMinutos(celda(t, f, c));
-    const estado = celda(t, f, 'status_code');
-    const es = g('early_start_date'), ef = g('early_end_date');
-    const as = g('act_start_date'), af = g('act_end_date');
-    const [ps, pf] = fechasBudget(m, i, g('target_start_date') ?? es ?? as, g('target_end_date') ?? ef ?? af, lb);
-    const cal = m.calendarios.get(celda(t, f, 'clndr_id'));
-    const u: UsoActividad = {};
-    if (ps != null && pf != null) u.b = repartir(x.b, ps, pf, lim, cal);
-    if (as != null) u.a = repartir(x.a, as, estado === 'TK_Complete' && af != null ? af : Math.max(as, m.fechaDatos), lim, cal);
-    const rs = estado === 'TK_Active' ? (es ?? m.fechaDatos) : (es ?? as);
-    if (estado !== 'TK_Complete' && rs != null && ef != null) u.r = repartir(x.r, Math.max(rs, estado === 'TK_Active' ? m.fechaDatos : rs), ef, lim, cal);
-    if (u.b || u.a || u.r) out.set(i, u);
-  });
-  return out;
+  return tot;
+}
+
+/** Ventanas [inicio, fin] (minutos) de los valores de una actividad: Budgeted (línea base), Actual y Remaining. */
+export interface VentanasCosto {
+  cal?: Calendario;
+  estado: string;
+  b: [number, number] | null;
+  a: [number, number] | null;
+  r: [number, number] | null;
+}
+export function ventanasCosto(m: ModeloP6, i: number, lb?: LineaBaseFilas): VentanasCosto {
+  const t = m.task, f = t.filas[i];
+  const g = (c: string) => aMinutos(celda(t, f, c));
+  const estado = celda(t, f, 'status_code');
+  const es = g('early_start_date'), ef = g('early_end_date');
+  const as = g('act_start_date'), af = g('act_end_date');
+  const [ps, pf] = fechasBudget(m, i, g('target_start_date') ?? es ?? as, g('target_end_date') ?? ef ?? af, lb);
+  const cal = m.calendarios.get(celda(t, f, 'clndr_id'));
+  const rs = estado === 'TK_Active' ? (es ?? m.fechaDatos) : (es ?? as);
+  return {
+    cal, estado,
+    b: ps != null && pf != null ? [ps, pf] : null,
+    a: as != null ? [as, estado === 'TK_Complete' && af != null ? af : Math.max(as, m.fechaDatos)] : null,
+    r: estado !== 'TK_Complete' && rs != null && ef != null ? [Math.max(rs, estado === 'TK_Active' ? m.fechaDatos : rs), ef] : null,
+  };
 }
 
 /** Suma un tramo en un acumulador de todos los períodos. */

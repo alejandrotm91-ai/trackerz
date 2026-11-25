@@ -8,7 +8,8 @@ import React from 'react';
 import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat, Filter, Scissors, CalendarDays, Ship, FilterX, FilePlus2 } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
 import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, etiquetaUbicacion, ordenUbicacion, type Clasificacion, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, A_HITOS_CONTRACTUALES, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
-import type { Actividad } from '../../types';
+import type { Actividad, PlanillaItem } from '../../types';
+import { VistaCashflow } from './cashflowP6';
 import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, lineaBasePlanificada, lineaBaseUdf, type LineaBase } from '../../utils/p6/lineaBase';
 import { crearModelo, entradasCpm, lagSsDesdeInicioTemprano, type ModeloP6 } from '../../utils/p6/modelo';
 import { holguraRelacion, type TipoRel } from '../../utils/p6/cpm';
@@ -137,7 +138,7 @@ interface Nodo {
 }
 type Fila = { tipo: 'wbs'; nodo: Nodo; nivel: number } | { tipo: 'act'; vt: Vt; nivel: number } | { tipo: 'master'; a: Actividad; nivel: number };
 
-export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; actividadesMaster?: Actividad[]; onClose: () => void }> = ({ isAdmin, username, actividadesMaster, onClose }) => {
+export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; actividadesMaster?: Actividad[]; hojasPlanilla?: PlanillaItem[]; onClose: () => void }> = ({ isAdmin, username, actividadesMaster, hojasPlanilla, onClose }) => {
   const modelo = React.useRef<ModeloP6 | null>(null);
   const [version, setVersion] = React.useState(0);
   const [estadoCarga, setEstadoCarga] = React.useState<'cargando' | 'vacio' | 'listo' | 'error'>('cargando');
@@ -641,6 +642,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     if (ubicSet.size) { const u = ubicDeAct.get(v.i); if (!u || !ubicSet.has(u)) return false; }
     return true;
   }, [fasesSet, ubicSet, faseCache, ubicDeAct]);
+  /** Filtros globales para la vista Resources (cashflow), por índice de fila de TASK. */
+  const incluirCashflow = React.useCallback((i: number) => !hayFiltroGlobal || (!!vts[i] && pasaGlobal(vts[i])), [hayFiltroGlobal, vts, pasaGlobal]);
   /** Lo mismo para los rubros solo del Master (sin programación en el XER). */
   const pasaGlobalMaster = React.useCallback((a: Actividad) => {
     if (fasesSet.size && !fasesSet.has(faseDe(a.descripcion))) return false;
@@ -1956,7 +1959,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 setVista('actividades');
               }} />
           ) : (
-            <VistaRecursos m={m} version={version} />
+            <VistaCashflow m={m} version={version} lineaBase={lbPorAct} nombreLB={fuenteEf === 'udf' ? 'T₃ baseline (blStartP6 / blFinishP6)' : fuenteEf === 'guardada' ? `saved baseline${lbGuardada ? ` «${lbGuardada.nombre}»` : ''}` : 'XER planned dates'}
+              campo={campoActividad} incluir={incluirCashflow} hayFiltroGlobal={hayFiltroGlobal} hojasPlanilla={hojasPlanilla} />
           )}
           </div>
           {/* Barra lateral derecha: añadir actividad, importar y exportar el XER, y nivelar cuadrillas */}
@@ -3127,15 +3131,3 @@ const PanelActividad: React.FC<{
   );
 };
 
-/**
- * Vista «Resources»: vacía por ahora. Se usará para el análisis de la venta y el cashflow
- * (se retiró la tabla de costos por recurso y mes).
- */
-const VistaRecursos: React.FC<{ m: ModeloP6; version: number }> = () => (
-  <div id="p6-vista-recursos" className="flex-1 flex items-center justify-center bg-white text-[#5A6A74] text-xs">
-    <div className="text-center max-w-md px-6">
-      <div className="text-sm font-semibold text-[#14212A] mb-1">Resources</div>
-      Reserved for the sales and cash-flow analysis (coming soon).
-    </div>
-  </div>
-);

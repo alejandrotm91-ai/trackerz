@@ -2166,7 +2166,7 @@ export default function App() {
         onConfirmar={confirmarClaveReporte}
         onCancelar={() => setClaveReporte({ abierto: false, error: '', verificando: false })}
       />
-      {showP6 && <CronogramaP6 isAdmin={isAdmin} username={username} actividadesMaster={pc.actividades} onClose={() => setShowP6(false)} />}
+      {showP6 && <CronogramaP6 isAdmin={isAdmin} username={username} actividadesMaster={pc.actividades} hojasPlanilla={pc.planillaHojas} onClose={() => setShowP6(false)} />}
       <ReportePeriodoModal
         isOpen={showReportePeriodo}
         onClose={() => setShowReportePeriodo(false)}
