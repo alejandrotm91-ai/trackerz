@@ -65,10 +65,15 @@ const COLUMNAS_BASE: ColumnaP6[] = [
   { id: 'uP', titulo: 'Budgeted Labor Units', grupo: 'Units', ancho: 70, der: true },
   { id: 'uA', titulo: 'Actual Labor Units', grupo: 'Units', ancho: 70, der: true },
   { id: 'uR', titulo: 'Remaining Labor Units', grupo: 'Units', ancho: 70, der: true },
+  // Costs (asignaciones de recursos + gastos del proyecto, como el «Total Cost» de P6)
+  { id: 'cBud', titulo: 'Budgeted Total Cost', grupo: 'Costs', ancho: 100, der: true },
+  { id: 'cAct', titulo: 'Actual Total Cost', grupo: 'Costs', ancho: 100, der: true },
+  { id: 'cRem', titulo: 'Remaining Total Cost', grupo: 'Costs', ancho: 100, der: true },
+  { id: 'cAtC', titulo: 'At Completion Total Cost', grupo: 'Costs', ancho: 100, der: true },
 ];
 
 export const COLUMNAS_DEF = ['id', 'nombre', 'durO', 'durR', 'ini', 'fin', 'varFin', 'tf', 'ff', 'avance'];
-export const GRUPOS_COLUMNAS = ['General', 'Dates', 'Durations', 'Float', 'Percent Completes', 'Variance', 'Units', 'User Defined'];
+export const GRUPOS_COLUMNAS = ['General', 'Dates', 'Durations', 'Float', 'Percent Completes', 'Variance', 'Units', 'Costs', 'User Defined'];
 
 /** Catálogo completo: las columnas fijas más una por cada campo de usuario de actividades del XER. */
 export function catalogoColumnas(m: ModeloP6 | null): ColumnaP6[] {

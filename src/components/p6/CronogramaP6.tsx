@@ -299,17 +299,30 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const anchoOriginal = (id: string) => catalogo.find(c => c.id === id)?.ancho;
   // Ancho de la parte de tabla (sustituye al ancho fijo)
   const ANCHO_IZQ = cols.reduce((a, c) => a + c.ancho, 0) + 2;
-  // Unidades de las asignaciones de recursos por actividad (Budgeted / Actual / Remaining)
+  // Unidades y costos de las asignaciones de recursos por actividad (Budgeted / Actual / Remaining);
+  // los costos suman también los gastos del proyecto (PROJCOST), como el «Total Cost» de P6
   const unidadesRsrc = React.useMemo(() => {
-    const out = new Map<string, { b: number; a: number; r: number }>();
+    const out = new Map<string, { b: number; a: number; r: number; cb: number; ca: number; cr: number }>();
     const tr = m?.xer.tablas.get('TASKRSRC');
-    if (!tr || !cols.some(c => c.id.startsWith('q'))) return out;
+    if (!tr || !cols.some(c => /^[qc](Bud|Act|Rem|AtC)$/.test(c.id))) return out;
+    const de = (id: string) => out.get(id) ?? { b: 0, a: 0, r: 0, cb: 0, ca: 0, cr: 0 };
+    const n = (t: typeof tr, f: string[], c: string) => Number(celda(t, f, c)) || 0;
     for (const f of tr.filas) {
       const id = celda(tr, f, 'task_id');
-      const x = out.get(id) ?? { b: 0, a: 0, r: 0 };
-      x.b += Number(celda(tr, f, 'target_qty')) || 0;
-      x.a += (Number(celda(tr, f, 'act_reg_qty')) || 0) + (Number(celda(tr, f, 'act_ot_qty')) || 0);
-      x.r += Number(celda(tr, f, 'remain_qty')) || 0;
+      const x = de(id);
+      x.b += n(tr, f, 'target_qty');
+      x.a += n(tr, f, 'act_reg_qty') + n(tr, f, 'act_ot_qty');
+      x.r += n(tr, f, 'remain_qty');
+      x.cb += n(tr, f, 'target_cost');
+      x.ca += n(tr, f, 'act_reg_cost') + n(tr, f, 'act_ot_cost');
+      x.cr += n(tr, f, 'remain_cost');
+      out.set(id, x);
+    }
+    const pc = m?.xer.tablas.get('PROJCOST');
+    for (const f of pc?.filas || []) {
+      const id = celda(pc!, f, 'task_id');
+      const x = de(id);
+      x.cb += n(pc!, f, 'target_cost'); x.ca += n(pc!, f, 'act_cost'); x.cr += n(pc!, f, 'remain_cost');
       out.set(id, x);
     }
     return out;
@@ -832,6 +845,12 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         txt = val == null ? '' : val.toLocaleString('en-US', { maximumFractionDigits: 2 });
         break;
       }
+      case 'cBud': case 'cAct': case 'cRem': case 'cAtC': {
+        const u = unidadesRsrc.get(v.id);
+        const val = !u ? null : c.id === 'cBud' ? u.cb : c.id === 'cAct' ? u.ca : c.id === 'cRem' ? u.cr : u.ca + u.cr;
+        txt = val == null ? '' : val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        break;
+      }
       case 'uP': txt = num('target_work_qty'); break;
       case 'uA': txt = num('act_work_qty'); break;
       case 'uR': txt = num('remain_work_qty'); break;
@@ -1073,21 +1092,21 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const enRojo = React.useCallback((v: Vt) => (filtroEstado === 'longest' ? v.lp && v.estado !== 'TK_Complete' : v.tf != null && v.tf <= 0), [filtroEstado]);
   // Resumen de cada WBS para su barra (solo las actividades que pasan el filtro)
   const resumenWbs = React.useMemo(() => {
-    type R = { ini: number | null; fin: number | null; realIni: number | null; realFin: number | null; restIni: number | null; restFin: number | null; roja: boolean; lbIni: number | null; lbFin: number | null; qb: number; qa: number; qr: number; hayQ: boolean; tf: number | null; hdTf: number };
+    type R = { ini: number | null; fin: number | null; realIni: number | null; realFin: number | null; restIni: number | null; restFin: number | null; roja: boolean; lbIni: number | null; lbFin: number | null; qb: number; qa: number; qr: number; cb: number; ca: number; cr: number; hayQ: boolean; tf: number | null; hdTf: number };
     const out = new Map<string, R>();
     if (!m) return out;
     const filtrandoR = !!filtro || filtroEstado !== 'todas' || hayFiltroUdf || hayFiltroGlobal;
     const mn = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.min(a, b));
     const mx = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.max(a, b));
     const ver = (n: Nodo): R => {
-      const r: R = { ini: null, fin: null, realIni: null, realFin: null, restIni: null, restFin: null, roja: false, lbIni: null, lbFin: null, qb: 0, qa: 0, qr: 0, hayQ: false, tf: null, hdTf: 8 };
+      const r: R = { ini: null, fin: null, realIni: null, realFin: null, restIni: null, restFin: null, roja: false, lbIni: null, lbFin: null, qb: 0, qa: 0, qr: 0, cb: 0, ca: 0, cr: 0, hayQ: false, tf: null, hdTf: 8 };
       const juntar = (o: R) => {
         r.ini = mn(r.ini, o.ini); r.fin = mx(r.fin, o.fin);
         r.realIni = mn(r.realIni, o.realIni); r.realFin = mx(r.realFin, o.realFin);
         r.restIni = mn(r.restIni, o.restIni); r.restFin = mx(r.restFin, o.restFin);
         r.roja ||= o.roja;
         r.lbIni = mn(r.lbIni, o.lbIni); r.lbFin = mx(r.lbFin, o.lbFin);
-        r.qb += o.qb; r.qa += o.qa; r.qr += o.qr; r.hayQ ||= o.hayQ;
+        r.qb += o.qb; r.qa += o.qa; r.qr += o.qr; r.cb += o.cb; r.ca += o.ca; r.cr += o.cr; r.hayQ ||= o.hayQ;
         if (o.tf != null && (r.tf == null || o.tf < r.tf)) { r.tf = o.tf; r.hdTf = o.hdTf; }
       };
       for (const h of n.hijos) juntar(ver(h));
@@ -1105,7 +1124,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
         if (lb) { r.lbIni = mn(r.lbIni, lb[0]); r.lbFin = mx(r.lbFin, lb[1]); }
         // Subtotales de unidades (asignaciones de recursos)
         const q = unidadesRsrc.get(v.id);
-        if (q) { r.qb += q.b; r.qa += q.a; r.qr += q.r; r.hayQ = true; }
+        if (q) { r.qb += q.b; r.qa += q.a; r.qr += q.r; r.cb += q.cb; r.ca += q.ca; r.cr += q.cr; r.hayQ = true; }
         // Las barras de trabajo resumen solo tareas (no hitos ni LOE), como P6
         if (v.tipo === 'TT_Mile' || v.tipo === 'TT_FinMile' || v.tipo === 'TT_LOE' || v.tipo === 'TT_WBS') continue;
         if (v.iniA && v.ini != null) {
@@ -1699,7 +1718,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                           <div className="sticky left-0 z-[5] flex items-center border-r border-[#9AA6AD]" style={{ width: ANCHO_IZQ, background: fondo, color: texto }}>
                             {(() => {
                               // La etiqueta ocupa las columnas iniciales sin total; el resto muestra el total de la banda
-                              const conTotal = (id: string) => ['ini', 'fin', 'es', 'ef', 'bls', 'blf', 'varFin', 'durO', 'tf', 'qBud', 'qAct', 'qRem', 'qAtC'].includes(id);
+                              const conTotal = (id: string) => ['ini', 'fin', 'es', 'ef', 'bls', 'blf', 'varFin', 'durO', 'tf', 'qBud', 'qAct', 'qRem', 'qAtC', 'cBud', 'cAct', 'cRem', 'cAtC'].includes(id);
                               let k = 0;
                               while (k < cols.length - 1 && !conTotal(cols[k].id)) k++;
                               if (k === 0) k = Math.min(2, cols.length);
@@ -1729,6 +1748,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                                     if (!rs?.hayQ) return '';
                                     const q = id === 'qBud' ? rs.qb : id === 'qAct' ? rs.qa : id === 'qRem' ? rs.qr : rs.qa + rs.qr;
                                     return q.toLocaleString('en-US', { maximumFractionDigits: Math.abs(q) >= 1000 ? 0 : 2 });
+                                  }
+                                  case 'cBud': case 'cAct': case 'cRem': case 'cAtC': {
+                                    if (!rs?.hayQ) return '';
+                                    const c2 = id === 'cBud' ? rs.cb : id === 'cAct' ? rs.ca : id === 'cRem' ? rs.cr : rs.ca + rs.cr;
+                                    return c2.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                                   }
                                   default: return '';
                                 }
