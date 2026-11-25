@@ -1815,8 +1815,8 @@ export function MasterXlsSheetView({
                         } border-r cursor-pointer`}
                       >
                         <div
-                          className="flex items-center gap-1.5"
-                          style={{ paddingLeft: `${Math.min(node.depth, 6) * 12}px` }}
+                          className="flex items-center gap-0.5"
+                          style={{ paddingLeft: `${Math.min(node.depth, 8) * 3}px` }}
                         >
                           {!isLeaf ? (
                             <button
