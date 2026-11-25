@@ -619,9 +619,7 @@ export function crearAsignacionVenta(
   const tr = m.xer.tablas.get('TASKRSRC');
   if (!tr || !tr.filas.length) return 'This XER has no resource assignments to use as a template.';
   // Recurso: el material que más asignaciones tiene (en este proyecto, «V»)
-  const cuenta = new Map<string, number>();
-  for (const f of tr.filas) if (celda(tr, f, 'rsrc_type') === 'RT_Mat') cuenta.set(celda(tr, f, 'rsrc_id'), (cuenta.get(celda(tr, f, 'rsrc_id')) || 0) + 1);
-  const rsrcId = [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const rsrcId = rsrcVentaId(m);
   if (!rsrcId) return 'No material resource found in the XER.';
   const plantilla = tr.filas.find(f => celda(tr, f, 'rsrc_id') === rsrcId)!;
   const t = m.task, fa = t.filas[i];
@@ -653,5 +651,37 @@ export function crearAsignacionVenta(
   if (tr.campos.includes('create_date')) put('create_date', aTexto(Math.floor(Date.now() / 60000) - new Date().getTimezoneOffset()));
   tr.filas.push(fila);
   registrar(log, celda(t, fa, 'task_code'), 'Resource assignment (V)', '', `Actual Cost ${v.costoReal.toFixed(2)} · Budgeted Cost ${v.costoPresup.toFixed(2)}`);
+  return null;
+}
+
+/** Recurso material de venta del XER («V»): el material con más asignaciones. */
+export function rsrcVentaId(m: ModeloP6): string | null {
+  const tr = m.xer.tablas.get('TASKRSRC');
+  if (!tr) return null;
+  const cuenta = new Map<string, number>();
+  for (const f of tr.filas) if (celda(tr, f, 'rsrc_type') === 'RT_Mat') cuenta.set(celda(tr, f, 'rsrc_id'), (cuenta.get(celda(tr, f, 'rsrc_id')) || 0) + 1);
+  return [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+
+/**
+ * Actual Cost de la asignación de venta («V») de una actividad = `costo` (Venta Ex del Master). También el
+ * costo real del período y el Remaining Cost (Budgeted − Actual, mínimo 0; 0 si está terminada). No toca
+ * unidades, Budgeted Cost ni fechas. Devuelve un mensaje si la actividad no tiene esa asignación.
+ */
+export function ponerCostoReal(m: ModeloP6, i: number, costo: number, log: Cambio[]): string | null {
+  const tr = m.xer.tablas.get('TASKRSRC');
+  const rid = rsrcVentaId(m);
+  if (!tr || !rid) return 'No sales resource in the XER.';
+  const t = m.task, fa = t.filas[i];
+  const taskId = celda(t, fa, 'task_id');
+  const f = tr.filas.find(x => celda(tr, x, 'task_id') === taskId && celda(tr, x, 'rsrc_id') === rid);
+  if (!f) return 'The activity has no sales resource assignment.';
+  const antes = celda(tr, f, 'act_reg_cost');
+  const presup = Number(celda(tr, f, 'target_cost')) || 0;
+  const terminada = celda(t, fa, 'status_code') === 'TK_Complete';
+  ponerCelda(tr, f, 'act_reg_cost', costo.toFixed(4));
+  if (tr.campos.includes('act_this_per_cost')) ponerCelda(tr, f, 'act_this_per_cost', costo.toFixed(4));
+  ponerCelda(tr, f, 'remain_cost', (terminada ? 0 : Math.max(0, presup - costo)).toFixed(4));
+  registrar(log, celda(t, fa, 'task_code'), 'Actual Cost (V)', antes, costo.toFixed(2));
   return null;
 }

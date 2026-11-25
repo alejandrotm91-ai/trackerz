@@ -13,7 +13,7 @@ import { guardarLineaBase, leerLineaBase, lineaBaseDeTexto, lineaBaseDeXer, line
 import { crearModelo, entradasCpm, lagSsDesdeInicioTemprano, type ModeloP6 } from '../../utils/p6/modelo';
 import { holguraRelacion, type TipoRel } from '../../utils/p6/cpm';
 import { aMinutos, aTexto } from '../../utils/p6/calendario';
-import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, cargarUnidadesMaster, crearAsignacionVenta, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
+import { programarYEscribir, editarActividad, agregarRelacion, editarRelacion, eliminarRelacion, ponerFechaDatos, crearActividad, eliminarActividad, crearWbs, editarWbs, eliminarWbs, moverWbs, subarbolWbs, udfsDeActividad, ponerUdf, cargarUnidadesMaster, crearAsignacionVenta, ponerCostoReal, type Cambio, type EdicionActividad } from '../../utils/p6/edicion';
 import { guardarXerEnNube, leerXerDeNube, type MetaXer } from '../../utils/p6/xerNube';
 import { calcularUso, compacto, faseDe, periodosDeEscala, sumarTramo, type FaseUso, type LineaBaseFilas, type MedidaUso, type SerieUso } from '../../utils/p6/uso';
 import { DialogoNivelacion } from './nivelacionP6';
@@ -22,6 +22,7 @@ import { DesplegableVistas, useNombresVistas } from './nombresVistas';
 import { DialogoCorte } from './corteP6';
 import { DialogoLlegadas } from './llegadasP6';
 import { DialogoSoloMaster } from './soloMasterP6';
+import { useMasterVivo, FUENTE_LABEL } from '../../utils/masterLive';
 import { DialogoCalendarios } from './calendariosP6';
 import { DialogoCuadrillas, useMatrizPersonal } from './cuadrillasP6';
 import { estimarCuadrillas, POR_DEFECTO } from '../../utils/p6/cuadrillas';
@@ -215,6 +216,8 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const [verNivel, setVerNivel] = React.useState(false);
   const [verCorte, setVerCorte] = React.useState(false);
   const [verLlegadas, setVerLlegadas] = React.useState(false);
+  // Partidas de M₃ (borrador / nube / Excel), para el Actual Cost del Cut
+  const m3 = useMasterVivo(actividadesMaster ?? [], undefined, verCorte);
   const [verSoloMaster, setVerSoloMaster] = React.useState(false);
   const [verCalendarios, setVerCalendarios] = React.useState(false);
   const [verUso, setVerUso] = React.useState(true); // el panel Activity Usage se abre por defecto
@@ -1340,6 +1343,17 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       )}
       {verCorte && m && (
         <DialogoCorte m={m} master={actividadesMaster ?? []} clasif={clasifXer} editable={editable} version={version}
+          itemsM3={m3.items} fuenteM3={m3.fuente ? FUENTE_LABEL[m3.fuente] : ''} cargandoM3={m3.cargando}
+          onAplicarCostos={filasC => {
+            const mm = modelo.current;
+            if (!mm || !editable) return;
+            const log = [...cambios];
+            let n = 0; const errores: string[] = [];
+            for (const f of filasC) { const e = ponerCostoReal(mm, f.i, f.avanceM3, log); if (e) errores.push(`${f.cod}: ${e}`); else n++; }
+            marcarCambio(log);
+            setVerCorte(false);
+            mostrar(`Actual Cost updated from M₃ in ${n} activities${errores.length ? ` (${errores.length} with problems)` : ''}. Review and press Save.`);
+          }}
           proyecto={celda(m.xer.tablas.get('PROJECT')!, m.xer.tablas.get('PROJECT')!.filas[0], 'proj_short_name')}
           onIr={i => { setVerCorte(false); setVista('actividades'); irAActividad(i); }} onCerrar={() => setVerCorte(false)}
           onAplicar={(filas, fechaDatos) => {

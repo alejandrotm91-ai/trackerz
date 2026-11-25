@@ -12,6 +12,8 @@ import type { Actividad } from '../../types';
 import type { ModeloP6 } from '../../utils/p6/modelo';
 import type { Clasificacion } from '../../utils/p6/vistaEjecucion';
 import { calcularCorte, type FilaCorte } from '../../utils/p6/corte';
+import { calcularCostos, type FilaCosto } from '../../utils/p6/costoReal';
+import type { MasterCdoItem } from '../../types/masterCdo';
 
 const MES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** «AAAA-MM-DD[ HH:MM]» → «dd-MMM-yy[ HH:MM]» (formato de P6). */
@@ -79,16 +81,24 @@ export const DialogoCorte: React.FC<{
   /** Proyecto y fecha del corte para el nombre del archivo (p1126). */
   proyecto: string;
   onAplicar: (filas: FilaCorte[], fechaDatos: string) => void; onIr: (i: number) => void; onCerrar: () => void;
-}> = ({ m, master, clasif, editable, version, proyecto, onAplicar, onIr, onCerrar }) => {
+  /** Partidas de M₃ (Avance = Venta Ex por semana) y de dónde salen, para la pestaña «Actual Cost». */
+  itemsM3: MasterCdoItem[]; fuenteM3: string; cargandoM3: boolean;
+  onAplicarCostos: (filas: FilaCosto[]) => void;
+}> = ({ m, master, clasif, editable, version, proyecto, onAplicar, onIr, onCerrar, itemsM3, fuenteM3, cargandoM3, onAplicarCostos }) => {
   const sugerida = React.useMemo(() => calcularCorte(m, master, clasif).fechaDatosSugerida, [m, master, clasif, version]);
   const [fecha, setFecha] = React.useState<string>(() => (sugerida ?? '').replace(' ', 'T'));
   const fechaDatos = fecha ? fecha.replace('T', ' ').slice(0, 16) : null;
   const corte = React.useMemo(() => calcularCorte(m, master, clasif, fechaDatos), [m, master, clasif, fechaDatos, version]);
-  const [tab, setTab] = React.useState<'iniciar' | 'cerrar'>('iniciar');
+  const [tab, setTab] = React.useState<'iniciar' | 'cerrar' | 'costo'>('iniciar');
+  const costos = React.useMemo(() => calcularCostos(m, itemsM3), [m, itemsM3, version]);
+  const [quitadosCosto, setQuitadosCosto] = React.useState<Set<string>>(new Set());
+  const costosOk = costos.cambios.filter(f => f.ok);
+  const costosElegidos = costosOk.filter(f => !quitadosCosto.has(f.cod));
+  const dinero = (v: number | null) => (v == null ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
   const [quitadas, setQuitadas] = React.useState<Set<string>>(new Set());
   const clave = (f: FilaCorte) => `${f.accion}:${f.cod}`;
   const elegidas = [...corte.iniciar, ...corte.cerrar].filter(f => f.ok && !quitadas.has(clave(f)));
-  const lista = tab === 'iniciar' ? corte.iniciar : corte.cerrar;
+  const lista = tab === 'iniciar' ? corte.iniciar : tab === 'cerrar' ? corte.cerrar : [];
   const nOk = (l: FilaCorte[]) => l.filter(f => f.ok && !quitadas.has(clave(f))).length;
   const dd = new Date(m.fechaDatos * 60000).toISOString().slice(0, 16).replace('T', ' ');
   const atras = !!fechaDatos && fechaDatos < dd;
@@ -126,15 +136,47 @@ export const DialogoCorte: React.FC<{
           <span className="text-[#5A6A74]">· already started in T₃: {corte.yaIniciadas} · already completed: {corte.yaCerradas}</span>
         </div>
         <div className="px-4 pt-2 flex items-center gap-1">
-          {([['iniciar', `Start (NotStarted) · ${nOk(corte.iniciar)}/${corte.iniciar.length}`], ['cerrar', `Finish (DEF_100) · ${nOk(corte.cerrar)}/${corte.cerrar.length}`]] as const).map(([k, etq]) => (
+          {([['iniciar', `Start (NotStarted) · ${nOk(corte.iniciar)}/${corte.iniciar.length}`], ['cerrar', `Finish (DEF_100) · ${nOk(corte.cerrar)}/${corte.cerrar.length}`], ['costo', `Actual Cost · ${costosElegidos.length}/${costos.cambios.length}`]] as const).map(([k, etq]) => (
             <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-t-lg border border-b-0 font-semibold cursor-pointer ${tab === k ? 'bg-white border-[#D5DEE2] text-[#312E81]' : 'bg-[#F5F8F9] border-transparent text-[#5A6A74]'}`}>{etq}</button>
           ))}
           <span className="ml-3 text-[#5A6A74]">
-            {tab === 'iniciar'
+            {tab === 'costo'
+              ? `Actual Cost of the sales resource (V) ← Avance (Venta Ex) of M₃ by Activity ID; «p6» activities = SUMIF by column A (sum of their items). Source: ${cargandoM3 ? 'loading M₃…' : fuenteM3 || '—'} · M₃ total ${dinero(costos.totalM3)} · T₃ total ${dinero(costos.totalT3)} · equal ${costos.iguales} · not in M₃ ${costos.noEnM3} (untouched). Does not move the Data Date.`
+              : tab === 'iniciar'
               ? 'Venta Ex > 0 and Not Started in T₃ → Actual Start = 1st week with execution + 1 day 08:00 (Physical % untouched); Remaining Duration = Original − working time from the Actual Start to the new Data Date (at least 1 day). If the 1st execution is not this year, also Actual Finish = last week + 4 days 16:00 with % = % Ex.'
               : '.D / .E with % Ex ≥ 99.5 % and .F with % Ex ≥ 95 %, In Progress in T₃ → Actual Finish = last week with execution + 4 days 16:00 and Physical % = % Ex.'}
           </span>
         </div>
+        {tab === 'costo' ? (
+        <div className="mx-4 border border-[#D5DEE2] rounded-b-lg rounded-tr-lg overflow-auto flex-1 min-h-[200px]">
+          <table className="w-full border-collapse">
+            <thead><tr>
+              <th className={th}><input type="checkbox" checked={costosOk.length > 0 && costosOk.every(f => !quitadosCosto.has(f.cod))}
+                onChange={e => setQuitadosCosto(q => { const n = new Set(q); costosOk.forEach(f => (e.target.checked ? n.delete(f.cod) : n.add(f.cod))); return n; })} /></th>
+              <th className={th}>Activity ID</th><th className={th}>Activity Name</th><th className={th}>T₃</th>
+              <th className={`${th} text-right`}>Actual Cost T₃</th><th className={`${th} text-right`}>Avance M₃ (Venta Ex)</th><th className={`${th} text-right`}>Δ</th>
+              <th className={th} title="«p6» activities: SUMIF by column A over their items">p6 items</th><th className={th}>Note</th>
+            </tr></thead>
+            <tbody>
+              {costos.cambios.map(f => (
+                <tr key={f.cod} className={f.ok ? '' : 'text-[#9AA6AD] bg-[#FAFBFB]'}>
+                  <td className={td}><input type="checkbox" disabled={!f.ok} checked={f.ok && !quitadosCosto.has(f.cod)}
+                    onChange={() => setQuitadosCosto(q => { const n = new Set(q); if (n.has(f.cod)) n.delete(f.cod); else n.add(f.cod); return n; })} /></td>
+                  <td className={`${td} font-mono`}><button onClick={() => onIr(f.i)} className="text-[#312E81] hover:underline cursor-pointer" title="Go to the activity">{f.cod}</button></td>
+                  <td className={`${td} max-w-[300px] truncate`} title={f.nombre}>{f.nombre}</td>
+                  <td className={td}>{ESTADO[f.estado] ?? f.estado}</td>
+                  <td className={`${td} text-right`}>{dinero(f.actualT3)}</td>
+                  <td className={`${td} text-right font-semibold`}>{dinero(f.avanceM3)}</td>
+                  <td className={`${td} text-right font-semibold ${f.delta < 0 ? 'text-red-700' : 'text-[#2B7F52]'}`}>{f.delta > 0 ? '+' : ''}{dinero(f.delta)}</td>
+                  <td className={td}>{f.rubros ? `${f.rubros} items` : ''}</td>
+                  <td className={`${td} text-[#C9701E] whitespace-normal min-w-[200px]`}>{f.nota}</td>
+                </tr>
+              ))}
+              {!costos.cambios.length && <tr><td colSpan={9} className="px-3 py-6 text-center text-[#5A6A74]">{cargandoM3 ? 'Loading M₃…' : 'Every Actual Cost already matches M₃.'}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        ) : (
         <div className="mx-4 border border-[#D5DEE2] rounded-b-lg rounded-tr-lg overflow-auto flex-1 min-h-[200px]">
           <table className="w-full border-collapse">
             <thead><tr>
@@ -176,11 +218,19 @@ export const DialogoCorte: React.FC<{
             </tbody>
           </table>
         </div>
+        )}
         <div className="px-4 py-2.5 flex items-center gap-2 border-t border-[#D5DEE2] mt-2">
           <span className="text-[#5A6A74]">Then: Save → Export XER → Primavera → «p6» tab of the Master → reload the Master.</span>
           <button onClick={exportar} className="ml-auto px-3 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1"
             title="Excel with the NotStarted and DEF_100 sheets of the specification"><Download className="w-3.5 h-3.5" /> Export Excel</button>
-          {editable && (
+          {editable && tab === 'costo' && (
+            <button id="p6-corte-costos" disabled={!costosElegidos.length} onClick={() => onAplicarCostos(costosElegidos)}
+              className="px-3 py-1.5 rounded-lg bg-[#312E81] text-white font-bold cursor-pointer disabled:opacity-50"
+              title="Set the Actual Cost of the selected activities as unsaved changes (the Data Date does not move). Review and press Save.">
+              Update {costosElegidos.length} Actual Costs
+            </button>
+          )}
+          {editable && tab !== 'costo' && (
             <button disabled={!elegidas.length || !fechaDatos || atras} onClick={() => fechaDatos && !atras && onAplicar(elegidas, fechaDatos)}
               className="px-3 py-1.5 rounded-lg bg-[#312E81] text-white font-bold cursor-pointer disabled:opacity-50"
               title="Set the new Data Date and the actual dates as unsaved changes, then reschedule (F9). Review and press Save.">
