@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import * as XLSX from 'xlsx';
-import { Download, Ship, Upload, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Ship, Upload, X } from 'lucide-react';
 import type { ModeloP6 } from '../../utils/p6/modelo';
 import { calcularLlegadas, type CambioLlegada, type FilaLlegada, type TipoLlegada } from '../../utils/p6/llegadas';
 import { leerMatrizLlegadas, type MatrizLlegadas, type EstadoImportacion } from '../../utils/p6/matrizLlegadas';
@@ -28,10 +28,10 @@ const textoCambio = (c: CambioLlegada) => `${c.cod} ${c.campo === 'durOriginal' 
 
 function libro(filas: FilaLlegada[], sinPareja: { lado: string; partida: string; detalle: string; aw: string | null }[]): Uint8Array {
   const wb = XLSX.utils.book_new();
-  const cab = ['Partida', 'Freight (.E)', 'Supplier', 'Package', 'Matrix status', 'T₃ status', 'Shipments', 'First AW', 'Last AW', 'Shipment (AR)', 'Finish T₃', 'Δ days', 'Class', 'TF (d)', 'Proposed changes', 'Notes', 'Type'];
+  const cab = ['SubC (T₃)', 'Partida', 'Freight (.E)', 'Supplier (matrix)', 'Package', 'Matrix status', 'T₃ status', 'Shipments', 'First AW', 'Last AW', 'Shipment (AR)', 'Finish T₃', 'Δ days', 'Class', 'TF (d)', 'Proposed changes', 'Notes', 'Type'];
   const tipo: Record<TipoLlegada, string> = { cambio: 'Change', cercana: 'Close', llegada: 'Arrived – confirm', completada: 'Completed' };
-  const datos = filas.map(f => [
-    f.partida, f.acts.map(a => a.cod).join(', '), f.fab, f.paq, CAT[f.cat].t, [...new Set(f.acts.map(a => ESTADO[a.estado] || a.estado))].join(', '),
+  const datos = [...filas].sort((x, y) => (x.subc || '~').localeCompare(y.subc || '~', 'es')).map(f => [
+    f.subc || '', f.partida, f.acts.map(a => a.cod).join(', '), f.fab, f.paq, CAT[f.cat].t, [...new Set(f.acts.map(a => ESTADO[a.estado] || a.estado))].join(', '),
     f.envios, f.awPrimera, f.aw, f.ar || '', f.finT3, f.delta, f.clase,
     Math.min(...f.acts.map(a => a.tfDias ?? Infinity)) === Infinity ? '' : +Math.min(...f.acts.map(a => a.tfDias ?? Infinity)).toFixed(1),
     f.cambios.map(textoCambio).join(' · '), f.avisos.join(' · '), tipo[f.tipo],
@@ -81,13 +81,31 @@ export const DialogoLlegadas: React.FC<{
   };
 
   const res = React.useMemo(() => (matriz ? calcularLlegadas(m, matriz.filas) : null), [m, matriz, version]);
-  const [tab, setTab] = React.useState<TipoLlegada | 'sinPareja'>('cambio');
+  type Pestana = 'gap' | 'review' | TipoLlegada | 'sinPareja';
+  const [tab, setTab] = React.useState<Pestana>('gap');
   const [quitadas, setQuitadas] = React.useState<Set<string>>(new Set());
-  const delTipo = (k: TipoLlegada) => res?.filas.filter(f => f.tipo === k) || [];
-  const conCambios = delTipo('cambio').filter(f => f.cambios.length);
-  const elegidas = conCambios.filter(f => !quitadas.has(f.clave));
-  const lista = tab === 'sinPareja' ? [] : delTipo(tab);
-
+  const [plegados, setPlegados] = React.useState<Set<string>>(new Set());
+  const filasDe = (k: Pestana): FilaLlegada[] => {
+    if (!res || k === 'sinPareja') return [];
+    if (k === 'gap') return res.filas.filter(f => f.tipo === 'cambio' && f.clase === 'Gap');
+    if (k === 'review') return res.filas.filter(f => f.tipo === 'cambio' && f.clase === 'Review');
+    return res.filas.filter(f => f.tipo === k);
+  };
+  const conCambiosDe = (k: Pestana) => filasDe(k).filter(f => f.cambios.length);
+  const elegidasDe = (k: Pestana) => conCambiosDe(k).filter(f => !quitadas.has(f.clave));
+  const deCambios = tab === 'gap' || tab === 'review';
+  const lista = filasDe(tab);
+  const conCambios = conCambiosDe(tab);
+  const elegidas = elegidasDe(tab);
+  // Agrupación por el subcontratista del cronograma (11.SubC de la .E)
+  const SIN_SUBC = '(no SubC)';
+  const grupos = React.useMemo(() => {
+    const g = new Map<string, FilaLlegada[]>();
+    for (const f of lista) { const k = f.subc || SIN_SUBC; if (!g.has(k)) g.set(k, []); g.get(k)!.push(f); }
+    return [...g.entries()].sort(([a], [b]) => (a === SIN_SUBC ? 1 : b === SIN_SUBC ? -1 : a.localeCompare(b, 'es')));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [res, tab]);
+  const alternarSel = (fs: FilaLlegada[], marcar: boolean) => setQuitadas(q => { const n = new Set(q); fs.filter(f => f.cambios.length).forEach(f => (marcar ? n.delete(f.clave) : n.add(f.clave))); return n; });
   const exportar = () => {
     if (!res) return;
     const url = URL.createObjectURL(new Blob([libro(res.filas, res.sinPareja)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
@@ -97,15 +115,18 @@ export const DialogoLlegadas: React.FC<{
 
   const th = 'px-2 py-1 text-left font-semibold text-[#5A6A74] bg-[#F5F8F9] sticky top-0 border-b border-[#D5DEE2] whitespace-nowrap';
   const td = 'px-2 py-1 border-b border-[#EEF2F3] whitespace-nowrap align-top';
-  const tabs: [TipoLlegada | 'sinPareja', string][] = [
-    ['cambio', `Changes · ${elegidas.length}/${conCambios.length}`],
-    ['cercana', `Close (|Δ| ≤ 7) · ${delTipo('cercana').length}`],
-    ['llegada', `Arrived – confirm · ${delTipo('llegada').length}`],
-    ['completada', `Completed · ${delTipo('completada').length}`],
+  const tabs: [Pestana, string][] = [
+    ['gap', `Gap > 30 d · ${elegidasDe('gap').length}/${conCambiosDe('gap').length}`],
+    ['review', `Review 8–30 d · ${elegidasDe('review').length}/${conCambiosDe('review').length}`],
+    ['cercana', `Close (|Δ| ≤ 7) · ${filasDe('cercana').length}`],
+    ['llegada', `Arrived – confirm · ${filasDe('llegada').length}`],
+    ['completada', `Completed · ${filasDe('completada').length}`],
     ['sinPareja', `Unmatched · matrix ${res?.sinPareja.filter(x => x.lado === 'matrix').length ?? 0} · T₃ ${res?.sinPareja.filter(x => x.lado === 'T3').length ?? 0}`],
   ];
+  const ayudaCambio = 'Pending freight with |Δ| > 7 days: the procurement .D (In Progress) ends on the shipment date (AR) and the freight .E lasts from the shipment (or the Data Date) to the end of the arrival day (AW), in its calendar. At least 1 day. Not-started .D are not changed.';
   const ayuda: Record<string, string> = {
-    cambio: 'Pending freight with |Δ| > 7 days: the procurement .D (In Progress) ends on the shipment date (AR) and the freight .E lasts from the shipment (or the Data Date) to the end of the arrival day (AW), in its calendar. At least 1 day. Not-started .D are not changed.',
+    gap: `${ayudaCambio} Each tab is applied on its own.`,
+    review: `${ayudaCambio} Each tab is applied on its own.`,
     cercana: 'Finish of the freight in T₃ within 7 days of the matrix arrival: nothing to change.',
     llegada: 'The matrix arrival (AW) is on or before the Data Date and the freight is not finished in T₃: confirm on site and update it with the Cut. Not changed here.',
     completada: 'Freight already finished in T₃: never changed. Flagged if the matrix still shows it as not arrived.',
@@ -166,24 +187,32 @@ export const DialogoLlegadas: React.FC<{
               ) : (
                 <table className="w-full border-collapse">
                   <thead><tr>
-                    {tab === 'cambio' && <th className={th}><input type="checkbox" checked={conCambios.length > 0 && conCambios.every(f => !quitadas.has(f.clave))}
-                      onChange={e => setQuitadas(q => { const n = new Set(q); conCambios.forEach(f => (e.target.checked ? n.delete(f.clave) : n.add(f.clave))); return n; })} /></th>}
-                    <th className={th}>Partida</th><th className={th}>Freight (.E)</th><th className={th}>Supplier</th><th className={th}>Matrix</th><th className={th}>T₃</th>
+                    {deCambios && <th className={th}><input type="checkbox" checked={conCambios.length > 0 && conCambios.every(f => !quitadas.has(f.clave))}
+                      onChange={e => alternarSel(conCambios, e.target.checked)} /></th>}
+                    <th className={th}>Partida</th><th className={th}>Freight (.E)</th><th className={th}>Supplier (matrix)</th><th className={th}>Matrix</th><th className={th}>T₃</th>
                     <th className={th} title="Number of shipments of the item in the matrix; the last one is compared">Ship.</th>
                     <th className={th}>Shipment (AR)</th><th className={th}>Arrival (AW)</th><th className={th}>Finish T₃</th>
                     <th className={`${th} text-right`} title="Finish in T₃ − last AW (calendar days; negative = T₃ earlier than the matrix)">Δ d</th><th className={th}>Class</th>
                     <th className={`${th} text-right`}>TF (d)</th>
-                    {tab === 'cambio' && <th className={th}>Proposed changes</th>}
+                    {deCambios && <th className={th}>Proposed changes</th>}
                     <th className={th}>Notes</th>
                   </tr></thead>
                   <tbody>
-                    {lista.map(f => {
+                    {grupos.map(([sub, fs]) => { const abierto = !plegados.has(sub); const cc = fs.filter(f => f.cambios.length); return (<React.Fragment key={sub}>
+                      <tr className="bg-[#E8EAF6] cursor-pointer select-none" onClick={() => setPlegados(p => { const n = new Set(p); if (n.has(sub)) n.delete(sub); else n.add(sub); return n; })}>
+                        {deCambios && <td className={td} onClick={e => e.stopPropagation()}><input type="checkbox" disabled={!cc.length} checked={cc.length > 0 && cc.every(f => !quitadas.has(f.clave))} onChange={e => alternarSel(cc, e.target.checked)} title="Select the whole subcontractor" /></td>}
+                        <td colSpan={deCambios ? 14 : 13} className="px-2 py-1 border-b border-[#D5DEE2] font-bold text-[#312E81]">
+                          {abierto ? <ChevronDown className="inline w-3.5 h-3.5 mr-1" /> : <ChevronRight className="inline w-3.5 h-3.5 mr-1" />}
+                          SubC: {sub} <span className="font-normal text-[#5A6A74]">· {fs.length} item{fs.length === 1 ? '' : 's'}{deCambios ? ` · ${cc.filter(f => !quitadas.has(f.clave)).length} selected` : ''}</span>
+                        </td>
+                      </tr>
+                      {abierto && fs.map(f => {
                       const tf = Math.min(...f.acts.map(a => a.tfDias ?? Infinity));
                       const c = CAT[f.cat];
-                      const sinCambios = tab === 'cambio' && !f.cambios.length;
+                      const sinCambios = deCambios && !f.cambios.length;
                       return (
                         <tr key={f.clave} className={sinCambios ? 'text-[#9AA6AD] bg-[#FAFBFB]' : ''}>
-                          {tab === 'cambio' && <td className={td}><input type="checkbox" disabled={sinCambios} checked={!sinCambios && !quitadas.has(f.clave)}
+                          {deCambios && <td className={td}><input type="checkbox" disabled={sinCambios} checked={!sinCambios && !quitadas.has(f.clave)}
                             onChange={() => setQuitadas(q => { const n = new Set(q); if (n.has(f.clave)) n.delete(f.clave); else n.add(f.clave); return n; })} /></td>}
                           <td className={`${td} font-mono`} title={f.eq}>{f.partida}</td>
                           <td className={`${td} font-mono`}>{f.acts.map(a => (
@@ -199,13 +228,14 @@ export const DialogoLlegadas: React.FC<{
                           <td className={`${td} text-right font-semibold ${CLASE_COLOR[f.clase]}`}>{f.delta > 0 ? `+${f.delta}` : f.delta}</td>
                           <td className={`${td} ${CLASE_COLOR[f.clase]}`}>{f.clase}</td>
                           <td className={`${td} text-right ${tf <= 0 ? 'text-red-700 font-semibold' : ''}`}>{tf === Infinity ? '—' : tf.toFixed(0)}</td>
-                          {tab === 'cambio' && <td className={td}>{f.cambios.map(x => (
+                          {deCambios && <td className={td}>{f.cambios.map(x => (
                             <div key={`${x.cod}:${x.campo}`} title={x.nota}><span className="font-mono">{x.cod}</span> {x.campo === 'durOriginal' ? 'Orig' : 'Rem'} {dias(x.antesH, x.horasDia)} → <b>{dias(x.nuevoH, x.horasDia)} d</b> <span className="text-[#5A6A74]">({x.nota})</span></div>
                           ))}{!f.cambios.length && 'Nothing to change'}</td>}
                           <td className={`${td} text-[#C9701E] whitespace-normal min-w-[180px]`}>{f.avisos.join(' · ')}</td>
                         </tr>
                       );
                     })}
+                    </React.Fragment>); })}
                     {!lista.length && <tr><td colSpan={16} className="px-3 py-6 text-center text-[#5A6A74]">Nothing here.</td></tr>}
                   </tbody>
                 </table>
@@ -218,10 +248,10 @@ export const DialogoLlegadas: React.FC<{
           <button onClick={exportar} disabled={!res} className="ml-auto px-3 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1 disabled:opacity-50"
             title="Excel with every compared item and the unmatched keys"><Download className="w-3.5 h-3.5" /> Export Excel</button>
           {editable && (
-            <button id="p6-llegadas-aplicar" disabled={!elegidas.length} onClick={() => onAplicar(elegidas.flatMap(f => f.cambios), elegidas.length)}
+            <button id="p6-llegadas-aplicar" disabled={!deCambios || !elegidas.length} onClick={() => onAplicar(elegidas.flatMap(f => f.cambios), elegidas.length)}
               className="px-3 py-1.5 rounded-lg bg-[#312E81] text-white font-bold cursor-pointer disabled:opacity-50"
               title="Set the new durations as unsaved changes, then reschedule (F9). Review and press Save.">
-              Apply {elegidas.length} items + F9
+              Apply {elegidas.length} items of this tab + F9
             </button>
           )}
         </div>

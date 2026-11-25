@@ -53,6 +53,8 @@ export interface FilaLlegada {
   tipo: TipoLlegada;
   clave: string;
   partida: string;
+  /** Subcontratista del cronograma (campo de usuario «11.SubC» de la .E, o de su .D). */
+  subc: string;
   paq: string;
   fab: string;
   eq: string;
@@ -99,15 +101,21 @@ export function calcularLlegadas(m: ModeloP6, filasMatriz: FilaMatriz[]): Result
   // Campos de usuario «32. Variacion» y «07.SCAP» de cada actividad (por task_id)
   const tipos = m.xer.tablas.get('UDFTYPE'), valores = m.xer.tablas.get('UDFVALUE');
   const idTipo = (etq: string) => tipos?.filas.find(f => celda(tipos, f, 'table_name') === 'TASK' && celda(tipos, f, 'udf_type_label') === etq);
-  const tVar = idTipo('32. Variacion'), tScap = idTipo('07.SCAP');
-  const variacion = new Map<string, string>(), scap = new Map<string, string>();
+  const tVar = idTipo('32. Variacion'), tScap = idTipo('07.SCAP'), tSubc = idTipo('11.SubC');
+  const variacion = new Map<string, string>(), scap = new Map<string, string>(), subcs = new Map<string, string>();
   const idVar = tVar ? celda(tipos!, tVar, 'udf_type_id') : null, idScap = tScap ? celda(tipos!, tScap, 'udf_type_id') : null;
+  const idSubc = tSubc ? celda(tipos!, tSubc, 'udf_type_id') : null;
   for (const f of valores?.filas || []) {
     const tipo = celda(valores!, f, 'udf_type_id');
-    if (tipo !== idVar && tipo !== idScap) continue;
-    const v = celda(valores!, f, 'udf_text') || celda(valores!, f, 'udf_number');
-    (tipo === idVar ? variacion : scap).set(celda(valores!, f, 'fk_id'), v);
+    const destino = tipo === idVar ? variacion : tipo === idScap ? scap : tipo === idSubc ? subcs : null;
+    if (!destino) continue;
+    destino.set(celda(valores!, f, 'fk_id'), celda(valores!, f, 'udf_text') || celda(valores!, f, 'udf_number'));
   }
+  const subcDe = (i: number | undefined) => {
+    if (i === undefined) return '';
+    const v = String(subcs.get(celda(t, t.filas[i], 'task_id')) || '').trim();
+    return v && v !== '0' ? v : '';
+  };
 
   const porCod = new Map<string, number>();
   t.filas.forEach((f, i) => porCod.set(celda(t, f, 'task_code'), i));
@@ -166,8 +174,9 @@ export function calcularLlegadas(m: ModeloP6, filasMatriz: FilaMatriz[]): Result
     const finT3 = acts.map(a => a.fin).sort().pop() || '';
     const delta = finT3 ? dias(finT3, aw) : 0;
     const clase = claseDe(delta);
+    const subc = acts.map(a => subcDe(a.i)).find(Boolean) || acts.map(a => subcDe(porCod.get(a.cod.replace(/\.E$/i, '.D')))).find(Boolean) || '';
     const base = {
-      clave: k, partida: ult.p, paq: ult.paq || '', fab: ult.fab || '', eq: ult.eq || '', cat: ult.cat, envios: rs.length,
+      clave: k, partida: ult.p, subc, paq: ult.paq || '', fab: ult.fab || '', eq: ult.eq || '', cat: ult.cat, envios: rs.length,
       awPrimera, aw, ar, acts, finT3, delta, clase, cambios: [] as CambioLlegada[], avisos: [] as string[],
     };
     const pendientes = acts.filter(a => a.estado !== 'TK_Complete');
