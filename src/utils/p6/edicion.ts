@@ -605,3 +605,53 @@ export function cargarUnidadesMaster(m: ModeloP6, cantidad: Map<string, number |
   }
   return r;
 }
+
+/**
+ * Asignación del recurso material de venta (el «V» que usan las demás actividades del XER) para una actividad
+ * creada en T₃: Budgeted/Actual/Remaining Units y Cost. Se clona una asignación existente de ese recurso como
+ * plantilla (mismos campos y tipo de tarifa) y se ajustan ids, actividad, cantidades, costos y fechas.
+ */
+export function crearAsignacionVenta(
+  m: ModeloP6, i: number,
+  v: { costoPresup: number; costoReal: number; cantPresup: number; cantReal: number },
+  log: Cambio[],
+): string | null {
+  const tr = m.xer.tablas.get('TASKRSRC');
+  if (!tr || !tr.filas.length) return 'This XER has no resource assignments to use as a template.';
+  // Recurso: el material que más asignaciones tiene (en este proyecto, «V»)
+  const cuenta = new Map<string, number>();
+  for (const f of tr.filas) if (celda(tr, f, 'rsrc_type') === 'RT_Mat') cuenta.set(celda(tr, f, 'rsrc_id'), (cuenta.get(celda(tr, f, 'rsrc_id')) || 0) + 1);
+  const rsrcId = [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (!rsrcId) return 'No material resource found in the XER.';
+  const plantilla = tr.filas.find(f => celda(tr, f, 'rsrc_id') === rsrcId)!;
+  const t = m.task, fa = t.filas[i];
+  const fila = [...plantilla];
+  const put = (c: string, val: string) => ponerCelda(tr, fila, c, val);
+  const maxId = tr.filas.reduce((mx, f) => Math.max(mx, Number(celda(tr, f, 'taskrsrc_id')) || 0), 0);
+  const ini = celda(t, fa, 'act_start_date') || celda(t, fa, 'target_start_date');
+  const fin = celda(t, fa, 'act_end_date') || celda(t, fa, 'target_end_date');
+  const restoCosto = Math.max(0, v.costoPresup - v.costoReal), restoCant = Math.max(0, v.cantPresup - v.cantReal);
+  const terminada = celda(t, fa, 'status_code') === 'TK_Complete';
+  put('taskrsrc_id', String(maxId + 1));
+  put('task_id', celda(t, fa, 'task_id'));
+  put('proj_id', celda(t, fa, 'proj_id'));
+  put('rsrc_id', rsrcId);
+  put('target_qty', numQ(v.cantPresup));
+  put('act_reg_qty', numQ(v.cantReal));
+  put('act_this_per_qty', numQ(v.cantReal));
+  put('remain_qty', numQ(terminada ? 0 : restoCant));
+  put('target_cost', v.costoPresup.toFixed(4));
+  put('act_reg_cost', v.costoReal.toFixed(4));
+  put('act_this_per_cost', v.costoReal.toFixed(4));
+  put('remain_cost', (terminada ? 0 : restoCosto).toFixed(4));
+  for (const c of ['act_ot_qty', 'act_ot_cost', 'remain_qty_per_hr', 'target_qty_per_hr', 'target_lag_drtn_hr_cnt', 'relag_drtn_hr_cnt']) if (tr.campos.includes(c)) put(c, c.endsWith('cost') ? '0.0000' : '0');
+  for (const c of ['act_start_date', 'target_start_date', 'restart_date']) if (tr.campos.includes(c)) put(c, c === 'act_start_date' ? celda(t, fa, 'act_start_date') : ini);
+  for (const c of ['act_end_date', 'target_end_date', 'reend_date']) if (tr.campos.includes(c)) put(c, c === 'act_end_date' ? celda(t, fa, 'act_end_date') : fin);
+  put('cost_qty_link_flag', 'N');
+  put('guid', nuevoGuid());
+  if (tr.campos.includes('create_user')) put('create_user', 'Trakciona');
+  if (tr.campos.includes('create_date')) put('create_date', aTexto(Math.floor(Date.now() / 60000) - new Date().getTimezoneOffset()));
+  tr.filas.push(fila);
+  registrar(log, celda(t, fa, 'task_code'), 'Resource assignment (V)', '', `Actual Cost ${v.costoReal.toFixed(2)} · Budgeted Cost ${v.costoPresup.toFixed(2)}`);
+  return null;
+}
