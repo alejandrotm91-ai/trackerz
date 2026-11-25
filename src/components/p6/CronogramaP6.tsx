@@ -2746,7 +2746,9 @@ const PanelActividad: React.FC<{
 
   // Valores al estilo de la pestaña «Status» de P6
   const num = (c: string) => Number(g(c)) || 0;
-  const d = (h: number) => dias(h, hd);
+  // Panel de la actividad: duraciones y holguras en días enteros, como P6
+  const d = (h: number) => (Math.round(h / hd) || 0).toLocaleString('en-US');
+  const dEnt = (h: number) => Math.round(h / hd) || 0;
   const actIni = aMinutos(g('act_start_date')), actFin = aMinutos(g('act_end_date'));
   const durReal = actIni != null && cal ? cal.entre(actIni, estado === 'TK_Complete' && actFin != null ? actFin : Math.max(actIni, m.fechaDatos)) / 60 : 0;
   const durRest = estado === 'TK_Complete' ? 0 : num('remain_drtn_hr_cnt');
@@ -2811,13 +2813,13 @@ const PanelActividad: React.FC<{
             <div className="flex flex-col gap-2">
               <Caja titulo={`Duration (days of ${hd} h)`}>
                 <Fila etq="Original">
-                  <input type="number" step="0.5" min="0" className={`${caja} text-right`} disabled={!editable || estado === 'TK_Complete'} defaultValue={num('target_drtn_hr_cnt') / hd}
-                    onBlur={e => { const v = Number(e.target.value) * hd; if (v !== num('target_drtn_hr_cnt')) editar({ durOriginal: v }); }} />
+                  <input type="number" step="1" min="0" className={`${caja} text-right`} disabled={!editable || estado === 'TK_Complete'} defaultValue={dEnt(num('target_drtn_hr_cnt'))}
+                    onBlur={e => { const n = Number(e.target.value); if (n !== dEnt(num('target_drtn_hr_cnt'))) editar({ durOriginal: n * hd }); }} />
                 </Fila>
                 <Fila etq="Actual"><div className={`${soloLectura} justify-end`}>{d(durReal)}</div></Fila>
                 <Fila etq="Remaining">
-                  <input type="number" step="0.5" min="0" className={`${caja} text-right`} disabled={!editable || estado === 'TK_Complete'} defaultValue={durRest / hd}
-                    onBlur={e => { const v = Number(e.target.value) * hd; if (v !== num('remain_drtn_hr_cnt')) editar({ durRestante: v }); }} />
+                  <input type="number" step="1" min="0" className={`${caja} text-right`} disabled={!editable || estado === 'TK_Complete'} defaultValue={dEnt(durRest)}
+                    onBlur={e => { const n = Number(e.target.value); if (n !== dEnt(durRest)) editar({ durRestante: n * hd }); }} />
                 </Fila>
                 <Fila etq="At Complete"><div className={`${soloLectura} justify-end`}>{d(durReal + durRest)}</div></Fila>
               </Caja>
