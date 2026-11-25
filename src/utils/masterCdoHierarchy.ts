@@ -1640,9 +1640,12 @@ export function getVisibleHierarchyNodes(
         .map(k => nodeMap.get(k))
         .filter((n): n is MasterHierarchyNode => !!n);
 
+      // Primero los hijos directos (partidas), luego las actividades p6 del mismo nivel
+      // (agrupan sus rubros) y al final los hijos que son niveles de la WBS (subcapítulos, paquetes…)
+      const rango = (n: MasterHierarchyNode) => (n.esHoja ? 0 : n.activityId ? 1 : 2);
       children.sort((a, b) => {
-        if (!a.esHoja && b.esHoja) return -1;
-        if (a.esHoja && !b.esHoja) return 1;
+        const ra = rango(a), rb = rango(b);
+        if (ra !== rb) return ra - rb;
         if (a.wbs && b.wbs) {
           return compareWbs(a.wbs, b.wbs);
         }
