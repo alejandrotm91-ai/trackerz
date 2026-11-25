@@ -40,7 +40,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { MasterCdoItem, MasterCdoWeek, MasterCdoTotals } from '../types/masterCdo';
-import { SelectorSemana } from './SelectorSemana';
+import { SelectorSemana, semanasDeSeleccion } from './SelectorSemana';
 import { BotonFiltroColumna, ColumnaFiltrable, FiltroCol, construirPredicado, filtroActivo, resumenFiltro } from './FiltroColumnaM3';
 import { Actividad } from '../types';
 import {
@@ -193,11 +193,11 @@ export function MasterXlsSheetView({
   const [semanaSel, setSemanaSel] = useState<string>('all');
   // Solo semanas del año elegido: si la elegida no es de ese año, se vuelve a todas
   useEffect(() => {
-    if (semanaSel !== 'all' && !displayedWeeks.some(x => x.id === semanaSel)) setSemanaSel('all');
+    if (semanaSel !== 'all' && semanasDeSeleccion(displayedWeeks, semanaSel).length === 0) setSemanaSel('all');
   }, [displayedWeeks, semanaSel]);
   const weeksShown = useMemo(() => {
     if (semanaSel === 'all') return displayedWeeks;
-    const w = displayedWeeks.filter(x => x.id === semanaSel);
+    const w = semanasDeSeleccion(displayedWeeks, semanaSel);
     return w.length ? w : displayedWeeks;
   }, [semanaSel, displayedWeeks]);
   const [internalShowAttributeCols, setInternalShowAttributeCols] = useState<boolean>(false);
@@ -1127,10 +1127,6 @@ export function MasterXlsSheetView({
           </div>
           {/* Filtros, debajo del selector Q / V / Q&V */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Semana a avanzar: deja visible solo esa semana (desplegable por año › mes › semana) */}
-            {!showAttributeCols && semanas.length > 0 && (
-              <SelectorSemana semanas={displayedWeeks} valor={semanaSel} onCambiar={setSemanaSel} />
-            )}
             {/* Search Input */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -1183,6 +1179,10 @@ export function MasterXlsSheetView({
                   <TrendingUp className={`w-3.5 h-3.5 ${avanza ? 'text-white' : 'text-emerald-700'}`} />
                   <span>Avanza</span>
                 </button>
+                {/* Semana a avanzar: una semana, un mes completo o todas (desplegable por año › mes › semana) */}
+                {!showAttributeCols && semanas.length > 0 && (
+                  <SelectorSemana semanas={displayedWeeks} valor={semanaSel} onCambiar={setSemanaSel} />
+                )}
 
                 {/* Toggle Attribute View (Unit, Componente, Macro, Grupo, Tipo, CAP, SCAP) - hides execution weeks */}
                 <button

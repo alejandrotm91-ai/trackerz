@@ -1,7 +1,8 @@
 /**
  * Selector de la semana a avanzar en la hoja del Master (M₃). Menú propio (un <select> nativo no deja
  * plegar grupos): las semanas del año elegido se agrupan por mes —y por año si se muestran varios—,
- * todo plegado al abrir; el usuario despliega el mes que quiere y elige la semana (domingo a sábado).
+ * todo plegado al abrir; el usuario despliega el mes que quiere y elige la semana (domingo a sábado),
+ * o hace clic en el nombre del mes para ver todas sus semanas (valor `mes:AAAA-MM`).
  */
 import React from 'react';
 import { CalendarDays, ChevronDown, ChevronRight, Check } from 'lucide-react';
@@ -23,6 +24,19 @@ export function etiquetaSemana(w: MasterCdoWeek): string {
   const rango = ini.getUTCDay() === 0 ? `${dd(ini)} → ${dd(fin)}` : dd(ini);
   return `Sem. ${rango}${w.cerrada ? ' · cerrada' : ''}`;
 }
+
+/** Prefijo del valor cuando se elige un mes completo: «mes:2026-11». */
+export const PREFIJO_MES = 'mes:';
+/** Semanas que corresponden al valor del selector: todas, un mes completo o una semana. */
+export function semanasDeSeleccion(semanas: MasterCdoWeek[], valor: string): MasterCdoWeek[] {
+  if (!valor || valor === 'all') return semanas;
+  if (valor.startsWith(PREFIJO_MES)) {
+    const mes = valor.slice(PREFIJO_MES.length);
+    return semanas.filter(w => fechaDe(w).startsWith(mes));
+  }
+  return semanas.filter(w => w.id === valor);
+}
+const nombreMes = (mes: string) => (mes === 'otras' ? 'Otras' : `${MESES[Number(mes.slice(5, 7)) - 1]} ${mes.slice(0, 4)}`);
 
 export const SelectorSemana: React.FC<{
   /** Semanas disponibles (las del año elegido en las pestañas de año). */
@@ -52,10 +66,14 @@ export const SelectorSemana: React.FC<{
   }, [semanas]);
   const variosAnios = anios.length > 1;
   const elegida = semanas.find(w => w.id === valor);
+  const mesElegido = valor.startsWith(PREFIJO_MES) ? valor.slice(PREFIJO_MES.length) : null;
+  const semanasMes = mesElegido ? semanasDeSeleccion(semanas, valor).length : 0;
+  const hayEleccion = !!elegida || (!!mesElegido && semanasMes > 0);
 
   const abrir = () => {
     const r = boton.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 4, left: r.left });
+    // Que el menú (260 px) no se salga por la derecha de la ventana
+    if (r) setPos({ top: r.bottom + 4, left: Math.max(8, Math.min(r.left, window.innerWidth - 268)) });
     setDesplegados(new Set()); // siempre se abre plegado
     setAbierto(true);
   };
@@ -78,14 +96,23 @@ export const SelectorSemana: React.FC<{
     const k = `m:${mes}`;
     const abiertoMes = desplegados.has(k);
     const tieneElegida = lista.some(w => w.id === valor);
+    const mesEntero = mesElegido === mes;
     return (
       <div key={k}>
-        <button type="button" onClick={() => alternar(k)} className={`${fila} hover:bg-slate-100 font-semibold text-slate-700`} style={{ paddingLeft: 8 + sangria }}>
-          {abiertoMes ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
-          <span>{mes === 'otras' ? 'Otras' : MESES[Number(mes.slice(5, 7)) - 1]}</span>
-          <span className="text-[10px] font-normal text-slate-400">{lista.length} sem.</span>
-          {tieneElegida && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-600" />}
-        </button>
+        <div className={`flex items-center rounded-md ${mesEntero ? 'bg-emerald-50' : 'hover:bg-slate-100'}`} style={{ paddingLeft: 4 + sangria }}>
+          <button type="button" onClick={() => alternar(k)} title={abiertoMes ? 'Plegar semanas' : 'Ver las semanas del mes'}
+            className="p-1 rounded hover:bg-black/5 cursor-pointer text-slate-600 shrink-0">
+            {abiertoMes ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          </button>
+          <button type="button" data-mes={mes} onClick={() => mes !== 'otras' && elegir(PREFIJO_MES + mes)}
+            title="Ver todas las semanas de este mes"
+            className={`flex-1 flex items-center gap-1.5 py-1 pr-2 text-left cursor-pointer font-semibold ${mesEntero ? 'text-emerald-800' : 'text-slate-700'}`}>
+            <span>{mes === 'otras' ? 'Otras' : MESES[Number(mes.slice(5, 7)) - 1]}</span>
+            <span className="text-[10px] font-normal text-slate-400">{lista.length} sem.</span>
+            {mesEntero && <Check className="w-3.5 h-3.5 ml-auto text-emerald-700" />}
+            {!mesEntero && tieneElegida && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-600" />}
+          </button>
+        </div>
         {abiertoMes && lista.map(w => (
           <button key={w.id} type="button" onClick={() => elegir(w.id)}
             className={`${fila} ${w.id === valor ? 'bg-emerald-50 text-emerald-800 font-semibold' : 'hover:bg-slate-50 text-slate-700'}`} style={{ paddingLeft: 30 + sangria }}>
@@ -102,18 +129,18 @@ export const SelectorSemana: React.FC<{
       <button ref={boton} id="m3-semana" type="button" onClick={() => (abierto ? setAbierto(false) : abrir())}
         title="Semana a avanzar: deja visible solo esa semana (domingo a sábado)"
         className="flex items-center gap-1.5 border rounded-xl px-2 py-1 text-xs font-semibold cursor-pointer"
-        style={elegida
+        style={hayEleccion
           ? { backgroundColor: '#047857', borderColor: '#065F46', color: '#FFFFFF' }
           : { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', color: '#334155' }}>
         <CalendarDays className="w-3.5 h-3.5" />
-        <span>{elegida ? etiquetaSemana(elegida) : 'Todas las semanas'}</span>
+        <span>{elegida ? etiquetaSemana(elegida) : mesElegido && semanasMes ? `${nombreMes(mesElegido)} · ${semanasMes} sem.` : 'Todas las semanas'}</span>
         <ChevronDown className="w-3 h-3 opacity-70" />
       </button>
       {abierto && (
         <div ref={menu} className="fixed z-[80] w-[260px] max-h-[60vh] overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl p-1 text-xs"
           style={{ top: pos.top, left: pos.left }}>
           <button type="button" onClick={() => elegir('all')}
-            className={`${fila} ${valor === 'all' || !elegida ? 'bg-emerald-50 text-emerald-800 font-semibold' : 'hover:bg-slate-50 text-slate-700'}`}>
+            className={`${fila} ${!hayEleccion ? 'bg-emerald-50 text-emerald-800 font-semibold' : 'hover:bg-slate-50 text-slate-700'}`}>
             <span>Todas las semanas</span>
             <span className="text-[10px] font-normal text-slate-400">({semanas.length})</span>
           </button>
