@@ -100,11 +100,8 @@ export function WbsHierarchyEditor({
     const orden: Actividad[] = [];
     const info = new Map<string, NodoArbol>();
     const recorrer = (padre: string | null, depth: number, ancestros: string[]) => {
-      // En la raíz van primero los capítulos; las partidas sin capítulo (WBS mal escrita en el Master,
-      // p. ej. «p0926.p.12.6.2.16») quedan al final para verlas y corregirlas
-      const enRaiz = padre === null ? -1 : 1;
       const lista = (hijos.get(padre) || []).slice().sort((x, y) =>
-        (enRaiz * (Number(!x.hoja) - Number(!y.hoja))) || compareWbs(x.codigo, y.codigo) || (x.idx - y.idx));
+        (Number(!x.hoja) - Number(!y.hoja)) || compareWbs(x.codigo, y.codigo) || (x.idx - y.idx));
       lista.forEach(x => {
         const tieneHijos = !x.hoja && (hijos.get(x.key) || []).length > 0;
         orden.push(x.act);
