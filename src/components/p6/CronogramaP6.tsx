@@ -106,7 +106,8 @@ const fCorta = (t: number | null | undefined) => {
   const d = new Date(t * 60000);
   return `${String(d.getUTCDate()).padStart(2, '0')}-${MESES[d.getUTCMonth()]}-${String(d.getUTCFullYear()).slice(2)}`;
 };
-const dias = (h: number, hd: number) => (Math.round((h / hd) * 10) / 10).toLocaleString('en-US');
+// Días enteros (como P6): duraciones, holguras y variaciones de la tabla, bandas y relaciones
+const dias = (h: number, hd: number) => (Math.round(h / hd) || 0).toLocaleString('en-US');
 const dinero = (v: number) => Math.round(v).toLocaleString('en-US');
 
 interface Vt {
@@ -3057,105 +3058,15 @@ const PanelActividad: React.FC<{
   );
 };
 
-/** Costos por mes de cada recurso: real, restante (según la programación) y presupuestado. */
-const VistaRecursos: React.FC<{ m: ModeloP6; version: number }> = ({ m, version }) => {
-  const datos = React.useMemo(() => {
-    const tr = m.xer.tablas.get('TASKRSRC');
-    const rs = m.xer.tablas.get('RSRC');
-    const t = m.task;
-    const nombres = new Map((rs?.filas || []).map(fr => [celda(rs!, fr, 'rsrc_id'), celda(rs!, fr, 'rsrc_name')]));
-    const porRec = new Map<string, Map<string, { real: number; rest: number; pres: number }>>();
-    const repartir = (mapa: Map<string, { real: number; rest: number; pres: number }>, a: number | null, b: number | null, monto: number, k: 'real' | 'rest' | 'pres') => {
-      if (!monto || a == null) return;
-      const ini = a, fin = Math.max(b ?? a, a + 1);
-      const total = fin - ini;
-      let cur = ini;
-      while (cur < fin) {
-        const d = new Date(cur * 60000);
-        const sig = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 60000;
-        const tramo = Math.min(fin, sig) - cur;
-        const clave = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-        const e = mapa.get(clave) || { real: 0, rest: 0, pres: 0 };
-        e[k] += monto * (tramo / total);
-        mapa.set(clave, e);
-        cur = sig;
-      }
-    };
-    for (const fr of tr?.filas || []) {
-      const i = m.porId.get(celda(tr!, fr, 'task_id'));
-      if (i === undefined) continue;
-      const ft = t.filas[i];
-      const rec = nombres.get(celda(tr!, fr, 'rsrc_id')) || celda(tr!, fr, 'rsrc_id');
-      const mapa = porRec.get(rec) || new Map();
-      porRec.set(rec, mapa);
-      const n = (c: string) => Number(celda(tr!, fr, c)) || 0;
-      repartir(mapa, aMinutos(celda(tr!, fr, 'target_start_date')), aMinutos(celda(tr!, fr, 'target_end_date')), n('target_cost'), 'pres');
-      const as = aMinutos(celda(t, ft, 'act_start_date'));
-      const af = aMinutos(celda(t, ft, 'act_end_date'));
-      // Sin inicio real (costo real cargado sin fechas): se usa el inicio planificado de la asignación
-      const asP = as ?? aMinutos(celda(tr!, fr, 'act_start_date')) ?? aMinutos(celda(tr!, fr, 'target_start_date'));
-      // Lo real nunca va después de la fecha de datos
-      const asR = asP == null ? null : Math.min(asP, m.fechaDatos - 1440);
-      repartir(mapa, asR, af ?? aMinutos(celda(tr!, fr, 'act_end_date')) ?? Math.max(asR ?? m.fechaDatos, Math.min(m.fechaDatos, aMinutos(celda(tr!, fr, 'target_end_date')) ?? m.fechaDatos)), n('act_reg_cost'), 'real');
-      repartir(mapa, aMinutos(celda(t, ft, 'early_start_date')), aMinutos(celda(t, ft, 'early_end_date')), n('remain_cost'), 'rest');
-    }
-    return [...porRec.entries()].map(([rec, mapa]) => {
-      const meses = [...mapa.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-      return { rec, meses };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [m, version]);
-  const [recSel, setRecSel] = React.useState(0);
-  const d = datos[recSel];
-  if (!d) return <div className="flex-1 flex items-center justify-center text-sm text-[#5A6A74]">The XER has no resource assignments.</div>;
-  const max = Math.max(1, ...d.meses.map(([, v]) => Math.max(v.real + v.rest, v.pres)));
-  let acR = 0, acP = 0;
-  const acum = d.meses.map(([k, v]) => { acR += v.real + v.rest; acP += v.pres; return { k, acR, acP }; });
-  const maxAc = Math.max(1, acR, acP);
-  const W = Math.max(800, d.meses.length * 14), H = 260;
-  const bw = W / d.meses.length;
-  const tot = d.meses.reduce((s, [, v]) => ({ real: s.real + v.real, rest: s.rest + v.rest, pres: s.pres + v.pres }), { real: 0, rest: 0, pres: 0 });
-  const hoy = `${aTexto(m.fechaDatos).slice(0, 7)}`;
-  return (
-    <div className="flex-1 overflow-auto p-4 bg-white">
-      <div className="flex items-center gap-2 mb-3 flex-wrap text-xs">
-        {datos.map((r, k) => (
-          <button key={r.rec} onClick={() => setRecSel(k)} className={`px-3 py-1.5 rounded-lg border cursor-pointer ${k === recSel ? 'bg-[#312E81] text-white border-[#312E81] font-bold' : 'border-[#D5DEE2] text-[#5A6A74]'}`}>{r.rec}</button>
-        ))}
-        <div className="ml-auto flex gap-4 text-[11.5px]">
-          <span>Budgeted: <b>{dinero(tot.pres)}</b></span>
-          <span>Actual: <b className="text-[#2C67A6]">{dinero(tot.real)}</b></span>
-          <span>Remaining: <b className="text-[#2B7F52]">{dinero(tot.rest)}</b></span>
-          <span>At Completion: <b>{dinero(tot.real + tot.rest)}</b></span>
-        </div>
-      </div>
-      <div className="overflow-x-auto border border-[#D5DEE2] rounded-lg">
-        <svg width={W} height={H + 40} className="block">
-          {d.meses.map(([k, v], j) => {
-            const x = j * bw;
-            const hR = (v.real / max) * H, hF = (v.rest / max) * H;
-            return (
-              <g key={k}>
-                <rect x={x + 1} y={H - hR} width={Math.max(1, bw - 2)} height={hR} fill="#2C67A6"><title>{`${k} · actual ${dinero(v.real)}`}</title></rect>
-                <rect x={x + 1} y={H - hR - hF} width={Math.max(1, bw - 2)} height={hF} fill="#2B7F52"><title>{`${k} · remaining ${dinero(v.rest)}`}</title></rect>
-                {k.endsWith('-01') && <text x={x + 2} y={H + 14} fontSize="10" fill="#5A6A74">{k.slice(0, 4)}</text>}
-                {k === hoy && <line x1={x} x2={x} y1={0} y2={H} stroke="#CD0000" strokeDasharray="3 3" />}
-              </g>
-            );
-          })}
-          <polyline fill="none" stroke="#14212A" strokeWidth="1.5" points={acum.map((a, j) => `${j * bw + bw / 2},${H - (a.acR / maxAc) * H}`).join(' ')} />
-          <polyline fill="none" stroke="#A86B12" strokeWidth="1.5" strokeDasharray="4 3" points={acum.map((a, j) => `${j * bw + bw / 2},${H - (a.acP / maxAc) * H}`).join(' ')} />
-          <g fontSize="10" fill="#5A6A74">
-            <rect x={8} y={H + 22} width={10} height={8} fill="#2C67A6" /><text x={22} y={H + 30}>Actual per month</text>
-            <rect x={110} y={H + 22} width={10} height={8} fill="#2B7F52" /><text x={124} y={H + 30}>Remaining per month (per schedule)</text>
-            <line x1={345} x2={365} y1={H + 26} y2={H + 26} stroke="#14212A" strokeWidth="1.5" /><text x={370} y={H + 30}>Cumulative actual + remaining</text>
-            <line x1={520} x2={540} y1={H + 26} y2={H + 26} stroke="#A86B12" strokeDasharray="4 3" /><text x={545} y={H + 30}>Cumulative budgeted</text>
-          </g>
-        </svg>
-      </div>
-      <p className="text-[11px] text-[#5A6A74] mt-2">
-        Each assignment is spread evenly over its dates: budgeted over its planned dates, actual between the actual start and actual finish (or the data date), and remaining over the activity's early dates. After rescheduling (F9), the remaining curve shows the new cash flow.
-      </p>
+/**
+ * Vista «Resources»: vacía por ahora. Se usará para el análisis de la venta y el cashflow
+ * (se retiró la tabla de costos por recurso y mes).
+ */
+const VistaRecursos: React.FC<{ m: ModeloP6; version: number }> = () => (
+  <div id="p6-vista-recursos" className="flex-1 flex items-center justify-center bg-white text-[#5A6A74] text-xs">
+    <div className="text-center max-w-md px-6">
+      <div className="text-sm font-semibold text-[#14212A] mb-1">Resources</div>
+      Reserved for the sales and cash-flow analysis (coming soon).
     </div>
-  );
-};
+  </div>
+);
