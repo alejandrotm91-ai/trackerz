@@ -17,6 +17,8 @@ export interface AjustesVista {
   opcGrupo?: unknown;
   paletas?: unknown;
   columnas?: string[];
+  /** Anchos de columna ajustados a mano (px por id de columna). */
+  anchos?: Record<string, number>;
   orden?: { col: 'ini' | 'fin'; dir: 1 | -1 } | null;
   filtroEstado?: string;
   filtrosUdf?: unknown[];

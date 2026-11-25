@@ -192,6 +192,23 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   // Columnas de la tabla (como «Columns» de P6)
   const [columnasSel, setColumnasSel] = React.useState<string[]>(() => leerLS('p6.columnas', COLUMNAS_DEF));
   React.useEffect(() => { try { localStorage.setItem('p6.columnas', JSON.stringify(columnasSel)); } catch { /* sin almacenamiento */ } }, [columnasSel]);
+  // Anchos de columna ajustados a mano, como en Excel (arrastrar el borde derecho de la cabecera; doble clic = ancho original)
+  const [anchosCol, setAnchosCol] = React.useState<Record<string, number>>(() => leerLS('p6.anchos', {} as Record<string, number>));
+  React.useEffect(() => { try { localStorage.setItem('p6.anchos', JSON.stringify(anchosCol)); } catch { /* sin almacenamiento */ } }, [anchosCol]);
+  const empezarAjuste = (e: React.MouseEvent, id: string, anchoActual: number) => {
+    e.preventDefault(); e.stopPropagation();
+    const x0 = e.clientX;
+    const mover = (ev: MouseEvent) => {
+      const nuevo = Math.round(Math.min(900, Math.max(28, anchoActual + ev.clientX - x0)));
+      setAnchosCol(a => (a[id] === nuevo ? a : { ...a, [id]: nuevo }));
+    };
+    const soltar = () => {
+      window.removeEventListener('mousemove', mover); window.removeEventListener('mouseup', soltar);
+      document.body.style.cursor = ''; document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', mover); window.addEventListener('mouseup', soltar);
+  };
   const [verColumnas, setVerColumnas] = React.useState(false);
   const [verNivel, setVerNivel] = React.useState(false);
   const [verCorte, setVerCorte] = React.useState(false);
@@ -270,8 +287,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
   const cols: ColumnaP6[] = React.useMemo(() => {
     const porId = new Map(catalogo.map(c => [c.id, c]));
     const v = columnasSel.map(id => porId.get(id)).filter((c): c is ColumnaP6 => !!c);
-    return v.length ? v : COLUMNAS_DEF.map(id => porId.get(id)!).filter(Boolean);
-  }, [catalogo, columnasSel]);
+    const base = v.length ? v : COLUMNAS_DEF.map(id => porId.get(id)!).filter(Boolean);
+    return base.map(c => (anchosCol[c.id] ? { ...c, ancho: anchosCol[c.id] } : c));
+  }, [catalogo, columnasSel, anchosCol]);
+  const anchoOriginal = (id: string) => catalogo.find(c => c.id === id)?.ancho;
   // Ancho de la parte de tabla (sustituye al ancho fijo)
   const ANCHO_IZQ = cols.reduce((a, c) => a + c.ancho, 0) + 2;
   // Unidades de las asignaciones de recursos por actividad (Budgeted / Actual / Remaining)
@@ -1517,7 +1536,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     activo={ambito !== 'todo' ? 'bg-[#EEF0FB] border-[#312E81] text-[#312E81]' : undefined} />
                 )}
                 <MenuVistas inicio={inicioVistas} mostrar={mostrar} esAdmin={editable} nombreVista={nv}
-                  actual={(): AjustesVista => ({ agrupacion, niveles, ambito, opcGrupo, paletas, columnas: columnasSel, orden, filtroEstado, filtrosUdf, px, verUso, verRelaciones, verLB, uso: usoCfg, fases: fasesG, ubicaciones: ubicG })}
+                  actual={(): AjustesVista => ({ agrupacion, niveles, ambito, opcGrupo, paletas, columnas: columnasSel, anchos: anchosCol, orden, filtroEstado, filtrosUdf, px, verUso, verRelaciones, verLB, uso: usoCfg, fases: fasesG, ubicaciones: ubicG })}
                   onAplicar={a => {
                     if (a.agrupacion === 'wbs' || a.agrupacion === 'ejecucion') {
                       setAgrupacion(a.agrupacion);
@@ -1528,6 +1547,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                     if (a.opcGrupo && typeof a.opcGrupo === 'object') setOpcGrupo({ ...OPC_GRUPO_DEF, ...(a.opcGrupo as Partial<OpcionesGrupo>) });
                     if (a.paletas && typeof a.paletas === 'object') setPaletas({ ...PALETAS_DEF, ...(a.paletas as Partial<Paletas>) });
                     if (Array.isArray(a.columnas) && a.columnas.length) setColumnasSel(a.columnas);
+                    if (a.anchos && typeof a.anchos === 'object') setAnchosCol(a.anchos);
                     if (a.orden !== undefined) setOrden(a.orden);
                     if (typeof a.filtroEstado === 'string' && (a.filtroEstado in NOMBRE_FILTRO || a.filtroEstado === 'todas')) setFiltroEstado(a.filtroEstado as typeof filtroEstado);
                     if (Array.isArray(a.filtrosUdf)) setFiltrosUdf(a.filtrosUdf as FiltroUdf[]);
@@ -1576,13 +1596,24 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                   {/* Encabezado */}
                   <div className="sticky top-0 z-20 flex bg-[#F5F8F9] border-b border-[#D5DEE2] text-[10px] font-semibold text-[#5A6A74]" style={{ height: 34 }}>
                     <div className="sticky left-0 z-30 bg-[#F5F8F9] flex items-end pb-1 border-r border-[#D5DEE2]" style={{ width: ANCHO_IZQ }}>
-                      {cols.map(c => (c.id === 'ini' || c.id === 'fin') ? (
-                        <button key={c.id} onClick={() => alternarOrden(c.id as 'ini' | 'fin')} title="Sort the activities of each group (ascending → descending → original)"
-                          className={`text-right px-1 cursor-pointer hover:text-[#312E81] shrink-0 ${orden?.col === c.id ? 'text-[#312E81]' : ''}`} style={{ width: c.ancho }}>
-                          {c.titulo}{orden?.col === c.id ? (orden.dir === 1 ? ' ▲' : ' ▼') : ' ↕'}
-                        </button>
-                      ) : (
-                        <div key={c.id} className={`px-1 leading-tight shrink-0 ${c.der ? 'text-right' : ''} ${c.id === 'id' ? 'pl-2' : ''}`} style={{ width: c.ancho }} title={c.titulo}>{c.titulo}</div>
+                      {cols.map(c => (
+                        <div key={c.id} className="relative shrink-0 self-stretch flex items-end" style={{ width: c.ancho }}>
+                          {(c.id === 'ini' || c.id === 'fin') ? (
+                            <button onClick={() => alternarOrden(c.id as 'ini' | 'fin')} title="Sort the activities of each group (ascending → descending → original)"
+                              className={`w-full text-right px-1 pr-2 cursor-pointer hover:text-[#312E81] truncate ${orden?.col === c.id ? 'text-[#312E81]' : ''}`}>
+                              {c.titulo}{orden?.col === c.id ? (orden.dir === 1 ? ' ▲' : ' ▼') : ' ↕'}
+                            </button>
+                          ) : (
+                            <div className={`w-full px-1 pr-2 leading-tight overflow-hidden ${c.der ? 'text-right' : ''} ${c.id === 'id' ? 'pl-2' : ''}`} title={c.titulo}>{c.titulo}</div>
+                          )}
+                          {/* Borde para ajustar el ancho (arrastrar; doble clic = ancho original) */}
+                          <div data-ajuste-col={c.id} onMouseDown={e => empezarAjuste(e, c.id, c.ancho)}
+                            onDoubleClick={() => setAnchosCol(a => { const n = { ...a }; delete n[c.id]; return n; })}
+                            title={`Drag to resize · double-click: original width (${anchoOriginal(c.id) ?? c.ancho} px)`}
+                            className="absolute top-0 -right-[3px] w-[7px] h-full cursor-col-resize z-10 group">
+                            <div className="mx-auto w-px h-full bg-[#D5DEE2] group-hover:bg-[#312E81] group-hover:w-[2px]" />
+                          </div>
+                        </div>
                       ))}
                     </div>
                     <div className="relative" style={{ width: anchoGantt }}>
