@@ -2097,6 +2097,8 @@ export function useMasterPlan(isLoggedIn = false) {
           ventaEx: findHeaderCol(h => (h.includes('venta') && (h.includes('ex') || h.includes('ejecut'))) || h === 'v. ex' || h === 'v ex' || h === 'v. ejec', isNewLayoutWithoutJKLM ? 43 : 47),
           // % Ex (columna AP): avance de cada partida; lo usa el corte de obra de T₃
           pctEx: findHeaderCol(h => h === '% ex' || h === '%ex' || h === '% ejec' || h === '% ejecutado', -1),
+          // Status del cdo (columna AI: Ahead, Delayed, Fin_Overrun…); distinto del estado P6 de la columna «p6»
+          statusPlazo: findHeaderCol(h => h === 'status', -1),
           weeklyStart: detectedWeeklyStartCol > 0 ? detectedWeeklyStartCol : (isNewLayoutWithoutJKLM ? 44 : 48)
         };
 
@@ -2382,6 +2384,8 @@ export function useMasterPlan(isLoggedIn = false) {
               resp: col(r, colIndices.resp),
               pAc: col(r, colIndices.pAc),
               status: col(r, colIndices.status),
+              ...(colIndices.statusPlazo >= 0 && col(r, colIndices.statusPlazo) ? { statusPlazo: col(r, colIndices.statusPlazo) } : {}),
+              ...(helperParseNum(r[colIndices.balance]) ? { balance: helperParseNum(r[colIndices.balance]) } : {}),
               certificacionesPorFecha: semanal,
             };
             const key = colA.toLowerCase();
@@ -2770,6 +2774,8 @@ export function useMasterPlan(isLoggedIn = false) {
             pAc: pAc || '',
             grupo: grupo ? String(grupo).trim() : '',
             status: status ? String(status) : '',
+            ...(colIndices.statusPlazo >= 0 && row[colIndices.statusPlazo] != null && String(row[colIndices.statusPlazo]).trim()
+              ? { statusPlazo: String(row[colIndices.statusPlazo]).trim() } : {}),
             ventaFebrero: 0, 
             certificaciones,
             certificacionesPorFecha,

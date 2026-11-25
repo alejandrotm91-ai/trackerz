@@ -18,6 +18,8 @@ export interface Actividad {
   ventaPlanPG004?: number;
   ventaEjecutada: number;
   balance: number;
+  /** Columna «Status» del cdo (AI): Ahead, Delayed, Fin_Overrun, Fin_Shortage, Not Started… (la usa la hoja «r.» de M₃) */
+  statusPlazo?: string;
   saldo: number;
   excedente: number;
   partidas: string;
@@ -121,5 +123,8 @@ export interface HijoP6 {
   resp?: string;
   pAc?: string;
   status?: string;
+  /** Status (AI) y Balance (AN) de la fila, para la hoja «r.» de M₃ */
+  statusPlazo?: string;
+  balance?: number;
   certificacionesPorFecha?: Record<string, number>;
 }

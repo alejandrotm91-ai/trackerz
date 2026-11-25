@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { MasterCdoItem, MasterCdoWeek, MasterCdoTotals } from '../types/masterCdo';
 import { SelectorSemana, semanasDeSeleccion } from './SelectorSemana';
+import { HojaR } from './HojaR';
 import { BotonFiltroColumna, ColumnaFiltrable, FiltroCol, construirPredicado, filtroActivo, resumenFiltro } from './FiltroColumnaM3';
 import { Actividad } from '../types';
 import {
@@ -191,6 +192,8 @@ export function MasterXlsSheetView({
   const density: 'compact' | 'normal' = 'compact';
   // Semana a avanzar: 'all' = las del año elegido; si no, solo esa semana
   const [semanaSel, setSemanaSel] = useState<string>('all');
+  // Pestañas de hoja abajo a la izquierda, como en el Excel: «cdo» (la cuadrícula) y «r.» (resumen)
+  const [hoja, setHoja] = useState<'cdo' | 'r'>('cdo');
   // Solo semanas del año elegido: si la elegida no es de ese año, se vuelve a todas
   useEffect(() => {
     if (semanaSel !== 'all' && semanasDeSeleccion(displayedWeeks, semanaSel).length === 0) setSemanaSel('all');
@@ -1234,6 +1237,9 @@ export function MasterXlsSheetView({
         </div>
         </div>
 
+        {hoja === 'r' ? (
+          <HojaR items={items} semanas={semanas} actividades={actividades} />
+        ) : (<>
         {/* 3. EXCEL FORMULA BAR (Authentic Excel Formula Input & Copy/Paste Controls) */}
         <div className="bg-[#f8fafc] border-b border-slate-300 px-3 py-1 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0 font-sans shadow-2xs">
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -2354,9 +2360,22 @@ export function MasterXlsSheetView({
           </table>
         </div>
 
+        </>)}
+
         {/* 4.5. EXCEL SLICING BAR */}
-        <div className="bg-slate-50 border-t border-slate-300 px-4 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 select-none font-sans">
-          <div className="flex items-center gap-2 text-slate-600">
+        <div className="bg-slate-50 border-t border-slate-300 pr-4 flex flex-wrap items-center gap-3 text-xs shrink-0 select-none font-sans">
+          {/* Pestañas de hoja (esquina inferior izquierda, como en el Excel) */}
+          <div className="flex items-end self-stretch -mt-px">
+            {([['cdo', 'cdo'], ['r', 'r.']] as const).map(([k, t]) => (
+              <button key={k} type="button" id={`m3-hoja-${k}`} onClick={() => setHoja(k)}
+                className={`px-4 py-1.5 text-xs font-bold border-r border-slate-300 cursor-pointer ${
+                  hoja === k ? 'bg-white text-emerald-800 border-b-2 border-b-emerald-700 shadow-[inset_0_1px_0_#fff]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}>
+                {t}
+              </button>
+            ))}
+          </div>
+          {hoja === 'cdo' && <div className="flex items-center gap-2 text-slate-600">
             <span className="font-semibold text-slate-800">
               Mostrando {Math.min(renderLimit, filteredNodes.length)} de {filteredNodes.length} filas
             </span>
@@ -2366,7 +2385,8 @@ export function MasterXlsSheetView({
                 ? '⚡ Por defecto todo está colapsado para máxima velocidad. Haz clic en ▶ en cualquier capítulo para desplegar partidas.'
                 : `${expandedKeys.size} niveles desplegados.`}
             </span>
-          </div>
+          </div>}
+          {hoja === 'r' && <span className="text-slate-500 text-[11px]">Resumen «r.» del Master: se recalcula con el avance cargado en M₃.</span>}
         </div>
 
         {/* 5. EXCEL STATUS BAR */}
