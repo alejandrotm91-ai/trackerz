@@ -261,7 +261,7 @@ export function MasterXlsSheetView({
     const col = COLUMNA_POR_KEY.get(key)!;
     return (
       <div className={`flex items-center gap-1 ${alinear === 'der' ? 'justify-end' : alinear === 'centro' ? 'justify-center' : 'justify-between'}`}>
-        <span className="truncate">{contenido}</span>
+        <span className="truncate shrink-0">{contenido}</span>
         <BotonFiltroColumna columna={col} filtro={filtrosCol[key]} abierto={filtroAbierto === key}
           onAbrir={a => setFiltroAbierto(a ? key : null)} onAplicar={f => ponerFiltro(key, f)} />
       </div>
@@ -486,8 +486,8 @@ export function MasterXlsSheetView({
       ? ['macro', 'grupo', 'tipo', 'partidas', 'cap', 'scap', 'unit', 'componente', 'ubicacion', 'proceso', 'resp']
       : [];
     const metrics = avanza
-      ? ['cantPres', 'subcontratista', 'cantAcum', 'avanceEcon', 'saldoEcon', 'pctAvance']
-      : ['cantPres', 'precio', 'step', 'venta', 'subcontratista', 'cantAcum', 'avanceEcon', 'saldoEcon', 'pctAvance'];
+      ? ['cantPres', 'subcontratista', 'pctAvance', 'cantAcum', 'avanceEcon', 'saldoEcon']
+      : ['cantPres', 'precio', 'step', 'venta', 'subcontratista', 'pctAvance', 'cantAcum', 'avanceEcon', 'saldoEcon'];
     const weeks = !showAttributeCols ? weeksShown.map(w => `week_${w.id}`) : [];
     return [...base, ...attrs, ...metrics, ...weeks];
   }, [showAttributeCols, weeksShown, avanza]);
@@ -1450,7 +1450,7 @@ export function MasterXlsSheetView({
                   {cabeceraFiltro('unidad', 'UND', 'centro')}
                 </th>
                 )}
-                <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[104px]">
+                <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[120px] whitespace-nowrap">
                   {cabeceraFiltro('cantPres', 'Cant. Presup.', 'der')}
                 </th>
                 {!avanza && (<>
@@ -1467,6 +1467,9 @@ export function MasterXlsSheetView({
                 <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[95px]">
                   {cabeceraFiltro('subcontratista', 'Subcontratista', 'izq')}
                 </th>
+                <th className="py-1.5 px-1.5 border-r border-b border-slate-300 text-center min-w-[64px]">
+                  {cabeceraFiltro('pctAvance', '% Av.', 'centro')}
+                </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[85px] bg-indigo-50/70 text-indigo-900">
                   {cabeceraFiltro('cantAcum', 'Cant. Acum.', 'der')}
                 </th>
@@ -1475,9 +1478,6 @@ export function MasterXlsSheetView({
                 </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[85px] text-slate-600">
                   {cabeceraFiltro('saldoEcon', 'Saldo', 'der')}
-                </th>
-                <th className="py-1.5 px-1.5 border-r border-b border-slate-300 text-center min-w-[64px]">
-                  {cabeceraFiltro('pctAvance', '% Av.', 'centro')}
                 </th>
 
                 {/* DYNAMIC WEEKLY COLUMNS (Hidden when in attribute view) */}
@@ -1622,6 +1622,16 @@ export function MasterXlsSheetView({
                     {/* Col J: Subcontratista */}
                     <td className="py-1 px-2 border-r border-indigo-200 text-center text-slate-400 text-[10px] font-sans bg-indigo-50/95">—</td>
 
+                    {/* Col N: % Avance */}
+                    <td className="py-1 px-1.5 text-center border-r border-indigo-200 font-sans bg-indigo-50/95">
+                      <span
+                        className="inline-block px-1.5 py-0.2 rounded text-[9.5px] font-black bg-indigo-600 text-white"
+                        title={`Porcentaje de Avance Económico Total: ${summaryTotals.pctAvanceEconomico.toFixed(2)}%`}
+                      >
+                        {summaryTotals.pctAvanceEconomico.toFixed(1)}%
+                      </span>
+                    </td>
+
                     {/* Col K: Cant. Acum. */}
                     <td
                       className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-800 bg-indigo-50/95"
@@ -1644,16 +1654,6 @@ export function MasterXlsSheetView({
                       title={`Total Saldo Económico Pendiente: ${summaryTotals.totalSaldoEconomico.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
                     >
                       {summaryTotals.totalSaldoEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
-                    </td>
-
-                    {/* Col N: % Avance */}
-                    <td className="py-1 px-1.5 text-center border-r border-indigo-200 font-sans bg-indigo-50/95">
-                      <span
-                        className="inline-block px-1.5 py-0.2 rounded text-[9.5px] font-black bg-indigo-600 text-white"
-                        title={`Porcentaje de Avance Económico Total: ${summaryTotals.pctAvanceEconomico.toFixed(2)}%`}
-                      >
-                        {summaryTotals.pctAvanceEconomico.toFixed(1)}%
-                      </span>
                     </td>
 
                     {/* Dynamic Weekly Columns: VALORES ECONÓMICOS SEMANALES TOTALIZADOS */}
@@ -2172,6 +2172,31 @@ export function MasterXlsSheetView({
                         )}
                       </td>
 
+                      {/* Col N: % Avance */}
+                      <td
+                        onClick={(e) => { e.stopPropagation(); selectCell(node.key, 'pctAvance'); }}
+                        className={`${rowPaddingCls} px-1.5 border-r text-center font-sans font-bold text-[10px] relative transition-colors cursor-pointer ${
+                          activeCell?.nodeKey === node.key && activeCell?.field === 'pctAvance'
+                            ? 'bg-emerald-100/90 ring-2 ring-[#107c41] ring-inset font-bold text-slate-950 z-20 shadow-xs'
+                            : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950 font-bold' : 'border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block px-1 py-0.2 rounded ${
+                            pctAvance >= 100
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : pctAvance > 0
+                              ? (isP6 ? 'bg-orange-200 text-orange-950 font-extrabold border border-orange-300' : 'bg-indigo-100 text-indigo-800')
+                              : (isP6 ? 'bg-orange-200/50 text-orange-800' : 'bg-slate-100 text-slate-400')
+                          }`}
+                        >
+                          {pctAvance.toFixed(1)}%
+                        </span>
+                        {activeCell?.nodeKey === node.key && activeCell?.field === 'pctAvance' && (
+                          <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
+                        )}
+                      </td>
+
                       {/* Col K: Cant. Acumulada */}
                       <td
                         onClick={(e) => { e.stopPropagation(); selectCell(node.key, 'cantAcum'); }}
@@ -2213,31 +2238,6 @@ export function MasterXlsSheetView({
                       >
                         {saldoEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
                         {activeCell?.nodeKey === node.key && activeCell?.field === 'saldoEcon' && (
-                          <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
-                        )}
-                      </td>
-
-                      {/* Col N: % Avance */}
-                      <td
-                        onClick={(e) => { e.stopPropagation(); selectCell(node.key, 'pctAvance'); }}
-                        className={`${rowPaddingCls} px-1.5 border-r text-center font-sans font-bold text-[10px] relative transition-colors cursor-pointer ${
-                          activeCell?.nodeKey === node.key && activeCell?.field === 'pctAvance'
-                            ? 'bg-emerald-100/90 ring-2 ring-[#107c41] ring-inset font-bold text-slate-950 z-20 shadow-xs'
-                            : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950 font-bold' : 'border-slate-300 hover:bg-slate-100'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block px-1 py-0.2 rounded ${
-                            pctAvance >= 100
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : pctAvance > 0
-                              ? (isP6 ? 'bg-orange-200 text-orange-950 font-extrabold border border-orange-300' : 'bg-indigo-100 text-indigo-800')
-                              : (isP6 ? 'bg-orange-200/50 text-orange-800' : 'bg-slate-100 text-slate-400')
-                          }`}
-                        >
-                          {pctAvance.toFixed(1)}%
-                        </span>
-                        {activeCell?.nodeKey === node.key && activeCell?.field === 'pctAvance' && (
                           <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                         )}
                       </td>
