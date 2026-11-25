@@ -67,12 +67,15 @@ import {
   initializeMasterCdoFromActividades,
   saveMasterCdoToCloud,
   loadLatestMasterCdoFromCloud,
+  loadMasterCdoMetaFromCloud,
   parseMasterCdoFromExcel,
   exportMasterCdoToExcel
 } from '../utils/masterCdoSync';
 import {
   saveLocalMasterDraft,
   loadLocalMasterDraft,
+  nubeMasReciente,
+  RESPALDO_BORRADOR_ID,
   clearLocalMasterDraft
 } from '../utils/masterCdoLocalDraft';
 
@@ -132,6 +135,10 @@ export function MasterTab({
     type: 'success' | 'info';
     text: string;
   } | null>(null);
+  // Versión de la nube de la que parte lo que se ve en M₃ y hora del último cambio local:
+  // con ellas se decide, al cargar y al pulsar Cloud, si la nube tiene algo más reciente.
+  const baseNubeRef = useRef<string | undefined>(undefined);
+  const cambioLocalRef = useRef<string>('');
   const localSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingActividadUpdatesRef = useRef<Map<string, Partial<Actividad>>>(new Map());
   const actividadUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -302,7 +309,8 @@ export function MasterTab({
         setFileName(file.name);
         setHasUnsavedCloudChanges(true);
         setCloudSaveStatus('pending');
-        saveLocalMasterDraft(planId, file.name, parsedData.items, parsedData.semanas, false);
+        cambioLocalRef.current = new Date().toISOString();
+        saveLocalMasterDraft(planId, file.name, parsedData.items, parsedData.semanas, false, baseNubeRef.current);
       }
     } catch (err: any) {
       console.error(err);
@@ -334,9 +342,32 @@ export function MasterTab({
         console.warn('Error reading local draft:', eDraft);
       }
 
+      // Antes de usar el borrador local, ver si la nube tiene una versión más reciente
+      if (localDraft && localDraft.items && localDraft.items.length > 0) {
+        setLoadingMsg('Comparando el borrador local con la nube...');
+        try {
+          const meta = await loadMasterCdoMetaFromCloud();
+          if (meta && nubeMasReciente(meta.updatedAt, localDraft)) {
+            const cloudData = await loadLatestMasterCdoFromCloud((pct, msg) => {
+              if (isMounted) { setLoadingProgress(pct); setLoadingMsg(`La nube tiene una versión más reciente: ${msg}`); }
+            }, 35000);
+            if (!isMounted) return;
+            if (cloudData && cloudData.items && cloudData.items.length > 0) {
+              await presentarNube(cloudData, localDraft);
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (eMeta) {
+          console.warn('No se pudo comparar con la nube; se usa el borrador local:', eMeta);
+        }
+      }
+
       // Priority 1: If local draft exists with items, use it immediately
       if (localDraft && localDraft.items && localDraft.items.length > 0) {
         if (!isMounted) return;
+        baseNubeRef.current = localDraft.cloudUpdatedAt;
+        cambioLocalRef.current = localDraft.updatedAt;
         setItems(completarVentasSemanales(localDraft.items));
         setSemanas(localDraft.semanas || []);
         setFileName(localDraft.fileName || 'Master_CDO_Online.xlsx');
@@ -390,6 +421,8 @@ export function MasterTab({
             semanas: cloudData.planDoc.semanas || [],
             fileName: cloudData.planDoc.fileName || 'Master_CDO_Online.xlsx'
           });
+          baseNubeRef.current = cloudData.planDoc.updatedAt || undefined;
+          cambioLocalRef.current = cloudData.planDoc.updatedAt || new Date().toISOString();
           setItems(completarVentasSemanales(cloudData.items));
           setSemanas(cloudData.planDoc.semanas || []);
           setFileName(cloudData.planDoc.fileName || 'Master_CDO_Online.xlsx');
@@ -398,7 +431,7 @@ export function MasterTab({
           setCloudSaveStatus('synced');
           setLastLocalSavedTime(new Date().toLocaleTimeString());
           setLastCloudSavedTime(cloudData.planDoc.updatedAt ? new Date(cloudData.planDoc.updatedAt).toLocaleTimeString() : 'Hoy');
-          saveLocalMasterDraft(cloudData.planDoc.id || 'master_cdo_default', cloudData.planDoc.fileName || 'Master_CDO_Online.xlsx', cloudData.items, cloudData.planDoc.semanas || [], true);
+          saveLocalMasterDraft(cloudData.planDoc.id || 'master_cdo_default', cloudData.planDoc.fileName || 'Master_CDO_Online.xlsx', cloudData.items, cloudData.planDoc.semanas || [], true, cloudData.planDoc.updatedAt || undefined);
           setIsLoading(false);
           return;
         }
@@ -466,6 +499,7 @@ export function MasterTab({
 
   // Trigger local data update (Cloud auto-save is DISABLED; saves locally immediately)
   const triggerDataChange = (updatedItems: MasterCdoItem[], updatedSemanas: MasterCdoWeek[]) => {
+    cambioLocalRef.current = new Date().toISOString();
     setHasUnsavedCloudChanges(true);
     setCloudSaveStatus('pending');
 
@@ -475,7 +509,7 @@ export function MasterTab({
     }
     localSaveTimeoutRef.current = setTimeout(async () => {
       try {
-        await saveLocalMasterDraft(planId, fileName, updatedItems, updatedSemanas, false);
+        await saveLocalMasterDraft(planId, fileName, updatedItems, updatedSemanas, false, baseNubeRef.current);
         setLastLocalSavedTime(new Date().toLocaleTimeString());
       } catch (err) {
         console.warn('Error al guardar borrador local:', err);
@@ -486,7 +520,7 @@ export function MasterTab({
   // Explicit Manual Local Save
   const handleManualLocalSave = async () => {
     try {
-      await saveLocalMasterDraft(planId, fileName, items, semanas, !hasUnsavedCloudChanges);
+      await saveLocalMasterDraft(planId, fileName, items, semanas, !hasUnsavedCloudChanges, baseNubeRef.current);
       const timeStr = new Date().toLocaleTimeString();
       setLastLocalSavedTime(timeStr);
       setToastMessage({
@@ -501,6 +535,47 @@ export function MasterTab({
   };
 
   // Explicit Save to Cloud (Triggered ONLY when user finishes giving progress)
+  const fechaHoraCorta = (iso?: string) => {
+    const t = Date.parse(iso || '');
+    return Number.isFinite(t) ? new Date(t).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+  };
+
+  /**
+   * Presenta en M₃ la versión de la nube (más reciente que la local). Si lo local tenía cambios sin
+   * sincronizar, se guarda antes una copia de respaldo en este navegador (RESPALDO_BORRADOR_ID).
+   */
+  const presentarNube = async (
+    cloudData: { planDoc: MasterCdoPlanDoc; items: MasterCdoItem[] },
+    localPrevio: { items: MasterCdoItem[]; semanas: MasterCdoWeek[]; fileName: string; planId?: string; isSyncedWithCloud?: boolean; updatedAt?: string } | null
+  ) => {
+    const conRespaldo = !!(localPrevio && !localPrevio.isSyncedWithCloud && localPrevio.items?.length);
+    if (conRespaldo) {
+      await saveLocalMasterDraft(RESPALDO_BORRADOR_ID, localPrevio!.fileName, localPrevio!.items, localPrevio!.semanas || [], false);
+    }
+    const pd = cloudData.planDoc;
+    const sem = pd.semanas || [];
+    const nombre = pd.fileName || 'Master_CDO_Online.xlsx';
+    baseNubeRef.current = pd.updatedAt || undefined;
+    cambioLocalRef.current = pd.updatedAt || new Date().toISOString();
+    setCloudSnapshot({ items: cloudData.items, semanas: sem, fileName: nombre });
+    setItems(completarVentasSemanales(cloudData.items));
+    setSemanas(sem);
+    setFileName(nombre);
+    setPlanId(pd.id || 'master_cdo_default');
+    setHasUnsavedCloudChanges(false);
+    setCloudSaveStatus('synced');
+    setLocalDraftNotice(null);
+    setLastCloudSavedTime(pd.updatedAt ? new Date(pd.updatedAt).toLocaleTimeString() : 'Hoy');
+    setLastLocalSavedTime(new Date().toLocaleTimeString());
+    await saveLocalMasterDraft(pd.id || 'master_cdo_default', nombre, cloudData.items, sem, true, pd.updatedAt || undefined);
+    setToastMessage({
+      type: 'info',
+      text: `La nube tenía una versión más reciente (${fechaHoraCorta(pd.updatedAt)}${pd.updatedBy ? ` · ${pd.updatedBy}` : ''}) que la de M₃ (${fechaHoraCorta(localPrevio?.updatedAt)}): se presenta la de la nube y no se sobrescribió.`
+        + (conRespaldo ? ' Tus cambios locales sin sincronizar quedaron como respaldo en este navegador.' : ''),
+    });
+    setTimeout(() => setToastMessage(null), 9000);
+  };
+
   const saveToCloud = async (
     itemsToSave: MasterCdoItem[] = items,
     semanasToSave: MasterCdoWeek[] = semanas
@@ -512,13 +587,24 @@ export function MasterTab({
 
     try {
       const currentId = planId || 'master_cdo_default';
-      await saveMasterCdoToCloud(
+      // ¿Qué está más actualizado, lo de M₃ o la nube? Si es la nube, se presenta en M₃ en vez de pisarla.
+      const meta = await loadMasterCdoMetaFromCloud(currentId);
+      const local = { updatedAt: cambioLocalRef.current, isSyncedWithCloud: !hasUnsavedCloudChanges, cloudUpdatedAt: baseNubeRef.current };
+      if (meta && nubeMasReciente(meta.updatedAt, local)) {
+        const cloudData = await loadLatestMasterCdoFromCloud(undefined, 35000);
+        if (cloudData && cloudData.items && cloudData.items.length > 0) {
+          await presentarNube(cloudData, { items: itemsToSave, semanas: semanasToSave, fileName, planId: currentId, isSyncedWithCloud: !hasUnsavedCloudChanges, updatedAt: cambioLocalRef.current });
+          return;
+        }
+      }
+      const guardadoEn = await saveMasterCdoToCloud(
         currentId,
         fileName,
         itemsToSave,
         semanasToSave,
         userName
       );
+      baseNubeRef.current = guardadoEn;
       const timeStr = new Date().toLocaleTimeString();
       setHasUnsavedCloudChanges(false);
       setCloudSaveStatus('synced');
@@ -526,7 +612,7 @@ export function MasterTab({
       setLocalDraftNotice(null);
 
       // Mark local draft as synchronized
-      await saveLocalMasterDraft(currentId, fileName, itemsToSave, semanasToSave, true);
+      await saveLocalMasterDraft(currentId, fileName, itemsToSave, semanasToSave, true, guardadoEn);
       setLastLocalSavedTime(timeStr);
 
       setToastMessage({
@@ -996,7 +1082,7 @@ export function MasterTab({
         onOpenWbsEditor={() => setIsWbsEditorOpen(true)}
         onSaveLocal={() => {
           const currentId = planId || 'master_cdo_default';
-          saveLocalMasterDraft(currentId, fileName, items, semanas, false);
+          saveLocalMasterDraft(currentId, fileName, items, semanas, false, baseNubeRef.current);
           setLastLocalSavedTime(new Date().toLocaleTimeString());
           setLocalDraftNotice(null);
           setToastMessage({ type: 'success', text: 'Guardado localmente como borrador.' });

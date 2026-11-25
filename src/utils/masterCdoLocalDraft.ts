@@ -21,6 +21,32 @@ export interface LocalMasterDraft {
   semanas: MasterCdoWeek[];
   updatedAt: string;
   isSyncedWithCloud: boolean;
+  /** Versión de la nube (su updatedAt, hora del servidor) de la que parte este borrador. */
+  cloudUpdatedAt?: string;
+}
+
+/** Copia del borrador local que se reemplazó al traer de la nube una versión más reciente. */
+export const RESPALDO_BORRADOR_ID = 'master_cdo_default__respaldo';
+
+/**
+ * ¿Hay que presentar la versión de la nube en vez del borrador local?
+ * - Si la nube sigue en la versión de la que parte el borrador, gana el borrador (es igual o más nuevo).
+ * - Si la nube cambió después y el borrador no tenía cambios sin sincronizar, gana la nube.
+ * - Si los dos cambiaron, gana el más reciente.
+ */
+export function nubeMasReciente(
+  nubeUpdatedAt: string | null | undefined,
+  local: { updatedAt?: string; isSyncedWithCloud?: boolean; cloudUpdatedAt?: string } | null
+): boolean {
+  if (!nubeUpdatedAt) return false;
+  if (!local) return true;
+  if (local.cloudUpdatedAt) {
+    if (local.cloudUpdatedAt === nubeUpdatedAt) return false;
+    if (local.isSyncedWithCloud) return true;
+  }
+  const tn = Date.parse(nubeUpdatedAt), tl = Date.parse(local.updatedAt || '');
+  if (!Number.isFinite(tl)) return true;
+  return Number.isFinite(tn) && tn > tl;
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -49,7 +75,8 @@ export async function saveLocalMasterDraft(
   fileName: string,
   items: MasterCdoItem[],
   semanas: MasterCdoWeek[],
-  isSyncedWithCloud: boolean = false
+  isSyncedWithCloud: boolean = false,
+  cloudUpdatedAt?: string
 ): Promise<LocalMasterDraft> {
   const draft: LocalMasterDraft = {
     schemaVersion: MASTER_DRAFT_SCHEMA_VERSION,
@@ -58,7 +85,8 @@ export async function saveLocalMasterDraft(
     items,
     semanas,
     updatedAt: new Date().toISOString(),
-    isSyncedWithCloud
+    isSyncedWithCloud,
+    cloudUpdatedAt
   };
 
   try {

@@ -121,6 +121,17 @@ export async function saveMasterPlanToDb(db: Db, planId: string, planData: Maste
   }
 }
 
+/** Solo la cabecera del plan (fecha de la última sincronización), sin descargar las partidas. */
+export async function getMasterPlanMeta(db: Db, planId: string) {
+  const plans = await db.select({
+    updatedAt: masterPlans.updatedAt,
+    updatedBy: masterPlans.updatedBy,
+    fileName: masterPlans.fileName,
+    totalRows: masterPlans.totalRows,
+  }).from(masterPlans).where(eq(masterPlans.id, planId));
+  return plans[0] || null;
+}
+
 export async function getMasterPlanFromDb(db: Db, planId: string) {
   try {
     const plans = await db.select().from(masterPlans).where(eq(masterPlans.id, planId));

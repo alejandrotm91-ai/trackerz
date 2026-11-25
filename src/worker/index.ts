@@ -4,7 +4,7 @@ import { authRoutes, requireAuth, requireAdmin, type AppEnv } from "./auth";
 import { cloudRoutes, docRoutes, prefRoutes } from "./cloud";
 import { gestionaRoutes } from "./gestiona";
 import { getDb } from "../db/index.ts";
-import { saveMasterPlanToDb, getMasterPlanFromDb } from "../db/masterCdo.ts";
+import { saveMasterPlanToDb, getMasterPlanFromDb, getMasterPlanMeta } from "../db/masterCdo.ts";
 import { analyze, equipmentAnalyze, cronoReport, periodoReport, type LegacyRes } from "./ai";
 
 const app = new Hono<AppEnv>();
@@ -46,11 +46,25 @@ app.post("/api/master-cdo/save", requireAdmin, async (c) => {
       return c.json({ error: "Missing required data" }, 400);
     }
     planData.updatedBy = c.get("user").username;
+    // Hora del servidor: así las versiones de la nube se comparan con un solo reloj
+    planData.updatedAt = new Date().toISOString();
     await saveMasterPlanToDb(getDb(c.env.DB), planId, planData, items);
-    return c.json({ success: true, message: "Plan saved successfully" });
+    return c.json({ success: true, message: "Plan saved successfully", updatedAt: planData.updatedAt });
   } catch (error: any) {
     console.error("Failed to save master plan:", error);
     return c.json({ error: error.message || "Failed to save master plan" }, 500);
+  }
+});
+
+// Cabecera del Master en la nube (fecha y autor de la última sincronización) para saber si es más reciente
+app.get("/api/master-cdo/meta/:planId", requireAuth, async (c) => {
+  try {
+    const meta = await getMasterPlanMeta(getDb(c.env.DB), c.req.param("planId"));
+    if (!meta) return c.json({ error: "Plan not found" }, 404);
+    return c.json(meta);
+  } catch (error: any) {
+    console.error("Failed to load master plan meta:", error);
+    return c.json({ error: error.message || "Failed to load master plan meta" }, 500);
   }
 });
 

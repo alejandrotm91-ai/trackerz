@@ -278,6 +278,7 @@ export async function saveMasterCdoToCloud(
   userName: string = 'Admin',
   onProgress?: (pct: number, statusMsg: string) => void
 ): Promise<string> {
+  // Devuelve la fecha con la que quedó guardado en la nube
   if (onProgress) onProgress(10, 'Preparando sincronización con SQL...');
   
   const totales = calculateMasterTotals(items, semanas);
@@ -293,14 +294,26 @@ export async function saveMasterCdoToCloud(
   };
 
   if (onProgress) onProgress(40, 'Enviando datos al servidor SQL...');
-  await apiFetch('/api/master-cdo/save', {
+  const res = await apiFetch('/api/master-cdo/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ planId, planData, items })
   });
+  let updatedAt = planData.updatedAt;
+  try { updatedAt = (await res.json())?.updatedAt || updatedAt; } catch { /* respuesta sin cuerpo */ }
 
   if (onProgress) onProgress(100, '¡Guardado exitoso en SQL!');
-  return planId;
+  return updatedAt;
+}
+
+/** Fecha (hora del servidor), autor y archivo de la versión del Master que está en la nube; null si no hay. */
+export async function loadMasterCdoMetaFromCloud(planId: string = 'master_cdo_default'): Promise<{
+  updatedAt: string; updatedBy: string; fileName: string; totalRows: number;
+} | null> {
+  const response = await apiFetch(`/api/master-cdo/meta/${planId}`, undefined, [404]);
+  if (response.status === 404) return null;
+  const m = await response.json();
+  return { updatedAt: m.updatedAt || '', updatedBy: m.updatedBy || '', fileName: m.fileName || '', totalRows: Number(m.totalRows) || 0 };
 }
 
 export async function loadLatestMasterCdoFromCloud(
