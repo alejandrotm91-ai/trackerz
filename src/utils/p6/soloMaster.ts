@@ -1,7 +1,8 @@
 /**
  * Crear en T₃ las actividades «Master Only» (rubros del Master que aún no están en el XER), decisiones del
  * 25-nov-2026:
- *  - Solo los que tienen Venta Ex > 0 (los sin ejecución se listan, no se crean).
+ *  - Los que tienen Venta Ex > 0 se proponen todos; los sin ejecución se listan aparte y el usuario elige cuáles crear
+ *    (se crean Not Started, 1 día en la fecha de datos, sin fechas reales y con costo 0).
  *  - Fuera lo que está debajo de la fila «p.D Actividades Pendientes de confirmar…» (como el corte).
  *  - Ubicación: el WBS más profundo de T₃ que coincida con su código de WBS (el del Master sin su prefijo de
  *    proyecto, tras el código raíz del XER), igual que el filtro «Master Only».
@@ -56,6 +57,8 @@ export interface FilaSoloMaster {
   durH: number;
   horasDia: number;
   udfs: { etiqueta: string; id: string; valor: string }[];
+  /** Sin ejecución (Venta Ex = 0): se crearía Not Started, 1 día, sin fechas reales. */
+  sinEjecucion: boolean;
   ok: boolean;
   motivo: string;
 }
@@ -128,9 +131,13 @@ export function calcularSoloMaster(m: ModeloP6, master: Actividad[]): ResultadoS
     const fila: FilaSoloMaster = {
       cod, nombre: a.descripcion || cod, subc: a.subcontratista || '', wbsId: destino?.id ?? null, wbsCodigo: destino?.completo ?? '', wbsNombre: destino?.nombre ?? '',
       wbsMaster, ventaEx: a.ventaEjecutada || 0, venta: a.venta || 0, cantReal, primera, ultima, inicioReal, finReal, durH, horasDia, udfs,
-      ok: !motivo, motivo,
+      sinEjecucion: false, ok: !motivo, motivo,
     };
-    if ((a.ventaEjecutada || 0) > 0) crear.push(fila); else sinEjecucion.push({ ...fila, ok: false, motivo: 'No execution yet (Venta Ex = 0): not created' });
+    if ((a.ventaEjecutada || 0) > 0) crear.push(fila);
+    else sinEjecucion.push({
+      ...fila, sinEjecucion: true, inicioReal: null, finReal: null, durH: horasDia, cantReal: 0, ventaEx: 0,
+      ok: !!destino, motivo: destino ? '' : `No WBS in T₃ matches ${wbsMaster || '(empty WBS)'}`,
+    });
   });
   const orden = (x: FilaSoloMaster, y: FilaSoloMaster) => Number(y.ok) - Number(x.ok) || x.wbsCodigo.localeCompare(y.wbsCodigo, 'es', { numeric: true }) || x.cod.localeCompare(y.cod, 'es', { numeric: true });
   crear.sort(orden); sinEjecucion.sort(orden);
