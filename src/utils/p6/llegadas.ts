@@ -71,7 +71,7 @@ export interface FilaLlegada {
   avisos: string[];
 }
 
-export interface SinPareja { lado: 'matrix' | 'T3'; clave: string; partida: string; detalle: string; aw: string | null }
+export interface SinPareja { lado: 'matrix' | 'T3'; clave: string; partida: string; detalle: string; aw: string | null; /** SubC del cronograma (solo lado T₃: la matriz sin .E no tiene actividad de la que tomarlo). */ subc: string }
 
 export interface ResultadoLlegadas {
   filas: FilaLlegada[];
@@ -165,7 +165,7 @@ export function calcularLlegadas(m: ModeloP6, filasMatriz: FilaMatriz[]): Result
     const aw = ult.aw!, awPrimera = rs.reduce((a, b) => (b.aw! < a.aw! ? b : a)).aw!;
     // Embarque del último envío (si hay varias filas con esa AW, el más tardío)
     const ar = rs.filter(r => r.aw === aw && r.emb).map(r => r.emb!).sort().pop() || null;
-    if (!idxs) { sinPareja.push({ lado: 'matrix', clave: k, partida: rs[0].p, detalle: `${rs[0].paq || ''} · ${rs[0].fab || ''}`, aw }); continue; }
+    if (!idxs) { sinPareja.push({ lado: 'matrix', clave: k, partida: rs[0].p, detalle: `${rs[0].paq || ''} · ${rs[0].fab || ''}`, aw, subc: '' }); continue; }
     const acts: ActE[] = idxs.map(i => {
       const f = t.filas[i];
       const tf = celda(t, f, 'total_float_hr_cnt');
@@ -229,7 +229,7 @@ export function calcularLlegadas(m: ModeloP6, filasMatriz: FilaMatriz[]): Result
     if (enMatriz.has(k)) continue;
     const pend = idxs.filter(i => celda(t, t.filas[i], 'status_code') !== 'TK_Complete');
     if (!pend.length) continue;
-    sinPareja.push({ lado: 'T3', clave: k, partida: variacion.get(celda(t, t.filas[pend[0]], 'task_id')) || k, detalle: pend.map(i => celda(t, t.filas[i], 'task_code')).join(', '), aw: null });
+    sinPareja.push({ lado: 'T3', clave: k, partida: variacion.get(celda(t, t.filas[pend[0]], 'task_id')) || k, detalle: pend.map(i => celda(t, t.filas[i], 'task_code')).join(', '), aw: null, subc: pend.map(i => subcDe(i)).find(Boolean) || subcDe(porCod.get(celda(t, t.filas[pend[0]], 'task_code').replace(/\.E$/i, '.D'))) || '' });
   }
 
   const orden: Record<ClaseDelta, number> = { Gap: 0, Review: 1, Close: 2 };

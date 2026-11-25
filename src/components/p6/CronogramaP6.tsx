@@ -5,7 +5,7 @@
  * Todos consultan; solo el administrador edita, programa y guarda.
  */
 import React from 'react';
-import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat, Filter, Scissors, CalendarDays, Ship } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Upload, Save, Play, X, Search, Calendar, Layers, BarChart3, Plus, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Network, ShoppingCart, Truck, Wrench, HardHat, Filter, Scissors, CalendarDays, Ship, FilterX } from 'lucide-react';
 import { leerXer, escribirXer, codificarXer, decodificarXer, celda } from '../../utils/p6/xer';
 import { CAMPOS_AGRUPACION, NIVELES_POR_DEFECTO, SIN_MASTER, clasificacionXer, etiquetaUbicacion, ordenUbicacion, type Clasificacion, enAmbito, esConstruccion, valorCampo, RE_HITO_CONSTRUCCION, RE_HITO_EQUIPAMIENTO, ocultoEnEjecucion, A_HITOS_CONTRACTUALES, etiquetaCampo, type Ambito, indiceMaster, minutosDeFecha, rutaDe, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { Actividad } from '../../types';
@@ -1202,6 +1202,16 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                 );
               })}
             </div>
+            {(() => {
+              const hay = !!filtro || filtroEstado !== 'todas' || filtrosUdf.length > 0 || fasesG.length > 0 || ubicG.length > 0 || ambito !== 'todo';
+              return (
+                <button id="p6-quitar-filtros" disabled={!hay} title="Clear all filters: search, status, User Defined conditions, phase, location and scope"
+                  onClick={() => { setFiltro(''); setFiltroTmp(''); setFiltroEstado('todas'); setFiltrosUdf([]); setFasesG([]); setUbicG([]); setAmbito('todo'); mostrar('All filters cleared.'); }}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-semibold flex items-center gap-1 ${hay ? 'bg-amber-400 text-[#1E1B4B] hover:bg-amber-300 cursor-pointer' : 'text-indigo-200/60 cursor-default'}`}>
+                  <FilterX className="w-3.5 h-3.5" /> Clear filters
+                </button>
+              );
+            })()}
           </div>
         )}
         <div className="ml-auto flex items-center gap-1.5">

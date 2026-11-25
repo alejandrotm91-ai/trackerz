@@ -38,6 +38,7 @@ import {
   ClipboardPaste,
   ChevronUp,
   TrendingUp,
+  FilterX,
 } from 'lucide-react';
 import { MasterCdoItem, MasterCdoWeek, MasterCdoTotals } from '../types/masterCdo';
 import { SelectorSemana, semanasDeSeleccion } from './SelectorSemana';
@@ -1141,6 +1142,17 @@ export function MasterXlsSheetView({
                 className="pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 w-44"
               />
             </div>
+            {(() => {
+              const hay = !!searchTerm || filterSubc !== 'all' || filterAvance !== 'all' || filtrosActivos.length > 0;
+              return (
+                <button id="m3-quitar-filtros" type="button" disabled={!hay}
+                  onClick={() => { setSearchTerm(''); setFilterSubc('all'); setFilterAvance('all'); setFiltrosCol({}); }}
+                  title="Quitar todos los filtros: búsqueda, SubC, avance y filtros de columna"
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs font-bold ${hay ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer' : 'bg-white border-slate-200 text-slate-300 cursor-default'}`}>
+                  <FilterX className="w-3.5 h-3.5" /> Quitar filtros
+                </button>
+              );
+            })()}
 
             {/* Filtros de columna activos */}
             {filtrosActivos.map(([k, f]) => {
@@ -1155,12 +1167,6 @@ export function MasterXlsSheetView({
                 </span>
               );
             })}
-            {filtrosActivos.length > 1 && (
-              <button type="button" onClick={() => setFiltrosCol({})}
-                className="text-[11px] font-bold text-slate-500 hover:text-rose-700 underline cursor-pointer">
-                Quitar filtros de columna
-              </button>
-            )}
 
           </div>
         </div>

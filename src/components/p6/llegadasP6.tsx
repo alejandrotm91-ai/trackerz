@@ -26,11 +26,11 @@ const CLASE_COLOR: Record<string, string> = { Gap: 'text-red-700', Review: 'text
 const dias = (h: number, hd: number) => +(h / hd).toFixed(1);
 const textoCambio = (c: CambioLlegada) => `${c.cod} ${c.campo === 'durOriginal' ? 'Orig' : 'Rem'} ${dias(c.antesH, c.horasDia)} → ${dias(c.nuevoH, c.horasDia)} d`;
 
-function libro(filas: FilaLlegada[], sinPareja: { lado: string; partida: string; detalle: string; aw: string | null }[]): Uint8Array {
+function libro(filas: FilaLlegada[], sinPareja: { lado: string; partida: string; detalle: string; aw: string | null; subc: string }[]): Uint8Array {
   const wb = XLSX.utils.book_new();
   const cab = ['SubC (T₃)', 'Partida', 'Freight (.E)', 'Supplier (matrix)', 'Package', 'Matrix status', 'T₃ status', 'Shipments', 'First AW', 'Last AW', 'Shipment (AR)', 'Finish T₃', 'Δ days', 'Class', 'TF (d)', 'Proposed changes', 'Notes', 'Type'];
   const tipo: Record<TipoLlegada, string> = { cambio: 'Change', cercana: 'Close', llegada: 'Arrived – confirm', completada: 'Completed' };
-  const datos = [...filas].sort((x, y) => (x.subc || '~').localeCompare(y.subc || '~', 'es')).map(f => [
+  const datos = [...filas].sort((x, y) => Number(!x.subc) - Number(!y.subc) || x.subc.localeCompare(y.subc, 'es')).map(f => [
     f.subc || '', f.partida, f.acts.map(a => a.cod).join(', '), f.fab, f.paq, CAT[f.cat].t, [...new Set(f.acts.map(a => ESTADO[a.estado] || a.estado))].join(', '),
     f.envios, f.awPrimera, f.aw, f.ar || '', f.finT3, f.delta, f.clase,
     Math.min(...f.acts.map(a => a.tfDias ?? Infinity)) === Infinity ? '' : +Math.min(...f.acts.map(a => a.tfDias ?? Infinity)).toFixed(1),
@@ -40,7 +40,7 @@ function libro(filas: FilaLlegada[], sinPareja: { lado: string; partida: string;
   ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: datos.length, c: cab.length - 1 } }) };
   ws['!cols'] = cab.map(h => ({ wch: Math.max(10, Math.min(50, h.length + 6)) }));
   XLSX.utils.book_append_sheet(wb, ws, 'Arrivals');
-  const ws2 = XLSX.utils.aoa_to_sheet([['Side', 'Key', 'Detail', 'Last AW'], ...sinPareja.map(s => [s.lado === 'matrix' ? 'Matrix only' : 'T₃ only', s.partida, s.detalle, s.aw || ''])]);
+  const ws2 = XLSX.utils.aoa_to_sheet([['Side', 'SubC (T₃)', 'Key', 'Detail', 'Last AW'], ...sinPareja.map(s => [s.lado === 'matrix' ? 'Matrix only' : 'T₃ only', s.subc || '', s.partida, s.detalle, s.aw || ''])]);
   XLSX.utils.book_append_sheet(wb, ws2, 'Unmatched');
   return XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as Uint8Array;
 }
@@ -177,10 +177,10 @@ export const DialogoLlegadas: React.FC<{
             <div className="mx-4 border border-[#D5DEE2] rounded-b-lg rounded-tr-lg overflow-auto flex-1 min-h-[220px]">
               {tab === 'sinPareja' ? (
                 <table className="w-full border-collapse">
-                  <thead><tr><th className={th}>Side</th><th className={th}>Key</th><th className={th}>Detail</th><th className={th}>Last AW</th></tr></thead>
+                  <thead><tr><th className={th}>Side</th><th className={th}>SubC (T₃)</th><th className={th}>Key</th><th className={th}>Detail</th><th className={th}>Last AW</th></tr></thead>
                   <tbody>
-                    {res.sinPareja.map(s => (
-                      <tr key={`${s.lado}:${s.clave}`}><td className={td}>{s.lado === 'matrix' ? 'Matrix only' : 'T₃ only'}</td><td className={`${td} font-mono`}>{s.partida}</td><td className={td}>{s.detalle}</td><td className={td}>{fP6(s.aw)}</td></tr>
+                    {[...res.sinPareja].sort((a, b) => a.lado.localeCompare(b.lado) || Number(!a.subc) - Number(!b.subc) || a.subc.localeCompare(b.subc, 'es') || a.partida.localeCompare(b.partida, 'es', { numeric: true })).map(s => (
+                      <tr key={`${s.lado}:${s.clave}`}><td className={td}>{s.lado === 'matrix' ? 'Matrix only' : 'T₃ only'}</td><td className={td}>{s.subc || '—'}</td><td className={`${td} font-mono`}>{s.partida}</td><td className={td}>{s.detalle}</td><td className={td}>{fP6(s.aw)}</td></tr>
                     ))}
                   </tbody>
                 </table>
