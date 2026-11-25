@@ -990,7 +990,8 @@ export function MasterXlsSheetView({
         </div>
 
         {/* 2. EXCEL COMMAND TOOLBAR (Ribbon Controls) */}
-        <div className="bg-white border-b border-slate-200 px-4 py-2 flex flex-col gap-1.5 text-xs shrink-0 shadow-2xs">
+        <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-start gap-3 text-xs shrink-0 shadow-2xs">
+        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             {/* View Mode (Q / $ / Dual) */}
             <div className="inline-flex bg-[#F5F8F9] rounded-lg p-0.5 border border-[#D5DEE2] text-xs font-bold text-[#5A6A74] shadow-xs">
@@ -1064,43 +1065,6 @@ export function MasterXlsSheetView({
                 </button>
               </div>
             )}
-
-            {/* Vista Avanza: solo las columnas para avanzar */}
-            <button
-              id="btn-xls-avanza"
-              type="button"
-              onClick={() => { const v = !avanza; setAvanza(v); if (v && showAttributeCols) setShowAttributeCols(false); }}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
-                avanza
-                  ? 'bg-emerald-700 border-emerald-800 text-white shadow-sm font-black ring-2 ring-emerald-400/40'
-                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
-              }`}
-              title="Avanza: muestra solo Cant. Presup., Subcontratista, Cant. Acum., Avance, Saldo y % Av. (y las semanas)"
-            >
-              <TrendingUp className={`w-3.5 h-3.5 ${avanza ? 'text-white' : 'text-emerald-700'}`} />
-              <span>Avanza</span>
-            </button>
-
-            {/* Toggle Attribute View (Unit, Componente, Macro, Grupo, Tipo, CAP, SCAP) - hides execution weeks */}
-            <button
-              id="btn-xls-toggle-attributes"
-              type="button"
-              onClick={() => { const v = !showAttributeCols; setShowAttributeCols(v); if (v) setAvanza(false); }}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
-                showAttributeCols
-                  ? 'bg-indigo-600 border-indigo-700 text-white shadow-sm font-black ring-2 ring-indigo-400/40'
-                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
-              }`}
-              title="Visión de Atributos: incluye Unit, Componente, Macro, Grupo, etc. y oculta las semanas de ejecución para facilitar la edición"
-            >
-              <SlidersHorizontal className={`w-3.5 h-3.5 ${showAttributeCols ? 'text-white' : 'text-indigo-600'}`} />
-              <span>Atributos</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${
-                showAttributeCols ? 'bg-white/25 text-white' : 'bg-indigo-100 text-indigo-800'
-              }`}>
-                {showAttributeCols ? 'Semanas Ocultas' : 'Normal'}
-              </span>
-            </button>
 
             {/* Year Selector Tabs (hidden when in attribute view) */}
             {!showAttributeCols && availableYears.length > 0 && (
@@ -1179,32 +1143,6 @@ export function MasterXlsSheetView({
               />
             </div>
 
-            {/* Subcontractor Filter */}
-            {subcontratistasList.length > 0 && (
-              <select
-                value={filterSubc}
-                onChange={e => setFilterSubc(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-xs font-semibold text-slate-700 outline-none"
-              >
-                <option value="all">👷 Todos SubC</option>
-                {subcontratistasList.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            )}
-
-            {/* Avance Filter */}
-            <select
-              value={filterAvance}
-              onChange={e => setFilterAvance(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-xs font-semibold text-slate-700 outline-none"
-            >
-              <option value="all">📊 Todas</option>
-              <option value="con_avance">✅ Con avance</option>
-              <option value="sin_avance">⏳ Sin avance</option>
-              <option value="saldo_pendiente">📉 Con saldo</option>
-            </select>
-
             {/* Filtros de columna activos */}
             {filtrosActivos.map(([k, f]) => {
               const col = COLUMNA_POR_KEY.get(k)!;
@@ -1226,6 +1164,74 @@ export function MasterXlsSheetView({
             )}
 
           </div>
+        </div>
+        {/* A la derecha, bajo WBS / Volver: Avanza y Atributos arriba; SubC y avance debajo */}
+        <div className="ml-auto shrink-0 flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+                {/* Vista Avanza: solo las columnas para avanzar */}
+                <button
+                  id="btn-xls-avanza"
+                  type="button"
+                  onClick={() => { const v = !avanza; setAvanza(v); if (v && showAttributeCols) setShowAttributeCols(false); }}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
+                    avanza
+                      ? 'bg-emerald-700 border-emerald-800 text-white shadow-sm font-black ring-2 ring-emerald-400/40'
+                      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
+                  }`}
+                  title="Avanza: muestra solo Cant. Presup., Subcontratista, Cant. Acum., Avance, Saldo y % Av. (y las semanas)"
+                >
+                  <TrendingUp className={`w-3.5 h-3.5 ${avanza ? 'text-white' : 'text-emerald-700'}`} />
+                  <span>Avanza</span>
+                </button>
+
+                {/* Toggle Attribute View (Unit, Componente, Macro, Grupo, Tipo, CAP, SCAP) - hides execution weeks */}
+                <button
+                  id="btn-xls-toggle-attributes"
+                  type="button"
+                  onClick={() => { const v = !showAttributeCols; setShowAttributeCols(v); if (v) setAvanza(false); }}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
+                    showAttributeCols
+                      ? 'bg-indigo-600 border-indigo-700 text-white shadow-sm font-black ring-2 ring-indigo-400/40'
+                      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
+                  }`}
+                  title="Visión de Atributos: incluye Unit, Componente, Macro, Grupo, etc. y oculta las semanas de ejecución para facilitar la edición"
+                >
+                  <SlidersHorizontal className={`w-3.5 h-3.5 ${showAttributeCols ? 'text-white' : 'text-indigo-600'}`} />
+                  <span>Atributos</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${
+                    showAttributeCols ? 'bg-white/25 text-white' : 'bg-indigo-100 text-indigo-800'
+                  }`}>
+                    {showAttributeCols ? 'Semanas Ocultas' : 'Normal'}
+                  </span>
+                </button>
+          </div>
+          <div className="flex items-center gap-2">
+                {/* Subcontractor Filter */}
+                {subcontratistasList.length > 0 && (
+                  <select
+                    value={filterSubc}
+                    onChange={e => setFilterSubc(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-xs font-semibold text-slate-700 outline-none"
+                  >
+                    <option value="all">👷 Todos SubC</option>
+                    {subcontratistasList.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                )}
+                {/* Avance Filter */}
+                <select
+                  value={filterAvance}
+                  onChange={e => setFilterAvance(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-xs font-semibold text-slate-700 outline-none"
+                >
+                  <option value="all">📊 Todas</option>
+                  <option value="con_avance">✅ Con avance</option>
+                  <option value="sin_avance">⏳ Sin avance</option>
+                  <option value="saldo_pendiente">📉 Con saldo</option>
+                </select>
+          </div>
+        </div>
         </div>
 
         {/* 3. EXCEL FORMULA BAR (Authentic Excel Formula Input & Copy/Paste Controls) */}
