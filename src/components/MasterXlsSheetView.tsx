@@ -109,7 +109,7 @@ interface MasterXlsSheetViewProps {
 
 const attrDe = (n: MasterHierarchyNode, k: 'macro' | 'grupo' | 'tipo' | 'partidas' | 'cap' | 'scap' | 'unit' | 'componente' | 'ubicacion' | 'proceso' | 'resp') =>
   String((n as any)[k] || (n.itemRef as any)?.[k] || '');
-/** Columnas de la hoja M₃ que se pueden filtrar (todas menos las semanales de cantidad y venta). */
+/** Columnas fijas de la hoja M₃ que se pueden filtrar; las semanales (cantidad y venta) se añaden en el componente. */
 const COLUMNAS_FILTRO: ColumnaFiltrable[] = [
   { key: 'wbs', titulo: 'WBS / Jerarquía', tipo: 'texto', valor: n => n.wbs || n.itemRef?.wbs || '' },
   { key: 'idOrig', titulo: 'id.Orig', tipo: 'texto', valor: n => n.idOrig || n.itemRef?.idOrig || '' },
@@ -137,7 +137,6 @@ const COLUMNAS_FILTRO: ColumnaFiltrable[] = [
   { key: 'saldoEcon', titulo: 'Saldo', tipo: 'numero', valor: n => n.saldoEcon },
   { key: 'pctAvance', titulo: '% Av.', tipo: 'numero', valor: n => n.pctAvance },
 ];
-const COLUMNA_POR_KEY = new Map(COLUMNAS_FILTRO.map(c => [c.key, c]));
 
 export function MasterXlsSheetView({
   isOpen,
@@ -251,18 +250,31 @@ export function MasterXlsSheetView({
   const hojasTodas = useMemo(() => (nodeMap ? Array.from(nodeMap.values()) : nodes).filter(n => n.esHoja), [nodeMap, nodes]);
   // Una partida pasa si pasa ella o si pasa su actividad p6 (el grupo con Activity ID del que cuelga):
   // así, p. ej., «Activity ID contiene p6» muestra las actividades p6 con sus rubros.
+  // Columnas semanales filtrables (numéricas): cantidad «wq_<semana>» y venta «wv_<semana>» de las semanas visibles
+  const columnasFiltro = useMemo<ColumnaFiltrable[]>(() => [
+    ...COLUMNAS_FILTRO,
+    ...weeksShown.flatMap(w => [
+      { key: `wq_${w.id}`, titulo: `Cant. ${w.label}`, tipo: 'numero' as const, valor: (n: MasterHierarchyNode) => Number(n.cantidadesSemanales?.[w.id]) || 0 },
+      { key: `wv_${w.id}`, titulo: `Venta ${w.label}`, tipo: 'numero' as const, valor: (n: MasterHierarchyNode) => Number(n.avanceEconSemanales?.[w.id]) || 0 },
+    ]),
+  ], [weeksShown]);
+  const columnaPorKey = useMemo(() => new Map(columnasFiltro.map(c => [c.key, c])), [columnasFiltro]);
+  // Las columnas semanales se evalúan solo sobre la propia partida (el valor de una p6 es la suma de sus rubros).
   const predicadoHoja = useMemo(() => {
-    const p = construirPredicado(filtrosCol, COLUMNAS_FILTRO, hojasTodas);
-    if (!p) return undefined;
+    const esSemana = (k: string) => k.startsWith('wq_') || k.startsWith('wv_');
+    const pFijas = construirPredicado(filtrosCol, columnasFiltro.filter(c => !esSemana(c.key)), hojasTodas);
+    const pSemana = construirPredicado(filtrosCol, columnasFiltro.filter(c => esSemana(c.key)), hojasTodas);
+    if (!pFijas && !pSemana) return undefined;
     return (n: MasterHierarchyNode) => {
-      if (p(n)) return true;
+      if (pSemana && !pSemana(n)) return false;
+      if (!pFijas || pFijas(n)) return true;
       const padre = n.parentKey ? nodeMap?.get(n.parentKey) : undefined;
-      return !!(padre && !padre.esHoja && padre.activityId && p(padre));
+      return !!(padre && !padre.esHoja && padre.activityId && pFijas(padre));
     };
-  }, [filtrosCol, hojasTodas, nodeMap]);
-  const filtrosActivos = Object.entries(filtrosCol).filter(([k, f]) => COLUMNA_POR_KEY.has(k) && filtroActivo(f));
+  }, [filtrosCol, hojasTodas, nodeMap, columnasFiltro]);
+  const filtrosActivos = Object.entries(filtrosCol).filter(([k, f]) => columnaPorKey.has(k) && filtroActivo(f));
   const cabeceraFiltro = (key: string, contenido: React.ReactNode, alinear: 'izq' | 'der' | 'centro' = 'izq') => {
-    const col = COLUMNA_POR_KEY.get(key)!;
+    const col = columnaPorKey.get(key)!;
     return (
       <div className={`flex items-center gap-1 ${alinear === 'der' ? 'justify-end' : alinear === 'centro' ? 'justify-center' : 'justify-between'}`}>
         <span className="truncate shrink-0">{contenido}</span>
@@ -1156,7 +1168,7 @@ export function MasterXlsSheetView({
 
             {/* Filtros de columna activos */}
             {filtrosActivos.map(([k, f]) => {
-              const col = COLUMNA_POR_KEY.get(k)!;
+              const col = columnaPorKey.get(k)!;
               return (
                 <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-bold">
                   <span>{col.titulo}: {resumenFiltro(f, col.tipo)}</span>
@@ -1504,6 +1516,11 @@ export function MasterXlsSheetView({
                       <span className="font-black text-slate-800 truncate" title={sem.label}>
                         {sem.label}
                       </span>
+                      <span className="flex items-center gap-0.5 shrink-0">
+                      <BotonFiltroColumna columna={columnaPorKey.get(`${viewMode === 'econ' ? 'wv' : 'wq'}_${sem.id}`)!}
+                        filtro={filtrosCol[`${viewMode === 'econ' ? 'wv' : 'wq'}_${sem.id}`]} abierto={filtroAbierto === `${viewMode === 'econ' ? 'wv' : 'wq'}_${sem.id}`}
+                        onAbrir={a => setFiltroAbierto(a ? `${viewMode === 'econ' ? 'wv' : 'wq'}_${sem.id}` : null)}
+                        onAplicar={f => ponerFiltro(`${viewMode === 'econ' ? 'wv' : 'wq'}_${sem.id}`, f)} />
                       {weeksShown.length > 1 && (
                         <button
                           type="button"
@@ -1514,6 +1531,7 @@ export function MasterXlsSheetView({
                           <Trash2 className="w-3 h-3" />
                         </button>
                       )}
+                      </span>
                     </div>
                     <div className="text-[9px] text-slate-400 font-normal lowercase tracking-normal flex justify-around mt-0.5">
                       {viewMode === 'qty' && <span>Cant. Obra</span>}
@@ -1523,7 +1541,11 @@ export function MasterXlsSheetView({
                   </th>
                   {viewMode === 'dual' && (
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 text-center bg-[#eef2ff] min-w-[95px]">
-                      <span className="font-black text-indigo-900 truncate block" title={sem.label}>{sem.label}</span>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-black text-indigo-900 truncate" title={sem.label}>{sem.label}</span>
+                        <BotonFiltroColumna columna={columnaPorKey.get(`wv_${sem.id}`)!} filtro={filtrosCol[`wv_${sem.id}`]} abierto={filtroAbierto === `wv_${sem.id}`}
+                          onAbrir={a => setFiltroAbierto(a ? `wv_${sem.id}` : null)} onAplicar={f => ponerFiltro(`wv_${sem.id}`, f)} />
+                      </div>
                       <div className="text-[9px] text-indigo-400 font-normal lowercase tracking-normal mt-0.5">Venta</div>
                     </th>
                   )}
