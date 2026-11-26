@@ -181,6 +181,7 @@ export const VistaCashflow: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [raiz, abiertos]);
 
+  const fletesFam = React.useMemo(() => new Set(flujo ? flujo.familias.values() : []), [flujo]);
   const perDD = React.useMemo(() => { let k = -1; lim.t.forEach((t, j) => { if (t <= m.fechaDatos && j < nP) k = j; }); return k; }, [lim, nP, m.fechaDatos]);
   // Al abrir o cambiar de escala, el período de la fecha de datos a la vista
   const scroller = React.useRef<HTMLDivElement>(null);
@@ -216,11 +217,12 @@ export const VistaCashflow: React.FC<{
   const equipoT3 = React.useMemo(() => {
     if (!flujo) return null;
     let b = 0, a = 0, r = 0, p = 0, costoReal = 0, nPend = 0;
+    for (const [i, x] of flujo.totales) {
+      if (!esGrupoEquipo(grupo(i))) continue;
+      costoReal += x.a; b += x.b;
+    }
     for (const [i, u] of flujo.porAct) {
       if (!esGrupoEquipo(grupo(i))) continue;
-      const x = flujo.totales.get(i);
-      costoReal += x?.a || 0;
-      b += x?.b || 0;
       for (const s of ['a', 'r'] as const) { const tr = u[s]; if (tr) for (const v of tr.vals) { if (s === 'a') a += v; else r += v; } }
       if (u.pendiente) { p += u.pendiente; nPend++; }
     }
@@ -433,7 +435,8 @@ export const VistaCashflow: React.FC<{
                                 </button>
                               ) : <span className="w-4 shrink-0" />}
                               <span className={`truncate ${esNodo ? 'font-semibold' : ''}`} title={etiqueta}>{etiqueta}</span>
-                              {!esNodo && flujo?.familias.has(fl.i) && aj.regla && <span className="ml-1 text-[9px] px-1 rounded bg-[#FFF2C2] text-[#8A6D00] shrink-0" title="Billed on the day its freight (.E) starts">@ freight</span>}
+                              {!esNodo && aj.regla && fletesFam.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#FFF2C2] text-[#8A6D00] shrink-0" title="Freight row: bills its own 20 % plus the purchase (.D) 60 % on the day the freight starts">80 %</span>}
+                              {!esNodo && aj.regla && flujo?.familias.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#EEF0F2] text-[#5A6A74] shrink-0" title="Purchase: billed in its freight (.E) row">→ freight</span>}
                             </>
                           )}
                         </div>

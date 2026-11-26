@@ -12,6 +12,8 @@
  *    pasa a Remaining.
  *  - Remaining: lo que falta de la .D (y lo ejecutado sin certificar) y de la .E, el día de inicio restante de la .E
  *    (su inicio temprano; si está en curso, la fecha de datos); si la .E ya terminó, el de la propia .D.
+ *  - Todo lo que se cobra de la .D se MUESTRA EN LA FILA DE SU .E (flete): lo certificable del mes está en el flete;
+ *    la .D (Procura_Eq) solo conserva lo «ejecutado sin certificar».
  *  - Lo demás (construcción, .D sin .E…) se cobra cuando se ejecuta, igual que su costo. Un costo real sin inicio
  *    real (Not Started con Venta Ex) se cuenta en la fecha de datos.
  */
@@ -57,6 +59,16 @@ export function familiasEquipo(m: ModeloP6, grupo: (i: number) => string): Map<n
   return out;
 }
 
+/** Suma de dos tramos (sobre los mismos períodos). */
+function sumarTramos(x?: TramoUso, y?: TramoUso): TramoUso | undefined {
+  if (!x) return y;
+  if (!y) return x;
+  const desde = Math.min(x.desde, y.desde), hasta = Math.max(x.desde + x.vals.length, y.desde + y.vals.length);
+  const vals = new Float64Array(hasta - desde);
+  for (const t of [x, y]) for (let k = 0; k < t.vals.length; k++) vals[t.desde - desde + k] += t.vals[k];
+  return { desde, vals };
+}
+
 export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean): ResultadoFlujo {
   const t = m.task;
   const tot = totalesCosto(m, 'cost');
@@ -74,6 +86,7 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
     const w = ws.find(x => x) ?? (v ? dd : null);
     return w ? repartir(v, w[0], w[0], lim) : undefined;
   };
+  const aFlete: [number, FlujoActividad][] = [];
   const fletes = new Map<number, number>();
   for (const [d, e] of familias) fletes.set(e, d);
 
@@ -87,21 +100,26 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
       continue;
     }
     const j = familias.get(i);
-    if (j == null) {
+    if (j == null || !reglaCobro) {
       put(i, { b: rep(x.b, w.b, w.cal), a: rep(x.a, w.a, w.cal), r: rep(x.r, w.r, w.cal) });
       continue;
     }
-    // Compra de equipo: su 60 % se cobra entero el día que empieza su flete
+    // Compra de equipo: su 60 % se cobra entero el día que empieza su flete y se muestra en la fila del flete
+    // (lo certificable del mes está en el flete); la compra solo conserva lo ejecutado sin certificar.
     const we = ventanasCosto(m, j, lb);
     const u: FlujoActividad = { b: pt(x.b, we.b, w.b) };
     if (we.a) {
       u.a = pt(x.a, we.a);
       u.r = pt(x.r, we.r, w.r);
     } else {
-      u.pendiente = x.a;
       u.r = pt(x.a + x.r, we.r, w.r);
+      if (x.a) put(i, { pendiente: x.a });
     }
-    put(i, u);
+    aFlete.push([j, u]);
+  }
+  for (const [j, u] of aFlete) {
+    const e = porAct.get(j) ?? {};
+    porAct.set(j, { ...e, b: sumarTramos(e.b, u.b), a: sumarTramos(e.a, u.a), r: sumarTramos(e.r, u.r) });
   }
   return { porAct, familias, totales };
 }
