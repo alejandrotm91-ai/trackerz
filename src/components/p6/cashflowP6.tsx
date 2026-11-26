@@ -1,5 +1,5 @@
 /**
- * Vista «Resources» de T₃: análisis de la venta y el cashflow (`utils/p6/cashflow.ts`).
+ * Vista «Cashflow» de T₃ (antes «Resources»): análisis de la venta y el cashflow (`utils/p6/cashflow.ts`).
  * Por períodos (Weeks / Months / Quarters / Years), agrupado como elija el usuario (WBS, disciplina —05.Tipo—,
  * grupo —01.Grupos—, ubicación o subcontratista), con Budgeted / Actual / Remaining y su acumulado.
  * Regla de cobro del equipamiento (opcional): la compra (.D) se certifica con el flete (.E) → el 80 % en el flete.
@@ -182,6 +182,31 @@ export const VistaCashflow: React.FC<{
   const orden = (a: Nodo, b: Nodo) => a.label.localeCompare(b.label, 'es', { numeric: true });
   const etqAct = (i: number) => `${celda(m.task, m.task.filas[i], 'task_code')} · ${celda(m.task, m.task.filas[i], 'task_name')}`;
 
+  const datosAct = React.useCallback((i: number) => {
+    const u = flujo?.porAct.get(i);
+    const per = { b: new Float64Array(nP), a: new Float64Array(nP), r: new Float64Array(nP) };
+    const tot = { b: 0, a: 0, r: 0, p: u?.pendiente || 0 };
+    for (const s of ['b', 'a', 'r'] as const) { const tr = u?.[s]; if (tr) for (let k = 0; k < tr.vals.length; k++) { per[s][tr.desde + k] += tr.vals[k]; tot[s] += tr.vals[k]; } }
+    return { per, tot };
+  }, [flujo, nP]);
+
+  // Orden por un período (clic en la cabecera del mes o de Total): mayor → menor → menor → mayor → normal
+  const [ordenCol, setOrdenCol] = React.useState<{ col: number | 'tot'; dir: 1 | -1 } | null>(null);
+  React.useEffect(() => setOrdenCol(null), [aj.escala]);
+  const serieOrden: Serie = aj.series[0] ?? 'b';
+  const valorOrden = React.useCallback((x: { per: Record<'b' | 'a' | 'r', Float64Array>; tot: { b: number; a: number; r: number } }) => {
+    if (!ordenCol) return 0;
+    const s = serieOrden;
+    if (ordenCol.col === 'tot') return s === 'f' ? x.tot.a + x.tot.r : x.tot[s];
+    const v = (k: number) => (s === 'f' ? x.per.a[k] + x.per.r[k] : x.per[s][k]);
+    if (!aj.acumulado) return v(ordenCol.col);
+    let acc = 0; for (let k = 0; k <= ordenCol.col; k++) acc += v(k);
+    return acc;
+  }, [ordenCol, serieOrden, aj.acumulado]);
+  const clicOrden = (col: number | 'tot') => setOrdenCol(o => (!o || o.col !== col ? { col, dir: -1 } : o.dir === -1 ? { col, dir: 1 } : null));
+  const flechaOrden = (col: number | 'tot') => (ordenCol?.col === col ? (ordenCol.dir === -1 ? ' ▼' : ' ▲') : '');
+  const nombreSerieOrden = SERIES.find(x => x[0] === serieOrden)![1];
+
   // Filas visibles
   type Fila = { tipo: 'nodo'; n: Nodo } | { tipo: 'act'; i: number; nivel: number };
   const filas = React.useMemo<Fila[]>(() => {
@@ -190,13 +215,20 @@ export const VistaCashflow: React.FC<{
     const rec = (n: Nodo) => {
       out.push({ tipo: 'nodo', n });
       if (n.nivel >= 0 && !abiertos.has(n.key)) return;
-      [...n.hijos.values()].sort(orden).forEach(rec);
-      if (n.nivel >= 0) [...n.acts].sort((a, b) => etqAct(a).localeCompare(etqAct(b), 'es', { numeric: true })).forEach(i => out.push({ tipo: 'act', i, nivel: n.nivel + 1 }));
+      const hijos = [...n.hijos.values()];
+      if (ordenCol) hijos.sort((a, b) => ordenCol.dir * (valorOrden(a) - valorOrden(b)) || orden(a, b)); else hijos.sort(orden);
+      hijos.forEach(rec);
+      if (n.nivel >= 0) {
+        const acts = [...n.acts];
+        const porNombre = (a: number, b: number) => etqAct(a).localeCompare(etqAct(b), 'es', { numeric: true });
+        if (ordenCol) { const val = new Map(acts.map(i => [i, valorOrden(datosAct(i))])); acts.sort((a, b) => ordenCol.dir * (val.get(a)! - val.get(b)!) || porNombre(a, b)); } else acts.sort(porNombre);
+        acts.forEach(i => out.push({ tipo: 'act', i, nivel: n.nivel + 1 }));
+      }
     };
     rec(raiz);
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [raiz, abiertos]);
+  }, [raiz, abiertos, ordenCol, valorOrden, datosAct]);
 
   const fletesFam = React.useMemo(() => new Set(flujo ? flujo.familias.values() : []), [flujo]);
   const perDD = React.useMemo(() => { let k = -1; lim.t.forEach((t, j) => { if (t <= m.fechaDatos && j < nP) k = j; }); return k; }, [lim, nP, m.fechaDatos]);
@@ -215,13 +247,6 @@ export const VistaCashflow: React.FC<{
     for (let k = 0; k < v.length; k++) { acc += v[k]; c[k] = acc; }
     return c;
   }, [aj.acumulado]);
-  const datosAct = React.useCallback((i: number) => {
-    const u = flujo?.porAct.get(i);
-    const per = { b: new Float64Array(nP), a: new Float64Array(nP), r: new Float64Array(nP) };
-    const tot = { b: 0, a: 0, r: 0, p: u?.pendiente || 0 };
-    for (const s of ['b', 'a', 'r'] as const) { const tr = u?.[s]; if (tr) for (let k = 0; k < tr.vals.length; k++) { per[s][tr.desde + k] += tr.vals[k]; tot[s] += tr.vals[k]; } }
-    return { per, tot };
-  }, [flujo, nP]);
 
   // Cruce con la Certificación (planillas): solo equipamiento (EQ + EE de la Sábana) frente al equipamiento de T₃
   const planilla = React.useMemo(() => {
@@ -297,7 +322,7 @@ export const VistaCashflow: React.FC<{
     <div id="p6-vista-recursos" className="flex-1 flex flex-col min-h-0 bg-white">
       {/* Barra de opciones */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 border-b border-[#D5DEE2] bg-[#F7F8FA] text-[11px] text-[#14212A]">
-        <span className="font-semibold text-[12px]">Sales &amp; Cash Flow</span>
+        <span className="font-semibold text-[12px]">Cashflow</span>
         <label className="flex items-center gap-1">Group by
           <select id="p6-cf-agrupar" value={aj.agrupar} onChange={e => { set('agrupar', e.target.value as Agrupar); setAbiertos(new Set()); }} className="border border-[#C3C3C3] rounded px-1 py-0.5 bg-white">
             {AGRUPAR.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
@@ -421,11 +446,13 @@ export const VistaCashflow: React.FC<{
             <div className="sticky left-0 z-[8] flex bg-[#ECECEC] border-r border-[#C3C3C3]" style={{ width: ANCHO_IZQ }}>
               <div className="px-2 flex items-center" style={{ width: ANCHO_NOMBRE }}>{AGRUPAR.find(a => a[0] === aj.agrupar)![1]}</div>
               <div className="px-1 flex items-center" style={{ width: ANCHO_SERIE }}>Series</div>
-              <div className="px-1 flex items-center justify-end" style={{ width: ANCHO_TOT }}>Total</div>
+              <div id="p6-cf-orden-tot" className={`px-1 flex items-center justify-end cursor-pointer hover:bg-white/70 ${ordenCol?.col === 'tot' ? 'text-[#312E81]' : ''}`} style={{ width: ANCHO_TOT }}
+                onClick={() => clicOrden('tot')} title={`Sort by Total (${nombreSerieOrden}): highest first, lowest first, original order`}>Total{flechaOrden('tot')}</div>
               <div className="px-1 flex items-center justify-end" style={{ width: ANCHO_PEND }} title="Executed not billable: actual cost of equipment purchases whose freight has not started">Not billable</div>
             </div>
             {lim.etq.map((e, k) => (
-              <div key={k} className={`flex items-center justify-center border-r border-[#D5DEE2] ${k === perDD ? 'bg-[#FFE9A8]' : ''}`} style={{ width: CW, minWidth: CW }}>{e}</div>
+              <div key={k} data-cf-periodo={k} onClick={() => clicOrden(k)} title={`Sort by ${e} (${nombreSerieOrden}${aj.acumulado ? ', cumulative' : ''}): highest first, lowest first, original order`}
+                className={`flex items-center justify-center border-r border-[#D5DEE2] cursor-pointer hover:bg-white/70 ${k === perDD ? 'bg-[#FFE9A8]' : ''} ${ordenCol?.col === k ? 'text-[#312E81] bg-[#E0E3F5]' : ''}`} style={{ width: CW, minWidth: CW }}>{e}{flechaOrden(k)}</div>
             ))}
           </div>
           {/* Filas */}

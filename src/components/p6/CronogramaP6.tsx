@@ -1426,7 +1426,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
           {/* Barra lateral vertical (como la de P6): vistas y rutas */}
           <div className="w-[46px] shrink-0 bg-[#ECECEC] border-r border-[#C3C3C3] flex flex-col items-center py-2 gap-1 overflow-y-auto">
             {(['actividades', 'wbs', 'recursos'] as const).map(v => {
-              const etq = v === 'actividades' ? 'Activities' : v === 'wbs' ? 'WBS' : 'Resources';
+              const etq = v === 'actividades' ? 'Activities' : v === 'wbs' ? 'WBS' : 'Cashflow';
               return (
                 <button key={v} onClick={() => setVista(v)} title={etq}
                   className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${vista === v ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#4A4A4A] hover:bg-white/70'}`}>
