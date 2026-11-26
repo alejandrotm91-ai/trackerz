@@ -119,7 +119,7 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
   }
   for (const [j, u] of aFlete) {
     const e = porAct.get(j) ?? {};
-    porAct.set(j, { ...e, b: sumarTramos(e.b, u.b), a: sumarTramos(e.a, u.a), r: sumarTramos(e.r, u.r) });
+    put(j, { ...e, b: sumarTramos(e.b, u.b), a: sumarTramos(e.a, u.a), r: sumarTramos(e.r, u.r) });
   }
   return { porAct, familias, totales };
 }

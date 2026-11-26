@@ -11,7 +11,7 @@ import { ChevronDown, ChevronRight, Download } from 'lucide-react';
 import type { ModeloP6 } from '../../utils/p6/modelo';
 import { celda } from '../../utils/p6/xer';
 import { compacto, periodosDeEscala, type LineaBaseFilas } from '../../utils/p6/uso';
-import { calcularFlujo, esGrupoEquipo } from '../../utils/p6/cashflow';
+import { calcularFlujo, esGrupoEquipo, familiasEquipo } from '../../utils/p6/cashflow';
 import { etiquetaUbicacion, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { PlanillaItem } from '../../types';
 
@@ -28,8 +28,10 @@ interface Ajustes {
   acumulado: boolean;
   regla: boolean;
   ambito: Ambito;
+  /** Nivel adicional por SubC (11.SubC) bajo los grupos de equipamiento. */
+  subcEquipo: boolean;
 }
-const AJUSTES_DEF: Ajustes = { agrupar: 'tipo', nivelesWbs: 3, escala: 'months', series: ['b', 'a', 'r'], acumulado: false, regla: true, ambito: 'todo' };
+const AJUSTES_DEF: Ajustes = { agrupar: 'tipo', nivelesWbs: 3, escala: 'months', series: ['b', 'a', 'r'], acumulado: false, regla: true, ambito: 'todo', subcEquipo: true };
 const LS = 'p6.cashflow';
 const leer = (): Ajustes => { try { return { ...AJUSTES_DEF, ...JSON.parse(localStorage.getItem(LS) || '{}') }; } catch { return AJUSTES_DEF; } };
 
@@ -116,16 +118,31 @@ export const VistaCashflow: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [m, version]);
 
+  // Flete (.E) → su compra (.D), para tomar el SubC de la compra si el flete no lo tiene (como en Arrivals)
+  const compraDe = React.useMemo(() => {
+    const r = new Map<number, number>();
+    for (const [d, e] of familiasEquipo(m, grupo)) r.set(e, d);
+    return r;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m, version, grupo]);
   const ruta = React.useCallback((i: number): { k: string; l: string }[] => {
     const v = (k: CampoAgrupacion, vacio: string) => campo(i, k) || vacio;
+    let r: { k: string; l: string }[];
     switch (aj.agrupar) {
-      case 'wbs': return rutaWbs(i).slice(0, aj.nivelesWbs);
-      case 'tipo': return [v('tipo', '(no Discipline)'), v('grupo', '(no Group)')].map(l => ({ k: l, l }));
-      case 'grupo': return [v('grupo', '(no Group)'), v('tipo', '(no Discipline)')].map(l => ({ k: l, l }));
-      case 'ubicacion': return [etiquetaUbicacion(campo(i, 'ubicacion')), v('grupo', '(no Group)')].map(l => ({ k: l, l }));
+      case 'wbs': r = rutaWbs(i).slice(0, aj.nivelesWbs); break;
+      case 'tipo': r = [v('tipo', '(no Discipline)'), v('grupo', '(no Group)')].map(l => ({ k: l, l })); break;
+      case 'grupo': r = [v('grupo', '(no Group)'), v('tipo', '(no Discipline)')].map(l => ({ k: l, l })); break;
+      case 'ubicacion': r = [etiquetaUbicacion(campo(i, 'ubicacion')), v('grupo', '(no Group)')].map(l => ({ k: l, l })); break;
       case 'subcontratista': return [v('subcontratista', '(no SubC)'), v('grupo', '(no Group)')].map(l => ({ k: l, l }));
     }
-  }, [aj.agrupar, aj.nivelesWbs, campo, rutaWbs]);
+    // Equipamiento: un nivel más por subcontratista (CMO, Prominent…)
+    if (aj.subcEquipo && esGrupoEquipo(grupo(i))) {
+      const d = compraDe.get(i);
+      const sc = campo(i, 'subcontratista') || (d != null ? campo(d, 'subcontratista') : '');
+      r.push({ k: `subc:${sc}`, l: sc ? `SubC ${sc}` : '(no SubC assigned)' });
+    }
+    return r;
+  }, [aj.agrupar, aj.nivelesWbs, aj.subcEquipo, campo, rutaWbs, grupo, compraDe]);
 
   const enAmbito = React.useCallback((i: number) => {
     if (aj.ambito === 'todo') return true;
@@ -307,6 +324,11 @@ export const VistaCashflow: React.FC<{
             </button>
           ))}
         </div>
+        {aj.agrupar !== 'subcontratista' && (
+          <label className="flex items-center gap-1 cursor-pointer" title="Equipment (Ingeniería, Procura_Eq, Flete_Eq, Precom_Eq): one more level by subcontractor (11.SubC)">
+            <input id="p6-cf-subc" type="checkbox" checked={aj.subcEquipo} onChange={e => set('subcEquipo', e.target.checked)} />SubC level (Equipment)
+          </label>
+        )}
         <label className="flex items-center gap-1 cursor-pointer"><input id="p6-cf-acumulado" type="checkbox" checked={aj.acumulado} onChange={e => set('acumulado', e.target.checked)} />Cumulative</label>
         <label className="flex items-center gap-1 cursor-pointer" title="Equipment is billed only with its freight: the purchase (.D, 60 %) is certified together with the freight (.E, 20 %) — the whole 80 % on the day the freight starts. Off = cost as executed.">
           <input id="p6-cf-regla" type="checkbox" checked={aj.regla} onChange={e => set('regla', e.target.checked)} />Equipment billed at freight (80 %)
