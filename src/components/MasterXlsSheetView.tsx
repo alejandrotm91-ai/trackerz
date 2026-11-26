@@ -283,6 +283,7 @@ export function MasterXlsSheetView({
         <span className="truncate shrink-0">{contenido}</span>
         <BotonFiltroColumna columna={col} filtro={filtrosCol[key]} abierto={filtroAbierto === key}
           onAbrir={a => setFiltroAbierto(a ? key : null)} onAplicar={f => ponerFiltro(key, f)} />
+        {asaAjuste(key)}
       </div>
     );
   };
@@ -320,12 +321,64 @@ export function MasterXlsSheetView({
     return filteredNodes.slice(0, renderLimit);
   }, [filteredNodes, renderLimit]);
 
+  // ── Ancho de columnas como en Excel (todas menos # y las semanales): se arrastra el borde derecho de la
+  // cabecera; doble clic vuelve al ancho original. Se aplica con una regla CSS por posición de columna (nth-child,
+  // leída de la cabecera) y recalcula la posición de las columnas fijas de la izquierda. Por usuario en localStorage.
+  const [anchosCol, setAnchosCol] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem('m3.anchos') || '{}'); } catch { return {}; }
+  });
+  useEffect(() => { try { localStorage.setItem('m3.anchos', JSON.stringify(anchosCol)); } catch { /* sin almacenamiento */ } }, [anchosCol]);
+  const tablaRef = useRef<HTMLTableElement>(null);
+  const [posCol, setPosCol] = useState<Record<string, number>>({});
+  React.useLayoutEffect(() => {
+    const t = tablaRef.current;
+    if (!t) return;
+    const r: Record<string, number> = {};
+    t.querySelectorAll('thead th [data-ajuste-col]').forEach(h => {
+      const th = h.closest('th') as HTMLTableCellElement | null;
+      if (th) r[h.getAttribute('data-ajuste-col')!] = th.cellIndex + 1;
+    });
+    setPosCol(prev => (JSON.stringify(prev) === JSON.stringify(r) ? prev : r));
+  });
+  const empezarAjuste = (key: string, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const th = (e.currentTarget as HTMLElement).closest('th');
+    const x0 = e.clientX, w0 = th ? th.getBoundingClientRect().width : 100;
+    const mover = (ev: MouseEvent) => setAnchosCol(a => ({ ...a, [key]: Math.round(Math.min(900, Math.max(36, w0 + ev.clientX - x0))) }));
+    const soltar = () => { window.removeEventListener('mousemove', mover); window.removeEventListener('mouseup', soltar); document.body.style.cursor = ''; };
+    window.addEventListener('mousemove', mover); window.addEventListener('mouseup', soltar);
+    document.body.style.cursor = 'col-resize';
+  };
+  const asaAjuste = (key: string) => (
+    <span data-ajuste-col={key} onMouseDown={e => empezarAjuste(key, e)} onClick={e => e.stopPropagation()}
+      onDoubleClick={e => { e.stopPropagation(); setAnchosCol(a => { const n = { ...a }; delete n[key]; return n; }); }}
+      title="Arrastrar para cambiar el ancho · doble clic: ancho original"
+      className="absolute top-0 right-0 h-full w-[6px] cursor-col-resize z-10 hover:bg-indigo-400/60 active:bg-indigo-500/70" />
+  );
+  const cssAnchos = useMemo(() => {
+    const reglas: string[] = [];
+    for (const [k, w] of Object.entries(anchosCol)) {
+      const i = posCol[k];
+      if (!i) continue;
+      reglas.push(`#m3-tabla>thead>tr>th:nth-child(${i}),#m3-tabla>tbody>tr>td:nth-child(${i}){width:${w}px!important;min-width:${w}px!important;max-width:${w}px!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`);
+    }
+    // Columnas fijas de la izquierda: # (40) · WBS · id.Orig · Activity ID · Descripción
+    if (['wbs', 'idOrig', 'activityId'].some(k => anchosCol[k])) {
+      const w = (k: string, d: number) => anchosCol[k] ?? d;
+      const lefts: [string, number][] = [['idOrig', 40 + w('wbs', 130)], ['activityId', 40 + w('wbs', 130) + w('idOrig', 85)], ['descripcion', 40 + w('wbs', 130) + w('idOrig', 85) + w('activityId', 90)]];
+      for (const [k, l] of lefts) if (posCol[k]) reglas.push(`#m3-tabla>thead>tr>th:nth-child(${posCol[k]}),#m3-tabla>tbody>tr>td:nth-child(${posCol[k]}){left:${l}px!important}`);
+    }
+    return reglas.join('\n');
+  }, [anchosCol, posCol]);
+
   // ── Buscador tipo Ctrl+F: busca en WBS, id.Orig, Activity ID y descripción de todo el árbol (también lo
   // plegado y lo que aún no se ha dibujado), respetando los filtros; despliega los niveles y lleva a la fila.
   const [buscador, setBuscador] = useState(false);
   const [textoBuscar, setTextoBuscar] = useState('');
   const [posBuscar, setPosBuscar] = useState(0);
   const [halladoKey, setHalladoKey] = useState<string | null>(null);
+  /** Columna donde buscar: «todas» (WBS, id.Orig, Activity ID y descripción) o la clave de una columna. */
+  const [colBuscar, setColBuscar] = useState<string>('todas');
   const entradaBuscar = useRef<HTMLInputElement>(null);
   const scrollPendiente = useRef(false);
   const normBuscar = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -335,12 +388,14 @@ export function MasterXlsSheetView({
     const todos = new Set<string>();
     for (const n of nodeMap.values()) if (!n.esHoja) todos.add(n.key);
     const orden = getVisibleHierarchyNodes(nodeMap, rootKeys, todos, filterSubc, filterAvance, searchTerm, { predicadoHoja });
+    const col = colBuscar === 'todas' ? null : columnaPorKey.get(colBuscar);
     return orden.filter(n => {
+      if (col) { const v = col.valor(n); return v != null && v !== '' && normBuscar(String(v)).includes(q); }
       const it = n.itemRef as { wbs?: string; idOrig?: string; activityId?: string } | undefined;
       return [n.wbs || it?.wbs, n.idOrig || it?.idOrig, n.activityId || it?.activityId, n.descripcion]
         .some(v => v && normBuscar(String(v)).includes(q));
     });
-  }, [textoBuscar, nodeMap, rootKeys, filterSubc, filterAvance, searchTerm, predicadoHoja]);
+  }, [textoBuscar, colBuscar, columnaPorKey, nodeMap, rootKeys, filterSubc, filterAvance, searchTerm, predicadoHoja]);
   const irAHallado = useCallback((i: number) => {
     if (!hallados.length || !nodeMap) return;
     const k = ((i % hallados.length) + hallados.length) % hallados.length;
@@ -360,7 +415,7 @@ export function MasterXlsSheetView({
     if (!buscador) return;
     if (hallados.length) irAHallado(0); else setHalladoKey(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [textoBuscar]);
+  }, [textoBuscar, colBuscar]);
   // Que la fila hallada esté dibujada (scroll infinito) y a la vista
   useEffect(() => {
     if (!halladoKey || !scrollPendiente.current) return;
@@ -1474,8 +1529,13 @@ export function MasterXlsSheetView({
         {buscador && hoja === 'cdo' && (
           <div id="m3-buscador" className="fixed z-[60] right-6 top-[150px] bg-white border border-[#D5DEE2] shadow-lg rounded-xl px-2.5 py-2 flex items-center gap-1.5 text-[11px] font-sans">
             <Search className="w-3.5 h-3.5 text-slate-400" />
+            <select id="m3-buscador-columna" value={colBuscar} onChange={e => { setColBuscar(e.target.value); entradaBuscar.current?.focus(); }}
+              title="Columna donde buscar" className="px-1.5 py-1 border border-slate-300 rounded-md bg-white text-[11px] max-w-[150px] cursor-pointer">
+              <option value="todas">Todas las columnas</option>
+              {COLUMNAS_FILTRO.map(c => <option key={c.key} value={c.key}>{c.titulo}</option>)}
+            </select>
             <input ref={entradaBuscar} id="m3-buscador-texto" value={textoBuscar} onChange={e => setTextoBuscar(e.target.value)}
-              placeholder="Buscar partida, WBS, id.Orig, descripción…"
+              placeholder={colBuscar === 'todas' ? 'Buscar partida, WBS, id.Orig, descripción…' : `Buscar en ${columnaPorKey.get(colBuscar)?.titulo ?? 'la columna'}…`}
               onKeyDown={e => {
                 e.stopPropagation();
                 if (e.key === 'Enter') { e.preventDefault(); irAHallado(posBuscar + (e.shiftKey ? -1 : 1)); }
@@ -1496,7 +1556,8 @@ export function MasterXlsSheetView({
           </div>
         )}
         <div className="flex-1 overflow-auto relative bg-white" onScroll={handleScroll}>
-          <table className="w-full border-collapse text-left text-xs font-mono">
+          <style>{`#m3-tabla>thead>tr>th:not(.sticky){position:relative}${cssAnchos}`}</style>
+          <table id="m3-tabla" ref={tablaRef} className="w-full border-collapse text-left text-xs font-mono">
             {/* Table Header Row */}
             <thead className="sticky top-0 z-30 bg-[#e2e8f0] text-slate-700 font-bold text-[11px] border-b-2 border-slate-300 select-none shadow-2xs font-sans">
               <tr>
