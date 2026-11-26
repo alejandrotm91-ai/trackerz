@@ -74,6 +74,8 @@ interface MasterXlsSheetViewProps {
   onHierarchyLevelChange: (lvl: string) => void;
   expandedKeys: Set<string>;
   toggleNodeExpand: (key: string) => void;
+  /** Despliega estos niveles (sin plegar los demás): lo usa el buscador Ctrl+F. */
+  expandNodeKeys?: (keys: string[]) => void;
   expandAllNodes: () => void;
   collapseAllNodes: () => void;
   searchTerm: string;
@@ -156,6 +158,7 @@ export function MasterXlsSheetView({
   onHierarchyLevelChange,
   expandedKeys,
   toggleNodeExpand,
+  expandNodeKeys,
   expandAllNodes,
   collapseAllNodes,
   searchTerm,
@@ -316,6 +319,72 @@ export function MasterXlsSheetView({
   const paginatedNodes = useMemo(() => {
     return filteredNodes.slice(0, renderLimit);
   }, [filteredNodes, renderLimit]);
+
+  // ── Buscador tipo Ctrl+F: busca en WBS, id.Orig, Activity ID y descripción de todo el árbol (también lo
+  // plegado y lo que aún no se ha dibujado), respetando los filtros; despliega los niveles y lleva a la fila.
+  const [buscador, setBuscador] = useState(false);
+  const [textoBuscar, setTextoBuscar] = useState('');
+  const [posBuscar, setPosBuscar] = useState(0);
+  const [halladoKey, setHalladoKey] = useState<string | null>(null);
+  const entradaBuscar = useRef<HTMLInputElement>(null);
+  const scrollPendiente = useRef(false);
+  const normBuscar = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const hallados = useMemo<MasterHierarchyNode[]>(() => {
+    const q = normBuscar(textoBuscar);
+    if (!q || !nodeMap || !rootKeys) return [];
+    const todos = new Set<string>();
+    for (const n of nodeMap.values()) if (!n.esHoja) todos.add(n.key);
+    const orden = getVisibleHierarchyNodes(nodeMap, rootKeys, todos, filterSubc, filterAvance, searchTerm, { predicadoHoja });
+    return orden.filter(n => {
+      const it = n.itemRef as { wbs?: string; idOrig?: string; activityId?: string } | undefined;
+      return [n.wbs || it?.wbs, n.idOrig || it?.idOrig, n.activityId || it?.activityId, n.descripcion]
+        .some(v => v && normBuscar(String(v)).includes(q));
+    });
+  }, [textoBuscar, nodeMap, rootKeys, filterSubc, filterAvance, searchTerm, predicadoHoja]);
+  const irAHallado = useCallback((i: number) => {
+    if (!hallados.length || !nodeMap) return;
+    const k = ((i % hallados.length) + hallados.length) % hallados.length;
+    const n = hallados[k];
+    const ancestros: string[] = [];
+    for (let p = n.parentKey; p; p = nodeMap.get(p)?.parentKey ?? null) if (!expandedKeys.has(p)) ancestros.push(p);
+    if (ancestros.length) {
+      if (expandNodeKeys) expandNodeKeys(ancestros); else ancestros.forEach(a => toggleNodeExpand(a));
+    }
+    setPosBuscar(k);
+    setHalladoKey(n.key);
+    setActiveCell({ nodeKey: n.key, field: 'view' });
+    scrollPendiente.current = true;
+  }, [hallados, nodeMap, expandedKeys, expandNodeKeys, toggleNodeExpand]);
+  // Al cambiar el texto, al primer resultado
+  useEffect(() => {
+    if (!buscador) return;
+    if (hallados.length) irAHallado(0); else setHalladoKey(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textoBuscar]);
+  // Que la fila hallada esté dibujada (scroll infinito) y a la vista
+  useEffect(() => {
+    if (!halladoKey || !scrollPendiente.current) return;
+    const idx = filteredNodes.findIndex(n => n.key === halladoKey);
+    if (idx < 0) return;
+    if (idx >= renderLimit) { setRenderLimit(idx + 50); return; }
+    const el = document.querySelector(`[data-node-key="${CSS.escape(halladoKey)}"]`);
+    if (el) { el.scrollIntoView({ block: 'center' }); scrollPendiente.current = false; }
+  }, [halladoKey, filteredNodes, renderLimit, paginatedNodes]);
+  const abrirBuscador = useCallback(() => {
+    setBuscador(true);
+    setTimeout(() => { entradaBuscar.current?.focus(); entradaBuscar.current?.select(); }, 0);
+  }, []);
+  const cerrarBuscador = () => { setBuscador(false); setHalladoKey(null); };
+  // Ctrl+F / ⌘F abre el buscador de la hoja (en lugar del del navegador, que no ve lo plegado); F3 = siguiente
+  useEffect(() => {
+    if (!isOpen || hoja !== 'cdo') return;
+    const tecla = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); abrirBuscador(); }
+      else if (e.key === 'F3' && buscador) { e.preventDefault(); irAHallado(posBuscar + (e.shiftKey ? -1 : 1)); }
+    };
+    window.addEventListener('keydown', tecla, true);
+    return () => window.removeEventListener('keydown', tecla, true);
+  }, [isOpen, hoja, buscador, abrirBuscador, irAHallado, posBuscar]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -1157,12 +1226,18 @@ export function MasterXlsSheetView({
             {(() => {
               const hay = !!searchTerm || filterSubc !== 'all' || filterAvance !== 'all' || filtrosActivos.length > 0;
               return (
+                <>
+                <button id="m3-buscar" type="button" onClick={abrirBuscador} title="Buscar en la hoja (Ctrl+F): WBS, id.Orig, Activity ID o descripción, también en lo plegado"
+                  className="px-2.5 py-1.5 rounded-lg border border-[#D5DEE2] bg-white text-[#14212A] hover:bg-[#F5F8F9] text-[11px] font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                  <Search className="w-3.5 h-3.5" />Buscar
+                </button>
                 <button id="m3-quitar-filtros" type="button" disabled={!hay}
                   onClick={() => { setSearchTerm(''); setFilterSubc('all'); setFilterAvance('all'); setFiltrosCol({}); }}
                   title="Quitar todos los filtros: búsqueda, SubC, avance y filtros de columna"
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs font-bold ${hay ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer' : 'bg-white border-slate-200 text-slate-300 cursor-default'}`}>
                   <FilterX className="w-3.5 h-3.5" /> Quitar filtros
                 </button>
+                </>
               );
             })()}
 
@@ -1396,6 +1471,30 @@ export function MasterXlsSheetView({
         </div>
 
         {/* 4. SPREADSHEET TABLE GRID (Excel High-Density Matrix) */}
+        {buscador && hoja === 'cdo' && (
+          <div id="m3-buscador" className="fixed z-[60] right-6 top-[150px] bg-white border border-[#D5DEE2] shadow-lg rounded-xl px-2.5 py-2 flex items-center gap-1.5 text-[11px] font-sans">
+            <Search className="w-3.5 h-3.5 text-slate-400" />
+            <input ref={entradaBuscar} id="m3-buscador-texto" value={textoBuscar} onChange={e => setTextoBuscar(e.target.value)}
+              placeholder="Buscar partida, WBS, id.Orig, descripción…"
+              onKeyDown={e => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); irAHallado(posBuscar + (e.shiftKey ? -1 : 1)); }
+                else if (e.key === 'Escape') { e.preventDefault(); cerrarBuscador(); }
+              }}
+              className="w-64 px-2 py-1 border border-slate-300 rounded-md outline-none focus:border-indigo-500 text-[12px]" />
+            <span id="m3-buscador-cuenta" className={`min-w-[74px] text-center tabular-nums ${textoBuscar && !hallados.length ? 'text-rose-600 font-semibold' : 'text-slate-500'}`}>
+              {!textoBuscar ? '' : hallados.length ? `${posBuscar + 1} de ${hallados.length}` : 'Sin resultados'}
+            </span>
+            <button type="button" title="Anterior (Shift+Enter)" disabled={!hallados.length} onClick={() => irAHallado(posBuscar - 1)}
+              className="p-1 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer"><ChevronUp className="w-4 h-4" /></button>
+            <button type="button" title="Siguiente (Enter)" disabled={!hallados.length} onClick={() => irAHallado(posBuscar + 1)}
+              className="p-1 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer"><ChevronDown className="w-4 h-4" /></button>
+            <button type="button" title="Cerrar (Esc)" onClick={cerrarBuscador} className="p-1 rounded hover:bg-slate-100 cursor-pointer"><X className="w-4 h-4" /></button>
+            {textoBuscar && !hallados.length && (filtrosActivos.length > 0 || searchTerm || filterSubc !== 'all' || filterAvance !== 'all') && (
+              <span className="text-[10px] text-amber-700">hay filtros activos</span>
+            )}
+          </div>
+        )}
         <div className="flex-1 overflow-auto relative bg-white" onScroll={handleScroll}>
           <table className="w-full border-collapse text-left text-xs font-mono">
             {/* Table Header Row */}
@@ -1828,9 +1927,10 @@ export function MasterXlsSheetView({
                   return (
                     <tr
                       key={node.key}
+                      data-node-key={node.key}
                       onClick={() => setActiveCell({ nodeKey: node.key, field: 'view' })}
                       className={`border-b ${isP6 ? 'border-orange-200 bg-[#ffedd5] hover:bg-[#fed7aa]/80 text-orange-950' : `border-slate-200 ${styles.rowBg} ${styles.hoverBg}`} transition-colors ${
-                        isRowActive ? 'ring-1 ring-emerald-500 ring-inset bg-emerald-50/40' : ''
+                        halladoKey === node.key ? 'outline outline-2 outline-amber-500 -outline-offset-2 bg-amber-100/80' : isRowActive ? 'ring-1 ring-emerald-500 ring-inset bg-emerald-50/40' : ''
                       } ${!isLeaf ? 'cursor-pointer select-none font-bold' : ''}`}
                     >
                       {/* Excel Row Index Header */}

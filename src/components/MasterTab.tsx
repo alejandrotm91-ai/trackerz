@@ -1050,6 +1050,7 @@ export function MasterTab({
         onHierarchyLevelChange={handleHierarchyLevelChange}
         expandedKeys={expandedKeys}
         toggleNodeExpand={toggleNodeExpand}
+        expandNodeKeys={ks => setExpandedKeys(prev => { const n = new Set(prev); ks.forEach(k => n.add(k)); return n; })}
         expandAllNodes={expandAllNodes}
         collapseAllNodes={collapseAllNodes}
         searchTerm={searchTerm}
