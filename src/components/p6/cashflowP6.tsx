@@ -10,7 +10,7 @@ import * as XLSX from 'xlsx';
 import { ChevronDown, ChevronRight, Download } from 'lucide-react';
 import type { ModeloP6 } from '../../utils/p6/modelo';
 import { celda } from '../../utils/p6/xer';
-import { compacto, periodosDeEscala, type LineaBaseFilas } from '../../utils/p6/uso';
+import { periodosDeEscala, type LineaBaseFilas } from '../../utils/p6/uso';
 import { calcularFlujo, esGrupoEquipo, familiasEquipo } from '../../utils/p6/cashflow';
 import { etiquetaUbicacion, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { PlanillaItem } from '../../types';
@@ -44,11 +44,11 @@ const SERIES: [Serie, string, string, string][] = [
   ['f', 'Act + Rem', 'Actual + Remaining (forecast at completion)', '#CD0000'],
 ];
 const AMBITOS: [Ambito, string][] = [['todo', 'All'], ['equipo', 'Equipment'], ['construccion', 'Construction']];
-const CW = 76, ANCHO_NOMBRE = 300, ANCHO_SERIE = 66, ANCHO_TOT = 104, ANCHO_PEND = 96;
+const CW = 104, ANCHO_NOMBRE = 300, ANCHO_SERIE = 66, ANCHO_TOT = 118, ANCHO_PEND = 108;
 const ANCHO_IZQ = ANCHO_NOMBRE + ANCHO_SERIE + ANCHO_TOT + ANCHO_PEND;
 const FILA = 20;
 
-const fmt = (v: number, dec = 0) => v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+const fmt = (v: number, dec = 2) => v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
 interface Nodo {
   key: string;
@@ -415,10 +415,10 @@ export const VistaCashflow: React.FC<{
               <div className="font-semibold text-[#14212A]">Period ({ESCALAS.find(e => e[0] === aj.escala)![1].toLowerCase()}) and cumulative</div>
               <div className="flex items-center gap-1.5"><span className="w-3 h-2.5 bg-[#2B7F52]" />Actual (billed) per period</div>
               <div className="flex items-center gap-1.5"><span className="w-3 h-2.5 bg-[#F59E52]" />Remaining (forecast) per period</div>
-              <div className="flex items-center gap-1.5"><span className="w-3 h-0 border-t-2 border-[#1F4E79]" />Cumulative Budgeted · {compacto(cumB[nP - 1] || 0)}</div>
-              <div className="flex items-center gap-1.5"><span className="w-3 h-0 border-t-2 border-[#CD0000]" />Cumulative Actual + Remaining · {compacto(cumF[nP - 1] || 0)}</div>
+              <div className="flex items-center gap-1.5"><span className="w-3 h-0 border-t-2 border-[#1F4E79]" />Cumulative Budgeted · {fmt(cumB[nP - 1] || 0)}</div>
+              <div className="flex items-center gap-1.5"><span className="w-3 h-0 border-t-2 border-[#CD0000]" />Cumulative Actual + Remaining · {fmt(cumF[nP - 1] || 0)}</div>
               <div className="flex items-center gap-1.5"><span className="w-3 h-0 border-t-2 border-dashed border-[#14212A]" />Data Date</div>
-              <div className="text-[9.5px] text-[#9AA6AD] mt-auto">Bars: max {compacto(maxBar)} / period · lines: max {compacto(maxCum)}</div>
+              <div className="text-[9.5px] text-[#9AA6AD] mt-auto">Bars: max {fmt(maxBar)} / period · lines: max {fmt(maxCum)}</div>
             </div>
             <svg width={nP * CW} height={AG} className="block">
               {Array.from({ length: nP }, (_, k) => {
@@ -491,12 +491,12 @@ export const VistaCashflow: React.FC<{
                         </div>
                         <div className="flex items-center gap-1 px-1" style={{ width: ANCHO_SERIE }}><span className="w-2 h-2 rounded-sm shrink-0" style={{ background: col }} />{l}</div>
                         <div className="flex items-center justify-end px-1 font-semibold" style={{ width: ANCHO_TOT }} title={fmt(total, 2)}>{fmt(total)}</div>
-                        <div className="flex items-center justify-end px-1 text-[#8A6D00]" style={{ width: ANCHO_PEND }} title={datos.tot.p ? fmt(datos.tot.p, 2) : ''}>{si === 0 && datos.tot.p ? fmt(datos.tot.p) : ''}</div>
+                        <div className="flex items-center justify-end px-1 text-[#8A6D00]" style={{ width: ANCHO_PEND }} title={datos.tot.p ? fmt(datos.tot.p, 2) : ''}>{si === 0 && Math.abs(datos.tot.p) >= 0.005 ? fmt(datos.tot.p) : ''}</div>
                       </div>
                       {Array.from(v, (x, k) => (
                         <div key={k} className={`flex items-center justify-end px-1 border-r border-[#EEF0F2] ${k === perDD ? 'bg-[#FFF7D6]/60' : ''} ${nivel < 0 && esNodo ? 'text-white' : ''}`}
-                          style={{ width: CW, minWidth: CW, color: nivel < 0 && esNodo ? undefined : x ? col : '#C3C3C3' }} title={`${lim.etq[k]} · ${l}: ${fmt(x, 2)}`}>
-                          {x ? compacto(x) : ''}
+                          style={{ width: CW, minWidth: CW, color: nivel < 0 && esNodo ? undefined : Math.abs(x) >= 0.005 ? col : '#C3C3C3' }} title={`${lim.etq[k]} · ${l}: ${fmt(x, 2)}`}>
+                          {Math.abs(x) >= 0.005 ? fmt(x) : ''}
                         </div>
                       ))}
                     </div>
