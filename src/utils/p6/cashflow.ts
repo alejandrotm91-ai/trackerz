@@ -4,13 +4,14 @@
  *
  *  - Cada equipo es una familia .D (compra y fabricación, 60 %) · .E (flete, 20 %) · .F (instalación, 20 %).
  *    El equipamiento solo se certifica con el flete: la compra (.D) no se cobra cuando se ejecuta, sino junto
- *    con el flete (.E) → el 80 % (D + E) se cobra en el tiempo del flete. La instalación (.F) se cobra cuando se ejecuta.
- *  - Budgeted: la venta de la .D se reparte en la ventana de línea base de su .E.
- *  - Actual: si el flete ya empezó (Actual Start de la .E), el Actual Cost de la .D se cobra en la ventana real
- *    de la .E (inicio real → fin real o fecha de datos). Si no ha empezado, ese Actual Cost está «ejecutado sin
- *    certificar» (pendiente de flete) y pasa a Remaining.
- *  - Remaining: lo que falta de la .D (y lo ejecutado sin certificar) se cobra en la ventana restante de la .E
- *    (inicio restante → fin temprano); si la .E ya terminó, en la propia ventana restante de la .D.
+ *    con el flete (.E) → el 80 % (D + E) se cobra ENTERO EL DÍA QUE EMPIEZA EL FLETE (decisión del 26-nov-2026).
+ *    La instalación (.F) se cobra cuando se ejecuta.
+ *  - Budgeted: la venta de la .D y de la .E, el día de inicio de la línea base de la .E.
+ *  - Actual: si el flete ya empezó (Actual Start de la .E), el Actual Cost de la .D y de la .E el día del inicio real
+ *    de la .E. Si no ha empezado, el Actual Cost de la .D está «ejecutado sin certificar» (pendiente de flete) y
+ *    pasa a Remaining.
+ *  - Remaining: lo que falta de la .D (y lo ejecutado sin certificar) y de la .E, el día de inicio restante de la .E
+ *    (su inicio temprano; si está en curso, la fecha de datos); si la .E ya terminó, el de la propia .D.
  *  - Lo demás (construcción, .D sin .E…) se cobra cuando se ejecuta, igual que su costo. Un costo real sin inicio
  *    real (Not Started con Venta Ex) se cuenta en la fecha de datos.
  */
@@ -67,27 +68,38 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
   const rep = (v: number, w: [number, number] | null, cal: Parameters<typeof repartir>[4]): TramoUso | undefined =>
     w ? repartir(v, w[0], w[1], lim, cal) : undefined;
 
+  // Un importe entero en un instante: el inicio de la ventana (o la fecha de datos si no la hay)
+  const dd: [number, number] = [m.fechaDatos, m.fechaDatos];
+  const pt = (v: number, ...ws: ([number, number] | null)[]): TramoUso | undefined => {
+    const w = ws.find(x => x) ?? (v ? dd : null);
+    return w ? repartir(v, w[0], w[0], lim) : undefined;
+  };
+  const fletes = new Map<number, number>();
+  for (const [d, e] of familias) fletes.set(e, d);
+
   for (const [i, x] of totales) {
     const w = ventanasCosto(m, i, lb);
     // Costo real sin inicio real (p. ej. Not Started con Venta Ex): se cobra en la fecha de datos
-    if (!w.a && x.a) w.a = [m.fechaDatos, m.fechaDatos];
+    if (!w.a && x.a) w.a = dd;
+    if (fletes.has(i)) {
+      // Flete de equipo: su 20 % se cobra entero el día que empieza
+      put(i, { b: pt(x.b, w.b), a: pt(x.a, w.a), r: pt(x.r, w.r) });
+      continue;
+    }
     const j = familias.get(i);
     if (j == null) {
       put(i, { b: rep(x.b, w.b, w.cal), a: rep(x.a, w.a, w.cal), r: rep(x.r, w.r, w.cal) });
       continue;
     }
-    // Compra de equipo: se cobra con su flete
+    // Compra de equipo: su 60 % se cobra entero el día que empieza su flete
     const we = ventanasCosto(m, j, lb);
-    const fleteIniciado = we.a != null;
-    const u: FlujoActividad = { b: we.b ? rep(x.b, we.b, we.cal) : rep(x.b, w.b, w.cal) };
-    if (fleteIniciado) {
-      u.a = rep(x.a, we.a, we.cal);
-      u.r = we.r ? rep(x.r, we.r, we.cal) : rep(x.r, w.r, w.cal);
+    const u: FlujoActividad = { b: pt(x.b, we.b, w.b) };
+    if (we.a) {
+      u.a = pt(x.a, we.a);
+      u.r = pt(x.r, we.r, w.r);
     } else {
       u.pendiente = x.a;
-      const resto = x.a + x.r;
-      // Sin ventana restante del flete (raro): en la fecha de datos
-      u.r = we.r ? rep(resto, we.r, we.cal) : w.r ? rep(resto, w.r, w.cal) : rep(resto, [m.fechaDatos, m.fechaDatos], w.cal);
+      u.r = pt(x.a + x.r, we.r, w.r);
     }
     put(i, u);
   }

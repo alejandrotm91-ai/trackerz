@@ -306,7 +306,7 @@ export const VistaCashflow: React.FC<{
           ))}
         </div>
         <label className="flex items-center gap-1 cursor-pointer"><input id="p6-cf-acumulado" type="checkbox" checked={aj.acumulado} onChange={e => set('acumulado', e.target.checked)} />Cumulative</label>
-        <label className="flex items-center gap-1 cursor-pointer" title="Equipment is billed only with its freight: the purchase (.D, 60 %) is certified together with the freight (.E, 20 %) — 80 % on the freight dates. Off = cost as executed.">
+        <label className="flex items-center gap-1 cursor-pointer" title="Equipment is billed only with its freight: the purchase (.D, 60 %) is certified together with the freight (.E, 20 %) — the whole 80 % on the day the freight starts. Off = cost as executed.">
           <input id="p6-cf-regla" type="checkbox" checked={aj.regla} onChange={e => set('regla', e.target.checked)} />Equipment billed at freight (80 %)
         </label>
         <div className="flex items-center gap-1 ml-auto">
@@ -321,7 +321,7 @@ export const VistaCashflow: React.FC<{
         {([
           ['Budgeted', tot.tot.b, `Planned billing on the «${nombreLB}» dates`, '#1F4E79'],
           ['Actual (billed)', tot.tot.a, aj.regla ? 'Actual cost billable to the Data Date: equipment purchases only once their freight has started' : 'Actual cost as executed', '#2B7F52'],
-          ['Remaining (forecast)', tot.tot.r, 'Remaining cost on the remaining dates (equipment purchases on their freight dates)', '#C2410C'],
+          ['Remaining (forecast)', tot.tot.r, 'Remaining cost on the remaining dates (equipment purchase + freight: 80 % on the freight start)', '#C2410C'],
           ['Act + Rem', tot.tot.a + tot.tot.r, 'Forecast at completion', '#CD0000'],
         ] as const).map(([l, v, tt, col]) => (
           <div key={l} title={tt} className="border border-[#D5DEE2] rounded-lg px-2.5 py-1 min-w-[130px]">
@@ -330,7 +330,7 @@ export const VistaCashflow: React.FC<{
           </div>
         ))}
         {aj.regla && (
-          <div id="p6-cf-pendiente" title="Actual cost of equipment purchases (.D) whose freight (.E) has not started: executed but not yet billable. It is billed on the freight's remaining dates (included in Remaining)."
+          <div id="p6-cf-pendiente" title="Actual cost of equipment purchases (.D) whose freight (.E) has not started: executed but not yet billable. It is billed on the day the freight starts (included in Remaining)."
             className="border border-[#F2C94C] bg-[#FFFBEA] rounded-lg px-2.5 py-1 min-w-[150px]">
             <div className="text-[10px] uppercase tracking-wide text-[#8A6D00] font-semibold">Executed not billable</div>
             <div className="text-[15px] font-semibold text-[#8A6D00]">{fmt(tot.tot.p)}</div>
@@ -433,7 +433,7 @@ export const VistaCashflow: React.FC<{
                                 </button>
                               ) : <span className="w-4 shrink-0" />}
                               <span className={`truncate ${esNodo ? 'font-semibold' : ''}`} title={etiqueta}>{etiqueta}</span>
-                              {!esNodo && flujo?.familias.has(fl.i) && aj.regla && <span className="ml-1 text-[9px] px-1 rounded bg-[#FFF2C2] text-[#8A6D00] shrink-0" title="Billed with its freight (.E)">@ freight</span>}
+                              {!esNodo && flujo?.familias.has(fl.i) && aj.regla && <span className="ml-1 text-[9px] px-1 rounded bg-[#FFF2C2] text-[#8A6D00] shrink-0" title="Billed on the day its freight (.E) starts">@ freight</span>}
                             </>
                           )}
                         </div>
