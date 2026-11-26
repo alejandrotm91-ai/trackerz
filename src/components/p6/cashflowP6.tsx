@@ -273,20 +273,42 @@ export const VistaCashflow: React.FC<{
 
   const exportar = () => {
     if (!raiz) return;
-    const cab = ['Level', 'Name', 'Series', 'Total', 'Executed not billable', ...lim.etq];
+    // Una columna por nivel de la jerarquía y otra para el SubC (nivel adicional del equipamiento)
+    const nivelesCab = aj.agrupar === 'wbs' ? Array.from({ length: aj.nivelesWbs }, (_, k) => `WBS ${k + 1}`)
+      : aj.agrupar === 'tipo' ? ['Discipline (05.Tipo)', 'Group (01.Grupos)']
+      : aj.agrupar === 'grupo' ? ['Group (01.Grupos)', 'Discipline (05.Tipo)']
+      : aj.agrupar === 'ubicacion' ? ['Location', 'Group (01.Grupos)']
+      : ['SubC', 'Group (01.Grupos)'];
+    const conSubc = aj.agrupar !== 'subcontratista' && aj.subcEquipo;
+    const cab = ['Level', ...nivelesCab, ...(conSubc ? ['SubC'] : []), 'Series', 'Total', 'Executed not billable', ...lim.etq];
+    const nNum = 2 + lim.etq.length; // Total, Executed not billable y los períodos
     const datos: (string | number)[][] = [];
-    const rec = (n: Nodo) => {
-      for (const s of aj.series) {
+    const r2 = (x: number) => Math.round(x * 100) / 100;
+    const rec = (n: Nodo, camino: string[], subc: string) => {
+      aj.series.forEach((s, si) => {
         const v = valores(n, s);
         const tot = s === 'f' ? n.tot.a + n.tot.r : n.tot[s];
-        datos.push([n.nivel + 1, n.nivel < 0 ? 'Total' : n.label, SERIES.find(x => x[0] === s)![1], Math.round(tot * 100) / 100, Math.round(n.tot.p * 100) / 100, ...Array.from(v, x => Math.round(x * 100) / 100)]);
-      }
-      [...n.hijos.values()].sort(orden).forEach(rec);
+        const niveles = nivelesCab.map((_, k) => (n.nivel < 0 ? (k === 0 ? 'Total' : '') : camino[k] ?? ''));
+        datos.push([n.nivel + 1, ...niveles, ...(conSubc ? [subc] : []), SERIES.find(x => x[0] === s)![1], r2(tot), si === 0 ? r2(n.tot.p) : 0, ...Array.from(v, r2)]);
+      });
+      [...n.hijos.values()].sort(orden).forEach(h => {
+        const esSubc = (h.key.split('/').pop() || '').startsWith('subc:');
+        if (esSubc) rec(h, camino, (h.key.split('/').pop() || '').slice(5) || '(no SubC assigned)');
+        else rec(h, [...camino, h.label], subc);
+      });
     };
-    rec(raiz);
+    rec(raiz, [], '');
     const ws = XLSX.utils.aoa_to_sheet([cab, ...datos]);
+    // Importes con miles y 2 decimales
+    const c0 = cab.length - nNum;
+    for (let r = 1; r <= datos.length; r++) {
+      for (let c = c0; c < cab.length; c++) {
+        const cel = ws[XLSX.utils.encode_cell({ r, c })];
+        if (cel && cel.t === 'n') cel.z = '#,##0.00';
+      }
+    }
     ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: datos.length, c: cab.length - 1 } }) };
-    ws['!cols'] = [{ wch: 6 }, { wch: 44 }, { wch: 11 }, { wch: 15 }, { wch: 15 }, ...lim.etq.map(() => ({ wch: 13 }))];
+    ws['!cols'] = [{ wch: 6 }, ...nivelesCab.map(() => ({ wch: 32 })), ...(conSubc ? [{ wch: 18 }] : []), { wch: 11 }, { wch: 17 }, { wch: 17 }, ...lim.etq.map(() => ({ wch: 15 }))];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Cashflow');
     XLSX.writeFile(wb, `T3_cashflow_${aj.escala}${aj.acumulado ? '_cum' : ''}.xlsx`);
