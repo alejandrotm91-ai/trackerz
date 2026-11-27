@@ -60,7 +60,7 @@ export const DialogoSoloMaster: React.FC<{
   const total = (l: FilaSoloMaster[]) => l.reduce((s, f) => s + f.ventaEx, 0);
   const exportar = () => {
     const url = URL.createObjectURL(new Blob([libro(res.crear, res.sinEjecucion)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    const a = document.createElement('a'); a.href = url; a.download = `Master_only_${new Date().toISOString().slice(0, 10)}.xlsx`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `M3_only_${new Date().toISOString().slice(0, 10)}.xlsx`; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
   const th = 'px-2 py-1 text-left font-semibold text-[#5A6A74] bg-[#F5F8F9] sticky top-0 border-b border-[#D5DEE2] whitespace-nowrap';
@@ -73,8 +73,8 @@ export const DialogoSoloMaster: React.FC<{
       <div id="p6-solo-master-dialogo" className="bg-white rounded-xl shadow-2xl w-full max-w-[1350px] max-h-[90vh] flex flex-col text-xs text-[#14212A]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#D5DEE2]">
           <FilePlus2 className="w-4 h-4 text-[#312E81]" />
-          <b className="text-sm">Create Master Only activities</b>
-          <span className="text-[#5A6A74]">Master items not yet in T₃, placed in their WBS · Actual Cost = Venta Ex</span>
+          <b className="text-sm">Create M₃ Only activities</b>
+          <span className="text-[#5A6A74]">M₃ items not yet in T₃, placed in their WBS · Actual Cost = Venta Ex</span>
           <button onClick={onCerrar} className="ml-auto p-1 hover:bg-[#F5F8F9] rounded cursor-pointer" title="Close"><X className="w-4 h-4" /></button>
         </div>
         <div className="px-4 py-2 border-b border-[#EEF2F3] text-[#5A6A74]">
@@ -87,7 +87,7 @@ export const DialogoSoloMaster: React.FC<{
           <span className="ml-3 mb-1 text-[#5A6A74] max-w-[700px]">
             {tab === 'crear'
               ? 'Task Dependent activity in the deepest WBS of T₃ matching its Master WBS. Cut rule: Actual Start = 1st week with execution + 1 day 08:00, Actual Finish = last week + 4 days 16:00 (Completed, 100 %). Resource V: Actual Cost = Venta Ex, Budgeted Cost = Venta. Master classification and «32. Variacion» copied to the User Defined fields.'
-              : 'Master Only items without execution (Venta Ex = 0): none selected by default; tick the ones to create. They are created Not Started, 1 day at the Data Date, no actual dates, Actual Cost 0 (resource V), same WBS rule and User Defined fields.'}
+              : 'M₃ Only items without execution (Venta Ex = 0): none selected by default; tick the ones to create. They are created Not Started, 1 day at the Data Date, no actual dates, Actual Cost 0 (resource V), same WBS rule and User Defined fields.'}
           </span>
         </div>
         <div className="mx-4 border border-[#D5DEE2] rounded-b-lg rounded-tr-lg overflow-auto flex-1 min-h-[220px]">
@@ -136,14 +136,14 @@ export const DialogoSoloMaster: React.FC<{
           </table>
         </div>
         <div className="px-4 py-2.5 flex items-center gap-2 border-t border-[#D5DEE2] mt-2">
-          <span className="text-[#5A6A74]">They are created without relationships. After creating: review, Save → Export XER → Primavera.</span>
+          <span className="text-[#5A6A74]">They are created without relationships and saved to the cloud at once. Then: Export XER → Primavera.</span>
           <button onClick={exportar} className="ml-auto px-3 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1"
             title="Excel with the activities to create and those without execution"><Download className="w-3.5 h-3.5" /> Export Excel</button>
           {editable && (
             <button id="p6-solo-master-crear" disabled={!elegidas.length} onClick={() => onAplicar(elegidas)}
               className="px-3 py-1.5 rounded-lg bg-[#312E81] text-white font-bold cursor-pointer disabled:opacity-50"
-              title="Create the selected activities as unsaved changes, then reschedule (F9). Review and press Save.">
-              Create {elegidas.length} activities + F9{elegidasSinEj.length ? ` (${elegidasSinEj.length} without execution)` : ''}
+              title="Create the selected activities, reschedule (F9) and save the schedule to the cloud">
+              Create {elegidas.length} activities + F9 + Save{elegidasSinEj.length ? ` (${elegidasSinEj.length} without execution)` : ''}
             </button>
           )}
         </div>

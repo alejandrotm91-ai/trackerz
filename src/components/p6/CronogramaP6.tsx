@@ -40,7 +40,7 @@ const FILTROS_ESTADO = [
   ['encurso', 'In Progress'],
   ['terminadas', 'Completed'],
   ['pendientes', 'In Progress + Not Started'],
-  ['soloMaster', 'Master Only (not yet in T₃)'],
+  ['soloMaster', 'M₃ Only (not yet in T₃)'],
 ] as const;
 /** Nombre de cada filtro (incluidos Critical y Longest Path, que van en sus botones de la barra lateral). */
 const NOMBRE_FILTRO: Record<string, string> = { ...Object.fromEntries(FILTROS_ESTADO), criticas: 'Critical (Total Float ≤ 0)', longest: 'Longest Path' };
@@ -880,7 +880,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
     window.setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
 
-  const guardar = async () => {
+  const guardar = async (msgOk = 'Schedule saved to the cloud.') => {
     if (!m || !editable) return;
     setOcupado('Saving to the cloud…');
     try {
@@ -895,9 +895,11 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       setMeta(nueva);
       setCambios([]);
       setSinGuardar(false);
-      mostrar('Schedule saved to the cloud.');
+      mostrar(msgOk);
     } catch (e: any) {
-      mostrar(`Could not save: ${e?.message || e}`);
+      const txt = `Could not save: ${e?.message || e}. The changes are still here (not saved): press «Save» again.`;
+      setAviso(txt);
+      window.alert(txt);
     } finally {
       setOcupado('');
     }
@@ -918,6 +920,14 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
       setOcupado('');
     }
   };
+
+  // Cerrar o recargar la pestaña del navegador con cambios sin guardar: el navegador pide confirmación
+  React.useEffect(() => {
+    if (!sinGuardar || !editable) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [sinGuardar, editable]);
 
   const cerrar = () => {
     if (sinGuardar && editable && !window.confirm('There are unsaved changes. Close anyway?')) return;
@@ -1274,7 +1284,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             </>
           )}
           {editable && m && (
-            <button onClick={guardar} disabled={!sinGuardar || !!ocupado}
+            <button onClick={() => guardar()} disabled={!sinGuardar || !!ocupado}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${sinGuardar ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-white/15'}`}>
               <Save className="w-3.5 h-3.5" /> Save{cambios.length ? ` (${cambios.length})` : ''}
             </button>
@@ -1346,7 +1356,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
             marcarCambio(log);
             programar();
             setVerSoloMaster(false);
-            mostrar(`Master Only: ${creadas} activities created and rescheduled${errores.length ? ` (${errores.length} with problems: ${errores.slice(0, 3).join('; ')})` : ''}. Review them and press Save to keep them.`);
+            // Se guardan en la nube enseguida (decisión del 28-nov-2026: antes quedaban como cambios sin guardar y,
+            // si no se pulsaba Save, al volver a T₃ aparecían otra vez como M₃ Only)
+            if (creadas) void guardar(`M₃ Only: ${creadas} activities created, rescheduled and saved to the cloud${errores.length ? ` (${errores.length} with problems: ${errores.slice(0, 3).join('; ')})` : ''}.`);
+            else mostrar(`M₃ Only: no activities created${errores.length ? ` (${errores.slice(0, 3).join('; ')})` : ''}.`);
           }} />
       )}
       {verLlegadas && m && (
@@ -1765,7 +1778,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                                   <div className="flex items-center gap-1 min-w-0 shrink-0 pr-1" style={{ paddingLeft: sangriaBanda(fl.nivel), width: anchoEtq }}>
                                     {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
                                     <span className="truncate" title={`${n.codCompleto} · ${n.nombre}`}>{opcGrupo.codigo && n.codCompleto && <><span className={claro ? 'opacity-70' : 'opacity-80'}>{n.codCompleto}</span>&nbsp; </>}{(opcGrupo.nombre || !n.codCompleto) && n.nombre}</span>
-                                    <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({filtroEstado === 'soloMaster' ? `${n.nSolo ?? 0} Master only` : n.n})</span>
+                                    <span className={`text-[9.5px] font-normal shrink-0 ${claro ? 'opacity-70' : 'opacity-80'}`}>({filtroEstado === 'soloMaster' ? `${n.nSolo ?? 0} M₃ only` : n.n})</span>
                                     {opcGrupo.totales && n.criticas > 0 && filtroEstado !== 'soloMaster' && (
                                       <span className={`ml-auto shrink-0 text-[10px] font-semibold ${claro ? 'text-[#B30000]' : 'text-[#FFD2D2]'}`}>{n.criticas} critical</span>
                                     )}
@@ -1825,7 +1838,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
                               if (c.id === 'nombre') return (
                                 <div key={c.id} className={`${base} flex items-center gap-1`} style={{ width: c.ancho }} title={a.descripcion}>
                                   <span className="truncate">{a.descripcion}</span>
-                                  <span className="shrink-0 px-1 rounded bg-[#FFF3C4] text-[#7A5B00] text-[9.5px] font-semibold not-italic">Master only · not in T₃</span>
+                                  <span className="shrink-0 px-1 rounded bg-[#FFF3C4] text-[#7A5B00] text-[9.5px] font-semibold not-italic">M₃ only · not in T₃</span>
                                 </div>
                               );
                               const txt = c.id === 'ini' || c.id === 'es' ? fCorta(ini) : c.id === 'fin' || c.id === 'ef' ? fCorta(fin) : '';
@@ -2003,10 +2016,10 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               <Ship className="w-5 h-5" />
               <span className="text-[8.5px] leading-none text-[#4A4A4A]">Arrivals</span>
             </button>
-            <button id="p6-solo-master" onClick={() => { setVista('actividades'); setVerSoloMaster(true); }} title="Master Only: create in T₃ the Master items that are not in the XER yet (in their WBS, with the Venta Ex as Actual Cost)"
+            <button id="p6-solo-master" onClick={() => { setVista('actividades'); setVerSoloMaster(true); }} title="M₃ Only: create in T₃ the M₃ items that are not in the XER yet (in their WBS, with the Venta Ex as Actual Cost)"
               className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verSoloMaster ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]'}`}>
               <FilePlus2 className="w-5 h-5" />
-              <span className="text-[8.5px] leading-none text-[#4A4A4A] text-center">Master Only</span>
+              <span className="text-[8.5px] leading-none text-[#4A4A4A] text-center">M₃ Only</span>
             </button>
             <button id="p6-calendarios" onClick={() => setVerCalendarios(true)} title="Calendars: the project calendars (work week, holidays and how many activities use each)"
               className={`w-[38px] py-1 rounded flex flex-col items-center gap-0.5 cursor-pointer border ${verCalendarios ? 'bg-white border-[#8A8FC9] text-[#312E81] shadow-sm' : 'border-transparent text-[#312E81] hover:bg-white hover:border-[#8A8FC9]'}`}>

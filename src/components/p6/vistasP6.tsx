@@ -66,7 +66,7 @@ function resumen(a: AjustesVista, nombre: (k: ClaveVista) => string = k => NOMBR
   partes.push(a.agrupacion === 'ejecucion' ? `${nombre('ejecucion')} view` : nombre('wbs'));
   if (a.agrupacion === 'ejecucion' && a.ambito && a.ambito !== 'todo') partes.push(a.ambito in NOMBRES_VISTA_DEF ? nombre(a.ambito as ClaveVista) : a.ambito);
   if (a.orden) partes.push(`sorted by ${a.orden.col === 'ini' ? 'Start' : 'Finish'} ${a.orden.dir === 1 ? '↑' : '↓'}`);
-  const F: Record<string, string> = { pendientes: 'In Progress + Not Started', noiniciadas: 'Not Started', encurso: 'In Progress', terminadas: 'Completed', criticas: 'Critical', longest: 'Longest Path', soloMaster: 'Master Only' };
+  const F: Record<string, string> = { pendientes: 'In Progress + Not Started', noiniciadas: 'Not Started', encurso: 'In Progress', terminadas: 'Completed', criticas: 'Critical', longest: 'Longest Path', soloMaster: 'M₃ Only' };
   if (a.filtroEstado && a.filtroEstado !== 'todas') partes.push(F[a.filtroEstado] ?? a.filtroEstado);
   if (a.filtrosUdf?.length) partes.push(`${a.filtrosUdf.length} UDF filter${a.filtrosUdf.length > 1 ? 's' : ''}`);
   if (a.verUso !== false && a.uso) {
