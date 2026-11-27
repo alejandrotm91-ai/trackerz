@@ -11,10 +11,6 @@
  *    pasa a Remaining.
  *  - Remaining: lo que falta de la .D (y lo ejecutado sin certificar) y de la .E, el día de inicio restante de la .E
  *    (su inicio temprano; si está en curso, la fecha de datos); si la .E ya terminó, el de la propia .D.
- *  - Fletes nacionales (decisión del 28-nov-2026): los fletes .E que no están en la matriz de importación de Arrivals
- *    (`fletesImportados`; sin «32. Variacion» o con una llave que no aparece en la matriz) cobran su 80 % (compra +
- *    flete) el día que TERMINA el flete: Budgeted en el fin de su línea base; terminado, Actual en su fin real; sin
- *    terminar, todo como Remaining en su fin temprano (lo ejecutado queda «sin certificar»). Los importados, al inicio.
  *  - Corte de cobro de los fletes (decisión del 27-nov-2026): el cobro del flete (80 %) fechado después del día 22
  *    pasa al día 1 del mes siguiente (`aplicarCorte`; día configurable, 0 = sin corte). Solo hacia adelante: a los
  *    cobros fechados desde la fecha de datos (los meses cerrados no se tocan). No afecta a la instalación ni a lo demás.
@@ -49,8 +45,6 @@ export interface ResultadoFlujo {
   familias: Map<number, number>;
   /** Instalaciones de equipo (.F) que se cobran en dos hitos: PCT_INICIO_INSTALACION al inicio y el resto al fin. */
   instalaciones: Set<number>;
-  /** Fletes nacionales (.E fuera de la matriz de importación): su 80 % se cobra al terminar el flete. */
-  nacionales: Set<number>;
   /** Totales de cada actividad (b, a, r) por índice de fila. */
   totales: Map<number, { b: number; a: number; r: number }>;
 }
@@ -104,7 +98,7 @@ export function aplicarCorte(min: number, dia: number | null | undefined): numbe
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 60000;
 }
 
-export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean, corteFlete: number | null = 22, factorRestante?: (i: number) => number | null, fleteNacional?: (iE: number) => boolean): ResultadoFlujo {
+export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean, corteFlete: number | null = 22, factorRestante?: (i: number) => number | null): ResultadoFlujo {
   const t = m.task;
   const tot = totalesCosto(m, 'cost');
   const totales = new Map<number, { b: number; a: number; r: number }>();
@@ -132,9 +126,6 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
   const aFlete: [number, FlujoActividad][] = [];
   const fletes = new Map<number, number>();
   for (const [d, e] of familias) fletes.set(e, d);
-  // Fletes nacionales (fuera de la matriz de importación): el cobro va al FIN del flete, no al inicio
-  const nacionales = new Set<number>(fleteNacional ? [...fletes.keys()].filter(e => fleteNacional(e)) : []);
-  const fin = (w: [number, number] | null | undefined): [number, number] | null => (w ? [w[1], w[1]] : null);
   // Instalación de equipo (.F): grupo Precom_Eq o con un flete de equipo (.E) del mismo prefijo
   const instalaciones = new Set<number>();
   if (reglaCobro) {
@@ -153,18 +144,7 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
     // Costo real sin inicio real (p. ej. Not Started con Venta Ex): se cobra en la fecha de datos
     if (!w.a && x.a) w.a = dd;
     if (fletes.has(i)) {
-      if (nacionales.has(i)) {
-        // Flete nacional: su 20 % se cobra entero el día que TERMINA (lo ejecutado antes queda sin certificar)
-        const u: FlujoActividad = { b: ptFlete(x.b, fin(w.b)) };
-        if (w.estado === 'TK_Complete') u.a = ptFlete(x.a, fin(w.a));
-        else {
-          u.r = ptFlete(x.a + x.r, fin(w.r), fin(w.a));
-          if (x.a > 0.005) u.pendiente = x.a;
-        }
-        put(i, u);
-        continue;
-      }
-      // Flete importado: su 20 % se cobra entero el día que empieza
+      // Flete de equipo: su 20 % se cobra entero el día que empieza
       put(i, { b: ptFlete(x.b, w.b), a: ptFlete(x.a, w.a), r: ptFlete(x.r, w.r) });
       continue;
     }
@@ -194,19 +174,6 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
     // Compra de equipo: su 60 % se cobra entero el día que empieza su flete y se muestra en la fila del flete
     // (lo certificable del mes está en el flete); la compra solo conserva lo ejecutado sin certificar.
     const we = ventanasCosto(m, j, lb);
-    if (nacionales.has(j)) {
-      // Flete nacional: el 60 % de la compra se cobra el día que TERMINA su flete
-      const u: FlujoActividad = { b: ptFlete(x.b, fin(we.b), fin(w.b)) };
-      if (we.estado === 'TK_Complete') {
-        u.a = ptFlete(x.a, fin(we.a));
-        u.r = ptFlete(x.r, fin(w.r));
-      } else {
-        u.r = ptFlete(x.a + x.r, fin(we.r), fin(w.r));
-        if (x.a) put(i, { pendiente: x.a });
-      }
-      aFlete.push([j, u]);
-      continue;
-    }
     const u: FlujoActividad = { b: ptFlete(x.b, we.b, w.b) };
     if (we.a) {
       u.a = ptFlete(x.a, we.a);
@@ -261,5 +228,5 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
       porAct.set(i, { ...u, r: { desde: u.r.desde, vals } });
     }
   }
-  return { porAct, familias, totales, instalaciones, nacionales };
+  return { porAct, familias, totales, instalaciones };
 }
