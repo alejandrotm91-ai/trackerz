@@ -30,8 +30,10 @@ interface Ajustes {
   ambito: Ambito;
   /** Nivel adicional por SubC (11.SubC) bajo los grupos de equipamiento. */
   subcEquipo: boolean;
+  /** Corte de cobro de los fletes: después de este día del mes, al mes siguiente (0 = sin corte). */
+  corteFlete: number;
 }
-const AJUSTES_DEF: Ajustes = { agrupar: 'tipo', nivelesWbs: 3, escala: 'months', series: ['b', 'a', 'r'], acumulado: false, regla: true, ambito: 'todo', subcEquipo: true };
+const AJUSTES_DEF: Ajustes = { agrupar: 'tipo', nivelesWbs: 3, escala: 'months', series: ['b', 'a', 'r'], acumulado: false, regla: true, ambito: 'todo', subcEquipo: true, corteFlete: 22 };
 const LS = 'p6.cashflow';
 const leer = (): Ajustes => { try { return { ...AJUSTES_DEF, ...JSON.parse(localStorage.getItem(LS) || '{}') }; } catch { return AJUSTES_DEF; } };
 
@@ -95,9 +97,9 @@ export const VistaCashflow: React.FC<{
   }, [m, version, aj.escala, lineaBase]);
   const nP = Math.max(0, lim.t.length - 1);
 
-  const flujo = React.useMemo(() => (nP ? calcularFlujo(m, lim.t, lineaBase, grupo, aj.regla) : null),
+  const flujo = React.useMemo(() => (nP ? calcularFlujo(m, lim.t, lineaBase, grupo, aj.regla, aj.corteFlete || null) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [m, version, lim, lineaBase, grupo, aj.regla]);
+    [m, version, lim, lineaBase, grupo, aj.regla, aj.corteFlete]);
 
   // Rutas WBS (código + nombre) de cada actividad
   const rutaWbs = React.useMemo(() => {
@@ -390,6 +392,14 @@ export const VistaCashflow: React.FC<{
         <label className="flex items-center gap-1 cursor-pointer" title="Equipment billing rule: the purchase (.D, 60 %) is certified together with the freight (.E, 20 %) — the whole 80 % on the day the freight starts; the installation (.F, 20 %) in two milestones: 10 % on its start day and 90 % on its finish day. Off = cost as executed.">
           <input id="p6-cf-regla" type="checkbox" checked={aj.regla} onChange={e => set('regla', e.target.checked)} />Equipment billing (80 % freight · 10/90 installation)
         </label>
+        {aj.regla && (
+          <label className="flex items-center gap-1" title="Freight billing cut-off: a freight billing (80 %) dated after this day of the month moves to the 1st of the next month. 0 = no cut-off.">
+            Freight cut-off day
+            <input id="p6-cf-corte" type="number" min={0} max={31} value={aj.corteFlete}
+              onChange={e => set('corteFlete', Math.min(31, Math.max(0, Math.round(Number(e.target.value) || 0))))}
+              className="w-12 border border-[#C3C3C3] rounded px-1 py-0.5 bg-white text-right" />
+          </label>
+        )}
         <div className="flex items-center gap-1 ml-auto">
           <button className={boton(false)} onClick={() => abrirNivel(1)}>Collapse</button>
           <button className={boton(false)} onClick={() => abrirNivel(9)}>Expand groups</button>

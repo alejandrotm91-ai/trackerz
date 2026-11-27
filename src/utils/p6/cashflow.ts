@@ -11,6 +11,9 @@
  *    pasa a Remaining.
  *  - Remaining: lo que falta de la .D (y lo ejecutado sin certificar) y de la .E, el día de inicio restante de la .E
  *    (su inicio temprano; si está en curso, la fecha de datos); si la .E ya terminó, el de la propia .D.
+ *  - Corte de cobro de los fletes (decisión del 27-nov-2026): el cobro del flete (80 %) fechado después del día 22
+ *    pasa al día 1 del mes siguiente (`aplicarCorte`; día configurable, 0 = sin corte). Vale para Budgeted, Actual y
+ *    Remaining; no afecta a la instalación ni a lo demás.
  *  - Instalación (.F, 20 %; grupo Precom_Eq o con flete .E del mismo prefijo): no se prorratea, se cobra en dos
  *    hitos: 10 % el día que empieza y 90 % el día que termina (decisión del 27-nov-2026). Budgeted en el inicio y el
  *    fin de su línea base; terminada: Actual en el inicio y el fin reales; en curso: 10 % Actual en el inicio real y
@@ -75,7 +78,18 @@ function sumarTramos(x?: TramoUso, y?: TramoUso): TramoUso | undefined {
   return { desde, vals };
 }
 
-export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean): ResultadoFlujo {
+/**
+ * Corte de cobro de los fletes: un cobro de flete (el 80 % de compra + flete) fechado después del día `dia` del mes
+ * pasa al día 1 del mes siguiente (decisión del 27-nov-2026: corte el 22). `dia` vacío o 0 = sin corte.
+ */
+export function aplicarCorte(min: number, dia: number | null | undefined): number {
+  if (!dia) return min;
+  const d = new Date(min * 60000);
+  if (d.getUTCDate() <= dia) return min;
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 60000;
+}
+
+export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean, corteFlete: number | null = 22): ResultadoFlujo {
   const t = m.task;
   const tot = totalesCosto(m, 'cost');
   const totales = new Map<number, { b: number; a: number; r: number }>();
@@ -91,6 +105,13 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
   const pt = (v: number, ...ws: ([number, number] | null)[]): TramoUso | undefined => {
     const w = ws.find(x => x) ?? (v ? dd : null);
     return w ? repartir(v, w[0], w[0], lim) : undefined;
+  };
+  // Cobro de flete en un instante, con el corte del día `corteFlete` (después de ese día → día 1 del mes siguiente)
+  const ptFlete = (v: number, ...ws: ([number, number] | null)[]): TramoUso | undefined => {
+    const w = ws.find(x => x) ?? (v ? dd : null);
+    if (!w) return undefined;
+    const x = aplicarCorte(w[0], corteFlete);
+    return repartir(v, x, x, lim);
   };
   const aFlete: [number, FlujoActividad][] = [];
   const fletes = new Map<number, number>();
@@ -114,7 +135,7 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
     if (!w.a && x.a) w.a = dd;
     if (fletes.has(i)) {
       // Flete de equipo: su 20 % se cobra entero el día que empieza
-      put(i, { b: pt(x.b, w.b), a: pt(x.a, w.a), r: pt(x.r, w.r) });
+      put(i, { b: ptFlete(x.b, w.b), a: ptFlete(x.a, w.a), r: ptFlete(x.r, w.r) });
       continue;
     }
     if (instalaciones.has(i)) {
@@ -143,12 +164,12 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
     // Compra de equipo: su 60 % se cobra entero el día que empieza su flete y se muestra en la fila del flete
     // (lo certificable del mes está en el flete); la compra solo conserva lo ejecutado sin certificar.
     const we = ventanasCosto(m, j, lb);
-    const u: FlujoActividad = { b: pt(x.b, we.b, w.b) };
+    const u: FlujoActividad = { b: ptFlete(x.b, we.b, w.b) };
     if (we.a) {
-      u.a = pt(x.a, we.a);
-      u.r = pt(x.r, we.r, w.r);
+      u.a = ptFlete(x.a, we.a);
+      u.r = ptFlete(x.r, we.r, w.r);
     } else {
-      u.r = pt(x.a + x.r, we.r, w.r);
+      u.r = ptFlete(x.a + x.r, we.r, w.r);
       if (x.a) put(i, { pendiente: x.a });
     }
     aFlete.push([j, u]);
