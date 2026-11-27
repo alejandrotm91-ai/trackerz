@@ -11,7 +11,7 @@ import { ChevronDown, ChevronRight, Download } from 'lucide-react';
 import type { ModeloP6 } from '../../utils/p6/modelo';
 import { celda } from '../../utils/p6/xer';
 import { periodosDeEscala, type LineaBaseFilas } from '../../utils/p6/uso';
-import { calcularFlujo, esGrupoEquipo, familiasEquipo } from '../../utils/p6/cashflow';
+import { calcularFlujo, esGrupoEquipo, familiasEquipo, PCT_INICIO_INSTALACION } from '../../utils/p6/cashflow';
 import { etiquetaUbicacion, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { PlanillaItem } from '../../types';
 import { apiFetch } from '../../utils/api';
@@ -24,6 +24,7 @@ const REGLAS_DEF: ReglaRestante[] = [
   { activa: true, subc: 'Juana', texto: 'canaleta', pct: 60 },
   { activa: true, subc: 'EECOL', texto: 'cablead', pct: 75 },
 ];
+const PI = Math.round(PCT_INICIO_INSTALACION * 100), PF = 100 - PI;
 const normTxt = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 type Agrupar = 'wbs' | 'tipo' | 'grupo' | 'ubicacion' | 'subcontratista';
@@ -461,8 +462,8 @@ export const VistaCashflow: React.FC<{
           </label>
         )}
         <label className="flex items-center gap-1 cursor-pointer"><input id="p6-cf-acumulado" type="checkbox" checked={aj.acumulado} onChange={e => set('acumulado', e.target.checked)} />Cumulative</label>
-        <label className="flex items-center gap-1 cursor-pointer" title="Equipment billing rule: the purchase (.D, 60 %) is certified together with the freight (.E, 20 %) — the whole 80 % on the day the freight starts; the installation (.F, 20 %) in two milestones: 10 % on its start day and 90 % on its finish day. Off = cost as executed.">
-          <input id="p6-cf-regla" type="checkbox" checked={aj.regla} onChange={e => set('regla', e.target.checked)} />Equipment billing (80 % freight · 10/90 installation)
+        <label className="flex items-center gap-1 cursor-pointer" title={`Equipment billing rule: the purchase (.D, 60 %) is certified together with the freight (.E, 20 %) — the whole 80 % on the day the freight starts; the installation (.F, 20 %) in two milestones: ${PI} % on its start day and ${PF} % on its finish day. Off = cost as executed.`}>
+          <input id="p6-cf-regla" type="checkbox" checked={aj.regla} onChange={e => set('regla', e.target.checked)} />Equipment billing (80 % freight · {PI}/{PF} installation)
         </label>
         <div className="relative">
           <button id="p6-cf-reglas" onClick={() => setVerReglas(v => !v)}
@@ -531,7 +532,7 @@ export const VistaCashflow: React.FC<{
           </div>
         ))}
         {aj.regla && (
-          <div id="p6-cf-pendiente" title="Executed but not yet billable: actual cost of equipment purchases (.D) whose freight (.E) has not started (billed on the day the freight starts) and of equipment installations (.F) in progress above the 10 % billed at their start (the 90 % is billed on their finish day). Included in Remaining."
+          <div id="p6-cf-pendiente" title={`Executed but not yet billable: actual cost of equipment purchases (.D) whose freight (.E) has not started (billed on the day the freight starts) and of equipment installations (.F) in progress above the ${PI} % billed at their start (the ${PF} % is billed on their finish day). Included in Remaining.`}
             className="border border-[#F2C94C] bg-[#FFFBEA] rounded-lg px-2.5 py-1 min-w-[150px]">
             <div className="text-[10px] uppercase tracking-wide text-[#8A6D00] font-semibold">Executed not billable</div>
             <div className="text-[15px] font-semibold text-[#8A6D00]">{fmt(tot.tot.p)}</div>
@@ -615,7 +616,7 @@ export const VistaCashflow: React.FC<{
               <div className="px-1 flex items-center" style={{ width: ANCHO_SERIE }}>Series</div>
               <div id="p6-cf-orden-tot" className={`px-1 flex items-center justify-end cursor-pointer hover:bg-white/70 ${ordenCol?.col === 'tot' ? 'text-[#312E81]' : ''}`} style={{ width: ANCHO_TOT }}
                 onClick={() => clicOrden('tot')} title={`Sort by Total (${nombreSerieOrden}): highest first, lowest first, original order`}>Total{flechaOrden('tot')}</div>
-              <div className="px-1 flex items-center justify-end" style={{ width: ANCHO_PEND }} title="Executed not billable: actual cost of equipment purchases whose freight has not started and of installations in progress above the 10 % billed at their start">Not billable</div>
+              <div className="px-1 flex items-center justify-end" style={{ width: ANCHO_PEND }} title={`Executed not billable: actual cost of equipment purchases whose freight has not started and of installations in progress above the ${PI} % billed at their start`}>Not billable</div>
             </div>
             {lim.etq.map((e, k) => (
               <div key={k} data-cf-periodo={k} onClick={() => clicOrden(k)} title={`Sort by ${e} (${nombreSerieOrden}${aj.acumulado ? ', cumulative' : ''}): highest first, lowest first, original order`}
@@ -652,7 +653,7 @@ export const VistaCashflow: React.FC<{
                               ) : <span className="w-4 shrink-0" />}
                               <span className={`truncate ${esNodo ? 'font-semibold' : ''}`} title={etiqueta}>{etiqueta}</span>
                               {!esNodo && aj.regla && fletesFam.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#FFF2C2] text-[#8A6D00] shrink-0" title="Freight row: bills its own 20 % plus the purchase (.D) 60 % on the day the freight starts">80 %</span>}
-                              {!esNodo && aj.regla && flujo?.instalaciones.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#E3F1EA] text-[#2B7F52] shrink-0" title="Equipment installation: 10 % billed on the start day, 90 % on the finish day">10/90</span>}
+                              {!esNodo && aj.regla && flujo?.instalaciones.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#E3F1EA] text-[#2B7F52] shrink-0" title={`Equipment installation: ${PI} % billed on the start day, ${PF} % on the finish day`}>{PI}/{PF}</span>}
                               {!esNodo && aj.regla && flujo?.familias.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#EEF0F2] text-[#5A6A74] shrink-0" title="Purchase: billed in its freight (.E) row">→ freight</span>}
                             </>
                           )}

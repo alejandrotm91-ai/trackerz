@@ -20,10 +20,10 @@
  *    cableado de EECOL 75 %) se les deja cada período de Remaining en ese % y lo descontado va a su último período
  *    con Remaining (el total no cambia).
  *  - Instalación (.F, 20 %; grupo Precom_Eq o con flete .E del mismo prefijo): no se prorratea, se cobra en dos
- *    hitos: 10 % el día que empieza y 90 % el día que termina (decisión del 27-nov-2026). Budgeted en el inicio y el
- *    fin de su línea base; terminada: Actual en el inicio y el fin reales; en curso: 10 % Actual en el inicio real y
- *    90 % Remaining en el fin temprano (lo ejecutado por encima del 10 % es «ejecutado sin certificar»); sin iniciar:
- *    10 % / 90 % en el inicio y el fin tempranos. Importe = Actual + Remaining Cost.
+ *    hitos: 5 % el día que empieza y 95 % el día que termina (`PCT_INICIO_INSTALACION`; 10/90 el 27-nov-2026, 5/95
+ *    desde el 28-nov-2026). Budgeted en el inicio y el fin de su línea base; terminada: Actual en el inicio y el fin
+ *    reales; en curso: 5 % Actual en el inicio real y 95 % Remaining en el fin temprano (lo ejecutado por encima del
+ *    5 % es «ejecutado sin certificar»); sin iniciar: 5 % / 95 % en el inicio y el fin tempranos. Importe = Actual + Remaining Cost.
  *  - Todo lo que se cobra de la .D se MUESTRA EN LA FILA DE SU .E (flete): lo certificable del mes está en el flete;
  *    la .D (Procura_Eq) solo conserva lo «ejecutado sin certificar».
  *  - Lo demás (construcción, .D sin .E…) se cobra cuando se ejecuta, igual que su costo. Un costo real sin inicio
@@ -43,13 +43,16 @@ export interface ResultadoFlujo {
   porAct: Map<number, FlujoActividad>;
   /** Actividades .D que se cobran con su flete (índice .D → índice .E). */
   familias: Map<number, number>;
-  /** Instalaciones de equipo (.F) que se cobran en dos hitos: 10 % al inicio y 90 % al fin. */
+  /** Instalaciones de equipo (.F) que se cobran en dos hitos: PCT_INICIO_INSTALACION al inicio y el resto al fin. */
   instalaciones: Set<number>;
   /** Totales de cada actividad (b, a, r) por índice de fila. */
   totales: Map<number, { b: number; a: number; r: number }>;
 }
 
 /** ¿Es del grupo de equipamiento (01.Grupos: Ingeniería, Procura_Eq, Flete_Eq, Precom_Eq)? */
+/** Parte del importe de una instalación de equipo (.F) que se cobra el día que empieza; el resto, el día que termina. */
+export const PCT_INICIO_INSTALACION = 0.05;
+
 export const esGrupoEquipo = (g: string) => /_eq\.?$|ingenier/i.test((g || '').trim());
 
 /**
@@ -132,9 +135,9 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
       if (/\.F$/.test(cod) && (/precom_eq/i.test(grupo(i)) || codE.has(cod.replace(/\.F$/, '')))) instalaciones.add(i);
     });
   }
-  // 10 % en el instante a y 90 % en el instante b
+  // PCT_INICIO_INSTALACION en el instante a y el resto en el instante b
   const dosHitos = (v: number, a: number | null | undefined, b: number | null | undefined): TramoUso | undefined =>
-    sumarTramos(pt(0.1 * v, a != null ? [a, a] : null), pt(0.9 * v, b != null ? [b, b] : null));
+    sumarTramos(pt(PCT_INICIO_INSTALACION * v, a != null ? [a, a] : null), pt((1 - PCT_INICIO_INSTALACION) * v, b != null ? [b, b] : null));
 
   for (const [i, x] of totales) {
     const w = ventanasCosto(m, i, lb);
@@ -146,16 +149,16 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
       continue;
     }
     if (instalaciones.has(i)) {
-      // Instalación de equipo: 10 % el día que empieza y 90 % el día que termina (no se prorratea)
+      // Instalación de equipo: 5 % el día que empieza y 95 % el día que termina (no se prorratea)
       const T = x.a + x.r;
       const real = w.estado !== 'TK_NotStart' && w.a;
       const u: FlujoActividad = { b: w.b ? dosHitos(x.b, w.b[0], w.b[1]) : pt(x.b, w.b) };
       if (w.estado === 'TK_Complete' && w.a) {
         u.a = dosHitos(T, w.a[0], w.a[1]);
       } else if (real) {
-        u.a = pt(0.1 * T, w.a);
-        u.r = pt(0.9 * T, w.r ? [w.r[1], w.r[1]] : null);
-        if (x.a - 0.1 * T > 0.005) u.pendiente = x.a - 0.1 * T;
+        u.a = pt(PCT_INICIO_INSTALACION * T, w.a);
+        u.r = pt((1 - PCT_INICIO_INSTALACION) * T, w.r ? [w.r[1], w.r[1]] : null);
+        if (x.a - PCT_INICIO_INSTALACION * T > 0.005) u.pendiente = x.a - PCT_INICIO_INSTALACION * T;
       } else {
         u.r = w.r ? dosHitos(T, w.r[0], w.r[1]) : pt(T, null);
         if (x.a > 0.005) u.pendiente = x.a;
