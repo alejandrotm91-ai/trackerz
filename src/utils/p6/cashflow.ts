@@ -12,8 +12,11 @@
  *  - Remaining: lo que falta de la .D (y lo ejecutado sin certificar) y de la .E, el día de inicio restante de la .E
  *    (su inicio temprano; si está en curso, la fecha de datos); si la .E ya terminó, el de la propia .D.
  *  - Corte de cobro de los fletes (decisión del 27-nov-2026): el cobro del flete (80 %) fechado después del día 22
- *    pasa al día 1 del mes siguiente (`aplicarCorte`; día configurable, 0 = sin corte). Vale para Budgeted, Actual y
- *    Remaining; no afecta a la instalación ni a lo demás.
+ *    pasa al día 1 del mes siguiente (`aplicarCorte`; día configurable, 0 = sin corte). Solo hacia adelante: a los
+ *    cobros fechados desde la fecha de datos (los meses cerrados no se tocan). No afecta a la instalación ni a lo demás.
+ *  - Ajustes de remaining (`factorRestante`): a las actividades que cumplen una regla (p. ej. adoquinado de Juana 60 %,
+ *    cableado de EECOL 75 %) se les deja cada período de Remaining en ese % y lo descontado va a su último período
+ *    con Remaining (el total no cambia).
  *  - Instalación (.F, 20 %; grupo Precom_Eq o con flete .E del mismo prefijo): no se prorratea, se cobra en dos
  *    hitos: 10 % el día que empieza y 90 % el día que termina (decisión del 27-nov-2026). Budgeted en el inicio y el
  *    fin de su línea base; terminada: Actual en el inicio y el fin reales; en curso: 10 % Actual en el inicio real y
@@ -89,7 +92,7 @@ export function aplicarCorte(min: number, dia: number | null | undefined): numbe
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 60000;
 }
 
-export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean, corteFlete: number | null = 22): ResultadoFlujo {
+export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean, corteFlete: number | null = 22, factorRestante?: (i: number) => number | null): ResultadoFlujo {
   const t = m.task;
   const tot = totalesCosto(m, 'cost');
   const totales = new Map<number, { b: number; a: number; r: number }>();
@@ -110,7 +113,8 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
   const ptFlete = (v: number, ...ws: ([number, number] | null)[]): TramoUso | undefined => {
     const w = ws.find(x => x) ?? (v ? dd : null);
     if (!w) return undefined;
-    const x = aplicarCorte(w[0], corteFlete);
+    // Solo hacia adelante (decisión del 27-nov-2026): lo fechado antes de la fecha de datos no se mueve
+    const x = w[0] >= m.fechaDatos ? aplicarCorte(w[0], corteFlete) : w[0];
     return repartir(v, x, x, lim);
   };
   const aFlete: [number, FlujoActividad][] = [];
@@ -177,6 +181,19 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
   for (const [j, u] of aFlete) {
     const e = porAct.get(j) ?? {};
     put(j, { ...e, b: sumarTramos(e.b, u.b), a: sumarTramos(e.a, u.a), r: sumarTramos(e.r, u.r) });
+  }
+  // Ajustes de remaining: cada período al factor y el saldo al último período con Remaining
+  if (factorRestante) {
+    for (const [i, u] of porAct) {
+      const f = factorRestante(i);
+      if (f == null || f >= 1 || !u.r) continue;
+      const vals = u.r.vals.slice();
+      let ult = -1, saldo = 0;
+      for (let k = 0; k < vals.length; k++) if (Math.abs(vals[k]) > 1e-9) { ult = k; saldo += vals[k] * (1 - f); vals[k] *= f; }
+      if (ult < 0) continue;
+      vals[ult] += saldo;
+      porAct.set(i, { ...u, r: { desde: u.r.desde, vals } });
+    }
   }
   return { porAct, familias, totales, instalaciones };
 }

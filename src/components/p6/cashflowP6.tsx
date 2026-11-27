@@ -14,6 +14,16 @@ import { periodosDeEscala, type LineaBaseFilas } from '../../utils/p6/uso';
 import { calcularFlujo, esGrupoEquipo, familiasEquipo } from '../../utils/p6/cashflow';
 import { etiquetaUbicacion, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { PlanillaItem } from '../../types';
+import { apiFetch } from '../../utils/api';
+
+/** Regla de ajuste del Remaining (compartida en la nube, la edita el admin). */
+interface ReglaRestante { activa: boolean; subc: string; texto: string; pct: number }
+const DOC_REGLAS = '/api/docs/p6_cashflow_ajustes';
+const REGLAS_DEF: ReglaRestante[] = [
+  { activa: true, subc: 'Juana', texto: 'adoqu', pct: 60 },
+  { activa: true, subc: 'EECOL', texto: 'cablead', pct: 75 },
+];
+const normTxt = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 type Agrupar = 'wbs' | 'tipo' | 'grupo' | 'ubicacion' | 'subcontratista';
 type Escala = 'weeks' | 'months' | 'quarters' | 'years';
@@ -72,12 +82,73 @@ export const VistaCashflow: React.FC<{
   incluir: (i: number) => boolean;
   hayFiltroGlobal: boolean;
   hojasPlanilla?: PlanillaItem[];
-}> = ({ m, version, lineaBase, nombreLB, campo, incluir, hayFiltroGlobal, hojasPlanilla }) => {
+  /** El admin puede editar las reglas de ajuste del Remaining. */
+  editable?: boolean;
+}> = ({ m, version, lineaBase, nombreLB, campo, incluir, hayFiltroGlobal, hojasPlanilla, editable }) => {
   const [aj, setAj] = React.useState<Ajustes>(leer);
   React.useEffect(() => { try { localStorage.setItem(LS, JSON.stringify(aj)); } catch { /* sin almacenamiento */ } }, [aj]);
   const set = <K extends keyof Ajustes>(k: K, v: Ajustes[K]) => setAj(a => ({ ...a, [k]: v }));
   const [abiertos, setAbiertos] = React.useState<Set<string>>(new Set());
   const grupo = React.useCallback((i: number) => campo(i, 'grupo'), [campo]);
+
+  // Reglas de ajuste del Remaining: cada período al % y el saldo al último período con Remaining
+  const [reglas, setReglas] = React.useState<ReglaRestante[]>(REGLAS_DEF);
+  const [verReglas, setVerReglas] = React.useState(false);
+  const [estadoReglas, setEstadoReglas] = React.useState('');
+  React.useEffect(() => {
+    let vivo = true;
+    apiFetch(DOC_REGLAS, { cache: 'no-store' }, [404]).then(async r => {
+      if (vivo && r.status !== 404) { const v = await r.json(); if (Array.isArray(v)) setReglas(v); }
+    }).catch(() => { /* sin red: reglas por defecto */ });
+    return () => { vivo = false; };
+  }, []);
+  const guardarReglas = async (rs: ReglaRestante[]) => {
+    setReglas(rs);
+    if (!editable) return;
+    setEstadoReglas('Saving…');
+    try {
+      await apiFetch(DOC_REGLAS, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rs) });
+      setEstadoReglas('Saved for everyone');
+    } catch (e) { setEstadoReglas(`Not saved: ${(e as Error)?.message || e}`); }
+  };
+  const reglaDe = React.useCallback((i: number): ReglaRestante | null => {
+    const sc = normTxt(campo(i, 'subcontratista'));
+    if (!sc) return null;
+    for (const r of reglas) {
+      if (!r.activa || !r.subc.trim() || normTxt(r.subc) !== sc) continue;
+      const q = normTxt(r.texto);
+      if (q && !normTxt(`${celda(m.task, m.task.filas[i], 'task_name')} ${campo(i, 'scap')}`).includes(q)) continue;
+      return r;
+    }
+    return null;
+  }, [reglas, campo, m]);
+  const [borrador, setBorrador] = React.useState<ReglaRestante[]>(REGLAS_DEF);
+  React.useEffect(() => { if (verReglas) setBorrador(reglas.map(r => ({ ...r }))); }, [verReglas, reglas]);
+  const statsReglas = React.useMemo(() => {
+    if (!verReglas) return [];
+    const tot = new Map<string, number>();
+    const tr = m.xer.tablas.get('TASKRSRC');
+    for (const f of tr?.filas || []) { const id = celda(tr!, f, 'task_id'); tot.set(id, (tot.get(id) || 0) + (Number(celda(tr!, f, 'remain_cost')) || 0)); }
+    return borrador.map(r => {
+      let n = 0, rem = 0;
+      const sc = normTxt(r.subc), q = normTxt(r.texto);
+      if (!sc) return { n, rem };
+      m.task.filas.forEach((f, i) => {
+        if (normTxt(campo(i, 'subcontratista')) !== sc) return;
+        if (q && !normTxt(`${celda(m.task, f, 'task_name')} ${campo(i, 'scap')}`).includes(q)) return;
+        const x = tot.get(celda(m.task, f, 'task_id')) || 0;
+        if (x > 0.005) { n++; rem += x; }
+      });
+      return { n, rem };
+    });
+  }, [verReglas, borrador, m, campo]);
+  const subcs = React.useMemo(() => {
+    if (!verReglas) return [] as string[];
+    const s = new Set<string>();
+    m.task.filas.forEach((_, i) => { const v = campo(i, 'subcontratista'); if (v) s.add(v); });
+    return [...s].sort((a, b) => a.localeCompare(b, 'es'));
+  }, [verReglas, m, campo]);
+  const factorRestante = React.useCallback((i: number) => { const r = reglaDe(i); return r ? Math.min(100, Math.max(0, r.pct)) / 100 : null; }, [reglaDe]);
 
   // Períodos: del primer al último valor de cualquier actividad
   const lim = React.useMemo(() => {
@@ -97,9 +168,9 @@ export const VistaCashflow: React.FC<{
   }, [m, version, aj.escala, lineaBase]);
   const nP = Math.max(0, lim.t.length - 1);
 
-  const flujo = React.useMemo(() => (nP ? calcularFlujo(m, lim.t, lineaBase, grupo, aj.regla, aj.corteFlete || null) : null),
+  const flujo = React.useMemo(() => (nP ? calcularFlujo(m, lim.t, lineaBase, grupo, aj.regla, aj.corteFlete || null, factorRestante) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [m, version, lim, lineaBase, grupo, aj.regla, aj.corteFlete]);
+    [m, version, lim, lineaBase, grupo, aj.regla, aj.corteFlete, factorRestante]);
 
   // Rutas WBS (código + nombre) de cada actividad
   const rutaWbs = React.useMemo(() => {
@@ -392,6 +463,44 @@ export const VistaCashflow: React.FC<{
         <label className="flex items-center gap-1 cursor-pointer" title="Equipment billing rule: the purchase (.D, 60 %) is certified together with the freight (.E, 20 %) — the whole 80 % on the day the freight starts; the installation (.F, 20 %) in two milestones: 10 % on its start day and 90 % on its finish day. Off = cost as executed.">
           <input id="p6-cf-regla" type="checkbox" checked={aj.regla} onChange={e => set('regla', e.target.checked)} />Equipment billing (80 % freight · 10/90 installation)
         </label>
+        <div className="relative">
+          <button id="p6-cf-reglas" onClick={() => setVerReglas(v => !v)}
+            title="Remaining adjustments: for the activities of a SubC (and text in the name or SCAP) each period of Remaining is kept at a % and the rest goes to their last period"
+            className={`px-2 py-0.5 rounded border text-[11px] cursor-pointer ${reglas.some(r => r.activa) ? 'bg-[#FFF2C2] border-[#E3B505] text-[#6B5200]' : 'bg-white border-[#C3C3C3]'}`}>
+            Remaining adj. ({reglas.filter(r => r.activa).length})
+          </button>
+          {verReglas && (
+            <div id="p6-cf-reglas-panel" className="absolute right-0 top-full mt-1 z-[30] bg-white border border-[#C3C3C3] rounded-lg shadow-xl p-3 w-[640px] text-[11px]" onClick={e => e.stopPropagation()}>
+              <div className="font-semibold text-[12px] mb-1">Remaining adjustments</div>
+              <div className="text-[#5A6A74] mb-2">For each activity of the SubC whose name or SCAP contains the text, every period of its <b>Remaining</b> is kept at the % and the rest is moved to its last period with Remaining (the total does not change). Budgeted and Actual are not touched. Shared with everyone{editable ? '' : ' · only the admin can change them'}.</div>
+              <table className="w-full border-collapse">
+                <thead><tr className="text-[#5A6A74] text-left">
+                  <th className="py-1 pr-1">On</th><th className="py-1 pr-1">SubC</th><th className="py-1 pr-1">Name / SCAP contains</th><th className="py-1 pr-1 text-right">% per period</th><th className="py-1 pr-1 text-right">Activities</th><th className="py-1 pr-1 text-right">Remaining</th><th />
+                </tr></thead>
+                <tbody>
+                  {borrador.map((r, k) => (
+                    <tr key={k} className="border-t border-[#EEF0F2]">
+                      <td className="py-1 pr-1"><input type="checkbox" disabled={!editable} checked={r.activa} onChange={e => setBorrador(b => b.map((x, j) => (j === k ? { ...x, activa: e.target.checked } : x)))} /></td>
+                      <td className="py-1 pr-1"><input list="p6-cf-subcs" disabled={!editable} value={r.subc} onChange={e => setBorrador(b => b.map((x, j) => (j === k ? { ...x, subc: e.target.value } : x)))} className="w-32 border border-[#C3C3C3] rounded px-1 py-0.5" /></td>
+                      <td className="py-1 pr-1"><input disabled={!editable} value={r.texto} placeholder="(all)" onChange={e => setBorrador(b => b.map((x, j) => (j === k ? { ...x, texto: e.target.value } : x)))} className="w-36 border border-[#C3C3C3] rounded px-1 py-0.5" /></td>
+                      <td className="py-1 pr-1 text-right"><input type="number" min={0} max={100} disabled={!editable} value={r.pct} onChange={e => setBorrador(b => b.map((x, j) => (j === k ? { ...x, pct: Math.min(100, Math.max(0, Number(e.target.value) || 0)) } : x)))} className="w-14 border border-[#C3C3C3] rounded px-1 py-0.5 text-right" /> %</td>
+                      <td className="py-1 pr-1 text-right">{statsReglas[k]?.n ?? 0}</td>
+                      <td className="py-1 pr-1 text-right">{fmt(statsReglas[k]?.rem ?? 0)}</td>
+                      <td className="py-1">{editable && <button className="text-[#B30000] cursor-pointer px-1" title="Remove rule" onClick={() => setBorrador(b => b.filter((_, j) => j !== k))}>✕</button>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <datalist id="p6-cf-subcs">{subcs.map(x => <option key={x} value={x} />)}</datalist>
+              <div className="flex items-center gap-2 mt-2">
+                {editable && <button className={boton(false)} onClick={() => setBorrador(b => [...b, { activa: true, subc: '', texto: '', pct: 100 }])}>+ Add rule</button>}
+                <span className="text-[#8A6D00]">{estadoReglas}</span>
+                <button className={`${boton(false)} ml-auto`} onClick={() => setVerReglas(false)}>Close</button>
+                {editable && <button id="p6-cf-reglas-guardar" className={boton(true)} onClick={() => { guardarReglas(borrador); setVerReglas(false); }}>Apply &amp; save</button>}
+              </div>
+            </div>
+          )}
+        </div>
         {aj.regla && (
           <label className="flex items-center gap-1" title="Freight billing cut-off: a freight billing (80 %) dated after this day of the month moves to the 1st of the next month. 0 = no cut-off.">
             Freight cut-off day
