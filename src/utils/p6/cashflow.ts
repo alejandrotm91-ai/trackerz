@@ -11,6 +11,11 @@
  *    pasa a Remaining.
  *  - Remaining: lo que falta de la .D (y lo ejecutado sin certificar) y de la .E, el día de inicio restante de la .E
  *    (su inicio temprano; si está en curso, la fecha de datos); si la .E ya terminó, el de la propia .D.
+ *  - Remaining de equipos según la Certificación (Planillas, `cruzarCertificacion` en `certificacion.ts`): con el %
+ *    certificado de cada familia, lo que falta del 80 % se cobra al inicio del flete (vencido → mes siguiente a la
+ *    fecha de datos) y lo que falta del 20 % con la regla de la instalación; el Actual de la .E es lo certificado hasta
+ *    el 80 % y el de la .F lo que pase (fechas de T₃ escaladas o, sin Actual en T₃, la fecha de datos), de modo que
+ *    Actual + Remaining = Budgeted de la familia; las familias sin cruce siguen con T₃.
  *  - Corte de cobro de los fletes (decisión del 27-nov-2026): el cobro del flete (80 %) fechado después del día 22
  *    pasa al día 1 del mes siguiente (`aplicarCorte`; día configurable, 0 = sin corte). Solo hacia adelante: a los
  *    cobros fechados desde la fecha de datos (los meses cerrados no se tocan). No afecta a la instalación ni a lo demás.
@@ -45,6 +50,8 @@ export interface ResultadoFlujo {
   familias: Map<number, number>;
   /** Instalaciones de equipo (.F) que se cobran en dos hitos: PCT_INICIO_INSTALACION al inicio y el resto al fin. */
   instalaciones: Set<number>;
+  /** Actividades (.E y .F) cuyo Remaining sale de la Certificación. */
+  certificadas: Set<number>;
   /** Totales de cada actividad (b, a, r) por índice de fila. */
   totales: Map<number, { b: number; a: number; r: number }>;
 }
@@ -98,7 +105,7 @@ export function aplicarCorte(min: number, dia: number | null | undefined): numbe
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 60000;
 }
 
-export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean, corteFlete: number | null = 22, factorRestante?: (i: number) => number | null): ResultadoFlujo {
+export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean, corteFlete: number | null = 22, factorRestante?: (i: number) => number | null, certificacion?: Map<number, { p: number; iF: number | null }>): ResultadoFlujo {
   const t = m.task;
   const tot = totalesCosto(m, 'cost');
   const totales = new Map<number, { b: number; a: number; r: number }>();
@@ -188,6 +195,61 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
     const e = porAct.get(j) ?? {};
     put(j, { ...e, b: sumarTramos(e.b, u.b), a: sumarTramos(e.a, u.a), r: sumarTramos(e.r, u.r) });
   }
+  // Remaining de equipos según la Certificación (decisión del 28-nov-2026): con el % certificado de la familia
+  // (p, sobre su Budgeted D + E + F), lo que falta del 80 % se cobra al inicio del flete (si ya empezó, el día 1 del
+  // mes siguiente a la fecha de datos) y lo que falta del 20 % con la regla de la instalación (inicio / fin; lo vencido,
+  // el mes siguiente). Reemplaza el Remaining de la .D, la .E y la .F y ajusta su Actual a lo certificado; Budgeted y
+  // «sin certificar» no cambian.
+  const certificadas = new Set<number>();
+  if (certificacion && reglaCobro) {
+    const dDatos = new Date(m.fechaDatos * 60000);
+    const sig = Date.UTC(dDatos.getUTCFullYear(), dDatos.getUTCMonth() + 1, 1) / 60000;
+    const bDe = (i: number | null) => (i == null ? 0 : totales.get(i)?.b || 0);
+    for (const [iD, c] of certificacion) {
+      const iE = familias.get(iD);
+      if (iE == null) continue;
+      const V = bDe(iD) + bDe(iE) + bDe(c.iF);
+      if (!(V > 0)) continue;
+      const p = Math.max(0, c.p);
+      const wE = ventanasCosto(m, iE, lb);
+      const fFlete = wE.estado === 'TK_NotStart' ? (wE.r?.[0] ?? sig) : sig;
+      const remFlete = Math.max(0, 0.8 - p) * V;
+      const pi = Math.min(1, Math.max(0, (p - 0.8) / 0.2));
+      const remIni = Math.max(0, PCT_INICIO_INSTALACION - pi) * 0.2 * V;
+      const remFin = Math.max(0, 1 - Math.max(pi, PCT_INICIO_INSTALACION)) * 0.2 * V;
+      let rE = remFlete > 0.005 ? ptFlete(remFlete, [fFlete, fFlete]) : undefined;
+      const d = porAct.get(iD);
+      if (d?.r) porAct.set(iD, { ...d, r: undefined });
+      if (c.iF != null) {
+        const wF = ventanasCosto(m, c.iF, lb);
+        const fIni = wF.estado === 'TK_NotStart' ? (wF.r?.[0] ?? sig) : sig;
+        const fFin = wF.estado === 'TK_Complete' ? sig : (wF.r?.[1] ?? sig);
+        const rF = sumarTramos(remIni > 0.005 ? pt(remIni, [fIni, fIni]) : undefined, remFin > 0.005 ? pt(remFin, [fFin, fFin]) : undefined);
+        const f = porAct.get(c.iF) ?? {};
+        porAct.set(c.iF, { ...f, r: rF });
+        certificadas.add(c.iF);
+      } else {
+        rE = sumarTramos(rE, remIni + remFin > 0.005 ? pt(remIni + remFin, [sig, sig]) : undefined);
+      }
+      const e = porAct.get(iE) ?? {};
+      porAct.set(iE, { ...e, r: rE });
+      certificadas.add(iE);
+      // Actual = lo certificado (flete: hasta el 80 %; instalación: lo que pase del 80 %), con las fechas de T₃
+      // (escaladas) o, si T₃ no tiene Actual, en la fecha de datos. Así Actual + Remaining = Budgeted de la familia.
+      const ajustarActual = (i: number, objetivo: number) => {
+        const u = porAct.get(i) ?? {};
+        const suma = u.a ? u.a.vals.reduce((x, y) => x + y, 0) : 0;
+        let a: TramoUso | undefined;
+        if (objetivo <= 0.005) a = undefined;
+        else if (u.a && Math.abs(suma) > 0.005) a = { desde: u.a.desde, vals: u.a.vals.map(v => (v * objetivo) / suma) };
+        else a = repartir(objetivo, m.fechaDatos, m.fechaDatos, lim);
+        porAct.set(i, { ...u, a });
+      };
+      ajustarActual(iE, Math.min(p, 0.8) * V);
+      if (c.iF != null) ajustarActual(c.iF, Math.max(0, Math.min(p, 1) - 0.8) * V);
+    }
+  }
+
   // WBS «D» (pendientes de confirmar por el Ingeniero, fechas provisionales 30-abr-27): todo su Remaining se cobra
   // en un solo pago el día 1 del mes siguiente a la fecha comodín FIN_LB_PROVISIONAL (1-may-2027). Decisión del 27-nov-2026.
   const w = m.xer.tablas.get('PROJWBS');
@@ -228,5 +290,5 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
       porAct.set(i, { ...u, r: { desde: u.r.desde, vals } });
     }
   }
-  return { porAct, familias, totales, instalaciones };
+  return { porAct, familias, totales, instalaciones, certificadas };
 }

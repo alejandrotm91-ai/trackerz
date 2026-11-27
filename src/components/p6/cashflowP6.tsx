@@ -15,6 +15,7 @@ import { calcularFlujo, esGrupoEquipo, familiasEquipo, PCT_INICIO_INSTALACION } 
 import { etiquetaUbicacion, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { PlanillaItem } from '../../types';
 import { apiFetch } from '../../utils/api';
+import { cruzarCertificacion } from '../../utils/p6/certificacion';
 
 /** Regla de ajuste del Remaining (compartida en la nube, la edita el admin). */
 interface ReglaRestante { activa: boolean; subc: string; texto: string; pct: number }
@@ -47,8 +48,10 @@ interface Ajustes {
   subcEquipo: boolean;
   /** Corte de cobro de los fletes: después de este día del mes, al mes siguiente (0 = sin corte). */
   corteFlete: number;
+  /** Remaining de equipos según la Certificación (Planillas). */
+  remCert: boolean;
 }
-const AJUSTES_DEF: Ajustes = { agrupar: 'tipo', nivelesWbs: 3, escala: 'months', series: ['b', 'a', 'r'], acumulado: false, regla: true, ambito: 'todo', subcEquipo: true, corteFlete: 22 };
+const AJUSTES_DEF: Ajustes = { agrupar: 'tipo', nivelesWbs: 3, escala: 'months', series: ['b', 'a', 'r'], acumulado: false, regla: true, ambito: 'todo', subcEquipo: true, corteFlete: 22, remCert: true };
 const LS = 'p6.cashflow';
 const leer = (): Ajustes => { try { return { ...AJUSTES_DEF, ...JSON.parse(localStorage.getItem(LS) || '{}') }; } catch { return AJUSTES_DEF; } };
 
@@ -153,6 +156,17 @@ export const VistaCashflow: React.FC<{
     m.task.filas.forEach((_, i) => { const v = campo(i, 'subcontratista'); if (v) s.add(v); });
     return [...s].sort((a, b) => a.localeCompare(b, 'es'));
   }, [verReglas, m, campo]);
+  // Cruce con la Certificación (Planillas): % certificado por familia de equipo
+  const certFam = React.useMemo(() => {
+    if (!hojasPlanilla?.length) return null;
+    return cruzarCertificacion(m, hojasPlanilla, familiasEquipo(m, grupo));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m, version, hojasPlanilla, grupo]);
+  const certPorAct = React.useMemo(() => {
+    const r = new Map<number, number>();
+    for (const c of certFam?.values() || []) { r.set(c.iE, c.p); if (c.iF != null) r.set(c.iF, c.p); r.set(c.iD, c.p); }
+    return r;
+  }, [certFam]);
   const factorRestante = React.useCallback((i: number) => { const r = reglaDe(i); return r ? Math.min(100, Math.max(0, r.pct)) / 100 : null; }, [reglaDe]);
 
   // Períodos: del primer al último valor de cualquier actividad
@@ -173,9 +187,9 @@ export const VistaCashflow: React.FC<{
   }, [m, version, aj.escala, lineaBase]);
   const nP = Math.max(0, lim.t.length - 1);
 
-  const flujo = React.useMemo(() => (nP ? calcularFlujo(m, lim.t, lineaBase, grupo, aj.regla, aj.corteFlete || null, factorRestante) : null),
+  const flujo = React.useMemo(() => (nP ? calcularFlujo(m, lim.t, lineaBase, grupo, aj.regla, aj.corteFlete || null, factorRestante, aj.remCert && certFam ? certFam : undefined) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [m, version, lim, lineaBase, grupo, aj.regla, aj.corteFlete, factorRestante]);
+    [m, version, lim, lineaBase, grupo, aj.regla, aj.corteFlete, factorRestante, aj.remCert, certFam]);
 
   // Rutas WBS (código + nombre) de cada actividad
   const rutaWbs = React.useMemo(() => {
@@ -573,6 +587,12 @@ export const VistaCashflow: React.FC<{
           )}
         </div>
         {aj.regla && (
+          <label className="flex items-center gap-1 cursor-pointer" title={certFam ? `Equipment Remaining from the Certification (Planillas, column H = «32. Variacion»): what is not yet certified of the 80 % is billed at the freight start (already started → next month) and of the 20 % with the installation rule. ${certFam.size} equipment items matched; the rest keep the T₃ rule.` : 'No Certification (Planillas) loaded with the Master'}>
+            <input id="p6-cf-cert" type="checkbox" disabled={!certFam} checked={aj.remCert && !!certFam} onChange={e => set('remCert', e.target.checked)} />
+            Remaining from Certification{certFam ? ` (${certFam.size})` : ''}
+          </label>
+        )}
+        {aj.regla && (
           <label className="flex items-center gap-1" title="Freight billing cut-off: a freight billing (80 %) dated after this day of the month moves to the 1st of the next month. 0 = no cut-off.">
             Freight cut-off day
             <input id="p6-cf-corte" type="number" min={0} max={31} value={aj.corteFlete}
@@ -727,6 +747,7 @@ export const VistaCashflow: React.FC<{
                               <span className={`truncate ${esNodo ? 'font-semibold' : ''}`} title={etiqueta}>{etiqueta}</span>
                               {!esNodo && aj.regla && fletesFam.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#FFF2C2] text-[#8A6D00] shrink-0" title="Freight row: bills its own 20 % plus the purchase (.D) 60 % on the day the freight starts">80 %</span>}
                               {!esNodo && aj.regla && flujo?.instalaciones.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#E3F1EA] text-[#2B7F52] shrink-0" title={`Equipment installation: ${PI} % billed on the start day, ${PF} % on the finish day`}>{PI}/{PF}</span>}
+                              {!esNodo && aj.regla && aj.remCert && certPorAct.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#E0E3F5] text-[#312E81] shrink-0" title="Certified so far in the Planillas (cumulative ÷ contract); the Remaining is what is not yet certified">cert {Math.round((certPorAct.get(fl.i) || 0) * 100)} %</span>}
                               {!esNodo && aj.regla && flujo?.familias.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#EEF0F2] text-[#5A6A74] shrink-0" title="Purchase: billed in its freight (.E) row">→ freight</span>}
                             </>
                           )}
