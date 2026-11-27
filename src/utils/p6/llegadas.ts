@@ -334,3 +334,24 @@ export function procuraSinMatriz(m: ModeloP6, filasMatriz: FilaMatriz[], minDias
   });
   return out.sort((a, b) => Number(!a.subc) - Number(!b.subc) || a.subc.localeCompare(b.subc, 'es') || a.remDias - b.remDias);
 }
+
+/**
+ * Fletes (.E) importados: su «32. Variacion» está en la matriz de importación (en cualquier fila: también sin AW,
+ * tuberías o válvulas). El resto son fletes nacionales (decisión del 28-nov-2026: se cobran al terminar el flete).
+ */
+export function fletesImportados(m: ModeloP6, filasMatriz: FilaMatriz[]): Set<number> {
+  const t = m.task;
+  const llaves = new Set(filasMatriz.map(r => normLlave(r.p)).filter(Boolean));
+  const tipos = m.xer.tablas.get('UDFTYPE'), valores = m.xer.tablas.get('UDFVALUE');
+  const tv = tipos?.filas.find(f => celda(tipos, f, 'table_name') === 'TASK' && celda(tipos, f, 'udf_type_label') === '32. Variacion');
+  const idVar = tv ? celda(tipos!, tv, 'udf_type_id') : null;
+  const variacion = new Map<string, string>();
+  for (const f of valores?.filas || []) if (celda(valores!, f, 'udf_type_id') === idVar) variacion.set(celda(valores!, f, 'fk_id'), celda(valores!, f, 'udf_text') || celda(valores!, f, 'udf_number'));
+  const out = new Set<number>();
+  t.filas.forEach((f, i) => {
+    if (!/\.E$/i.test(celda(t, f, 'task_code'))) return;
+    const k = normLlave(variacion.get(celda(t, f, 'task_id')));
+    if (k && llaves.has(k)) out.add(i);
+  });
+  return out;
+}
