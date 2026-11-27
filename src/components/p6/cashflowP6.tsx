@@ -305,13 +305,22 @@ export const VistaCashflow: React.FC<{
   const orden = (a: Nodo, b: Nodo) => Number(esD(a)) - Number(esD(b)) || a.label.localeCompare(b.label, 'es', { numeric: true });
   const etqAct = (i: number) => `${celda(m.task, m.task.filas[i], 'task_code')} · ${celda(m.task, m.task.filas[i], 'task_name')}`;
 
+  const cacheAct = React.useMemo(() => new Map<number, { per: Record<'b' | 'a' | 'r', Float64Array>; tot: { b: number; a: number; r: number; p: number } }>(), [flujo, nP]);
   const datosAct = React.useCallback((i: number) => {
+    const c = cacheAct.get(i);
+    if (c) return c;
+    const r = calcAct(i);
+    cacheAct.set(i, r);
+    return r;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheAct]);
+  const calcAct = (i: number) => {
     const u = flujo?.porAct.get(i);
     const per = { b: new Float64Array(nP), a: new Float64Array(nP), r: new Float64Array(nP) };
     const tot = { b: 0, a: 0, r: 0, p: u?.pendiente || 0 };
     for (const s of ['b', 'a', 'r'] as const) { const tr = u?.[s]; if (tr) for (let k = 0; k < tr.vals.length; k++) { per[s][tr.desde + k] += tr.vals[k]; tot[s] += tr.vals[k]; } }
     return { per, tot };
-  }, [flujo, nP]);
+  };
 
   // Orden por un período (clic en la cabecera del mes o de Total): mayor → menor → menor → mayor → normal
   const [ordenCol, setOrdenCol] = React.useState<{ col: number | 'tot'; dir: 1 | -1 } | null>(null);
@@ -366,10 +375,30 @@ export const VistaCashflow: React.FC<{
   const perDD = React.useMemo(() => { let k = -1; lim.t.forEach((t, j) => { if (t <= m.fechaDatos && j < nP) k = j; }); return k; }, [lim, nP, m.fechaDatos]);
   // Al abrir o cambiar de escala, el período de la fecha de datos a la vista
   const scroller = React.useRef<HTMLDivElement>(null);
+  const cuerpoRef = React.useRef<HTMLDivElement>(null);
+  // Solo se dibujan las filas y las columnas de período a la vista (la tabla puede tener miles de filas × 80 meses)
+  const [vp, setVp] = React.useState({ top: 0, h: 900, left: 0, w: 1600 });
+  const rafVp = React.useRef(0);
+  const medir = React.useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    setVp(v => (v.top === el.scrollTop && v.h === el.clientHeight && v.left === el.scrollLeft && v.w === el.clientWidth ? v
+      : { top: el.scrollTop, h: el.clientHeight, left: el.scrollLeft, w: el.clientWidth }));
+  }, []);
+  const alDesplazar = () => { cancelAnimationFrame(rafVp.current); rafVp.current = requestAnimationFrame(medir); };
+  React.useEffect(() => {
+    medir();
+    const el = scroller.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => medir());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [medir]);
   React.useEffect(() => {
     const el = scroller.current;
     if (el && perDD >= 0) el.scrollLeft = Math.max(0, perDD * CW - (el.clientWidth - ANCHO_IZQ) / 2);
-  }, [perDD, aj.escala]);
+    medir();
+  }, [perDD, aj.escala, medir]);
 
   // Valores de una serie para un nodo o actividad
   const valores = React.useCallback((x: { per: Record<'b' | 'a' | 'r', Float64Array> }, s: Serie) => {
@@ -472,6 +501,13 @@ export const VistaCashflow: React.FC<{
   };
   const boton = (activo: boolean) => `px-2 py-0.5 rounded border text-[11px] cursor-pointer ${activo ? 'bg-[#312E81] border-[#312E81] text-white' : 'bg-white border-[#C3C3C3] text-[#14212A] hover:bg-[#F2F4F7]'}`;
   const anchoTotal = ANCHO_IZQ + nP * CW;
+  // Ventana visible: filas [f0, f1) y columnas de período [c0, c1), con margen
+  const altoFila = Math.max(1, series.length) * FILA + 1;
+  const topCuerpo = cuerpoRef.current?.offsetTop ?? AG + 23;
+  const f0 = Math.max(0, Math.floor((vp.top - topCuerpo) / altoFila) - 15);
+  const f1 = Math.min(filas.length, Math.ceil((vp.top + vp.h - topCuerpo) / altoFila) + 15);
+  const c0 = Math.max(0, Math.floor(vp.left / CW) - 2);
+  const c1 = Math.min(nP, Math.max(c0, Math.ceil((vp.left + vp.w - ANCHO_IZQ) / CW) + 2));
 
   return (
     <div id="p6-vista-recursos" className="flex-1 flex flex-col min-h-0 bg-white">
@@ -613,7 +649,7 @@ export const VistaCashflow: React.FC<{
       </div>
 
       {/* Tabla con gráfico, scroll horizontal común */}
-      <div ref={scroller} className="flex-1 min-h-0 overflow-auto relative" id="p6-cf-tabla">
+      <div ref={scroller} onScroll={alDesplazar} className="flex-1 min-h-0 overflow-auto relative" id="p6-cf-tabla">
         <div style={{ width: anchoTotal }}>
           {/* Gráfico */}
           <div className="flex border-b border-[#D5DEE2]" style={{ height: AG }}>
@@ -666,13 +702,17 @@ export const VistaCashflow: React.FC<{
                 onClick={() => clicOrden('tot')} title={`Sort by Total (${nombreSerieOrden}): highest first, lowest first, original order`}>Total{flechaOrden('tot')}</div>
               <div className="px-1 flex items-center justify-end" style={{ width: ANCHO_PEND }} title={`Executed not billable: actual cost of equipment purchases whose freight has not started and of installations in progress above the ${PI} % billed at their start`}>Not billable</div>
             </div>
-            {lim.etq.map((e, k) => (
+            <div style={{ width: c0 * CW, minWidth: c0 * CW }} />
+            {lim.etq.slice(c0, c1).map((e, j) => { const k = c0 + j; return (
               <div key={k} data-cf-periodo={k} onClick={() => clicOrden(k)} title={`Sort by ${e} (${nombreSerieOrden}${aj.acumulado ? ', cumulative' : ''}): highest first, lowest first, original order`}
                 className={`flex items-center justify-center border-r border-[#D5DEE2] cursor-pointer hover:bg-white/70 ${perSel === k ? 'bg-[#312E81] text-white' : k === perDD ? 'bg-[#FFE9A8]' : ''} ${perSel != null && perSel !== k ? 'text-[#9AA6AD]' : ''} ${ordenCol?.col === k && perSel !== k ? 'text-[#312E81] bg-[#E0E3F5]' : ''}`} style={{ width: CW, minWidth: CW }}>{e}{flechaOrden(k)}</div>
-            ))}
+            ); })}
+            <div style={{ width: (nP - c1) * CW, minWidth: (nP - c1) * CW }} />
           </div>
-          {/* Filas */}
-          {filas.map(fl => {
+          {/* Filas (solo las visibles; el resto, espaciadores de su misma altura) */}
+          <div ref={cuerpoRef} style={{ height: filas.length * altoFila }}>
+          <div style={{ height: f0 * altoFila }} />
+          {filas.slice(f0, f1).map(fl => {
             const esNodo = fl.tipo === 'nodo';
             const n = esNodo ? fl.n : null;
             const datos = esNodo ? n! : datosAct(fl.i);
@@ -683,7 +723,7 @@ export const VistaCashflow: React.FC<{
             const fondo = !esNodo ? 'bg-white' : nivel < 0 ? 'bg-[#14212A] text-white' : nivel === 0 ? 'bg-[#DCE6F0]' : nivel === 1 ? 'bg-[#EEF3F8]' : 'bg-[#F7F9FB]';
             const etiqueta = esNodo ? n!.label : etqAct(fl.i);
             return (
-              <div key={key} data-cf-fila={esNodo ? (nivel < 0 ? 'total' : 'grupo') : 'act'} className={`border-b border-[#E3E8EB] ${fondo}`}>
+              <div key={key} data-cf-fila={esNodo ? (nivel < 0 ? 'total' : 'grupo') : 'act'} className={`border-b border-[#E3E8EB] ${fondo}`} style={{ height: altoFila }}>
                 {series.map(([s, l, , col], si) => {
                   const v = valores(datos, s);
                   const total = s === 'f' ? datos.tot.a + datos.tot.r : datos.tot[s as 'b' | 'a' | 'r'];
@@ -712,7 +752,8 @@ export const VistaCashflow: React.FC<{
                         <div className="flex items-center justify-end px-1 font-semibold" style={{ width: ANCHO_TOT }} title={fmt(total, 2)}>{fmt(total)}</div>
                         <div className="flex items-center justify-end px-1 text-[#8A6D00]" style={{ width: ANCHO_PEND }} title={datos.tot.p ? fmt(datos.tot.p, 2) : ''}>{si === 0 && Math.abs(datos.tot.p) >= 0.005 ? fmt(datos.tot.p) : ''}</div>
                       </div>
-                      {Array.from(v, (x0, k) => { const x = perSel == null || perSel === k ? x0 : 0; return (
+                      <div style={{ width: c0 * CW, minWidth: c0 * CW }} />
+                      {Array.from(v.subarray(c0, c1), (x0, j) => { const k = c0 + j; const x = perSel == null || perSel === k ? x0 : 0; return (
                         <div key={k} className={`flex items-center justify-end px-1 border-r border-[#EEF0F2] ${perSel === k ? 'bg-[#E0E3F5]/70 font-semibold' : perSel != null ? 'bg-[#F4F5F7]/60' : k === perDD ? 'bg-[#FFF7D6]/60' : ''} ${nivel < 0 && esNodo ? 'text-white' : ''}`}
                           style={{ width: CW, minWidth: CW, color: nivel < 0 && esNodo ? undefined : Math.abs(x) >= 0.005 ? col : '#C3C3C3' }} title={`${lim.etq[k]} · ${l}: ${fmt(x, 2)}`}>
                           {Math.abs(x) >= 0.005 ? fmt(x) : ''}
@@ -724,6 +765,7 @@ export const VistaCashflow: React.FC<{
               </div>
             );
           })}
+          </div>
         </div>
       </div>
     </div>
