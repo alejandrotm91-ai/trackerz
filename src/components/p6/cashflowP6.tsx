@@ -51,9 +51,11 @@ interface Ajustes {
   /** Remaining de equipos según la Certificación (Planillas). */
   remCert: boolean;
   /** Equipos terminados y certificados: sin Remaining (error de cuantificación). */
-  sinRemTerminados: boolean;
+  /** Rubros terminados en T₃ y con certificación: «quitar» su Remaining (error de cuantificación), «revisar» (solo
+   * esos rubros, con su Remaining, para revisar y actualizar el contrato) o «no» (sin regla). */
+  terminadosCert: 'quitar' | 'revisar' | 'no';
 }
-const AJUSTES_DEF: Ajustes = { agrupar: 'tipo', nivelesWbs: 3, escala: 'months', series: ['b', 'a', 'r'], acumulado: false, regla: true, ambito: 'todo', subcEquipo: true, corteFlete: 22, remCert: true, sinRemTerminados: true };
+const AJUSTES_DEF: Ajustes = { agrupar: 'tipo', nivelesWbs: 3, escala: 'months', series: ['b', 'a', 'r'], acumulado: false, regla: true, ambito: 'todo', subcEquipo: true, corteFlete: 22, remCert: true, terminadosCert: 'quitar' };
 const LS = 'p6.cashflow';
 const leer = (): Ajustes => { try { return { ...AJUSTES_DEF, ...JSON.parse(localStorage.getItem(LS) || '{}') }; } catch { return AJUSTES_DEF; } };
 
@@ -189,9 +191,18 @@ export const VistaCashflow: React.FC<{
   }, [m, version, aj.escala, lineaBase]);
   const nP = Math.max(0, lim.t.length - 1);
 
-  const flujo = React.useMemo(() => (nP ? calcularFlujo(m, lim.t, lineaBase, grupo, aj.regla, aj.corteFlete || null, factorRestante, aj.remCert && certFam ? certFam : undefined, aj.sinRemTerminados) : null),
+  const flujo = React.useMemo(() => (nP ? calcularFlujo(m, lim.t, lineaBase, grupo, aj.regla, aj.corteFlete || null, factorRestante, aj.remCert && certFam ? certFam : undefined, aj.terminadosCert === 'quitar') : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [m, version, lim, lineaBase, grupo, aj.regla, aj.corteFlete, factorRestante, aj.remCert, certFam, aj.sinRemTerminados]);
+    [m, version, lim, lineaBase, grupo, aj.regla, aj.corteFlete, factorRestante, aj.remCert, certFam, aj.terminadosCert]);
+  // Modo «revisar»: solo las actividades (.D, .E y .F) de las familias terminadas y certificadas con faltante
+  const revTerminados = React.useMemo(() => {
+    if (aj.terminadosCert !== 'revisar' || !aj.remCert || !certFam || !flujo) return null;
+    const r = new Set<number>();
+    for (const iD of flujo.anuladas.keys()) { const c = certFam.get(iD); if (!c) continue; r.add(iD); r.add(c.iE); if (c.iF != null) r.add(c.iF); }
+    return r;
+  }, [aj.terminadosCert, aj.remCert, certFam, flujo]);
+  const nAnul = flujo?.anuladas.size || 0;
+  const totAnul = flujo ? [...flujo.anuladas.values()].reduce((a, b) => a + b, 0) : 0;
 
   // Rutas WBS (código + nombre) de cada actividad
   const rutaWbs = React.useMemo(() => {
@@ -262,9 +273,10 @@ export const VistaCashflow: React.FC<{
   }, [aj.agrupar, aj.nivelesWbs, aj.subcEquipo, campo, rutaWbs, grupo, compraDe, esPartidaD]);
 
   const enAmbito = React.useCallback((i: number) => {
+    if (revTerminados && !revTerminados.has(i)) return false;
     if (aj.ambito === 'todo') return true;
     return esGrupoEquipo(grupo(i)) === (aj.ambito === 'equipo');
-  }, [aj.ambito, grupo]);
+  }, [aj.ambito, grupo, revTerminados]);
 
   // Árbol con los valores por período de cada nivel
   const raiz = React.useMemo<Nodo | null>(() => {
@@ -556,11 +568,16 @@ export const VistaCashflow: React.FC<{
             className={`px-2 py-0.5 rounded border text-[11px] cursor-pointer ${reglas.some(r => r.activa) ? 'bg-[#FFF2C2] border-[#E3B505] text-[#6B5200]' : 'bg-white border-[#C3C3C3]'}`}>
             Remaining adj. ({reglas.filter(r => r.activa).length})
           </button>
-          <label className={`flex items-center gap-1 ${aj.remCert && certFam ? 'cursor-pointer' : 'opacity-50'}`}
-            title={`Finished & certified: an equipment item finished in T₃ (purchase, freight and installation completed) that has a certification has no Remaining — what is not certified is a quantification error (e.g. 16.8.4.1). Needs «Remaining from Certification».${flujo?.anuladas.size ? ` ${flujo.anuladas.size} items, ${fmt([...flujo.anuladas.values()].reduce((a, b) => a + b, 0))} removed from Remaining.` : ''}`}>
-            <input id="p6-cf-sin-rem-terminados" type="checkbox" disabled={!aj.remCert || !certFam} checked={aj.sinRemTerminados}
-              onChange={e => set('sinRemTerminados', e.target.checked)} />
-            Finished &amp; certified → no remaining{flujo?.anuladas.size ? ` (${flujo.anuladas.size} · ${fmt([...flujo.anuladas.values()].reduce((a, b) => a + b, 0), 0)})` : ''}
+          <label className={`flex items-center gap-1 ${aj.remCert && certFam ? '' : 'opacity-50'}`}
+            title={`Finished & certified: equipment items finished in T₃ (purchase, freight and installation completed) that have a certification below 100 % (e.g. 16.8.4.1). What is not certified is a quantification error. «Remove remaining»: they get no Remaining. «Review only these»: the table shows only these items with the Remaining that is not certified, so someone can review them and update the contract. Needs «Remaining from Certification».${nAnul ? ` ${nAnul} items · ${fmt(totAnul)} not certified.` : ''}`}>
+            Finished &amp; certified{nAnul ? ` (${nAnul} · ${fmt(totAnul, 0)})` : ''}:
+            <select id="p6-cf-terminados-cert" disabled={!aj.remCert || !certFam} value={aj.terminadosCert}
+              onChange={e => set('terminadosCert', e.target.value as Ajustes['terminadosCert'])}
+              className={`border rounded px-1 py-0.5 text-[11px] ${aj.terminadosCert === 'revisar' && aj.remCert && certFam ? 'bg-[#FFF2C2] border-[#E3B505] text-[#6B5200] font-semibold' : 'bg-white border-[#C3C3C3]'}`}>
+              <option value="quitar">Remove remaining</option>
+              <option value="revisar">Review only these</option>
+              <option value="no">Off</option>
+            </select>
           </label>
           {verReglas && (
             <div id="p6-cf-reglas-panel" className="absolute left-0 top-full mt-1 z-[30] bg-white border border-[#C3C3C3] rounded-lg shadow-xl p-3 w-[640px] text-[11px]" onClick={e => e.stopPropagation()}>

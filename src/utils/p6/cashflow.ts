@@ -17,7 +17,8 @@
  *    el 80 % y el de la .F lo que pase (fechas de T₃ escaladas o, sin Actual en T₃, la fecha de datos), de modo que
  *    Actual + Remaining = Budgeted de la familia; las familias sin cruce siguen con T₃. Opción `sinRestanteTerminadas`:
  *    una familia terminada en T₃ (.D, .E y .F completadas) y con certificación no tiene Remaining (lo no certificado
- *    es un error de cuantificación); `anuladas` guarda lo retirado.
+ *    es un error de cuantificación); `anuladas` guarda, con o sin la opción, lo que esas familias tienen por certificar
+ *    (lo que se retira, o lo que la vista filtra para revisar y actualizar el contrato).
  *  - Corte de cobro de los fletes (decisión del 27-nov-2026): el cobro del flete (80 %) fechado después del día 22
  *    pasa al día 1 del mes siguiente (`aplicarCorte`; día configurable, 0 = sin corte). Solo hacia adelante: a los
  *    cobros fechados desde la fecha de datos (los meses cerrados no se tocan). No afecta a la instalación ni a lo demás.
@@ -229,7 +230,7 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
       const pi = Math.min(1, Math.max(0, (p - 0.8) / 0.2));
       const remIni = anular ? 0 : Math.max(0, PCT_INICIO_INSTALACION - pi) * 0.2 * V;
       const remFin = anular ? 0 : Math.max(0, 1 - Math.max(pi, PCT_INICIO_INSTALACION)) * 0.2 * V;
-      if (anular && p < 1) anuladas.set(iD, (1 - p) * V);
+      if (terminada && p > 0 && p < 1) anuladas.set(iD, (1 - p) * V);
       let rE = remFlete > 0.005 ? ptFlete(remFlete, [fFlete, fFlete]) : undefined;
       const d = porAct.get(iD);
       if (d?.r) porAct.set(iD, { ...d, r: undefined });
