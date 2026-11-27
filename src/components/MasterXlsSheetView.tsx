@@ -36,9 +36,14 @@ import {
   Pencil,
   Copy,
   ClipboardPaste,
-  ChevronUp
+  ChevronUp,
+  TrendingUp,
+  FilterX,
 } from 'lucide-react';
 import { MasterCdoItem, MasterCdoWeek, MasterCdoTotals } from '../types/masterCdo';
+import { SelectorSemana, semanasDeSeleccion } from './SelectorSemana';
+import { HojaR } from './HojaR';
+import { BotonFiltroColumna, ColumnaFiltrable, FiltroCol, construirPredicado, filtroActivo, resumenFiltro } from './FiltroColumnaM3';
 import { Actividad } from '../types';
 import {
   MasterHierarchyMode,
@@ -47,8 +52,6 @@ import {
   extractWeekYear,
   calculateMasterTableSummary,
   MasterTableSummaryTotals,
-  HierarchyTextFilter,
-  TextFilterOperator,
   getVisibleHierarchyNodes,
   getMatchingLeafNodes
 } from '../utils/masterCdoHierarchy';
@@ -71,6 +74,8 @@ interface MasterXlsSheetViewProps {
   onHierarchyLevelChange: (lvl: string) => void;
   expandedKeys: Set<string>;
   toggleNodeExpand: (key: string) => void;
+  /** Despliega estos niveles (sin plegar los demás): lo usa el buscador Ctrl+F. */
+  expandNodeKeys?: (keys: string[]) => void;
   expandAllNodes: () => void;
   collapseAllNodes: () => void;
   searchTerm: string;
@@ -104,208 +109,36 @@ interface MasterXlsSheetViewProps {
   onSaveLocal?: () => void;
 }
 
-interface ColumnFilterPopoverProps {
-  title: string;
-  isOpen: boolean;
-  filter: HierarchyTextFilter;
-  onClose: () => void;
-  onApply: (appliedFilter: HierarchyTextFilter) => void;
-  onClear: () => void;
-}
-
-/**
- * Isolated popover for column text filters.
- * Maintains an internal draft state so typing does NOT trigger
- * expensive re-renders or searches across the entire dataset.
- * The filter only applies when the user clicks 'Aplicar' or presses Enter.
- */
-const ColumnFilterPopover: React.FC<ColumnFilterPopoverProps> = ({
-  title,
-  isOpen,
-  filter,
-  onClose,
-  onApply,
-  onClear,
-}) => {
-  const [draft, setDraft] = useState<HierarchyTextFilter>(filter);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const input1Ref = useRef<HTMLInputElement>(null);
-
-  // Sync draft state with external filter whenever the popover is opened
-  useEffect(() => {
-    if (isOpen) {
-      setDraft(filter);
-      const timer = setTimeout(() => {
-        input1Ref.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, filter]);
-
-  // Handle click outside and Escape key to close without applying uncommitted changes
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  const handleApply = () => {
-    const val1Clean = draft.val1?.trim() || '';
-    const val2Clean = draft.val2?.trim() || '';
-    const hasValue = Boolean(val1Clean || val2Clean);
-    onApply({
-      ...draft,
-      val1: val1Clean,
-      val2: val2Clean,
-      active: hasValue,
-    });
-    onClose();
-  };
-
-  const handleClear = () => {
-    onClear();
-    onClose();
-  };
-
-  const handleKeyDownInInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleApply();
-    }
-  };
-
-  return (
-    <div
-      ref={popoverRef}
-      className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-2xl border border-slate-300 p-3 z-50 text-slate-800 font-sans normal-case tracking-normal text-left select-text"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100">
-        <span className="font-bold text-xs text-slate-800">{title}</span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer transition-colors"
-          title="Cerrar (Esc)"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      <div className="space-y-3">
-        {/* Condition 1 */}
-        <div className="space-y-1">
-          <label className="text-[10.5px] font-semibold text-slate-500 block">Condición 1</label>
-          <select
-            value={draft.op1}
-            onChange={(e) => setDraft((prev) => ({ ...prev, op1: e.target.value as TextFilterOperator }))}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs outline-none focus:border-indigo-500 focus:bg-white transition-colors"
-          >
-            <option value="contains">contiene</option>
-            <option value="not_contains">no contiene</option>
-            <option value="starts_with">comienza por</option>
-            <option value="ends_with">termina con</option>
-            <option value="equals">es igual a</option>
-            <option value="not_equals">no es igual a</option>
-          </select>
-          <input
-            ref={input1Ref}
-            type="text"
-            value={draft.val1}
-            placeholder="Escribe texto a buscar..."
-            onChange={(e) => setDraft((prev) => ({ ...prev, val1: e.target.value }))}
-            onKeyDown={handleKeyDownInInput}
-            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-          />
-        </div>
-
-        {/* Logic Operator */}
-        <div className="flex items-center gap-3 py-0.5">
-          <span className="text-[10.5px] font-semibold text-slate-400">Operador:</span>
-          <label className="flex items-center gap-1 text-xs font-semibold text-slate-700 cursor-pointer">
-            <input
-              type="radio"
-              name={`logic_${title}`}
-              checked={draft.logic === 'and'}
-              onChange={() => setDraft((prev) => ({ ...prev, logic: 'and' }))}
-              className="accent-indigo-600 cursor-pointer"
-            />
-            <span>Y</span>
-          </label>
-          <label className="flex items-center gap-1 text-xs font-semibold text-slate-700 cursor-pointer">
-            <input
-              type="radio"
-              name={`logic_${title}`}
-              checked={draft.logic === 'or'}
-              onChange={() => setDraft((prev) => ({ ...prev, logic: 'or' }))}
-              className="accent-indigo-600 cursor-pointer"
-            />
-            <span>O</span>
-          </label>
-        </div>
-
-        {/* Condition 2 */}
-        <div className="space-y-1">
-          <label className="text-[10.5px] font-semibold text-slate-500 block">Condición 2 (opcional)</label>
-          <select
-            value={draft.op2}
-            onChange={(e) => setDraft((prev) => ({ ...prev, op2: e.target.value as TextFilterOperator }))}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 text-xs outline-none focus:border-indigo-500 focus:bg-white transition-colors"
-          >
-            <option value="contains">contiene</option>
-            <option value="not_contains">no contiene</option>
-            <option value="starts_with">comienza por</option>
-            <option value="ends_with">termina con</option>
-            <option value="equals">es igual a</option>
-            <option value="not_equals">no es igual a</option>
-          </select>
-          <input
-            type="text"
-            value={draft.val2}
-            placeholder="Segunda condición..."
-            onChange={(e) => setDraft((prev) => ({ ...prev, val2: e.target.value }))}
-            onKeyDown={handleKeyDownInInput}
-            className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-          />
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-2 pt-2 border-t border-slate-200">
-          <button
-            type="button"
-            onClick={handleClear}
-            className="flex-1 py-1 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-          >
-            Borrar Filtro
-          </button>
-          <button
-            type="button"
-            onClick={handleApply}
-            className="flex-1 py-1 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer"
-          >
-            Aplicar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+const attrDe = (n: MasterHierarchyNode, k: 'macro' | 'grupo' | 'tipo' | 'partidas' | 'cap' | 'scap' | 'unit' | 'componente' | 'ubicacion' | 'proceso' | 'resp') =>
+  String((n as any)[k] || (n.itemRef as any)?.[k] || '');
+/** Columnas fijas de la hoja M₃ que se pueden filtrar; las semanales (cantidad y venta) se añaden en el componente. */
+const COLUMNAS_FILTRO: ColumnaFiltrable[] = [
+  { key: 'wbs', titulo: 'WBS / Jerarquía', tipo: 'texto', valor: n => n.wbs || n.itemRef?.wbs || '' },
+  { key: 'idOrig', titulo: 'id.Orig', tipo: 'texto', valor: n => n.idOrig || n.itemRef?.idOrig || '' },
+  { key: 'activityId', titulo: 'Activity ID', tipo: 'texto', valor: n => n.activityId || n.itemRef?.activityId || '' },
+  { key: 'descripcion', titulo: 'Descripción Partida', tipo: 'texto', valor: n => n.descripcion || '' },
+  { key: 'macro', titulo: 'Macro', tipo: 'texto', valor: n => attrDe(n, 'macro') },
+  { key: 'grupo', titulo: 'Grupo', tipo: 'texto', valor: n => attrDe(n, 'grupo') },
+  { key: 'tipo', titulo: 'Tipo', tipo: 'texto', valor: n => attrDe(n, 'tipo') },
+  { key: 'partidas', titulo: 'Partidas', tipo: 'texto', valor: n => attrDe(n, 'partidas') },
+  { key: 'cap', titulo: 'CAP', tipo: 'texto', valor: n => attrDe(n, 'cap') },
+  { key: 'scap', titulo: 'SCAP', tipo: 'texto', valor: n => attrDe(n, 'scap') },
+  { key: 'unit', titulo: 'Unit', tipo: 'texto', valor: n => attrDe(n, 'unit') },
+  { key: 'componente', titulo: 'Componente', tipo: 'texto', valor: n => attrDe(n, 'componente') },
+  { key: 'ubicacion', titulo: 'Ubicación', tipo: 'texto', valor: n => attrDe(n, 'ubicacion') },
+  { key: 'proceso', titulo: 'Proceso', tipo: 'texto', valor: n => attrDe(n, 'proceso') },
+  { key: 'resp', titulo: 'Resp', tipo: 'texto', valor: n => attrDe(n, 'resp') },
+  { key: 'unidad', titulo: 'UND', tipo: 'texto', valor: n => n.unidad || '' },
+  { key: 'cantPres', titulo: 'Cant. Presup.', tipo: 'numero', valor: n => n.cantidadPresupuesto },
+  { key: 'precio', titulo: 'Precio', tipo: 'numero', valor: n => n.precio },
+  { key: 'step', titulo: 'Step', tipo: 'numero', valor: n => n.step },
+  { key: 'venta', titulo: 'Venta', tipo: 'numero', valor: n => n.venta },
+  { key: 'subcontratista', titulo: 'Subcontratista', tipo: 'texto', valor: n => n.subcontratista || '' },
+  { key: 'cantAcum', titulo: 'Cant. Acum.', tipo: 'numero', valor: n => n.cantAcum },
+  { key: 'avanceEcon', titulo: 'Avance', tipo: 'numero', valor: n => n.avanceEcon },
+  { key: 'saldoEcon', titulo: 'Saldo', tipo: 'numero', valor: n => n.saldoEcon },
+  { key: 'pctAvance', titulo: '% Av.', tipo: 'numero', valor: n => n.pctAvance },
+];
 
 export function MasterXlsSheetView({
   isOpen,
@@ -325,6 +158,7 @@ export function MasterXlsSheetView({
   onHierarchyLevelChange,
   expandedKeys,
   toggleNodeExpand,
+  expandNodeKeys,
   expandAllNodes,
   collapseAllNodes,
   searchTerm,
@@ -357,10 +191,26 @@ export function MasterXlsSheetView({
   onSaveLocal
 }: MasterXlsSheetViewProps) {
   // XLS View-specific layout states
-  const [density, setDensity] = useState<'compact' | 'normal'>('compact');
+  // Siempre en modo compacto (se quitó el botón de densidad)
+  const density: 'compact' | 'normal' = 'compact';
+  // Semana a avanzar: 'all' = las del año elegido; si no, solo esa semana
+  const [semanaSel, setSemanaSel] = useState<string>('all');
+  // Pestañas de hoja abajo a la izquierda, como en el Excel: «cdo» (la cuadrícula) y «r.» (resumen)
+  const [hoja, setHoja] = useState<'cdo' | 'r'>('cdo');
+  // Solo semanas del año elegido: si la elegida no es de ese año, se vuelve a todas
+  useEffect(() => {
+    if (semanaSel !== 'all' && semanasDeSeleccion(displayedWeeks, semanaSel).length === 0) setSemanaSel('all');
+  }, [displayedWeeks, semanaSel]);
+  const weeksShown = useMemo(() => {
+    if (semanaSel === 'all') return displayedWeeks;
+    const w = semanasDeSeleccion(displayedWeeks, semanaSel);
+    return w.length ? w : displayedWeeks;
+  }, [semanaSel, displayedWeeks]);
   const [internalShowAttributeCols, setInternalShowAttributeCols] = useState<boolean>(false);
   const showAttributeCols = propShowAttributeCols !== undefined ? propShowAttributeCols : internalShowAttributeCols;
   const setShowAttributeCols = propSetShowAttributeCols || setInternalShowAttributeCols;
+  // Vista «Avanza»: solo Cant. Presup., Subcontratista, Cant. Acum., Avance, Saldo y % Av. (más las semanas)
+  const [avanza, setAvanza] = useState<boolean>(false);
   const [activeCell, setActiveCell] = useState<{
     nodeKey: string;
     field: string;
@@ -394,25 +244,49 @@ export function MasterXlsSheetView({
     }, 2500);
   }, []);
 
-  const [idOrigFilter, setIdOrigFilter] = useState<HierarchyTextFilter>({
-    op1: 'contains',
-    val1: '',
-    logic: 'and',
-    op2: 'contains',
-    val2: '',
-    active: false
-  });
-  const [isIdOrigFilterOpen, setIsIdOrigFilterOpen] = useState(false);
-
-  const [activityIdFilter, setActivityIdFilter] = useState<HierarchyTextFilter>({
-    op1: 'contains',
-    val1: '',
-    logic: 'and',
-    op2: 'contains',
-    val2: '',
-    active: false
-  });
-  const [isActivityIdFilterOpen, setIsActivityIdFilterOpen] = useState(false);
+  // Filtros por columna tipo Excel (texto y número), sobre las partidas
+  const [filtrosCol, setFiltrosCol] = useState<Record<string, FiltroCol>>({});
+  const [filtroAbierto, setFiltroAbierto] = useState<string | null>(null);
+  const ponerFiltro = useCallback((key: string, f: FiltroCol | null) => {
+    setFiltrosCol(prev => { const n = { ...prev }; if (f) n[key] = f; else delete n[key]; return n; });
+  }, []);
+  const hojasTodas = useMemo(() => (nodeMap ? Array.from(nodeMap.values()) : nodes).filter(n => n.esHoja), [nodeMap, nodes]);
+  // Una partida pasa si pasa ella o si pasa su actividad p6 (el grupo con Activity ID del que cuelga):
+  // así, p. ej., «Activity ID contiene p6» muestra las actividades p6 con sus rubros.
+  // Columnas semanales filtrables (numéricas): cantidad «wq_<semana>» y venta «wv_<semana>» de las semanas visibles
+  const columnasFiltro = useMemo<ColumnaFiltrable[]>(() => [
+    ...COLUMNAS_FILTRO,
+    ...weeksShown.flatMap(w => [
+      { key: `wq_${w.id}`, titulo: `Cant. ${w.label}`, tipo: 'numero' as const, valor: (n: MasterHierarchyNode) => Number(n.cantidadesSemanales?.[w.id]) || 0 },
+      { key: `wv_${w.id}`, titulo: `Venta ${w.label}`, tipo: 'numero' as const, valor: (n: MasterHierarchyNode) => Number(n.avanceEconSemanales?.[w.id]) || 0 },
+    ]),
+  ], [weeksShown]);
+  const columnaPorKey = useMemo(() => new Map(columnasFiltro.map(c => [c.key, c])), [columnasFiltro]);
+  // Las columnas semanales se evalúan solo sobre la propia partida (el valor de una p6 es la suma de sus rubros).
+  const predicadoHoja = useMemo(() => {
+    const esSemana = (k: string) => k.startsWith('wq_') || k.startsWith('wv_');
+    const pFijas = construirPredicado(filtrosCol, columnasFiltro.filter(c => !esSemana(c.key)), hojasTodas);
+    const pSemana = construirPredicado(filtrosCol, columnasFiltro.filter(c => esSemana(c.key)), hojasTodas);
+    if (!pFijas && !pSemana) return undefined;
+    return (n: MasterHierarchyNode) => {
+      if (pSemana && !pSemana(n)) return false;
+      if (!pFijas || pFijas(n)) return true;
+      const padre = n.parentKey ? nodeMap?.get(n.parentKey) : undefined;
+      return !!(padre && !padre.esHoja && padre.activityId && pFijas(padre));
+    };
+  }, [filtrosCol, hojasTodas, nodeMap, columnasFiltro]);
+  const filtrosActivos = Object.entries(filtrosCol).filter(([k, f]) => columnaPorKey.has(k) && filtroActivo(f));
+  const cabeceraFiltro = (key: string, contenido: React.ReactNode, alinear: 'izq' | 'der' | 'centro' = 'izq') => {
+    const col = columnaPorKey.get(key)!;
+    return (
+      <div className={`flex items-center gap-1 ${alinear === 'der' ? 'justify-end' : alinear === 'centro' ? 'justify-center' : 'justify-between'}`}>
+        <span className="truncate shrink-0">{contenido}</span>
+        <BotonFiltroColumna columna={col} filtro={filtrosCol[key]} abierto={filtroAbierto === key}
+          onAbrir={a => setFiltroAbierto(a ? key : null)} onAplicar={f => ponerFiltro(key, f)} />
+        {asaAjuste(key)}
+      </div>
+    );
+  };
 
   // Computes visible nodes across the full tree hierarchy,
   // working seamlessly whether the tree was collapsed or expanded.
@@ -425,51 +299,15 @@ export function MasterXlsSheetView({
         filterSubc,
         filterAvance,
         searchTerm,
-        { idOrigFilter, activityIdFilter }
+        { predicadoHoja }
       );
     }
     
     // Fallback if nodeMap is not provided
     let result = nodes;
-    const checkOp = (cellValue: string, op: TextFilterOperator, val: string) => {
-      if (!val) return true;
-      const lowerVal = val.toLowerCase();
-      switch (op) {
-        case 'contains': return cellValue.includes(lowerVal);
-        case 'not_contains': return !cellValue.includes(lowerVal);
-        case 'starts_with': return cellValue.startsWith(lowerVal);
-        case 'ends_with': return cellValue.endsWith(lowerVal);
-        case 'equals': return cellValue === lowerVal;
-        case 'not_equals': return cellValue !== lowerVal;
-        default: return true;
-      }
-    };
-
-    if (idOrigFilter.active && (idOrigFilter.val1 || idOrigFilter.val2)) {
-      result = result.filter(n => {
-        const cellValue = String(n.idOrig || n.itemRef?.idOrig || '').toLowerCase();
-        const match1 = idOrigFilter.val1 ? checkOp(cellValue, idOrigFilter.op1, idOrigFilter.val1) : true;
-        const match2 = idOrigFilter.val2 ? checkOp(cellValue, idOrigFilter.op2, idOrigFilter.val2) : true;
-        if (!idOrigFilter.val1 && !idOrigFilter.val2) return true;
-        if (!idOrigFilter.val2) return match1;
-        if (!idOrigFilter.val1) return match2;
-        return idOrigFilter.logic === 'and' ? (match1 && match2) : (match1 || match2);
-      });
-    }
-
-    if (activityIdFilter.active && (activityIdFilter.val1 || activityIdFilter.val2)) {
-      result = result.filter(n => {
-        const cellValue = String(n.activityId || n.itemRef?.activityId || '').toLowerCase();
-        const match1 = activityIdFilter.val1 ? checkOp(cellValue, activityIdFilter.op1, activityIdFilter.val1) : true;
-        const match2 = activityIdFilter.val2 ? checkOp(cellValue, activityIdFilter.op2, activityIdFilter.val2) : true;
-        if (!activityIdFilter.val1 && !activityIdFilter.val2) return true;
-        if (!activityIdFilter.val2) return match1;
-        if (!activityIdFilter.val1) return match2;
-        return activityIdFilter.logic === 'and' ? (match1 && match2) : (match1 || match2);
-      });
-    }
+    if (predicadoHoja) result = result.filter(n => !n.esHoja || predicadoHoja(n));
     return result;
-  }, [nodeMap, rootKeys, expandedKeys, filterSubc, filterAvance, searchTerm, idOrigFilter, activityIdFilter, nodes]);
+  }, [nodeMap, rootKeys, expandedKeys, filterSubc, filterAvance, searchTerm, predicadoHoja, nodes]);
 
   // High performance infinite scrolling in XLS view
   const [renderLimit, setRenderLimit] = useState<number>(100);
@@ -477,11 +315,131 @@ export function MasterXlsSheetView({
   // Reset limit when filters or expansion changes
   useEffect(() => {
     setRenderLimit(100);
-  }, [searchTerm, filterSubc, filterAvance, hierarchyMode, filteredNodes.length, expandedKeys]);
+  }, [searchTerm, filterSubc, filterAvance, hierarchyMode, filteredNodes.length, expandedKeys, predicadoHoja]);
 
   const paginatedNodes = useMemo(() => {
     return filteredNodes.slice(0, renderLimit);
   }, [filteredNodes, renderLimit]);
+
+  // ── Ancho de columnas como en Excel (todas menos # y las semanales): se arrastra el borde derecho de la
+  // cabecera; doble clic vuelve al ancho original. Se aplica con una regla CSS por posición de columna (nth-child,
+  // leída de la cabecera) y recalcula la posición de las columnas fijas de la izquierda. Por usuario en localStorage.
+  const [anchosCol, setAnchosCol] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem('m3.anchos') || '{}'); } catch { return {}; }
+  });
+  useEffect(() => { try { localStorage.setItem('m3.anchos', JSON.stringify(anchosCol)); } catch { /* sin almacenamiento */ } }, [anchosCol]);
+  const tablaRef = useRef<HTMLTableElement>(null);
+  const [posCol, setPosCol] = useState<Record<string, number>>({});
+  React.useLayoutEffect(() => {
+    const t = tablaRef.current;
+    if (!t) return;
+    const r: Record<string, number> = {};
+    t.querySelectorAll('thead th [data-ajuste-col]').forEach(h => {
+      const th = h.closest('th') as HTMLTableCellElement | null;
+      if (th) r[h.getAttribute('data-ajuste-col')!] = th.cellIndex + 1;
+    });
+    setPosCol(prev => (JSON.stringify(prev) === JSON.stringify(r) ? prev : r));
+  });
+  const empezarAjuste = (key: string, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const th = (e.currentTarget as HTMLElement).closest('th');
+    const x0 = e.clientX, w0 = th ? th.getBoundingClientRect().width : 100;
+    const mover = (ev: MouseEvent) => setAnchosCol(a => ({ ...a, [key]: Math.round(Math.min(900, Math.max(36, w0 + ev.clientX - x0))) }));
+    const soltar = () => { window.removeEventListener('mousemove', mover); window.removeEventListener('mouseup', soltar); document.body.style.cursor = ''; };
+    window.addEventListener('mousemove', mover); window.addEventListener('mouseup', soltar);
+    document.body.style.cursor = 'col-resize';
+  };
+  const asaAjuste = (key: string) => (
+    <span data-ajuste-col={key} onMouseDown={e => empezarAjuste(key, e)} onClick={e => e.stopPropagation()}
+      onDoubleClick={e => { e.stopPropagation(); setAnchosCol(a => { const n = { ...a }; delete n[key]; return n; }); }}
+      title="Arrastrar para cambiar el ancho · doble clic: ancho original"
+      className="absolute top-0 right-0 h-full w-[6px] cursor-col-resize z-10 hover:bg-indigo-400/60 active:bg-indigo-500/70" />
+  );
+  const cssAnchos = useMemo(() => {
+    const reglas: string[] = [];
+    for (const [k, w] of Object.entries(anchosCol)) {
+      const i = posCol[k];
+      if (!i) continue;
+      reglas.push(`#m3-tabla>thead>tr>th:nth-child(${i}),#m3-tabla>tbody>tr>td:nth-child(${i}){width:${w}px!important;min-width:${w}px!important;max-width:${w}px!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`);
+    }
+    // Columnas fijas de la izquierda: # (40) · WBS · id.Orig · Activity ID · Descripción
+    if (['wbs', 'idOrig', 'activityId'].some(k => anchosCol[k])) {
+      const w = (k: string, d: number) => anchosCol[k] ?? d;
+      const lefts: [string, number][] = [['idOrig', 40 + w('wbs', 130)], ['activityId', 40 + w('wbs', 130) + w('idOrig', 85)], ['descripcion', 40 + w('wbs', 130) + w('idOrig', 85) + w('activityId', 90)]];
+      for (const [k, l] of lefts) if (posCol[k]) reglas.push(`#m3-tabla>thead>tr>th:nth-child(${posCol[k]}),#m3-tabla>tbody>tr>td:nth-child(${posCol[k]}){left:${l}px!important}`);
+    }
+    return reglas.join('\n');
+  }, [anchosCol, posCol]);
+
+  // ── Buscador tipo Ctrl+F: busca en WBS, id.Orig, Activity ID y descripción de todo el árbol (también lo
+  // plegado y lo que aún no se ha dibujado), respetando los filtros; despliega los niveles y lleva a la fila.
+  const [buscador, setBuscador] = useState(false);
+  const [textoBuscar, setTextoBuscar] = useState('');
+  const [posBuscar, setPosBuscar] = useState(0);
+  const [halladoKey, setHalladoKey] = useState<string | null>(null);
+  /** Columna donde buscar: «todas» (WBS, id.Orig, Activity ID y descripción) o la clave de una columna. */
+  const [colBuscar, setColBuscar] = useState<string>('todas');
+  const entradaBuscar = useRef<HTMLInputElement>(null);
+  const scrollPendiente = useRef(false);
+  const normBuscar = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const hallados = useMemo<MasterHierarchyNode[]>(() => {
+    const q = normBuscar(textoBuscar);
+    if (!q || !nodeMap || !rootKeys) return [];
+    const todos = new Set<string>();
+    for (const n of nodeMap.values()) if (!n.esHoja) todos.add(n.key);
+    const orden = getVisibleHierarchyNodes(nodeMap, rootKeys, todos, filterSubc, filterAvance, searchTerm, { predicadoHoja });
+    const col = colBuscar === 'todas' ? null : columnaPorKey.get(colBuscar);
+    return orden.filter(n => {
+      if (col) { const v = col.valor(n); return v != null && v !== '' && normBuscar(String(v)).includes(q); }
+      const it = n.itemRef as { wbs?: string; idOrig?: string; activityId?: string } | undefined;
+      return [n.wbs || it?.wbs, n.idOrig || it?.idOrig, n.activityId || it?.activityId, n.descripcion]
+        .some(v => v && normBuscar(String(v)).includes(q));
+    });
+  }, [textoBuscar, colBuscar, columnaPorKey, nodeMap, rootKeys, filterSubc, filterAvance, searchTerm, predicadoHoja]);
+  const irAHallado = useCallback((i: number) => {
+    if (!hallados.length || !nodeMap) return;
+    const k = ((i % hallados.length) + hallados.length) % hallados.length;
+    const n = hallados[k];
+    const ancestros: string[] = [];
+    for (let p = n.parentKey; p; p = nodeMap.get(p)?.parentKey ?? null) if (!expandedKeys.has(p)) ancestros.push(p);
+    if (ancestros.length) {
+      if (expandNodeKeys) expandNodeKeys(ancestros); else ancestros.forEach(a => toggleNodeExpand(a));
+    }
+    setPosBuscar(k);
+    setHalladoKey(n.key);
+    setActiveCell({ nodeKey: n.key, field: 'view' });
+    scrollPendiente.current = true;
+  }, [hallados, nodeMap, expandedKeys, expandNodeKeys, toggleNodeExpand]);
+  // Al cambiar el texto, al primer resultado
+  useEffect(() => {
+    if (!buscador) return;
+    if (hallados.length) irAHallado(0); else setHalladoKey(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textoBuscar, colBuscar]);
+  // Que la fila hallada esté dibujada (scroll infinito) y a la vista
+  useEffect(() => {
+    if (!halladoKey || !scrollPendiente.current) return;
+    const idx = filteredNodes.findIndex(n => n.key === halladoKey);
+    if (idx < 0) return;
+    if (idx >= renderLimit) { setRenderLimit(idx + 50); return; }
+    const el = document.querySelector(`[data-node-key="${CSS.escape(halladoKey)}"]`);
+    if (el) { el.scrollIntoView({ block: 'center' }); scrollPendiente.current = false; }
+  }, [halladoKey, filteredNodes, renderLimit, paginatedNodes]);
+  const abrirBuscador = useCallback(() => {
+    setBuscador(true);
+    setTimeout(() => { entradaBuscar.current?.focus(); entradaBuscar.current?.select(); }, 0);
+  }, []);
+  const cerrarBuscador = () => { setBuscador(false); setHalladoKey(null); };
+  // Ctrl+F / ⌘F abre el buscador de la hoja (en lugar del del navegador, que no ve lo plegado); F3 = siguiente
+  useEffect(() => {
+    if (!isOpen || hoja !== 'cdo') return;
+    const tecla = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); abrirBuscador(); }
+      else if (e.key === 'F3' && buscador) { e.preventDefault(); irAHallado(posBuscar + (e.shiftKey ? -1 : 1)); }
+    };
+    window.addEventListener('keydown', tecla, true);
+    return () => window.removeEventListener('keydown', tecla, true);
+  }, [isOpen, hoja, buscador, abrirBuscador, irAHallado, posBuscar]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -502,13 +460,13 @@ export function MasterXlsSheetView({
         filterSubc,
         filterAvance,
         searchTerm,
-        { idOrigFilter, activityIdFilter }
+        { predicadoHoja }
       );
       return calculateMasterTableSummary(matchingLeaves, semanas, items);
     }
     const leafNodes = filteredNodes.filter(n => n.esHoja);
     return calculateMasterTableSummary(leafNodes, semanas, items);
-  }, [nodeMap, rootKeys, filterSubc, filterAvance, searchTerm, idOrigFilter, activityIdFilter, semanas, items, filteredNodes]);
+  }, [nodeMap, rootKeys, filterSubc, filterAvance, searchTerm, predicadoHoja, semanas, items, filteredNodes]);
 
   // In-cell editing
   const [editingCell, setEditingCell] = useState<{
@@ -667,10 +625,12 @@ export function MasterXlsSheetView({
     const attrs = showAttributeCols
       ? ['macro', 'grupo', 'tipo', 'partidas', 'cap', 'scap', 'unit', 'componente', 'ubicacion', 'proceso', 'resp']
       : [];
-    const metrics = ['cantPres', 'precio', 'step', 'venta', 'subcontratista', 'cantAcum', 'avanceEcon', 'saldoEcon', 'pctAvance'];
-    const weeks = !showAttributeCols ? displayedWeeks.map(w => `week_${w.id}`) : [];
+    const metrics = avanza
+      ? ['cantPres', 'subcontratista', 'pctAvance', 'cantAcum', 'avanceEcon', 'saldoEcon']
+      : ['cantPres', 'precio', 'step', 'venta', 'subcontratista', 'pctAvance', 'cantAcum', 'avanceEcon', 'saldoEcon'];
+    const weeks = !showAttributeCols ? weeksShown.map(w => `week_${w.id}`) : [];
     return [...base, ...attrs, ...metrics, ...weeks];
-  }, [showAttributeCols, displayedWeeks]);
+  }, [showAttributeCols, weeksShown, avanza]);
 
   // Smooth keyboard navigation across the entire grid
   const navigateActiveCell = useCallback((direction: 'down' | 'up' | 'right' | 'left') => {
@@ -1000,8 +960,8 @@ export function MasterXlsSheetView({
       venta: 'VENTA',
       subcontratista: 'SUBCONTRATISTA',
       cantAcum: 'CANT.ACUM',
-      avanceEcon: 'AVANCE $',
-      saldoEcon: 'SALDO $',
+      avanceEcon: 'AVANCE ',
+      saldoEcon: 'SALDO ',
       pctAvance: '% AVANCE',
       qty: 'CANT.SEMANAL'
     };
@@ -1020,13 +980,13 @@ export function MasterXlsSheetView({
     if (field === 'activityId') return selectedNode.activityId || item?.activityId || '';
     if (field === 'descripcion') return selectedNode.descripcion;
     if (field === 'cantPres') return selectedNode.cantidadPresupuesto;
-    if (field === 'precio') return `$${selectedNode.precio}`;
+    if (field === 'precio') return `${selectedNode.precio}`;
     if (field === 'step') return selectedNode.step;
-    if (field === 'venta') return `$${selectedNode.venta.toLocaleString('es-ES')}`;
+    if (field === 'venta') return `${selectedNode.venta.toLocaleString('es-ES')}`;
     if (field === 'subcontratista') return selectedNode.subcontratista || '';
     if (field === 'cantAcum') return selectedNode.cantAcum;
-    if (field === 'avanceEcon') return `$${selectedNode.avanceEcon.toLocaleString('es-ES')}`;
-    if (field === 'saldoEcon') return `$${selectedNode.saldoEcon.toLocaleString('es-ES')}`;
+    if (field === 'avanceEcon') return `${selectedNode.avanceEcon.toLocaleString('es-ES')}`;
+    if (field === 'saldoEcon') return `${selectedNode.saldoEcon.toLocaleString('es-ES')}`;
     if (field === 'pctAvance') return `${selectedNode.pctAvance.toFixed(1)}%`;
     return (selectedNode as any)[field] ?? (item as any)?.[field] ?? '';
   }, [activeCell, selectedNode]);
@@ -1040,17 +1000,17 @@ export function MasterXlsSheetView({
     >
       <div className="flex flex-col h-full w-full bg-[#f8fafc] text-slate-800 shadow-2xl">
         {/* 1. EXCEL TOP HEADER (Dark Green Ribbon) */}
-        <div className="bg-[#107c41] text-white px-4 py-2 flex flex-wrap items-center justify-between gap-3 border-b border-emerald-900 shrink-0">
+        <div className="bg-[#F5F8F9] text-[#14212A] px-4 py-2 flex flex-wrap items-center justify-between gap-3 border-b border-[#D5DEE2] shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-900/60 border border-emerald-500/40 flex items-center justify-center text-white shadow-inner">
+            <div className="hidden">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-black tracking-wide uppercase text-white">
+                <h2 className="text-[11px] font-['Barlow_Condensed'] font-semibold tracking-wider uppercase text-[#14212A]">
                   Master CDO — Hoja Excel
                 </h2>
-                <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-emerald-900/80 text-emerald-200 border border-emerald-600/50">
+                <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-white text-[#5A6A74] border border-[#D5DEE2]">
                   Pantalla Completa
                 </span>
                 {hasUnsavedCloudChanges && (
@@ -1060,7 +1020,7 @@ export function MasterXlsSheetView({
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-emerald-100/90 font-medium">
+              <p className="text-[11px] text-[#5A6A74] font-mono">
                 Vista de alta productividad para avanzar cantidades físicas, calibrar precios y editar atributos de Activity ID.
               </p>
             </div>
@@ -1068,17 +1028,17 @@ export function MasterXlsSheetView({
 
           {/* Quick Metrics in Header */}
           <div className="hidden lg:flex items-center gap-4 text-xs font-mono">
-            <div className="bg-emerald-900/50 border border-emerald-700/50 rounded-lg px-2.5 py-1">
-              <span className="text-[10px] text-emerald-200 uppercase block font-sans">Presupuesto</span>
-              <span className="font-bold text-white">${totals.totalVentaPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</span>
+            <div className="bg-white border border-[#D5DEE2] rounded-lg px-2.5 py-1">
+              <span className="text-[10px] text-[#5A6A74] uppercase block font-sans">Presupuesto</span>
+              <span className="font-bold text-[#14212A]">{totals.totalVentaPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</span>
             </div>
-            <div className="bg-emerald-900/50 border border-emerald-700/50 rounded-lg px-2.5 py-1">
-              <span className="text-[10px] text-emerald-200 uppercase block font-sans">Avance Econ.</span>
-              <span className="font-bold text-emerald-300">${totals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</span>
+            <div className="bg-white border border-[#D5DEE2] rounded-lg px-2.5 py-1">
+              <span className="text-[10px] text-[#5A6A74] uppercase block font-sans">Avance Econ.</span>
+              <span className="font-bold text-green-700">{totals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</span>
             </div>
-            <div className="bg-emerald-900/50 border border-emerald-700/50 rounded-lg px-2.5 py-1">
-              <span className="text-[10px] text-emerald-200 uppercase block font-sans">% Avance</span>
-              <span className="font-black text-amber-300">{totals.pctAvanceEconomico.toFixed(1)}%</span>
+            <div className="bg-white border border-[#D5DEE2] rounded-lg px-2.5 py-1">
+              <span className="text-[10px] text-[#5A6A74] uppercase block font-sans">% Avance</span>
+              <span className="font-bold text-[#CD0000]">{totals.pctAvanceEconomico.toFixed(1)}%</span>
             </div>
           </div>
 
@@ -1122,7 +1082,7 @@ export function MasterXlsSheetView({
                   ? 'bg-amber-400 hover:bg-amber-300 text-amber-950 border-amber-500'
                   : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-900'
               }`}
-              title="Sincronizar con la nube (Firestore)"
+              title="Sincronizar con la nube (Cloudflare)"
             >
               <Cloud className={`w-4 h-4 ${isSavingCloud ? 'animate-spin' : ''}`} />
             </button>
@@ -1145,7 +1105,7 @@ export function MasterXlsSheetView({
               <Download className="w-4 h-4" />
             </button>
 
-            <div className="w-px h-6 bg-emerald-800 mx-1"></div>
+            <div className="w-px h-6 bg-[#D5DEE2] mx-1"></div>
 
             <button
               type="button"
@@ -1170,7 +1130,9 @@ export function MasterXlsSheetView({
         </div>
 
         {/* 2. EXCEL COMMAND TOOLBAR (Ribbon Controls) */}
-        <div className="bg-white border-b border-slate-200 px-4 py-2 flex flex-wrap items-center gap-2 text-xs shrink-0 shadow-2xs">
+        <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-start gap-3 text-xs shrink-0 shadow-2xs">
+        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
             {/* View Mode (Q / $ / Dual) */}
             <div className="inline-flex bg-[#F5F8F9] rounded-lg p-0.5 border border-[#D5DEE2] text-xs font-bold text-[#5A6A74] shadow-xs">
               <button
@@ -1178,7 +1140,7 @@ export function MasterXlsSheetView({
                 onClick={() => setViewMode('qty')}
                 className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer select-none ${
                   viewMode === 'qty'
-                    ? 'bg-[#442dd7] text-white shadow-xs font-bold'
+                    ? 'bg-[#CD0000] text-white shadow-xs font-bold'
                     : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#EEF2F3]'
                 }`}
                 title="Mostrar cantidades físicas de obra"
@@ -1190,24 +1152,24 @@ export function MasterXlsSheetView({
                 onClick={() => setViewMode('econ')}
                 className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer select-none ${
                   viewMode === 'econ'
-                    ? 'bg-[#442dd7] text-white shadow-xs font-bold'
+                    ? 'bg-[#CD0000] text-white shadow-xs font-bold'
                     : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#EEF2F3]'
                 }`}
-                title="Mostrar avance económico / Venta ($)"
+                title="Mostrar avance económico / Venta (V = Valor)"
               >
-                $
+                V
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('dual')}
                 className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer select-none ${
                   viewMode === 'dual'
-                    ? 'bg-[#442dd7] text-white shadow-xs font-bold'
+                    ? 'bg-[#CD0000] text-white shadow-xs font-bold'
                     : 'text-[#5A6A74] hover:text-[#14212A] hover:bg-[#EEF2F3]'
                 }`}
-                title="Dual: Cantidad física y monto económico ($)"
+                title="Dual: Cantidad física (Q) y valor económico (V)"
               >
-                Q & $
+                Q & V
               </button>
             </div>
 
@@ -1241,48 +1203,6 @@ export function MasterXlsSheetView({
                 >
                   <ChevronsDownUp className="w-4 h-4" />
                 </button>
-              </div>
-            )}
-
-            {/* Toggle Attribute View (Unit, Componente, Macro, Grupo, Tipo, CAP, SCAP) - hides execution weeks */}
-            <button
-              id="btn-xls-toggle-attributes"
-              type="button"
-              onClick={() => setShowAttributeCols(!showAttributeCols)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
-                showAttributeCols
-                  ? 'bg-indigo-600 border-indigo-700 text-white shadow-sm font-black ring-2 ring-indigo-400/40'
-                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
-              }`}
-              title="Visión de Atributos: incluye Unit, Componente, Macro, Grupo, etc. y oculta las semanas de ejecución para facilitar la edición"
-            >
-              <SlidersHorizontal className={`w-3.5 h-3.5 ${showAttributeCols ? 'text-white' : 'text-indigo-600'}`} />
-              <span>Atributos</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${
-                showAttributeCols ? 'bg-white/25 text-white' : 'bg-indigo-100 text-indigo-800'
-              }`}>
-                {showAttributeCols ? 'Semanas Ocultas' : 'Normal'}
-              </span>
-            </button>
-
-            {/* Density toggle */}
-            <button
-              type="button"
-              onClick={() => setDensity(d => d === 'compact' ? 'normal' : 'compact')}
-              className="px-2 py-1 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
-              title="Alternar densidad visual de filas"
-            >
-              {density === 'compact' ? '📏 Modo Compacto' : '📐 Modo Normal'}
-            </button>
-
-            {/* P6 Items Indicator */}
-            {items.some(it => (it.activityId || '').toLowerCase().includes('p6')) && (
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-100 border border-orange-300 text-orange-950 font-bold text-xs shadow-2xs select-none"
-                title="Las partidas cuyo Activity ID contiene 'P6' se destacan automáticamente en naranja claro en todas las columnas"
-              >
-                <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
-                <span>P6: Naranja claro ({items.filter(it => (it.activityId || '').toLowerCase().includes('p6')).length})</span>
               </div>
             )}
 
@@ -1334,6 +1254,19 @@ export function MasterXlsSheetView({
                 </div>
             )}
 
+            {/* Add week button */}
+            <button
+              type="button"
+              onClick={onAddWeek}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-black text-xs transition-colors cursor-pointer"
+              title="Añadir una nueva semana de corte"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Semana</span>
+            </button>
+          </div>
+          {/* Filtros, debajo del selector Q / V / Q&V */}
+          <div className="flex flex-wrap items-center gap-2">
             {/* Search Input */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -1345,73 +1278,116 @@ export function MasterXlsSheetView({
                 className="pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 w-44"
               />
             </div>
-
-            {/* Subcontractor Filter */}
-            {subcontratistasList.length > 0 && (
-              <select
-                value={filterSubc}
-                onChange={e => setFilterSubc(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-xs font-semibold text-slate-700 outline-none"
-              >
-                <option value="all">👷 Todos SubC</option>
-                {subcontratistasList.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            )}
-
-            {/* Avance Filter */}
-            <select
-              value={filterAvance}
-              onChange={e => setFilterAvance(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-xs font-semibold text-slate-700 outline-none"
-            >
-              <option value="all">📊 Todas</option>
-              <option value="con_avance">✅ Con avance</option>
-              <option value="sin_avance">⏳ Sin avance</option>
-              <option value="saldo_pendiente">📉 Con saldo</option>
-            </select>
-
-            {/* Active Column Filters Badges */}
-            {idOrigFilter.active && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-bold">
-                <span>id.Orig: &quot;{idOrigFilter.val1 || idOrigFilter.val2}&quot;</span>
-                <button
-                  type="button"
-                  onClick={() => setIdOrigFilter(prev => ({ ...prev, active: false, val1: '', val2: '' }))}
-                  className="text-indigo-400 hover:text-indigo-800 p-0.5 rounded cursor-pointer"
-                  title="Quitar filtro de id.Orig"
-                >
-                  <X className="w-3 h-3" />
+            {(() => {
+              const hay = !!searchTerm || filterSubc !== 'all' || filterAvance !== 'all' || filtrosActivos.length > 0;
+              return (
+                <>
+                <button id="m3-buscar" type="button" onClick={abrirBuscador} title="Buscar en la hoja (Ctrl+F): WBS, id.Orig, Activity ID o descripción, también en lo plegado"
+                  className="px-2.5 py-1.5 rounded-lg border border-[#D5DEE2] bg-white text-[#14212A] hover:bg-[#F5F8F9] text-[11px] font-semibold flex items-center gap-1 cursor-pointer shrink-0">
+                  <Search className="w-3.5 h-3.5" />Buscar
                 </button>
-              </span>
-            )}
-            {activityIdFilter.active && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-bold">
-                <span>Act.ID: &quot;{activityIdFilter.val1 || activityIdFilter.val2}&quot;</span>
-                <button
-                  type="button"
-                  onClick={() => setActivityIdFilter(prev => ({ ...prev, active: false, val1: '', val2: '' }))}
-                  className="text-indigo-400 hover:text-indigo-800 p-0.5 rounded cursor-pointer"
-                  title="Quitar filtro de Activity ID"
-                >
-                  <X className="w-3 h-3" />
+                <button id="m3-quitar-filtros" type="button" disabled={!hay}
+                  onClick={() => { setSearchTerm(''); setFilterSubc('all'); setFilterAvance('all'); setFiltrosCol({}); }}
+                  title="Quitar todos los filtros: búsqueda, SubC, avance y filtros de columna"
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs font-bold ${hay ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer' : 'bg-white border-slate-200 text-slate-300 cursor-default'}`}>
+                  <FilterX className="w-3.5 h-3.5" /> Quitar filtros
                 </button>
-              </span>
-            )}
+                </>
+              );
+            })()}
 
-            {/* Add week button */}
-            <button
-              type="button"
-              onClick={onAddWeek}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-black text-xs transition-colors cursor-pointer"
-              title="Añadir una nueva semana de corte"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ Semana</span>
-            </button>
+            {/* Filtros de columna activos */}
+            {filtrosActivos.map(([k, f]) => {
+              const col = columnaPorKey.get(k)!;
+              return (
+                <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-bold">
+                  <span>{col.titulo}: {resumenFiltro(f, col.tipo)}</span>
+                  <button type="button" onClick={() => ponerFiltro(k, null)}
+                    className="text-indigo-400 hover:text-indigo-800 p-0.5 rounded cursor-pointer" title={`Quitar filtro de ${col.titulo}`}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              );
+            })}
+
+          </div>
+        </div>
+        {/* A la derecha, bajo WBS / Volver: Avanza y Atributos arriba; SubC y avance debajo */}
+        <div className="ml-auto shrink-0 flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+                {/* Vista Avanza: solo las columnas para avanzar */}
+                <button
+                  id="btn-xls-avanza"
+                  type="button"
+                  onClick={() => { const v = !avanza; setAvanza(v); if (v && showAttributeCols) setShowAttributeCols(false); }}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
+                    avanza
+                      ? 'bg-emerald-700 border-emerald-800 text-white shadow-sm font-black ring-2 ring-emerald-400/40'
+                      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
+                  }`}
+                  title="Avanza: muestra solo Cant. Presup., Subcontratista, Cant. Acum., Avance, Saldo y % Av. (y las semanas)"
+                >
+                  <TrendingUp className={`w-3.5 h-3.5 ${avanza ? 'text-white' : 'text-emerald-700'}`} />
+                  <span>Avanza</span>
+                </button>
+                {/* Semana a avanzar: una semana, un mes completo o todas (desplegable por año › mes › semana) */}
+                {!showAttributeCols && semanas.length > 0 && (
+                  <SelectorSemana semanas={displayedWeeks} valor={semanaSel} onCambiar={setSemanaSel} />
+                )}
+
+                {/* Toggle Attribute View (Unit, Componente, Macro, Grupo, Tipo, CAP, SCAP) - hides execution weeks */}
+                <button
+                  id="btn-xls-toggle-attributes"
+                  type="button"
+                  onClick={() => { const v = !showAttributeCols; setShowAttributeCols(v); if (v) setAvanza(false); }}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
+                    showAttributeCols
+                      ? 'bg-indigo-600 border-indigo-700 text-white shadow-sm font-black ring-2 ring-indigo-400/40'
+                      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
+                  }`}
+                  title="Visión de Atributos: incluye Unit, Componente, Macro, Grupo, etc. y oculta las semanas de ejecución para facilitar la edición"
+                >
+                  <SlidersHorizontal className={`w-3.5 h-3.5 ${showAttributeCols ? 'text-white' : 'text-indigo-600'}`} />
+                  <span>Atributos</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${
+                    showAttributeCols ? 'bg-white/25 text-white' : 'bg-indigo-100 text-indigo-800'
+                  }`}>
+                    {showAttributeCols ? 'Semanas Ocultas' : 'Normal'}
+                  </span>
+                </button>
+          </div>
+          <div className="flex items-center gap-2">
+                {/* Subcontractor Filter */}
+                {subcontratistasList.length > 0 && (
+                  <select
+                    value={filterSubc}
+                    onChange={e => setFilterSubc(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-xs font-semibold text-slate-700 outline-none"
+                  >
+                    <option value="all">👷 Todos SubC</option>
+                    {subcontratistasList.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                )}
+                {/* Avance Filter */}
+                <select
+                  value={filterAvance}
+                  onChange={e => setFilterAvance(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-xs font-semibold text-slate-700 outline-none"
+                >
+                  <option value="all">📊 Todas</option>
+                  <option value="con_avance">✅ Con avance</option>
+                  <option value="sin_avance">⏳ Sin avance</option>
+                  <option value="saldo_pendiente">📉 Con saldo</option>
+                </select>
+          </div>
+        </div>
         </div>
 
+        {hoja === 'r' ? (
+          <HojaR items={items} semanas={semanas} actividades={actividades} />
+        ) : (<>
         {/* 3. EXCEL FORMULA BAR (Authentic Excel Formula Input & Copy/Paste Controls) */}
         <div className="bg-[#f8fafc] border-b border-slate-300 px-3 py-1 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0 font-sans shadow-2xs">
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -1550,8 +1526,38 @@ export function MasterXlsSheetView({
         </div>
 
         {/* 4. SPREADSHEET TABLE GRID (Excel High-Density Matrix) */}
+        {buscador && hoja === 'cdo' && (
+          <div id="m3-buscador" className="fixed z-[60] right-6 top-[150px] bg-white border border-[#D5DEE2] shadow-lg rounded-xl px-2.5 py-2 flex items-center gap-1.5 text-[11px] font-sans">
+            <Search className="w-3.5 h-3.5 text-slate-400" />
+            <select id="m3-buscador-columna" value={colBuscar} onChange={e => { setColBuscar(e.target.value); entradaBuscar.current?.focus(); }}
+              title="Columna donde buscar" className="px-1.5 py-1 border border-slate-300 rounded-md bg-white text-[11px] max-w-[150px] cursor-pointer">
+              <option value="todas">Todas las columnas</option>
+              {COLUMNAS_FILTRO.map(c => <option key={c.key} value={c.key}>{c.titulo}</option>)}
+            </select>
+            <input ref={entradaBuscar} id="m3-buscador-texto" value={textoBuscar} onChange={e => setTextoBuscar(e.target.value)}
+              placeholder={colBuscar === 'todas' ? 'Buscar partida, WBS, id.Orig, descripción…' : `Buscar en ${columnaPorKey.get(colBuscar)?.titulo ?? 'la columna'}…`}
+              onKeyDown={e => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); irAHallado(posBuscar + (e.shiftKey ? -1 : 1)); }
+                else if (e.key === 'Escape') { e.preventDefault(); cerrarBuscador(); }
+              }}
+              className="w-64 px-2 py-1 border border-slate-300 rounded-md outline-none focus:border-indigo-500 text-[12px]" />
+            <span id="m3-buscador-cuenta" className={`min-w-[74px] text-center tabular-nums ${textoBuscar && !hallados.length ? 'text-rose-600 font-semibold' : 'text-slate-500'}`}>
+              {!textoBuscar ? '' : hallados.length ? `${posBuscar + 1} de ${hallados.length}` : 'Sin resultados'}
+            </span>
+            <button type="button" title="Anterior (Shift+Enter)" disabled={!hallados.length} onClick={() => irAHallado(posBuscar - 1)}
+              className="p-1 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer"><ChevronUp className="w-4 h-4" /></button>
+            <button type="button" title="Siguiente (Enter)" disabled={!hallados.length} onClick={() => irAHallado(posBuscar + 1)}
+              className="p-1 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer"><ChevronDown className="w-4 h-4" /></button>
+            <button type="button" title="Cerrar (Esc)" onClick={cerrarBuscador} className="p-1 rounded hover:bg-slate-100 cursor-pointer"><X className="w-4 h-4" /></button>
+            {textoBuscar && !hallados.length && (filtrosActivos.length > 0 || searchTerm || filterSubc !== 'all' || filterAvance !== 'all') && (
+              <span className="text-[10px] text-amber-700">hay filtros activos</span>
+            )}
+          </div>
+        )}
         <div className="flex-1 overflow-auto relative bg-white" onScroll={handleScroll}>
-          <table className="w-full border-collapse text-left text-xs font-mono">
+          <style>{`#m3-tabla>thead>tr>th:not(.sticky){position:relative}${cssAnchos}`}</style>
+          <table id="m3-tabla" ref={tablaRef} className="w-full border-collapse text-left text-xs font-mono">
             {/* Table Header Row */}
             <thead className="sticky top-0 z-30 bg-[#e2e8f0] text-slate-700 font-bold text-[11px] border-b-2 border-slate-300 select-none shadow-2xs font-sans">
               <tr>
@@ -1562,131 +1568,59 @@ export function MasterXlsSheetView({
 
                 {/* Col B: WBS */}
                 <th className="py-1.5 px-2.5 sticky left-10 z-40 bg-[#e2e8f0] border-r border-b border-slate-300 min-w-[130px]">
-                  WBS / Jerarquía
+                  {cabeceraFiltro('wbs', 'WBS / Jerarquía')}
                 </th>
 
                 {/* Col C: id.Orig */}
                 <th className="py-1.5 px-2 sticky left-[170px] z-40 bg-[#e2e8f0] border-r border-b border-slate-300 min-w-[85px]">
-                  <div className="flex items-center justify-between gap-1 relative">
-                    <span>id.Orig</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsIdOrigFilterOpen((prev) => !prev);
-                        setIsActivityIdFilterOpen(false);
-                      }}
-                      className={`p-0.5 rounded transition-colors cursor-pointer ${
-                        idOrigFilter.active
-                          ? 'text-indigo-700 bg-indigo-100/50 hover:bg-indigo-200/50'
-                          : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
-                      }`}
-                      title="Filtrar por id.Orig"
-                    >
-                      <Filter className="w-3.5 h-3.5" />
-                    </button>
-
-                    <ColumnFilterPopover
-                      title="Filtro: id.Orig"
-                      isOpen={isIdOrigFilterOpen}
-                      filter={idOrigFilter}
-                      onClose={() => setIsIdOrigFilterOpen(false)}
-                      onApply={(applied) => setIdOrigFilter(applied)}
-                      onClear={() =>
-                        setIdOrigFilter({
-                          op1: 'contains',
-                          val1: '',
-                          logic: 'and',
-                          op2: 'contains',
-                          val2: '',
-                          active: false,
-                        })
-                      }
-                    />
-                  </div>
+                  {cabeceraFiltro('idOrig', 'id.Orig')}
                 </th>
 
                 {/* Col D: Activity ID */}
                 <th className="py-1.5 px-2 sticky left-[255px] z-40 bg-[#e2e8f0] border-r border-b border-slate-300 min-w-[90px]">
-                  <div className="flex items-center justify-between gap-1 relative">
-                    <span>Activity ID</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsActivityIdFilterOpen((prev) => !prev);
-                        setIsIdOrigFilterOpen(false);
-                      }}
-                      className={`p-0.5 rounded transition-colors cursor-pointer ${
-                        activityIdFilter.active
-                          ? 'text-indigo-700 bg-indigo-100/50 hover:bg-indigo-200/50'
-                          : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
-                      }`}
-                      title="Filtrar por Activity ID"
-                    >
-                      <Filter className="w-3.5 h-3.5" />
-                    </button>
-
-                    <ColumnFilterPopover
-                      title="Filtro: Activity ID"
-                      isOpen={isActivityIdFilterOpen}
-                      filter={activityIdFilter}
-                      onClose={() => setIsActivityIdFilterOpen(false)}
-                      onApply={(applied) => setActivityIdFilter(applied)}
-                      onClear={() =>
-                        setActivityIdFilter({
-                          op1: 'contains',
-                          val1: '',
-                          logic: 'and',
-                          op2: 'contains',
-                          val2: '',
-                          active: false,
-                        })
-                      }
-                    />
-                  </div>
+                  {cabeceraFiltro('activityId', 'Activity ID')}
                 </th>
 
                 {/* Col E: Descripción */}
                 <th className="py-1.5 px-3 sticky left-[345px] z-40 bg-[#e2e8f0] border-r border-b border-slate-300 min-w-[240px] max-w-[340px]">
-                  Descripción Partida
+                  {cabeceraFiltro('descripcion', 'Descripción Partida')}
                 </th>
 
                 {/* Optional Attribute Columns (Macro, Grupo, Tipo, Partidas, CAP, SCAP, Unit, Componente, Ubicación, Proceso, Resp, Editar) */}
                 {showAttributeCols && (
                   <>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[95px] bg-blue-50 text-blue-900">
-                      Macro
+                      {cabeceraFiltro('macro', 'Macro', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[95px] bg-indigo-50 text-indigo-900">
-                      Grupo
+                      {cabeceraFiltro('grupo', 'Grupo', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[90px] bg-purple-50 text-purple-900">
-                      Tipo
+                      {cabeceraFiltro('tipo', 'Tipo', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[95px] bg-slate-50 text-slate-900">
-                      Partidas
+                      {cabeceraFiltro('partidas', 'Partidas', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[70px] bg-amber-50 text-amber-900 text-center">
-                      CAP
+                      {cabeceraFiltro('cap', 'CAP', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[80px] bg-emerald-50 text-emerald-900 text-center">
-                      SCAP
+                      {cabeceraFiltro('scap', 'SCAP', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[85px] bg-teal-50 text-teal-900 text-center font-black">
-                      Unit
+                      {cabeceraFiltro('unit', 'Unit', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[110px] bg-cyan-50 text-cyan-900 font-black">
-                      Componente
+                      {cabeceraFiltro('componente', 'Componente', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[85px] bg-slate-100 text-slate-800">
-                      Ubicación
+                      {cabeceraFiltro('ubicacion', 'Ubicación', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[85px] bg-slate-100 text-slate-800">
-                      Proceso
+                      {cabeceraFiltro('proceso', 'Proceso', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[85px] bg-slate-100 text-slate-800">
-                      Resp
+                      {cabeceraFiltro('resp', 'Resp', 'centro')}
                     </th>
                     <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[80px] bg-indigo-100/90 text-indigo-950 text-center">
                       Editar
@@ -1695,50 +1629,59 @@ export function MasterXlsSheetView({
                 )}
 
                 {/* Standard Data Columns */}
-                <th className="py-1.5 px-2 border-r border-b border-slate-300 text-center w-14">
-                  UND
+                {!avanza && (
+                <th className="py-1.5 px-2 border-r border-b border-slate-300 text-center min-w-[64px]">
+                  {cabeceraFiltro('unidad', 'UND', 'centro')}
                 </th>
-                <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[80px]">
-                  Cant. Presup.
+                )}
+                <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[120px] whitespace-nowrap">
+                  {cabeceraFiltro('cantPres', 'Cant. Presup.', 'der')}
                 </th>
+                {!avanza && (<>
                 <th className="py-1.5 px-2 border-r border-b border-slate-300 text-right min-w-[75px]">
-                  Precio ($)
+                  {cabeceraFiltro('precio', 'Precio', 'der')}
                 </th>
-                <th className="py-1.5 px-1.5 border-r border-b border-slate-300 text-center w-12">
-                  Step
+                <th className="py-1.5 px-1.5 border-r border-b border-slate-300 text-center min-w-[60px]">
+                  {cabeceraFiltro('step', 'Step', 'centro')}
                 </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[90px]">
-                  Venta ($)
+                  {cabeceraFiltro('venta', 'Venta', 'der')}
                 </th>
+                </>)}
                 <th className="py-1.5 px-2 border-r border-b border-slate-300 min-w-[95px]">
-                  Subcontratista
+                  {cabeceraFiltro('subcontratista', 'Subcontratista', 'izq')}
+                </th>
+                <th className="py-1.5 px-1.5 border-r border-b border-slate-300 text-center min-w-[64px]">
+                  {cabeceraFiltro('pctAvance', '% Av.', 'centro')}
                 </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[85px] bg-indigo-50/70 text-indigo-900">
-                  Cant. Acum.
+                  {cabeceraFiltro('cantAcum', 'Cant. Acum.', 'der')}
                 </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[95px] bg-indigo-50/70 text-indigo-900">
-                  Avance ($)
+                  {cabeceraFiltro('avanceEcon', 'Avance', 'der')}
                 </th>
                 <th className="py-1.5 px-2.5 border-r border-b border-slate-300 text-right min-w-[85px] text-slate-600">
-                  Saldo ($)
-                </th>
-                <th className="py-1.5 px-1.5 border-r border-b border-slate-300 text-center w-14">
-                  % Av.
+                  {cabeceraFiltro('saldoEcon', 'Saldo', 'der')}
                 </th>
 
                 {/* DYNAMIC WEEKLY COLUMNS (Hidden when in attribute view) */}
-                {!showAttributeCols && displayedWeeks.map((sem, sIdx) => (
+                {!showAttributeCols && weeksShown.map(sem => (
+                  <React.Fragment key={sem.id}>
                   <th
-                    key={sem.id}
-                    className={`py-1.5 px-2 border-r border-b border-slate-300 text-center group bg-[#f1f5f9] hover:bg-emerald-50 transition-colors ${
-                      viewMode === 'dual' ? 'min-w-[150px]' : 'min-w-[95px]'
+                    className={`py-1.5 px-2 border-b border-slate-300 text-center group bg-[#f1f5f9] hover:bg-emerald-50 transition-colors min-w-[95px] ${
+                      viewMode === 'dual' ? 'border-r border-r-slate-200' : 'border-r'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
                       <span className="font-black text-slate-800 truncate" title={sem.label}>
                         {sem.label}
                       </span>
-                      {displayedWeeks.length > 1 && (
+                      <span className="flex items-center gap-0.5 shrink-0">
+                      <BotonFiltroColumna columna={columnaPorKey.get(`${viewMode === 'econ' ? 'wv' : 'wq'}_${sem.id}`)!}
+                        filtro={filtrosCol[`${viewMode === 'econ' ? 'wv' : 'wq'}_${sem.id}`]} abierto={filtroAbierto === `${viewMode === 'econ' ? 'wv' : 'wq'}_${sem.id}`}
+                        onAbrir={a => setFiltroAbierto(a ? `${viewMode === 'econ' ? 'wv' : 'wq'}_${sem.id}` : null)}
+                        onAplicar={f => ponerFiltro(`${viewMode === 'econ' ? 'wv' : 'wq'}_${sem.id}`, f)} />
+                      {weeksShown.length > 1 && (
                         <button
                           type="button"
                           onClick={() => onRemoveWeek(sem.id, sem.label)}
@@ -1748,18 +1691,25 @@ export function MasterXlsSheetView({
                           <Trash2 className="w-3 h-3" />
                         </button>
                       )}
+                      </span>
                     </div>
                     <div className="text-[9px] text-slate-400 font-normal lowercase tracking-normal flex justify-around mt-0.5">
                       {viewMode === 'qty' && <span>Cant. Obra</span>}
-                      {viewMode === 'econ' && <span>Avance ($)</span>}
-                      {viewMode === 'dual' && (
-                        <>
-                          <span>Cant.</span>
-                          <span>Monto ($)</span>
-                        </>
-                      )}
+                      {viewMode === 'econ' && <span>Avance</span>}
+                      {viewMode === 'dual' && <span>Cant.</span>}
                     </div>
                   </th>
+                  {viewMode === 'dual' && (
+                    <th className="py-1.5 px-2 border-r border-b border-slate-300 text-center bg-[#eef2ff] min-w-[95px]">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-black text-indigo-900 truncate" title={sem.label}>{sem.label}</span>
+                        <BotonFiltroColumna columna={columnaPorKey.get(`wv_${sem.id}`)!} filtro={filtrosCol[`wv_${sem.id}`]} abierto={filtroAbierto === `wv_${sem.id}`}
+                          onAbrir={a => setFiltroAbierto(a ? `wv_${sem.id}` : null)} onAplicar={f => ponerFiltro(`wv_${sem.id}`, f)} />
+                      </div>
+                      <div className="text-[9px] text-indigo-400 font-normal lowercase tracking-normal mt-0.5">Venta</div>
+                    </th>
+                  )}
+                  </React.Fragment>
                 ))}
               </tr>
             </thead>
@@ -1768,7 +1718,7 @@ export function MasterXlsSheetView({
             <tbody className="divide-y divide-slate-200">
               {filteredNodes.length === 0 ? (
                 <tr>
-                  <td colSpan={5 + 10 + (showAttributeCols ? 12 : displayedWeeks.length)} className="py-16 text-center text-slate-400 font-sans">
+                  <td colSpan={5 + (avanza ? 6 : 10) + (showAttributeCols ? 12 : weeksShown.length * (viewMode === 'dual' ? 2 : 1))} className="py-16 text-center text-slate-400 font-sans">
                     <FileSpreadsheet className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                     <p className="font-bold text-slate-600 text-sm">No hay partidas que coincidan con los filtros.</p>
                   </td>
@@ -1837,14 +1787,17 @@ export function MasterXlsSheetView({
                       </>
                     )}
 
+                    {!avanza && (<>
                     {/* Col E: UND */}
                     <td className="py-1 px-2 text-center border-r border-indigo-200 text-slate-400 text-[10px] font-sans bg-indigo-50/95">—</td>
+                    </>)}
 
                     {/* Col F: Cant. Presupuesto */}
-                    <td className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-800 bg-indigo-50/95" title="Total Cantidad Presupuestada">
-                      {summaryTotals.totalCantPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 1 })}
+                    <td className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-800 bg-indigo-50/95" title="Sin total: las cantidades tienen unidades distintas">
+                      {/* Sin total de cantidades: mezclan unidades */}
                     </td>
 
+                    {!avanza && (<>
                     {/* Col G: Precio */}
                     <td className="py-1 px-2 text-right border-r border-indigo-200 text-slate-400 bg-indigo-50/95">—</td>
 
@@ -1854,37 +1807,14 @@ export function MasterXlsSheetView({
                     {/* Col I: Venta ($) - TOTALIZADO */}
                     <td
                       className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-950 bg-emerald-100/90 border-b-2 border-b-emerald-600 text-[11.5px] shadow-2xs"
-                      title={`Total Venta Contratada: $${summaryTotals.totalVentaPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
+                      title={`Total Venta Contratada: ${summaryTotals.totalVentaPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
                     >
-                      ${summaryTotals.totalVentaPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
+                      {summaryTotals.totalVentaPresupuesto.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
                     </td>
+                    </>)}
 
                     {/* Col J: Subcontratista */}
                     <td className="py-1 px-2 border-r border-indigo-200 text-center text-slate-400 text-[10px] font-sans bg-indigo-50/95">—</td>
-
-                    {/* Col K: Cant. Acum. */}
-                    <td
-                      className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-800 bg-indigo-50/95"
-                      title="Total Cantidad Física Acumulada"
-                    >
-                      {summaryTotals.totalCantAcumulada > 0 ? summaryTotals.totalCantAcumulada.toLocaleString('es-ES', { maximumFractionDigits: 1 }) : '—'}
-                    </td>
-
-                    {/* Col L: Avance Econ. ($) - TOTALIZADO */}
-                    <td
-                      className="py-1 px-2 text-right border-r border-indigo-200 font-black text-indigo-950 bg-indigo-200/90 border-b-2 border-b-indigo-700 text-[11.5px] shadow-2xs"
-                      title={`Total Avance Económico Acumulado: $${summaryTotals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
-                    >
-                      ${summaryTotals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
-                    </td>
-
-                    {/* Col M: Saldo ($) */}
-                    <td
-                      className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-800 bg-indigo-50/95"
-                      title={`Total Saldo Económico Pendiente: $${summaryTotals.totalSaldoEconomico.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
-                    >
-                      ${summaryTotals.totalSaldoEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
-                    </td>
 
                     {/* Col N: % Avance */}
                     <td className="py-1 px-1.5 text-center border-r border-indigo-200 font-sans bg-indigo-50/95">
@@ -1896,14 +1826,38 @@ export function MasterXlsSheetView({
                       </span>
                     </td>
 
+                    {/* Col K: Cant. Acum. */}
+                    <td
+                      className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-800 bg-indigo-50/95"
+                      title="Sin total: las cantidades tienen unidades distintas"
+                    >
+                      {/* Sin total de cantidades: mezclan unidades */}
+                    </td>
+
+                    {/* Col L: Avance Econ. ($) - TOTALIZADO */}
+                    <td
+                      className="py-1 px-2 text-right border-r border-indigo-200 font-black text-indigo-950 bg-indigo-200/90 border-b-2 border-b-indigo-700 text-[11.5px] shadow-2xs"
+                      title={`Total Avance Económico Acumulado: ${summaryTotals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
+                    >
+                      {summaryTotals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
+                    </td>
+
+                    {/* Col M: Saldo ($) */}
+                    <td
+                      className="py-1 px-2 text-right border-r border-indigo-200 font-black text-slate-800 bg-indigo-50/95"
+                      title={`Total Saldo Económico Pendiente: ${summaryTotals.totalSaldoEconomico.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
+                    >
+                      {summaryTotals.totalSaldoEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
+                    </td>
+
                     {/* Dynamic Weekly Columns: VALORES ECONÓMICOS SEMANALES TOTALIZADOS */}
-                    {!showAttributeCols && displayedWeeks.map(sem => {
+                    {!showAttributeCols && weeksShown.map(sem => {
                       const wEcon = summaryTotals.weeklyEconomicTotals[sem.id] || 0;
                       const wQty = summaryTotals.weeklyQtyTotals[sem.id] || 0;
 
                       return (
+                        <React.Fragment key={`xls-total-week-${sem.id}`}>
                         <td
-                          key={`xls-total-week-${sem.id}`}
                           className={`py-1 px-2 text-right border-r border-indigo-200 transition-colors ${
                             viewMode === 'qty'
                               ? 'bg-emerald-100/60'
@@ -1911,17 +1865,17 @@ export function MasterXlsSheetView({
                               ? 'bg-indigo-100/70'
                               : 'bg-indigo-50/80'
                           }`}
-                          title={`Total Semana ${sem.label}:\n• Avance Económico ($): $${wEcon.toLocaleString('es-ES', { maximumFractionDigits: 2 })}\n• Cantidad Física (Q): ${wQty.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
+                          title={`Total Semana ${sem.label}:\n• Avance Económico: ${wEcon.toLocaleString('es-ES', { maximumFractionDigits: 2 })}\n• Cantidad Física (Q): ${wQty.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
                         >
                           {viewMode === 'econ' && (
                             <span className="text-[11px] font-black text-indigo-950">
-                              {wEcon > 0 ? `$${wEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '$0'}
+                              {wEcon > 0 ? `${wEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '0'}
                             </span>
                           )}
                           {viewMode === 'qty' && (
                             <div className="flex flex-col items-end leading-tight">
                               <span className="text-[11px] font-black text-indigo-950">
-                                {wEcon > 0 ? `$${wEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '$0'}
+                                {wEcon > 0 ? `${wEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '0'}
                               </span>
                               {wQty > 0 && (
                                 <span className="text-[8.5px] font-bold text-emerald-800 font-sans">
@@ -1931,16 +1885,20 @@ export function MasterXlsSheetView({
                             </div>
                           )}
                           {viewMode === 'dual' && (
-                            <div className="flex items-center justify-between w-full px-0.5 text-xs font-mono">
-                              <span className="text-emerald-800 font-bold text-[9.5px]">
-                                {wQty > 0 ? wQty.toLocaleString('es-ES', { maximumFractionDigits: 0 }) : '0'}
-                              </span>
-                              <span className="text-indigo-950 font-black text-[11px]">
-                                ${wEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
-                              </span>
-                            </div>
+                            <span className="text-emerald-800 font-black text-[11px]">
+                              {wQty > 0 ? wQty.toLocaleString('es-ES', { maximumFractionDigits: 1 }) : '0'}
+                            </span>
                           )}
                         </td>
+                        {viewMode === 'dual' && (
+                          <td className="py-1 px-2 text-right border-r border-indigo-200 bg-indigo-100/70"
+                            title={`Venta semana ${sem.label}: ${wEcon.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}>
+                            <span className="text-[11px] font-black text-indigo-950">
+                              {wEcon > 0 ? wEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 }) : '0'}
+                            </span>
+                          </td>
+                        )}
+                        </React.Fragment>
                       );
                     })}
                   </tr>
@@ -2030,9 +1988,10 @@ export function MasterXlsSheetView({
                   return (
                     <tr
                       key={node.key}
+                      data-node-key={node.key}
                       onClick={() => setActiveCell({ nodeKey: node.key, field: 'view' })}
                       className={`border-b ${isP6 ? 'border-orange-200 bg-[#ffedd5] hover:bg-[#fed7aa]/80 text-orange-950' : `border-slate-200 ${styles.rowBg} ${styles.hoverBg}`} transition-colors ${
-                        isRowActive ? 'ring-1 ring-emerald-500 ring-inset bg-emerald-50/40' : ''
+                        halladoKey === node.key ? 'outline outline-2 outline-amber-500 -outline-offset-2 bg-amber-100/80' : isRowActive ? 'ring-1 ring-emerald-500 ring-inset bg-emerald-50/40' : ''
                       } ${!isLeaf ? 'cursor-pointer select-none font-bold' : ''}`}
                     >
                       {/* Excel Row Index Header */}
@@ -2057,8 +2016,8 @@ export function MasterXlsSheetView({
                         } border-r cursor-pointer`}
                       >
                         <div
-                          className="flex items-center gap-1.5"
-                          style={{ paddingLeft: `${Math.min(node.depth, 6) * 12}px` }}
+                          className="flex items-center gap-0.5"
+                          style={{ paddingLeft: `${Math.min(node.depth, 8) * 3}px` }}
                         >
                           {!isLeaf ? (
                             <button
@@ -2094,7 +2053,7 @@ export function MasterXlsSheetView({
                             : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950' : 'bg-inherit border-slate-300'
                         } border-r font-mono text-[10.5px] cursor-pointer`}
                       >
-                        {isLeaf ? (
+                        {isLeaf || item ? (
                           <span
                             className="font-semibold text-slate-700 truncate block select-text"
                             title={node.idOrig || item?.idOrig || ''}
@@ -2115,7 +2074,7 @@ export function MasterXlsSheetView({
                             : isP6 ? 'bg-[#ffedd5] border-orange-200' : 'bg-inherit border-slate-300'
                         } border-r font-mono text-[10.5px] cursor-pointer`}
                       >
-                        {isLeaf && item ? (
+                        {item ? (
                           <div className="flex items-center justify-between gap-1 group">
                             <span
                               className={`font-bold ${isP6 ? 'text-orange-950 font-black' : 'text-indigo-700'} hover:underline cursor-pointer truncate select-text`}
@@ -2155,8 +2114,8 @@ export function MasterXlsSheetView({
                       >
                         <div className="flex items-center gap-1.5">
                           {!isLeaf && (
-                            <span className={`text-[8.5px] px-1 py-0.2 rounded border uppercase font-black shrink-0 ${styles.levelBadgeBg}`}>
-                              {styles.levelName}
+                            <span className={`text-[8.5px] px-1 py-0.2 rounded border uppercase font-black shrink-0 ${item ? 'bg-orange-200/90 text-orange-950 border-orange-300' : styles.levelBadgeBg}`}>
+                              {item ? 'Actividad P6' : styles.levelName}
                             </span>
                           )}
                           <span className={`truncate text-xs ${isP6 ? 'font-semibold text-orange-950' : styles.textCls}`} title={node.descripcion}>
@@ -2207,6 +2166,7 @@ export function MasterXlsSheetView({
                         </>
                       )}
 
+                      {!avanza && (<>
                       {/* Col E: UND */}
                       <td
                         onClick={(e) => { e.stopPropagation(); setActiveCell({ nodeKey: node.key, field: 'unidad' }); }}
@@ -2221,6 +2181,7 @@ export function MasterXlsSheetView({
                           <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                         )}
                       </td>
+                      </>)}
 
                       {/* Col F: Cant. Presupuesto */}
                       <td
@@ -2264,7 +2225,8 @@ export function MasterXlsSheetView({
                           />
                         ) : (
                           <>
-                            {cantPres.toLocaleString('es-ES', { maximumFractionDigits: 3 })}
+                            {/* Sin subtotales de cantidad en la jerarquía (mezclan unidades) */}
+                            {isLeaf ? cantPres.toLocaleString('es-ES', { maximumFractionDigits: 3 }) : ''}
                             {activeCell?.nodeKey === node.key && activeCell?.field === 'cantPres' && (
                               <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                             )}
@@ -2272,6 +2234,7 @@ export function MasterXlsSheetView({
                         )}
                       </td>
 
+                      {!avanza && (<>
                       {/* Col G: Precio */}
                       <td
                         onClick={(e) => {
@@ -2314,7 +2277,7 @@ export function MasterXlsSheetView({
                           />
                         ) : (
                           <>
-                            {isLeaf ? `$${precio.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                            {isLeaf ? `${precio.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                             {activeCell?.nodeKey === node.key && activeCell?.field === 'precio' && (
                               <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                             )}
@@ -2381,11 +2344,12 @@ export function MasterXlsSheetView({
                             : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950' : 'border-slate-300 hover:bg-slate-100'
                         }`}
                       >
-                        ${venta.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
+                        {venta.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
                         {activeCell?.nodeKey === node.key && activeCell?.field === 'venta' && (
                           <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                         )}
                       </td>
+                      </>)}
 
                       {/* Col J: Subcontratista */}
                       <td
@@ -2396,53 +2360,9 @@ export function MasterXlsSheetView({
                             : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950' : 'border-slate-300 text-slate-600 hover:bg-slate-100'
                         }`}
                       >
-                        {node.subcontratista || (isLeaf ? '—' : '')}
+                        {/* Los niveles de la jerarquía no muestran SubC; las partidas y las actividades p6 sí */}
+                        {isLeaf || isP6 ? (node.subcontratista || (isLeaf ? '—' : '')) : ''}
                         {activeCell?.nodeKey === node.key && activeCell?.field === 'subcontratista' && (
-                          <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
-                        )}
-                      </td>
-
-                      {/* Col K: Cant. Acumulada */}
-                      <td
-                        onClick={(e) => { e.stopPropagation(); selectCell(node.key, 'cantAcum'); }}
-                        className={`${rowPaddingCls} px-2.5 border-r text-right font-black relative transition-colors cursor-pointer ${
-                          activeCell?.nodeKey === node.key && activeCell?.field === 'cantAcum'
-                            ? 'bg-emerald-100/90 ring-2 ring-[#107c41] ring-inset font-bold text-slate-950 z-20 shadow-xs'
-                            : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950 font-black' : 'border-slate-300 text-indigo-900 bg-indigo-50/30 hover:bg-indigo-50/60'
-                        }`}
-                      >
-                        {cantAcum > 0 ? cantAcum.toLocaleString('es-ES', { maximumFractionDigits: 3 }) : '—'}
-                        {activeCell?.nodeKey === node.key && activeCell?.field === 'cantAcum' && (
-                          <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
-                        )}
-                      </td>
-
-                      {/* Col L: Avance Económico */}
-                      <td
-                        onClick={(e) => { e.stopPropagation(); selectCell(node.key, 'avanceEcon'); }}
-                        className={`${rowPaddingCls} px-2.5 border-r text-right font-black relative transition-colors cursor-pointer ${
-                          activeCell?.nodeKey === node.key && activeCell?.field === 'avanceEcon'
-                            ? 'bg-emerald-100/90 ring-2 ring-[#107c41] ring-inset font-bold text-slate-950 z-20 shadow-xs'
-                            : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950 font-black' : 'border-slate-300 text-indigo-950 bg-indigo-50/30 hover:bg-indigo-50/60'
-                        }`}
-                      >
-                        {avanceEcon > 0 ? `$${avanceEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '—'}
-                        {activeCell?.nodeKey === node.key && activeCell?.field === 'avanceEcon' && (
-                          <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
-                        )}
-                      </td>
-
-                      {/* Col M: Saldo */}
-                      <td
-                        onClick={(e) => { e.stopPropagation(); selectCell(node.key, 'saldoEcon'); }}
-                        className={`${rowPaddingCls} px-2.5 border-r text-right font-medium relative transition-colors cursor-pointer ${
-                          activeCell?.nodeKey === node.key && activeCell?.field === 'saldoEcon'
-                            ? 'bg-emerald-100/90 ring-2 ring-[#107c41] ring-inset font-bold text-slate-950 z-20 shadow-xs'
-                            : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-                        }`}
-                      >
-                        ${saldoEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
-                        {activeCell?.nodeKey === node.key && activeCell?.field === 'saldoEcon' && (
                           <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
                         )}
                       </td>
@@ -2472,8 +2392,53 @@ export function MasterXlsSheetView({
                         )}
                       </td>
 
+                      {/* Col K: Cant. Acumulada */}
+                      <td
+                        onClick={(e) => { e.stopPropagation(); selectCell(node.key, 'cantAcum'); }}
+                        className={`${rowPaddingCls} px-2.5 border-r text-right font-black relative transition-colors cursor-pointer ${
+                          activeCell?.nodeKey === node.key && activeCell?.field === 'cantAcum'
+                            ? 'bg-emerald-100/90 ring-2 ring-[#107c41] ring-inset font-bold text-slate-950 z-20 shadow-xs'
+                            : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950 font-black' : 'border-slate-300 text-indigo-900 bg-indigo-50/30 hover:bg-indigo-50/60'
+                        }`}
+                      >
+                        {!isLeaf ? '' : cantAcum > 0 ? cantAcum.toLocaleString('es-ES', { maximumFractionDigits: 3 }) : '—'}
+                        {activeCell?.nodeKey === node.key && activeCell?.field === 'cantAcum' && (
+                          <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
+                        )}
+                      </td>
+
+                      {/* Col L: Avance Económico */}
+                      <td
+                        onClick={(e) => { e.stopPropagation(); selectCell(node.key, 'avanceEcon'); }}
+                        className={`${rowPaddingCls} px-2.5 border-r text-right font-black relative transition-colors cursor-pointer ${
+                          activeCell?.nodeKey === node.key && activeCell?.field === 'avanceEcon'
+                            ? 'bg-emerald-100/90 ring-2 ring-[#107c41] ring-inset font-bold text-slate-950 z-20 shadow-xs'
+                            : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950 font-black' : 'border-slate-300 text-indigo-950 bg-indigo-50/30 hover:bg-indigo-50/60'
+                        }`}
+                      >
+                        {avanceEcon > 0 ? `${avanceEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '—'}
+                        {activeCell?.nodeKey === node.key && activeCell?.field === 'avanceEcon' && (
+                          <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
+                        )}
+                      </td>
+
+                      {/* Col M: Saldo */}
+                      <td
+                        onClick={(e) => { e.stopPropagation(); selectCell(node.key, 'saldoEcon'); }}
+                        className={`${rowPaddingCls} px-2.5 border-r text-right font-medium relative transition-colors cursor-pointer ${
+                          activeCell?.nodeKey === node.key && activeCell?.field === 'saldoEcon'
+                            ? 'bg-emerald-100/90 ring-2 ring-[#107c41] ring-inset font-bold text-slate-950 z-20 shadow-xs'
+                            : isP6 ? 'bg-[#ffedd5] border-orange-200 text-orange-950' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {saldoEcon.toLocaleString('es-ES', { maximumFractionDigits: 0 })}
+                        {activeCell?.nodeKey === node.key && activeCell?.field === 'saldoEcon' && (
+                          <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
+                        )}
+                      </td>
+
                       {/* DYNAMIC WEEKLY CELLS (Hidden when in attribute view) */}
-                      {!showAttributeCols && displayedWeeks.map(sem => {
+                      {!showAttributeCols && weeksShown.map(sem => {
                         const qVal = node.cantidadesSemanales?.[sem.id] || 0;
                         const vVal = node.avanceEconSemanales?.[sem.id] || 0;
                         const isEditingThis =
@@ -2492,8 +2457,8 @@ export function MasterXlsSheetView({
                           copiedCell?.weekId === sem.id;
 
                         return (
+                          <React.Fragment key={sem.id}>
                           <td
-                            key={sem.id}
                             onClick={(e) => {
                               e.stopPropagation();
                               selectCell(node.key, 'qty', sem.id);
@@ -2547,17 +2512,12 @@ export function MasterXlsSheetView({
                                   </span>
                                 ) : viewMode === 'econ' ? (
                                   <span className={vVal > 0 ? (isP6 ? 'text-orange-950 font-black' : 'text-indigo-900 font-bold') : (isP6 ? 'text-orange-300' : 'text-slate-300')}>
-                                    {vVal > 0 ? `$${vVal.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '—'}
+                                    {vVal > 0 ? `${vVal.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '—'}
                                   </span>
                                 ) : (
-                                  <div className="flex flex-col text-[10px] leading-tight">
-                                    <span className={qVal > 0 ? (isP6 ? 'text-orange-950 font-black' : 'text-emerald-800 font-bold') : (isP6 ? 'text-orange-300' : 'text-slate-300')}>
-                                      {qVal > 0 ? qVal.toLocaleString('es-ES', { maximumFractionDigits: 2 }) : '0'}
-                                    </span>
-                                    <span className={vVal > 0 ? (isP6 ? 'text-orange-900 font-bold text-[9px]' : 'text-indigo-800 text-[9px]') : (isP6 ? 'text-orange-300 text-[9px]' : 'text-slate-300 text-[9px]')}>
-                                      {vVal > 0 ? `$${vVal.toLocaleString('es-ES', { maximumFractionDigits: 0 })}` : '$0'}
-                                    </span>
-                                  </div>
+                                  <span className={qVal > 0 ? (isP6 ? 'text-orange-950 font-black' : 'text-emerald-800 font-bold') : (isP6 ? 'text-orange-300' : 'text-slate-300')}>
+                                    {qVal > 0 ? qVal.toLocaleString('es-ES', { maximumFractionDigits: 3 }) : '—'}
+                                  </span>
                                 )}
                                 {isWeeklyCellActive && (
                                   <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#107c41] pointer-events-none z-30" />
@@ -2565,6 +2525,19 @@ export function MasterXlsSheetView({
                               </>
                             )}
                           </td>
+                          {viewMode === 'dual' && (
+                            <td
+                              className={`${rowPaddingCls} px-2 border-r text-right ${
+                                isP6 ? 'border-orange-200 bg-[#ffedd5]' : !isLeaf ? 'border-slate-300 bg-black/5 font-bold' : 'border-slate-300 bg-indigo-50/30'
+                              }`}
+                              title={`Venta semana ${sem.label}: ${vVal.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`}
+                            >
+                              <span className={vVal > 0 ? (isP6 ? 'text-orange-950 font-black' : 'text-indigo-900 font-bold') : (isP6 ? 'text-orange-300' : 'text-slate-300')}>
+                                {vVal > 0 ? vVal.toLocaleString('es-ES', { maximumFractionDigits: 0 }) : '—'}
+                              </span>
+                            </td>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </tr>
@@ -2576,9 +2549,22 @@ export function MasterXlsSheetView({
           </table>
         </div>
 
+        </>)}
+
         {/* 4.5. EXCEL SLICING BAR */}
-        <div className="bg-slate-50 border-t border-slate-300 px-4 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 select-none font-sans">
-          <div className="flex items-center gap-2 text-slate-600">
+        <div className="bg-slate-50 border-t border-slate-300 pr-4 flex flex-wrap items-center gap-3 text-xs shrink-0 select-none font-sans">
+          {/* Pestañas de hoja (esquina inferior izquierda, como en el Excel) */}
+          <div className="flex items-end self-stretch -mt-px">
+            {([['cdo', 'cdo'], ['r', 'r.']] as const).map(([k, t]) => (
+              <button key={k} type="button" id={`m3-hoja-${k}`} onClick={() => setHoja(k)}
+                className={`px-4 py-1.5 text-xs font-bold border-r border-slate-300 cursor-pointer ${
+                  hoja === k ? 'bg-white text-emerald-800 border-b-2 border-b-emerald-700 shadow-[inset_0_1px_0_#fff]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}>
+                {t}
+              </button>
+            ))}
+          </div>
+          {hoja === 'cdo' && <div className="flex items-center gap-2 text-slate-600">
             <span className="font-semibold text-slate-800">
               Mostrando {Math.min(renderLimit, filteredNodes.length)} de {filteredNodes.length} filas
             </span>
@@ -2588,23 +2574,24 @@ export function MasterXlsSheetView({
                 ? '⚡ Por defecto todo está colapsado para máxima velocidad. Haz clic en ▶ en cualquier capítulo para desplegar partidas.'
                 : `${expandedKeys.size} niveles desplegados.`}
             </span>
-          </div>
+          </div>}
+          {hoja === 'r' && <span className="text-slate-500 text-[11px]">Resumen «r.» del Master: se recalcula con el avance cargado en M₃.</span>}
         </div>
 
         {/* 5. EXCEL STATUS BAR */}
-        <div className="bg-[#107c41] text-white px-4 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 select-none border-t border-emerald-900 font-sans">
+        <div className="bg-[#F5F8F9] text-[#14212A] px-4 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 select-none border-t border-[#D5DEE2] font-sans">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-[10px] font-black uppercase px-1.5 py-0.5 bg-emerald-900/80 rounded border border-emerald-700">
+            <span className="font-mono text-[10px] font-bold uppercase px-1.5 py-0.5 bg-white text-[#5A6A74] rounded border border-[#D5DEE2]">
               LISTO
             </span>
-            <span className="text-[11px] text-emerald-100 hidden sm:inline">
+            <span className="text-[11px] text-[#5A6A74] hidden sm:inline">
               ⚡ Teclas rápidas: <strong>[Enter]</strong> siguiente fila • <strong>[Tab]</strong> siguiente semana • <strong>[Esc]</strong> salir del modo XLS
             </span>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-mono">
+          <div className="flex items-center gap-4 text-xs font-mono text-[#5A6A74]">
             <span>FILAS VISIBLES: <strong>{filteredNodes.length}</strong></span>
-            <span>SUMA AVANCE: <strong>${totals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</strong></span>
+            <span>SUMA AVANCE: <strong>{totals.totalAvanceEconomico.toLocaleString('es-ES', { maximumFractionDigits: 0 })}</strong></span>
             <span>% AVANCE PROMEDIO: <strong>{totals.pctAvanceEconomico.toFixed(1)}%</strong></span>
           </div>
         </div>

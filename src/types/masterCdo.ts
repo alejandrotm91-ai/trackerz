@@ -44,6 +44,8 @@ export interface MasterCdoItem {
   // Avance económico ejecutado por semana (clave: week.id, valor: monto en venta/dólares)
   ventasSemanales?: Record<string, number>;
   notas?: string;
+  // Partida dentro de una actividad P6: Activity ID de su actividad (Col A del CDO, p. ej. "AC111.p6")
+  parentActivityId?: string;
 }
 
 export interface MasterCdoTotals {

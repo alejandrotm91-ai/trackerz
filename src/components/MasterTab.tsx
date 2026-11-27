@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { publicarMasterVivo } from '../utils/masterLive';
 import {
   FileSpreadsheet,
   Cloud,
@@ -50,6 +51,9 @@ import {
   MasterHierarchyMode,
   MasterHierarchyNode,
   buildMasterHierarchyTree,
+  calcularVenta,
+  ventaSemanal,
+  completarVentasSemanales,
   getVisibleHierarchyNodes,
   getMatchingLeafNodes,
   getHierarchyRowStyles,
@@ -61,14 +65,17 @@ import {
 import {
   calculateMasterTotals,
   initializeMasterCdoFromActividades,
-  saveMasterCdoToFirebase,
-  loadLatestMasterCdoFromFirebase,
+  saveMasterCdoToCloud,
+  loadLatestMasterCdoFromCloud,
+  loadMasterCdoMetaFromCloud,
   parseMasterCdoFromExcel,
   exportMasterCdoToExcel
 } from '../utils/masterCdoSync';
 import {
   saveLocalMasterDraft,
   loadLocalMasterDraft,
+  nubeMasReciente,
+  RESPALDO_BORRADOR_ID,
   clearLocalMasterDraft
 } from '../utils/masterCdoLocalDraft';
 
@@ -96,6 +103,8 @@ export function MasterTab({
 }: MasterTabProps) {
   // Master state
   const [items, setItems] = useState<MasterCdoItem[]>([]);
+  // Las demás pestañas (p. ej. CDO vs Planilla) ven lo mismo que se edita aquí
+  useEffect(() => { publicarMasterVivo(items); }, [items]);
   const [semanas, setSemanas] = useState<MasterCdoWeek[]>([]);
   const [fileName, setFileName] = useState<string>('Master_CDO_Online.xlsx');
   const [planId, setPlanId] = useState<string>('master_cdo_default');
@@ -108,7 +117,7 @@ export function MasterTab({
   const [cloudSaveStatus, setCloudSaveStatus] = useState<'synced' | 'pending' | 'saving' | 'error'>('synced');
   const [lastCloudSavedTime, setLastCloudSavedTime] = useState<string | null>(null);
   const [cloudErrorMsg, setCloudErrorMsg] = useState<string>('');
-  const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState<boolean>(false);
+  const [cloudQuotaExceeded, setCloudQuotaExceeded] = useState<boolean>(false);
 
   // Local draft state (prevents data loss if exiting before saving to cloud)
   const [hasUnsavedCloudChanges, setHasUnsavedCloudChanges] = useState<boolean>(false);
@@ -126,6 +135,10 @@ export function MasterTab({
     type: 'success' | 'info';
     text: string;
   } | null>(null);
+  // Versión de la nube de la que parte lo que se ve en M₃ y hora del último cambio local:
+  // con ellas se decide, al cargar y al pulsar Cloud, si la nube tiene algo más reciente.
+  const baseNubeRef = useRef<string | undefined>(undefined);
+  const cambioLocalRef = useRef<string>('');
   const localSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingActividadUpdatesRef = useRef<Map<string, Partial<Actividad>>>(new Map());
   const actividadUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -203,10 +216,13 @@ export function MasterTab({
     });
   };
 
+  // Las actividades p6 (agrupan sus rubros) se muestran plegadas aunque se desplieguen todos los niveles
+  const esGrupoP6 = (n: { activityId?: string; itemRef?: { activityId?: string } }) =>
+    /p6/i.test(String(n.activityId || n.itemRef?.activityId || ''));
   const expandAllNodes = () => {
     const allKeys = new Set<string>();
     nodes.forEach(n => {
-      if (!n.esHoja) {
+      if (!n.esHoja && !esGrupoP6(n)) {
         allKeys.add(n.key);
       }
     });
@@ -293,7 +309,8 @@ export function MasterTab({
         setFileName(file.name);
         setHasUnsavedCloudChanges(true);
         setCloudSaveStatus('pending');
-        saveLocalMasterDraft(planId, file.name, parsedData.items, parsedData.semanas, false);
+        cambioLocalRef.current = new Date().toISOString();
+        saveLocalMasterDraft(planId, file.name, parsedData.items, parsedData.semanas, false, baseNubeRef.current);
       }
     } catch (err: any) {
       console.error(err);
@@ -325,10 +342,33 @@ export function MasterTab({
         console.warn('Error reading local draft:', eDraft);
       }
 
+      // Antes de usar el borrador local, ver si la nube tiene una versión más reciente
+      if (localDraft && localDraft.items && localDraft.items.length > 0) {
+        setLoadingMsg('Comparando el borrador local con la nube...');
+        try {
+          const meta = await loadMasterCdoMetaFromCloud();
+          if (meta && nubeMasReciente(meta.updatedAt, localDraft)) {
+            const cloudData = await loadLatestMasterCdoFromCloud((pct, msg) => {
+              if (isMounted) { setLoadingProgress(pct); setLoadingMsg(`La nube tiene una versión más reciente: ${msg}`); }
+            }, 35000);
+            if (!isMounted) return;
+            if (cloudData && cloudData.items && cloudData.items.length > 0) {
+              await presentarNube(cloudData, localDraft);
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (eMeta) {
+          console.warn('No se pudo comparar con la nube; se usa el borrador local:', eMeta);
+        }
+      }
+
       // Priority 1: If local draft exists with items, use it immediately
       if (localDraft && localDraft.items && localDraft.items.length > 0) {
         if (!isMounted) return;
-        setItems(localDraft.items);
+        baseNubeRef.current = localDraft.cloudUpdatedAt;
+        cambioLocalRef.current = localDraft.updatedAt;
+        setItems(completarVentasSemanales(localDraft.items));
         setSemanas(localDraft.semanas || []);
         setFileName(localDraft.fileName || 'Master_CDO_Online.xlsx');
         setPlanId(localDraft.planId || 'master_cdo_default');
@@ -345,7 +385,7 @@ export function MasterTab({
         setIsLoading(false);
 
         // Silently check cloud in background without blocking UI
-        loadLatestMasterCdoFromFirebase(undefined, 25000)
+        loadLatestMasterCdoFromCloud(undefined, 25000)
           .then(cloudData => {
             if (isMounted && cloudData) {
               setCloudSnapshot({
@@ -358,15 +398,15 @@ export function MasterTab({
           })
           .catch(err => {
             if (String(err?.message).includes('QUOTA_EXCEEDED') || err?.code === 'resource-exhausted') {
-              if (isMounted) setFirestoreQuotaExceeded(true);
+              if (isMounted) setCloudQuotaExceeded(true);
             }
           });
         return;
       }
 
-      // Priority 2: No local draft found in browser, query Firestore Cloud
+      // Priority 2: No local draft found in browser, query the cloud (D1)
       try {
-        const cloudData = await loadLatestMasterCdoFromFirebase((pct, msg) => {
+        const cloudData = await loadLatestMasterCdoFromCloud((pct, msg) => {
           if (isMounted && !cancelLoadRef.current) {
             setLoadingProgress(pct);
             setLoadingMsg(msg);
@@ -381,7 +421,9 @@ export function MasterTab({
             semanas: cloudData.planDoc.semanas || [],
             fileName: cloudData.planDoc.fileName || 'Master_CDO_Online.xlsx'
           });
-          setItems(cloudData.items);
+          baseNubeRef.current = cloudData.planDoc.updatedAt || undefined;
+          cambioLocalRef.current = cloudData.planDoc.updatedAt || new Date().toISOString();
+          setItems(completarVentasSemanales(cloudData.items));
           setSemanas(cloudData.planDoc.semanas || []);
           setFileName(cloudData.planDoc.fileName || 'Master_CDO_Online.xlsx');
           setPlanId(cloudData.planDoc.id || 'master_cdo_default');
@@ -389,17 +431,17 @@ export function MasterTab({
           setCloudSaveStatus('synced');
           setLastLocalSavedTime(new Date().toLocaleTimeString());
           setLastCloudSavedTime(cloudData.planDoc.updatedAt ? new Date(cloudData.planDoc.updatedAt).toLocaleTimeString() : 'Hoy');
-          saveLocalMasterDraft(cloudData.planDoc.id || 'master_cdo_default', cloudData.planDoc.fileName || 'Master_CDO_Online.xlsx', cloudData.items, cloudData.planDoc.semanas || [], true);
+          saveLocalMasterDraft(cloudData.planDoc.id || 'master_cdo_default', cloudData.planDoc.fileName || 'Master_CDO_Online.xlsx', cloudData.items, cloudData.planDoc.semanas || [], true, cloudData.planDoc.updatedAt || undefined);
           setIsLoading(false);
           return;
         }
       } catch (err: any) {
-        console.warn('Error cargando Master CDO desde Firestore:', err);
+        console.warn('Error cargando Master CDO desde la nube:', err);
         const isQuota = String(err?.message).includes('QUOTA_EXCEEDED') ||
                         err?.code === 'resource-exhausted' ||
                         String(err?.message).toLowerCase().includes('quota');
         if (isQuota && isMounted) {
-          setFirestoreQuotaExceeded(true);
+          setCloudQuotaExceeded(true);
         }
       }
 
@@ -457,6 +499,7 @@ export function MasterTab({
 
   // Trigger local data update (Cloud auto-save is DISABLED; saves locally immediately)
   const triggerDataChange = (updatedItems: MasterCdoItem[], updatedSemanas: MasterCdoWeek[]) => {
+    cambioLocalRef.current = new Date().toISOString();
     setHasUnsavedCloudChanges(true);
     setCloudSaveStatus('pending');
 
@@ -466,7 +509,7 @@ export function MasterTab({
     }
     localSaveTimeoutRef.current = setTimeout(async () => {
       try {
-        await saveLocalMasterDraft(planId, fileName, updatedItems, updatedSemanas, false);
+        await saveLocalMasterDraft(planId, fileName, updatedItems, updatedSemanas, false, baseNubeRef.current);
         setLastLocalSavedTime(new Date().toLocaleTimeString());
       } catch (err) {
         console.warn('Error al guardar borrador local:', err);
@@ -477,7 +520,7 @@ export function MasterTab({
   // Explicit Manual Local Save
   const handleManualLocalSave = async () => {
     try {
-      await saveLocalMasterDraft(planId, fileName, items, semanas, !hasUnsavedCloudChanges);
+      await saveLocalMasterDraft(planId, fileName, items, semanas, !hasUnsavedCloudChanges, baseNubeRef.current);
       const timeStr = new Date().toLocaleTimeString();
       setLastLocalSavedTime(timeStr);
       setToastMessage({
@@ -492,6 +535,47 @@ export function MasterTab({
   };
 
   // Explicit Save to Cloud (Triggered ONLY when user finishes giving progress)
+  const fechaHoraCorta = (iso?: string) => {
+    const t = Date.parse(iso || '');
+    return Number.isFinite(t) ? new Date(t).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+  };
+
+  /**
+   * Presenta en M₃ la versión de la nube (más reciente que la local). Si lo local tenía cambios sin
+   * sincronizar, se guarda antes una copia de respaldo en este navegador (RESPALDO_BORRADOR_ID).
+   */
+  const presentarNube = async (
+    cloudData: { planDoc: MasterCdoPlanDoc; items: MasterCdoItem[] },
+    localPrevio: { items: MasterCdoItem[]; semanas: MasterCdoWeek[]; fileName: string; planId?: string; isSyncedWithCloud?: boolean; updatedAt?: string } | null
+  ) => {
+    const conRespaldo = !!(localPrevio && !localPrevio.isSyncedWithCloud && localPrevio.items?.length);
+    if (conRespaldo) {
+      await saveLocalMasterDraft(RESPALDO_BORRADOR_ID, localPrevio!.fileName, localPrevio!.items, localPrevio!.semanas || [], false);
+    }
+    const pd = cloudData.planDoc;
+    const sem = pd.semanas || [];
+    const nombre = pd.fileName || 'Master_CDO_Online.xlsx';
+    baseNubeRef.current = pd.updatedAt || undefined;
+    cambioLocalRef.current = pd.updatedAt || new Date().toISOString();
+    setCloudSnapshot({ items: cloudData.items, semanas: sem, fileName: nombre });
+    setItems(completarVentasSemanales(cloudData.items));
+    setSemanas(sem);
+    setFileName(nombre);
+    setPlanId(pd.id || 'master_cdo_default');
+    setHasUnsavedCloudChanges(false);
+    setCloudSaveStatus('synced');
+    setLocalDraftNotice(null);
+    setLastCloudSavedTime(pd.updatedAt ? new Date(pd.updatedAt).toLocaleTimeString() : 'Hoy');
+    setLastLocalSavedTime(new Date().toLocaleTimeString());
+    await saveLocalMasterDraft(pd.id || 'master_cdo_default', nombre, cloudData.items, sem, true, pd.updatedAt || undefined);
+    setToastMessage({
+      type: 'info',
+      text: `La nube tenía una versión más reciente (${fechaHoraCorta(pd.updatedAt)}${pd.updatedBy ? ` · ${pd.updatedBy}` : ''}) que la de M₃ (${fechaHoraCorta(localPrevio?.updatedAt)}): se presenta la de la nube y no se sobrescribió.`
+        + (conRespaldo ? ' Tus cambios locales sin sincronizar quedaron como respaldo en este navegador.' : ''),
+    });
+    setTimeout(() => setToastMessage(null), 9000);
+  };
+
   const saveToCloud = async (
     itemsToSave: MasterCdoItem[] = items,
     semanasToSave: MasterCdoWeek[] = semanas
@@ -503,13 +587,24 @@ export function MasterTab({
 
     try {
       const currentId = planId || 'master_cdo_default';
-      await saveMasterCdoToFirebase(
+      // ¿Qué está más actualizado, lo de M₃ o la nube? Si es la nube, se presenta en M₃ en vez de pisarla.
+      const meta = await loadMasterCdoMetaFromCloud(currentId);
+      const local = { updatedAt: cambioLocalRef.current, isSyncedWithCloud: !hasUnsavedCloudChanges, cloudUpdatedAt: baseNubeRef.current };
+      if (meta && nubeMasReciente(meta.updatedAt, local)) {
+        const cloudData = await loadLatestMasterCdoFromCloud(undefined, 35000);
+        if (cloudData && cloudData.items && cloudData.items.length > 0) {
+          await presentarNube(cloudData, { items: itemsToSave, semanas: semanasToSave, fileName, planId: currentId, isSyncedWithCloud: !hasUnsavedCloudChanges, updatedAt: cambioLocalRef.current });
+          return;
+        }
+      }
+      const guardadoEn = await saveMasterCdoToCloud(
         currentId,
         fileName,
         itemsToSave,
         semanasToSave,
         userName
       );
+      baseNubeRef.current = guardadoEn;
       const timeStr = new Date().toLocaleTimeString();
       setHasUnsavedCloudChanges(false);
       setCloudSaveStatus('synced');
@@ -517,7 +612,7 @@ export function MasterTab({
       setLocalDraftNotice(null);
 
       // Mark local draft as synchronized
-      await saveLocalMasterDraft(currentId, fileName, itemsToSave, semanasToSave, true);
+      await saveLocalMasterDraft(currentId, fileName, itemsToSave, semanasToSave, true, guardadoEn);
       setLastLocalSavedTime(timeStr);
 
       setToastMessage({
@@ -526,7 +621,7 @@ export function MasterTab({
       });
       setTimeout(() => setToastMessage(null), 3500);
     } catch (err: any) {
-      console.error('Error guardando en Firestore:', err);
+      console.error('Error guardando en la nube:', err);
       setCloudSaveStatus('error');
       
       const isQuota = String(err?.message).includes('QUOTA_EXCEEDED') ||
@@ -534,7 +629,7 @@ export function MasterTab({
                       String(err?.message).toLowerCase().includes('quota');
                       
       if (isQuota) {
-        setFirestoreQuotaExceeded(true);
+        setCloudQuotaExceeded(true);
         setCloudErrorMsg('Cuota diaria de base de datos agotada.');
         alert('Se ha alcanzado el límite gratuito de lecturas/escrituras en la base de datos hoy. Se ha guardado una copia local de seguridad. Podrás sincronizar a la nube mañana cuando se reinicie la cuota.');
       } else {
@@ -556,12 +651,18 @@ export function MasterTab({
     
     const newItems = items.map(item => {
       if (item.id !== itemId) return item;
+      // Venta de la semana como la columna «Total» del cdo del Master:
+      // =IFERROR(ROUND(Cantidad × Precio (G) × Step (H), 2), 0)
+      const ventasSemanales = { ...(item.ventasSemanales || {}) };
+      const v = ventaSemanal(qty, item.precio, item.step);
+      if (v) ventasSemanales[weekId] = v; else delete ventasSemanales[weekId];
       return {
         ...item,
         cantidadesSemanales: {
           ...item.cantidadesSemanales,
           [weekId]: qty
-        }
+        },
+        ventasSemanales
       };
     });
     setItems(newItems);
@@ -569,15 +670,16 @@ export function MasterTab({
   };
 
   const handleUpdateItemPropertyFromXls = (itemId: string, field: 'precio' | 'step' | 'cantPres', val: number) => {
-    const existingVal = items.find(i => i.id === itemId)?.[field] || 0;
+    const existingVal = (items.find(i => i.id === itemId) as any)?.[field === 'cantPres' ? 'cantidadPresupuesto' : field] || 0;
     if (existingVal === val) return;
 
     const newItems = items.map(item => {
       if (item.id !== itemId) return item;
-      return {
-        ...item,
-        [field]: val
-      };
+      const key = field === 'cantPres' ? 'cantidadPresupuesto' : field;
+      const updated = { ...item, [key]: val };
+      // Igual que la Col I del CDO: ROUND(Cantidad × Precio, 2) × Step
+      updated.venta = calcularVenta(updated.cantidadPresupuesto, updated.precio, updated.step);
+      return updated;
     });
     setItems(newItems);
     triggerDataChange(newItems, semanas);
@@ -703,7 +805,7 @@ export function MasterTab({
       const newExpanded = new Set<string>();
       
       nodes.forEach(n => {
-        if (!n.esHoja && n.depth < targetDepth) {
+        if (!n.esHoja && n.depth < targetDepth && !esGrupoP6(n)) {
           newExpanded.add(n.key);
         }
       });
@@ -802,13 +904,13 @@ export function MasterTab({
   }
 
   // Handle Quota Exceeded Block
-  if (firestoreQuotaExceeded && (!items || items.length === 0)) {
+  if (cloudQuotaExceeded && (!items || items.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] bg-slate-50 rounded-3xl border border-red-200 p-8 text-center">
         <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
         <h3 className="text-xl font-black text-slate-900 mb-2">Límite de Base de Datos Alcanzado</h3>
         <p className="text-sm font-medium text-slate-600 max-w-lg mb-6">
-          Se ha agotado el límite gratuito diario de operaciones en Firestore.
+          Se ha agotado el límite gratuito diario de operaciones de la base de datos.
           No se pudieron cargar los datos del proyecto.
         </p>
         <p className="text-xs text-slate-500 max-w-md bg-white p-4 rounded-xl border border-slate-200">
@@ -948,6 +1050,7 @@ export function MasterTab({
         onHierarchyLevelChange={handleHierarchyLevelChange}
         expandedKeys={expandedKeys}
         toggleNodeExpand={toggleNodeExpand}
+        expandNodeKeys={ks => setExpandedKeys(prev => { const n = new Set(prev); ks.forEach(k => n.add(k)); return n; })}
         expandAllNodes={expandAllNodes}
         collapseAllNodes={collapseAllNodes}
         searchTerm={searchTerm}
@@ -980,7 +1083,7 @@ export function MasterTab({
         onOpenWbsEditor={() => setIsWbsEditorOpen(true)}
         onSaveLocal={() => {
           const currentId = planId || 'master_cdo_default';
-          saveLocalMasterDraft(currentId, fileName, items, semanas, false);
+          saveLocalMasterDraft(currentId, fileName, items, semanas, false, baseNubeRef.current);
           setLastLocalSavedTime(new Date().toLocaleTimeString());
           setLocalDraftNotice(null);
           setToastMessage({ type: 'success', text: 'Guardado localmente como borrador.' });

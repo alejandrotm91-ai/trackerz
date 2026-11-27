@@ -1,0 +1,260 @@
+/**
+ * «Activity Usage» como en P6: unidades o costos de las asignaciones de recursos de cada
+ * actividad repartidos por períodos de la escala de tiempo.
+ * Reparto uniforme en el TIEMPO LABORABLE del calendario de cada actividad (los días y horas
+ * no laborables no reciben valor), sobre las fechas de cada valor:
+ *  - Budgeted: entre el inicio y el fin de la LÍNEA BASE en uso (la del botón Baseline; por defecto
+ *    blStartP6/blFinishP6). Sin línea base, las fechas planificadas (target_start/end_date).
+ *  - Actual: entre el inicio real y el fin real (o la fecha de datos si sigue en curso).
+ *  - Remaining: entre el inicio del trabajo restante y el fin temprano.
+ */
+import { aMinutos } from './calendario';
+import { celda } from './xer';
+import type { ModeloP6 } from './modelo';
+import type { Calendario } from './calendario';
+
+export type MedidaUso = 'units' | 'cost' | 'resources';
+
+/**
+ * Fase de una actividad por su nombre, con la misma regla que los botones Procura / Flete /
+ * Montaje / Construcción del Gantt del Master: «compr…» = procura, «flete…» = flete,
+ * «inst…» = montaje y el resto = construcción.
+ */
+export type FaseUso = 'procura' | 'flete' | 'montaje' | 'construccion';
+export function faseDe(nombre: string): FaseUso {
+  const n = (nombre || '').trim().replace(/^["'«\s\-.]*/, '');
+  if (/^inst/i.test(n)) return 'montaje';
+  if (/^compr/i.test(n)) return 'procura';
+  if (/^flete/i.test(n)) return 'flete';
+  return 'construccion';
+}
+export type SerieUso = 'b' | 'a' | 'r';
+
+/** Valores por período de una actividad (solo el tramo con datos, para ahorrar memoria). */
+export interface TramoUso { desde: number; vals: Float64Array }
+export type UsoActividad = Partial<Record<SerieUso, TramoUso>>;
+
+/** Límites de los períodos (minutos) según la escala del Gantt. */
+export function periodosDeEscala(desde: number, hasta: number, px: number): { t: number; etq: string }[] {
+  const out: { t: number; etq: string }[] = [];
+  const MES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const d = new Date(desde * 60000);
+  if (px >= 8) {
+    // Semanas (lunes)
+    const dia = (d.getUTCDay() + 6) % 7;
+    let t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dia) / 60000;
+    while (t <= hasta + 7 * 1440) {
+      const x = new Date(t * 60000);
+      out.push({ t, etq: `${String(x.getUTCDate()).padStart(2, '0')}-${MES[x.getUTCMonth()]}` });
+      t += 7 * 1440;
+    }
+    return out;
+  }
+  const paso = px >= 3 ? 1 : px >= 1 ? 3 : 12;
+  let y = d.getUTCFullYear(), mo = paso === 12 ? 0 : Math.floor(d.getUTCMonth() / paso) * paso;
+  for (;;) {
+    const t = Date.UTC(y, mo, 1) / 60000;
+    out.push({ t, etq: paso === 12 ? String(y) : paso === 3 ? `Q${mo / 3 + 1} ${String(y).slice(2)}` : `${MES[mo]} ${String(y).slice(2)}` });
+    if (t > hasta) break;
+    mo += paso; while (mo > 11) { mo -= 12; y++; }
+  }
+  return out;
+}
+
+/**
+ * Reparte `valor` entre [ini, fin] sobre los períodos `lim` (límites), en proporción al tiempo
+ * laborable del calendario `cal` que cae en cada período (si no hay tiempo laborable, por tiempo natural).
+ */
+export function repartir(valor: number, ini: number, fin: number, lim: number[], cal?: Calendario): TramoUso | undefined {
+  if (!valor || !isFinite(ini) || !isFinite(fin)) return undefined;
+  if (fin < ini) [ini, fin] = [fin, ini];
+  // Período de un instante (búsqueda binaria)
+  const per = (t: number) => {
+    let a = 0, b = lim.length - 2;
+    if (t < lim[0]) return 0;
+    if (t >= lim[lim.length - 1]) return lim.length - 2;
+    while (a < b) { const mid = (a + b + 1) >> 1; if (lim[mid] <= t) a = mid; else b = mid - 1; }
+    return a;
+  };
+  const p0 = per(ini), p1 = per(Math.max(ini, fin - 1e-6));
+  const vals = new Float64Array(p1 - p0 + 1);
+  if (fin === ini) { vals[0] = valor; return { desde: p0, vals }; }
+  const laborable = cal ? cal.entre(ini, fin) : 0;
+  const peso = laborable > 0 ? (a: number, b: number) => cal!.entre(a, b) : (a: number, b: number) => b - a;
+  const total = laborable > 0 ? laborable : fin - ini;
+  for (let k = p0; k <= p1; k++) {
+    const a = Math.max(ini, lim[k]), b = Math.min(fin, lim[k + 1]);
+    if (b > a) vals[k - p0] = (valor * peso(a, b)) / total;
+  }
+  return { desde: p0, vals };
+}
+
+/**
+ * Ocupación de una cuadrilla en cada período: tiempo laborable de la actividad dentro del período ÷
+ * tiempo laborable del período (en el calendario de la actividad), por `factor` (personas por cuadrilla).
+ * Así, tres actividades trabajando todo el mes = 3 cuadrillas; una que trabaja medio mes = 0,5.
+ */
+export function ocupar(factor: number, ini: number, fin: number, lim: number[], cal: Calendario | undefined): TramoUso | undefined {
+  if (!factor || !cal || !isFinite(ini) || !isFinite(fin) || fin <= ini) return undefined;
+  let p0 = -1, p1 = -1;
+  for (let k = 0; k < lim.length - 1; k++) { if (lim[k + 1] > ini && p0 < 0) p0 = k; if (lim[k] < fin) p1 = k; }
+  if (p0 < 0 || p1 < p0) return undefined;
+  const vals = new Float64Array(p1 - p0 + 1);
+  for (let k = p0; k <= p1; k++) {
+    const total = cal.entre(lim[k], lim[k + 1]);
+    if (total <= 0) continue;
+    const a = Math.max(ini, lim[k]), b = Math.min(fin, lim[k + 1]);
+    if (b > a) vals[k - p0] = (factor * cal.entre(a, b)) / total;
+  }
+  return { desde: p0, vals };
+}
+
+/** Opciones de la medida «resources»: qué actividades ocupan cuadrilla y cuántas personas tiene. */
+export interface OpcionesRecursos {
+  /** ¿La actividad (fila de TASK) ocupa una cuadrilla en obra? */
+  incluir: (i: number) => boolean;
+  /** Personas por cuadrilla de la actividad (1 = contar cuadrillas). */
+  personas: (i: number) => number;
+  /**
+   * Horas-hombre estimadas de la actividad completa (rendimientos de montaje), si las tiene: entonces
+   * sus personas salen de sus horas (Budgeted: todas en las fechas planificadas; Actual: las del % de
+   * avance en las fechas reales; Remaining: las que faltan entre el inicio restante y el fin temprano)
+   * en lugar de «una cuadrilla por actividad».
+   */
+  hh?: (i: number) => number | null;
+  /** Con `hh`: personas por cuadrilla para pasar de personas a cuadrillas (si `cuadrillas`). */
+  porCuadrilla?: (i: number) => number;
+  cuadrillas?: boolean;
+}
+
+/** Línea base por fila de TASK: [inicio, fin] en minutos (o null si la actividad no tiene). */
+export type LineaBaseFilas = ([number | null, number | null] | null)[] | null | undefined;
+
+/**
+ * Fechas del Budgeted: las de la línea base; si su inicio y fin coinciden (o falta el fin) en una
+ * actividad con duración, el inicio de la línea base con la duración planificada; sin línea base, las planificadas.
+ */
+function fechasBudget(m: ModeloP6, i: number, ps: number | null, pf: number | null, lb: LineaBaseFilas): [number | null, number | null] {
+  const par = lb?.[i];
+  if (!par || par[0] == null) return [ps, pf];
+  const [a, b] = par;
+  if (b != null && b > a) return [a, b];
+  const cal = m.calendarios.get(celda(m.task, m.task.filas[i], 'clndr_id'));
+  if (cal && ps != null && pf != null && pf > ps) return [a, cal.sumar(a, cal.entre(ps, pf), 'fin')];
+  return [a, b ?? a];
+}
+
+/** Uso por actividad (índice de fila de TASK) para la medida elegida. */
+export function calcularUso(m: ModeloP6, lim: number[], medida: MedidaUso, rec?: OpcionesRecursos, lb?: LineaBaseFilas): Map<number, UsoActividad> {
+  const out = new Map<number, UsoActividad>();
+  if (medida === 'resources') {
+    const t = m.task;
+    t.filas.forEach((f, i) => {
+      const tipo = celda(t, f, 'task_type');
+      if (tipo === 'TT_Mile' || tipo === 'TT_FinMile' || tipo === 'TT_LOE' || tipo === 'TT_WBS') return;
+      if (rec && !rec.incluir(i)) return;
+      const k = rec ? rec.personas(i) : 1;
+      if (!k) return;
+      const g = (c: string) => aMinutos(celda(t, f, c));
+      const estado = celda(t, f, 'status_code');
+      const es = g('early_start_date'), ef = g('early_end_date');
+      const as = g('act_start_date'), af = g('act_end_date');
+      const [ps, pf] = fechasBudget(m, i, g('target_start_date') ?? es ?? as, g('target_end_date') ?? ef ?? af, lb);
+      const cal = m.calendarios.get(celda(t, f, 'clndr_id'));
+      const u: UsoActividad = {};
+      const H = rec?.hh?.(i);
+      if (H != null && H > 0) {
+        // Personas = horas ÷ horas laborables de la ventana (÷ personas por cuadrilla si se cuentan cuadrillas)
+        const pct = Math.min(1, Math.max(0, (Number(celda(t, f, 'phys_complete_pct')) || 0) / 100));
+        const div = rec?.cuadrillas ? Math.max(0.1, rec.porCuadrilla?.(i) ?? 1) : 1;
+        const por = (horas: number, a: number | null, b: number | null) => {
+          if (a == null || b == null || !cal || b <= a || horas <= 0) return undefined;
+          const ventana = cal.entre(a, b) / 60;
+          return ventana > 0 ? ocupar(horas / ventana / div, a, b, lim, cal) : undefined;
+        };
+        u.b = por(H, ps ?? null, pf ?? null);
+        if (as != null) u.a = por(H * pct, as, estado === 'TK_Complete' && af != null ? af : Math.max(as, m.fechaDatos));
+        const rs2 = estado === 'TK_Active' ? Math.max(es ?? m.fechaDatos, m.fechaDatos) : (es ?? as);
+        if (estado !== 'TK_Complete') u.r = por(H * (1 - pct), rs2 ?? null, ef ?? null);
+        if (u.b || u.a || u.r) out.set(i, u);
+        return;
+      }
+      if (ps != null && pf != null) u.b = ocupar(k, ps, pf, lim, cal);
+      if (as != null) u.a = ocupar(k, as, estado === 'TK_Complete' && af != null ? af : Math.max(as, m.fechaDatos), lim, cal);
+      const rs = estado === 'TK_Active' ? Math.max(es ?? m.fechaDatos, m.fechaDatos) : (es ?? as);
+      if (estado !== 'TK_Complete' && rs != null && ef != null) u.r = ocupar(k, rs, ef, lim, cal);
+      if (u.b || u.a || u.r) out.set(i, u);
+    });
+    return out;
+  }
+  const tot = totalesCosto(m, medida === 'units' ? 'units' : 'cost');
+  const t = m.task;
+  t.filas.forEach((f, i) => {
+    const x = tot.get(celda(t, f, 'task_id'));
+    if (!x) return;
+    const w = ventanasCosto(m, i, lb);
+    const u: UsoActividad = {};
+    if (w.b) u.b = repartir(x.b, w.b[0], w.b[1], lim, w.cal);
+    if (w.a) u.a = repartir(x.a, w.a[0], w.a[1], lim, w.cal);
+    if (w.r) u.r = repartir(x.r, w.r[0], w.r[1], lim, w.cal);
+    if (u.b || u.a || u.r) out.set(i, u);
+  });
+  return out;
+}
+
+/** Totales Budgeted / Actual / Remaining de las asignaciones (TASKRSRC) de cada actividad, por task_id. */
+export function totalesCosto(m: ModeloP6, medida: 'units' | 'cost'): Map<string, { b: number; a: number; r: number }> {
+  const tot = new Map<string, { b: number; a: number; r: number }>();
+  const tr = m.xer.tablas.get('TASKRSRC');
+  if (!tr) return tot;
+  const n = (f: string[], c: string) => Number(celda(tr, f, c)) || 0;
+  for (const f of tr.filas) {
+    const id = celda(tr, f, 'task_id');
+    const x = tot.get(id) ?? { b: 0, a: 0, r: 0 };
+    if (medida === 'units') { x.b += n(f, 'target_qty'); x.a += n(f, 'act_reg_qty') + n(f, 'act_ot_qty'); x.r += n(f, 'remain_qty'); }
+    else { x.b += n(f, 'target_cost'); x.a += n(f, 'act_reg_cost') + n(f, 'act_ot_cost'); x.r += n(f, 'remain_cost'); }
+    tot.set(id, x);
+  }
+  return tot;
+}
+
+/** Ventanas [inicio, fin] (minutos) de los valores de una actividad: Budgeted (línea base), Actual y Remaining. */
+export interface VentanasCosto {
+  cal?: Calendario;
+  estado: string;
+  b: [number, number] | null;
+  a: [number, number] | null;
+  r: [number, number] | null;
+}
+export function ventanasCosto(m: ModeloP6, i: number, lb?: LineaBaseFilas): VentanasCosto {
+  const t = m.task, f = t.filas[i];
+  const g = (c: string) => aMinutos(celda(t, f, c));
+  const estado = celda(t, f, 'status_code');
+  const es = g('early_start_date'), ef = g('early_end_date');
+  const as = g('act_start_date'), af = g('act_end_date');
+  const [ps, pf] = fechasBudget(m, i, g('target_start_date') ?? es ?? as, g('target_end_date') ?? ef ?? af, lb);
+  const cal = m.calendarios.get(celda(t, f, 'clndr_id'));
+  const rs = estado === 'TK_Active' ? (es ?? m.fechaDatos) : (es ?? as);
+  return {
+    cal, estado,
+    b: ps != null && pf != null ? [ps, pf] : null,
+    a: as != null ? [as, estado === 'TK_Complete' && af != null ? af : Math.max(as, m.fechaDatos)] : null,
+    r: estado !== 'TK_Complete' && rs != null && ef != null ? [Math.max(rs, estado === 'TK_Active' ? m.fechaDatos : rs), ef] : null,
+  };
+}
+
+/** Suma un tramo en un acumulador de todos los períodos. */
+export function sumarTramo(acc: Float64Array, tramo: TramoUso | undefined) {
+  if (!tramo) return;
+  for (let k = 0; k < tramo.vals.length; k++) acc[tramo.desde + k] += tramo.vals[k];
+}
+
+/** Formato compacto para las celdas (1.2M, 3.9K, 12.5). */
+export function compacto(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1e6) return `${(v / 1e6).toFixed(a >= 1e7 ? 1 : 2)}M`;
+  if (a >= 1e4) return `${(v / 1e3).toFixed(0)}K`;
+  if (a >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+  if (a >= 100) return v.toFixed(0);
+  return v.toFixed(a < 10 ? 2 : 1);
+}

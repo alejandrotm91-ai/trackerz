@@ -9,13 +9,44 @@ const DB_NAME = 'master_cdo_local_db';
 const STORE_NAME = 'drafts';
 const DB_VERSION = 1;
 
+// Versión de la estructura del Master. La 2 cuelga las partidas P6 de su actividad
+// (parentActivityId); los borradores anteriores se descartan y el Master se reconstruye.
+export const MASTER_DRAFT_SCHEMA_VERSION = 2;
+
 export interface LocalMasterDraft {
+  schemaVersion?: number;
   planId: string;
   fileName: string;
   items: MasterCdoItem[];
   semanas: MasterCdoWeek[];
   updatedAt: string;
   isSyncedWithCloud: boolean;
+  /** Versión de la nube (su updatedAt, hora del servidor) de la que parte este borrador. */
+  cloudUpdatedAt?: string;
+}
+
+/** Copia del borrador local que se reemplazó al traer de la nube una versión más reciente. */
+export const RESPALDO_BORRADOR_ID = 'master_cdo_default__respaldo';
+
+/**
+ * ¿Hay que presentar la versión de la nube en vez del borrador local?
+ * - Si la nube sigue en la versión de la que parte el borrador, gana el borrador (es igual o más nuevo).
+ * - Si la nube cambió después y el borrador no tenía cambios sin sincronizar, gana la nube.
+ * - Si los dos cambiaron, gana el más reciente.
+ */
+export function nubeMasReciente(
+  nubeUpdatedAt: string | null | undefined,
+  local: { updatedAt?: string; isSyncedWithCloud?: boolean; cloudUpdatedAt?: string } | null
+): boolean {
+  if (!nubeUpdatedAt) return false;
+  if (!local) return true;
+  if (local.cloudUpdatedAt) {
+    if (local.cloudUpdatedAt === nubeUpdatedAt) return false;
+    if (local.isSyncedWithCloud) return true;
+  }
+  const tn = Date.parse(nubeUpdatedAt), tl = Date.parse(local.updatedAt || '');
+  if (!Number.isFinite(tl)) return true;
+  return Number.isFinite(tn) && tn > tl;
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -44,15 +75,18 @@ export async function saveLocalMasterDraft(
   fileName: string,
   items: MasterCdoItem[],
   semanas: MasterCdoWeek[],
-  isSyncedWithCloud: boolean = false
+  isSyncedWithCloud: boolean = false,
+  cloudUpdatedAt?: string
 ): Promise<LocalMasterDraft> {
   const draft: LocalMasterDraft = {
+    schemaVersion: MASTER_DRAFT_SCHEMA_VERSION,
     planId: planId || 'master_cdo_default',
     fileName,
     items,
     semanas,
     updatedAt: new Date().toISOString(),
-    isSyncedWithCloud
+    isSyncedWithCloud,
+    cloudUpdatedAt
   };
 
   try {
@@ -97,7 +131,13 @@ export async function loadLocalMasterDraft(planId: string = 'master_cdo_default'
       const store = tx.objectStore(STORE_NAME);
       const req = store.get(planId);
       req.onsuccess = () => {
-        resolve(req.result || null);
+        const draft: LocalMasterDraft | null = req.result || null;
+        if (draft && draft.schemaVersion !== MASTER_DRAFT_SCHEMA_VERSION) {
+          console.info('Borrador del Master con estructura anterior: se ignora y se reconstruye.');
+          resolve(null);
+          return;
+        }
+        resolve(draft);
       };
       req.onerror = () => resolve(null);
     });

@@ -225,6 +225,7 @@ export function parsePersonalDate(val: any): { fechaIso: string; fechaVisual: st
  * Normaliza nombres de empresas (elimina saltos de línea internos y dobles espacios)
  * Reglas de negocio:
  * 1. "ACCIONA" y "ACCIONA AGUA" (o cualquier variante de Acciona) se consolidan en una única empresa: "ACCIONA".
+ * 2. "EECOL" y "EECOL ELECTRIC" (o cualquier nombre que empiece por EECOL) se consolidan en "EECOL".
  */
 export function cleanEmpresaName(raw: any): string {
   if (!raw) return 'SIN EMPRESA';
@@ -238,6 +239,11 @@ export function cleanEmpresaName(raw: any): string {
   // Consolidar Acciona y Acciona Agua en ACCIONA
   if (normalized.startsWith('acciona') || normalized.includes('acciona')) {
     return 'ACCIONA';
+  }
+
+  // Consolidar EECOL y EECOL ELECTRIC (y variantes) en EECOL
+  if (/^eecol\b/.test(normalized)) {
+    return 'EECOL';
   }
 
   return clean;

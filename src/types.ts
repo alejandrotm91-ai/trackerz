@@ -18,6 +18,8 @@ export interface Actividad {
   ventaPlanPG004?: number;
   ventaEjecutada: number;
   balance: number;
+  /** Columna «Status» del cdo (AI): Ahead, Delayed, Fin_Overrun, Fin_Shortage, Not Started… (la usa la hoja «r.» de M₃) */
+  statusPlazo?: string;
   saldo: number;
   excedente: number;
   partidas: string;
@@ -54,12 +56,17 @@ export interface Actividad {
   avanceAT?: number | null;
   idOrig?: string | null;
   cantidadCdo?: number | null;
+  /** % Ex del Master (columna AP), en fracción (1 = 100 %); null si no es numérico. */
+  pctEx?: number | null;
   precio?: number | null;
   step?: number | null;
   unitAgregado?: any;
   scapAgregado?: any;
   capAgregado?: any;
   procesoAgregado?: any;
+  // Solo en actividades P6: sus partidas (filas cuya Col A es el Activity ID de esta actividad).
+  // Las usa la pestaña Master; el resto de la app trabaja con la actividad ya consolidada.
+  hijosP6?: HijoP6[];
 }
 
 export interface PlanillaItem {
@@ -80,4 +87,44 @@ export interface PlanillaItem {
   cert: number;
   exc: number;
   excE6: number;
+  /** Partida (Col H de la Sabana): se cruza con el id.orig del Master. */
+  partida?: string;
+  /** Reajuste de precios (Col B de la Sabana: C1, E3, E6…). */
+  reajuste?: string;
+  /** CAP / estructura (Col E de la Sabana). */
+  cap?: string;
+  /** Cantidad del contrato (Col L) y cantidad planillada acumulada (Col R). */
+  qContrato?: number;
+  qAcum?: number;
+}
+
+/** Partida dentro de una actividad P6 (fila del CDO cuya Col A es el Activity ID ".p6"). */
+export interface HijoP6 {
+  id: string;
+  activityId: string;
+  idOrig: string;
+  descripcion: string;
+  unidad: string;
+  cantidadCdo: number;
+  precio: number;
+  step: number;
+  venta: number;
+  subcontratista?: string;
+  cap?: string;
+  scap?: string;
+  tipo?: string;
+  macro?: string;
+  grupo?: string;
+  partidas?: string;
+  unit?: string;
+  componente?: string;
+  ubicacion?: string;
+  proceso?: string;
+  resp?: string;
+  pAc?: string;
+  status?: string;
+  /** Status (AI) y Balance (AN) de la fila, para la hoja «r.» de M₃ */
+  statusPlazo?: string;
+  balance?: number;
+  certificacionesPorFecha?: Record<string, number>;
 }

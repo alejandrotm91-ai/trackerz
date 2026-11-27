@@ -26,6 +26,20 @@ function getWbsDepth(wbs: string): number {
   return Math.max(0, parts.length - 1);
 }
 
+/**
+ * Código WBS normalizado como en M₃: sin espacios ni descripción y con el prefijo del proyecto
+ * (p0926.) cambiado por «p.». Así las cabeceras del Master («p.12.5.1 Equipos…») y las partidas
+ * («p0926.12.5.1») caen en el mismo árbol.
+ */
+function normWbs(w: string): string {
+  const t = String(w || '').trim();
+  const primero = (t.split(/\s+/)[0] || '');
+  return primero.replace(/^p\d{4}\./i, 'p.');
+}
+const esRaizProyecto = (w: string) => /^p\d{4}$/i.test(w) || /^p\.?$/i.test(w);
+
+interface NodoArbol { key: string; parentKey: string | null; depth: number; isParent: boolean; ancestros: string[] }
+
 export function WbsHierarchyEditor({ 
   isOpen, 
   onClose, 
@@ -52,33 +66,66 @@ export function WbsHierarchyEditor({
     return [...actividades].sort((a, b) => compareWbs(a.wbs || '', b.wbs || ''));
   }, [actividades]);
 
-  // 2. Build full parent set covering ALL ancestor levels (not just immediate parents)
-  const parentWbsSet = useMemo(() => {
-    const set = new Set<string>();
+  // 2. Árbol con las mismas reglas que M₃: cabeceras por su WBS normalizada; cada partida cuelga de la
+  //    cabecera de su WBS (o de la más cercana que exista); sin la raíz del proyecto (p0926).
+  //    Orden dentro de cada nivel: primero las partidas directas y luego los niveles hijos, por WBS.
+  const arbol = useMemo(() => {
+    const cabeceras = new Map<string, Actividad>();
     sortedActividades.forEach(a => {
-      const parts = (a.wbs || '').trim().split('.');
-      for (let i = 1; i < parts.length; i++) {
-        set.add(parts.slice(0, i).join('.'));
+      const k = normWbs(a.wbs || '');
+      if (!a.esItemHoja && k && !esRaizProyecto(k) && !cabeceras.has(k)) cabeceras.set(k, a);
+    });
+    const padreDeCodigo = (codigo: string, incluirse: boolean): string | null => {
+      const partes = codigo.split('.');
+      for (let n = incluirse ? partes.length : partes.length - 1; n > 1; n--) {
+        const k = partes.slice(0, n).join('.');
+        if (cabeceras.has(k)) return k;
+      }
+      return null;
+    };
+    const hijos = new Map<string | null, { act: Actividad; key: string; hoja: boolean; codigo: string; idx: number }[]>();
+    const meter = (padre: string | null, x: { act: Actividad; key: string; hoja: boolean; codigo: string; idx: number }) => {
+      if (!hijos.has(padre)) hijos.set(padre, []);
+      hijos.get(padre)!.push(x);
+    };
+    sortedActividades.forEach((a, idx) => {
+      const codigo = normWbs(a.wbs || '');
+      if (esRaizProyecto(codigo)) return;
+      if (!a.esItemHoja && cabeceras.get(codigo) === a) {
+        meter(padreDeCodigo(codigo, false), { act: a, key: codigo, hoja: false, codigo, idx });
+      } else {
+        meter(padreDeCodigo(codigo, true), { act: a, key: `a:${a.id}`, hoja: true, codigo, idx });
       }
     });
-    return set;
+    const orden: Actividad[] = [];
+    const info = new Map<string, NodoArbol>();
+    const recorrer = (padre: string | null, depth: number, ancestros: string[]) => {
+      const lista = (hijos.get(padre) || []).slice().sort((x, y) =>
+        (Number(!x.hoja) - Number(!y.hoja)) || compareWbs(x.codigo, y.codigo) || (x.idx - y.idx));
+      lista.forEach(x => {
+        const tieneHijos = !x.hoja && (hijos.get(x.key) || []).length > 0;
+        orden.push(x.act);
+        info.set(x.act.id, { key: x.key, parentKey: padre, depth, isParent: tieneHijos || !x.act.esItemHoja, ancestros });
+        if (!x.hoja) recorrer(x.key, depth + 1, [...ancestros, x.key]);
+      });
+    };
+    recorrer(null, 0, []);
+    const padres = new Set<string>();
+    const depthDe = new Map<string, number>();
+    info.forEach(n => { if (n.isParent) { padres.add(n.key); depthDe.set(n.key, n.depth); } });
+    return { orden, info, padres, depthDe };
   }, [sortedActividades]);
+  const nodoDe = (a: Actividad): NodoArbol => arbol.info.get(a.id) || { key: `a:${a.id}`, parentKey: null, depth: 0, isParent: !a.esItemHoja, ancestros: [] };
+  const parentWbsSet = arbol.padres;
 
-  // 3. Compact by default: initialize collapsed state collapsing all parents at depth >= 1
-  const [collapsedWbs, setCollapsedWbs] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    actividades.forEach(a => {
-      const parts = (a.wbs || '').trim().split('.');
-      for (let i = 1; i < parts.length; i++) {
-        const prefix = parts.slice(0, i).join('.');
-        const depth = getWbsDepth(prefix);
-        if (depth >= 1) {
-          initial.add(prefix);
-        }
-      }
-    });
-    return initial;
-  });
+  // 3. Compacto por defecto: todos los niveles plegados (se ven los capítulos, como M₃ en «0. Colapsado»)
+  const [collapsedWbs, setCollapsedWbs] = useState<Set<string>>(new Set());
+  const plegadoInicialRef = useRef(false);
+  useEffect(() => {
+    if (plegadoInicialRef.current || arbol.padres.size === 0) return;
+    plegadoInicialRef.current = true;
+    setCollapsedWbs(new Set(arbol.padres));
+  }, [arbol]);
 
   // Reset display limit and ensure initial compact selection whenever modal opens
   useEffect(() => {
@@ -96,28 +143,17 @@ export function WbsHierarchyEditor({
     
     // If search is active, match search and expand all ancestors
     if (term) {
-      return sortedActividades.filter(act => {
+      return arbol.orden.filter(act => {
         const wbs = (act.wbs || '').toLowerCase();
         const desc = (act.descripcion || '').toLowerCase();
         return wbs.includes(term) || desc.includes(term);
       });
     }
 
-    // Normal hierarchical tree filtering
-    return sortedActividades.filter(act => {
-      const wbs = (act.wbs || '').trim();
-      let isHidden = false;
-      let current = wbs;
-      while (current.includes('.')) {
-        current = current.substring(0, current.lastIndexOf('.'));
-        if (collapsedWbs.has(current)) {
-          isHidden = true;
-          break;
-        }
-      }
-      return !isHidden;
-    });
-  }, [sortedActividades, collapsedWbs, searchTerm]);
+    // Árbol: se ve si ninguno de sus ancestros está plegado
+    return arbol.orden.filter(act => !nodoDe(act).ancestros.some(k => collapsedWbs.has(k)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arbol, collapsedWbs, searchTerm]);
 
   // Limited slice for fast rendering, avoiding main-thread lockups
   const renderedActividades = useMemo(() => {
@@ -144,7 +180,7 @@ export function WbsHierarchyEditor({
 
     const newCollapsed = new Set<string>();
     parentWbsSet.forEach(pWbs => {
-      const depth = getWbsDepth(pWbs);
+      const depth = arbol.depthDe.get(pWbs) ?? 0;
       // If parent depth is greater or equal to level, collapse it so only up to 'level' is visible
       if (depth >= level) {
         newCollapsed.add(pWbs);
@@ -247,6 +283,7 @@ export function WbsHierarchyEditor({
     setCollapsedWbs(prev => {
       const next = new Set(prev);
       next.delete(parentWbs);
+      next.delete(normWbs(parentWbs));
       return next;
     });
     setSelectedId(newId);
@@ -417,10 +454,10 @@ export function WbsHierarchyEditor({
   const copyToExcel = () => {
     const headers = ['Nivel', 'WBS', 'Descripción', 'Unidad', 'Inicio', 'Fin', 'Tipo'];
     const rows = visibleActividades.map(act => {
-      const depth = getWbsDepth(act.wbs || '');
+      const depth = nodoDe(act).depth;
       const startStr = act.start ? new Date(act.start).toISOString().split('T')[0] : '';
       const finishStr = act.finish ? new Date(act.finish).toISOString().split('T')[0] : '';
-      const isParent = parentWbsSet.has(act.wbs || '') || !act.esItemHoja;
+      const isParent = nodoDe(act).isParent;
       return [
         depth + 1,
         act.wbs || '',
@@ -732,9 +769,10 @@ export function WbsHierarchyEditor({
             <tbody>
               {renderedActividades.map((act, index) => {
                 const wbs = (act.wbs || '').trim();
-                const depth = getWbsDepth(wbs);
-                const isParent = parentWbsSet.has(wbs) || !act.esItemHoja;
-                const isCollapsed = collapsedWbs.has(wbs);
+                const nodo = nodoDe(act);
+                const depth = nodo.depth;
+                const isParent = nodo.isParent;
+                const isCollapsed = collapsedWbs.has(nodo.key);
                 const isEditing = editingId === act.id;
                 const isSelected = selectedId === act.id;
 
@@ -750,7 +788,7 @@ export function WbsHierarchyEditor({
                     }}
                     onDoubleClick={() => {
                       if (isParent) {
-                        toggleCollapse(wbs);
+                        toggleCollapse(nodo.key);
                       } else {
                         startEdit(act);
                       }
@@ -777,7 +815,7 @@ export function WbsHierarchyEditor({
                       className="border-r border-slate-300 text-center p-0"
                       onClick={e => {
                         e.stopPropagation();
-                        if (isParent) toggleCollapse(wbs);
+                        if (isParent) toggleCollapse(nodo.key);
                       }}
                     >
                       {isParent ? (
@@ -997,9 +1035,9 @@ export function WbsHierarchyEditor({
             Listo • Vista WBS Compacta
           </span>
           <span className="text-emerald-200">|</span>
-          <span>Niveles WBS: {Math.max(...sortedActividades.map(a => getWbsDepth(a.wbs || '') + 1), 1)}</span>
+          <span>Niveles WBS: {Math.max(...arbol.orden.map(a => nodoDe(a).depth + 1), 1)}</span>
           <span className="text-emerald-200">|</span>
-          <span>Partidas Raíz: {sortedActividades.filter(a => getWbsDepth(a.wbs || '') === 0).length}</span>
+          <span>Partidas Raíz: {arbol.orden.filter(a => nodoDe(a).depth === 0).length}</span>
         </div>
 
         <div className="flex items-center gap-3">
