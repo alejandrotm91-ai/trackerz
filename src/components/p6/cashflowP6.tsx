@@ -27,6 +27,9 @@ const REGLAS_DEF: ReglaRestante[] = [
   { activa: true, subc: 'EECOL', texto: 'cablead', pct: 75 },
 ];
 const PI = Math.round(PCT_INICIO_INSTALACION * 100), PF = 100 - PI;
+/** Grupo de la partida D (WBS «D», pendientes de confirmar por el Ingeniero): aislado y siempre al final. */
+const CLAVE_D = '__partidaD__';
+const ETQ_D = 'Partida D – Pendientes de confirmar por el Ingeniero';
 const normTxt = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 type Agrupar = 'wbs' | 'tipo' | 'grupo' | 'ubicacion' | 'subcontratista';
@@ -207,6 +210,23 @@ export const VistaCashflow: React.FC<{
     return (i: number) => ruta(celda(m.task, m.task.filas[i], 'wbs_id')).slice(1); // sin la raíz del proyecto
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [m, version]);
+  // Partida D: WBS de primer nivel «D» (pendientes de confirmar por el Ingeniero)
+  const esPartidaD = React.useMemo(() => {
+    const w = m.xer.tablas.get('PROJWBS');
+    const nodos = new Map<string, { padre: string; cod: string }>();
+    for (const f of w?.filas || []) nodos.set(celda(w!, f, 'wbs_id'), { padre: celda(w!, f, 'parent_wbs_id'), cod: celda(w!, f, 'wbs_short_name') });
+    const cache = new Map<string, boolean>();
+    const enD = (id: string): boolean => {
+      if (cache.has(id)) return cache.get(id)!;
+      const r: string[] = [];
+      for (let x = nodos.get(id); x; x = nodos.get(x.padre)) r.unshift(x.cod);
+      const v = r[1] === 'D';
+      cache.set(id, v);
+      return v;
+    };
+    return (i: number) => enD(celda(m.task, m.task.filas[i], 'wbs_id'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m, version]);
 
   // Flete (.E) → su compra (.D), para tomar el SubC de la compra si el flete no lo tiene (como en Arrivals)
   const compraDe = React.useMemo(() => {
@@ -218,21 +238,27 @@ export const VistaCashflow: React.FC<{
   const ruta = React.useCallback((i: number): { k: string; l: string }[] => {
     const v = (k: CampoAgrupacion, vacio: string) => campo(i, k) || vacio;
     let r: { k: string; l: string }[];
+    const d = esPartidaD(i);
     switch (aj.agrupar) {
-      case 'wbs': r = rutaWbs(i).slice(0, aj.nivelesWbs); break;
+      case 'wbs': {
+        r = rutaWbs(i).slice(0, aj.nivelesWbs);
+        if (d && r.length) r[0] = { k: CLAVE_D, l: r[0].l };
+        return r;
+      }
       case 'tipo': r = [v('tipo', '(no Discipline)'), v('grupo', '(no Group)')].map(l => ({ k: l, l })); break;
       case 'grupo': r = [v('grupo', '(no Group)'), v('tipo', '(no Discipline)')].map(l => ({ k: l, l })); break;
       case 'ubicacion': r = [etiquetaUbicacion(campo(i, 'ubicacion')), v('grupo', '(no Group)')].map(l => ({ k: l, l })); break;
-      case 'subcontratista': return [v('subcontratista', '(no SubC)'), v('grupo', '(no Group)')].map(l => ({ k: l, l }));
+      case 'subcontratista': r = [v('subcontratista', '(no SubC)'), v('grupo', '(no Group)')].map(l => ({ k: l, l })); break;
     }
     // Equipamiento: un nivel más por subcontratista (CMO, Prominent…)
-    if (aj.subcEquipo && esGrupoEquipo(grupo(i))) {
+    if (aj.agrupar !== 'subcontratista' && aj.subcEquipo && esGrupoEquipo(grupo(i))) {
       const d = compraDe.get(i);
       const sc = campo(i, 'subcontratista') || (d != null ? campo(d, 'subcontratista') : '');
       r.push({ k: `subc:${sc}`, l: sc ? `SubC ${sc}` : '(no SubC assigned)' });
     }
-    return r;
-  }, [aj.agrupar, aj.nivelesWbs, aj.subcEquipo, campo, rutaWbs, grupo, compraDe]);
+    // Partida D: aislada en su propio grupo de primer nivel, siempre al final
+    return d ? [{ k: CLAVE_D, l: ETQ_D }, ...r] : r;
+  }, [aj.agrupar, aj.nivelesWbs, aj.subcEquipo, campo, rutaWbs, grupo, compraDe, esPartidaD]);
 
   const enAmbito = React.useCallback((i: number) => {
     if (aj.ambito === 'todo') return true;
@@ -266,10 +292,17 @@ export const VistaCashflow: React.FC<{
         nd.tot.p += u.pendiente || 0;
       }
     }
+    // La partida D lleva el número siguiente al último de los grupos numerados (p. ej. «12.»)
+    const gD = r.hijos.get(CLAVE_D);
+    if (gD && aj.agrupar !== 'wbs') {
+      const nums = [...r.hijos.values()].filter(h => h !== gD).map(h => /^(\d+)\s*\./.exec(h.label)?.[1]).filter(Boolean).map(Number);
+      if (nums.length) gD.label = `${String(Math.max(...nums) + 1).padStart(2, '0')}. ${ETQ_D}`;
+    }
     return r;
-  }, [flujo, nP, incluir, enAmbito, ruta]);
+  }, [flujo, nP, incluir, enAmbito, ruta, aj.agrupar]);
 
-  const orden = (a: Nodo, b: Nodo) => a.label.localeCompare(b.label, 'es', { numeric: true });
+  const esD = (n: Nodo) => n.key.endsWith(`/${CLAVE_D}`);
+  const orden = (a: Nodo, b: Nodo) => Number(esD(a)) - Number(esD(b)) || a.label.localeCompare(b.label, 'es', { numeric: true });
   const etqAct = (i: number) => `${celda(m.task, m.task.filas[i], 'task_code')} · ${celda(m.task, m.task.filas[i], 'task_name')}`;
 
   const datosAct = React.useCallback((i: number) => {
@@ -315,7 +348,7 @@ export const VistaCashflow: React.FC<{
       out.push({ tipo: 'nodo', n });
       if (n.nivel >= 0 && !abiertos.has(n.key)) return;
       const hijos = [...n.hijos.values()];
-      if (ordenCol) hijos.sort((a, b) => ordenCol.dir * (valorOrden(a) - valorOrden(b)) || orden(a, b)); else hijos.sort(orden);
+      if (ordenCol) hijos.sort((a, b) => Number(esD(a)) - Number(esD(b)) || ordenCol.dir * (valorOrden(a) - valorOrden(b)) || orden(a, b)); else hijos.sort(orden);
       hijos.filter(h => tieneEnPer(h)).forEach(rec);
       if (n.nivel >= 0) {
         const acts = perSel == null ? [...n.acts] : n.acts.filter(i => tieneEnPer(datosAct(i)));
