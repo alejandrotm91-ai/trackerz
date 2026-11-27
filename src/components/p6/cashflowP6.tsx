@@ -6,7 +6,6 @@
  * Arriba: curva del período y acumulada y el cruce con lo planillado de equipamiento (pestaña Certificación).
  */
 import React from 'react';
-import * as XLSX from 'xlsx';
 import { ChevronDown, ChevronRight, Download } from 'lucide-react';
 import type { ModeloP6 } from '../../utils/p6/modelo';
 import { celda } from '../../utils/p6/xer';
@@ -72,6 +71,7 @@ const CW = 104, ANCHO_NOMBRE = 300, ANCHO_SERIE = 66, ANCHO_TOT = 118, ANCHO_PEN
 const ANCHO_IZQ = ANCHO_NOMBRE + ANCHO_SERIE + ANCHO_TOT + ANCHO_PEND;
 const FILA = 20;
 
+const r2 = (x: number) => Math.round(x * 100) / 100;
 const fmt = (v: number, dec = 2) => v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
 interface Nodo {
@@ -445,48 +445,100 @@ export const VistaCashflow: React.FC<{
     return { b, a, r, p, costoReal, nPend };
   }, [flujo, grupo]);
 
-  const exportar = () => {
-    if (!raiz) return;
-    // Una columna por nivel de la jerarquía y otra para el SubC (nivel adicional del equipamiento)
-    const nivelesCab = aj.agrupar === 'wbs' ? Array.from({ length: aj.nivelesWbs }, (_, k) => `WBS ${k + 1}`)
-      : aj.agrupar === 'tipo' ? ['Discipline (05.Tipo)', 'Group (01.Grupos)']
-      : aj.agrupar === 'grupo' ? ['Group (01.Grupos)', 'Discipline (05.Tipo)']
-      : aj.agrupar === 'ubicacion' ? ['Location', 'Group (01.Grupos)']
-      : ['SubC', 'Group (01.Grupos)'];
-    const conSubc = aj.agrupar !== 'subcontratista' && aj.subcEquipo;
-    const perExp = perSel == null ? lim.etq.map((_, k) => k) : [perSel];
-    const cab = ['Level', ...nivelesCab, ...(conSubc ? ['SubC'] : []), 'Series', 'Total', 'Executed not billable', ...perExp.map(k => lim.etq[k])];
-    const nNum = 2 + perExp.length; // Total, Executed not billable y los períodos
-    const datos: (string | number)[][] = [];
-    const r2 = (x: number) => Math.round(x * 100) / 100;
-    const rec = (n: Nodo, camino: string[], subc: string) => {
-      aj.series.forEach((s, si) => {
-        const v = valores(n, s);
-        const tot = s === 'f' ? n.tot.a + n.tot.r : n.tot[s];
-        const niveles = nivelesCab.map((_, k) => (n.nivel < 0 ? (k === 0 ? 'Total' : '') : camino[k] ?? ''));
-        datos.push([n.nivel + 1, ...niveles, ...(conSubc ? [subc] : []), SERIES.find(x => x[0] === s)![1], r2(tot), si === 0 ? r2(n.tot.p) : 0, ...perExp.map(k => r2(v[k]))]);
+  // Export Excel con el formato a la vista (ExcelJS, se carga solo al exportar): las mismas filas que la tabla
+  // (grupos desplegados o plegados, actividades, orden y filtro de período), las series visibles, la jerarquía con
+  // sangría, esquema de Excel (+/−) y los colores de la pantalla; solo los períodos cuyo total (fila Total, series
+  // visibles) no es cero y solo las filas con algún importe. Al final, una columna por nivel de la jerarquía y otra «SubC» para filtrar.
+  const [exportando, setExportando] = React.useState(false);
+  const exportar = async () => {
+    if (!raiz || exportando) return;
+    setExportando(true);
+    try {
+      const ExcelJS = (await import('exceljs')).default;
+      const nivelesCab = aj.agrupar === 'wbs' ? Array.from({ length: aj.nivelesWbs }, (_, k) => `WBS ${k + 1}`)
+        : aj.agrupar === 'tipo' ? ['Discipline (05.Tipo)', 'Group (01.Grupos)']
+        : aj.agrupar === 'grupo' ? ['Group (01.Grupos)', 'Discipline (05.Tipo)']
+        : aj.agrupar === 'ubicacion' ? ['Location', 'Group (01.Grupos)']
+        : ['SubC', 'Group (01.Grupos)'];
+      const conSubc = aj.agrupar !== 'subcontratista' && aj.subcEquipo;
+      const seriesV = SERIES.filter(x => aj.series.includes(x[0]));
+      const totSerie = seriesV.map(([sr]) => valores(raiz, sr));
+      const perExp = (perSel == null ? lim.etq.map((_, k) => k) : [perSel]).filter(k => totSerie.some(v => Math.abs(v[k]) >= 0.005));
+      const cabNiveles = [...nivelesCab, ...(conSubc ? ['SubC'] : [])];
+      const cab = [AGRUPAR.find(x => x[0] === aj.agrupar)![1], 'Series', 'Total', 'Not billable', ...perExp.map(k => lim.etq[k]), ...cabNiveles];
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Cashflow', { views: [{ state: 'frozen', xSplit: 4, ySplit: 1 }], properties: { outlineProperties: { summaryBelow: false, summaryRight: false } } as never });
+      ws.columns = cab.map((_, c) => ({ width: c === 0 ? 60 : c === 1 ? 12 : c < 4 ? 18 : c < 4 + perExp.length ? 15 : 24 }));
+      const hx = (c: string) => `FF${c.replace('#', '').toUpperCase()}`;
+      const relleno = (c: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: hx(c) } });
+      const borde = { style: 'thin' as const, color: { argb: 'FFE3E8EB' } };
+      const h = ws.addRow(cab);
+      h.font = { bold: true, size: 9, color: { argb: 'FF2D3A42' } };
+      h.height = 18;
+      h.eachCell((c, ci) => {
+        const k = perExp[ci - 5];
+        c.fill = relleno(ci > 4 && k === perDD ? '#FFE9A8' : ci > 4 + perExp.length ? '#F4F5F7' : '#EEF0F2');
+        c.alignment = { vertical: 'middle', horizontal: ci > 2 && ci <= 4 + perExp.length ? 'right' : 'left' };
+        c.border = { bottom: { style: 'thin', color: { argb: 'FF9AA6AD' } } };
       });
-      [...n.hijos.values()].sort(orden).filter(h => tieneEnPer(h)).forEach(h => {
-        const esSubc = (h.key.split('/').pop() || '').startsWith('subc:');
-        if (esSubc) rec(h, camino, (h.key.split('/').pop() || '').slice(5) || '(no SubC assigned)');
-        else rec(h, [...camino, h.label], subc);
-      });
-    };
-    rec(raiz, [], '');
-    const ws = XLSX.utils.aoa_to_sheet([cab, ...datos]);
-    // Importes con miles y 2 decimales
-    const c0 = cab.length - nNum;
-    for (let r = 1; r <= datos.length; r++) {
-      for (let c = c0; c < cab.length; c++) {
-        const cel = ws[XLSX.utils.encode_cell({ r, c })];
-        if (cel && cel.t === 'n') cel.z = '#,##0.00';
+      // Camino (etiquetas por nivel) y SubC de cada fila a la vista
+      const pila: Nodo[] = [];
+      for (const fl of filas) {
+        const esNodo = fl.tipo === 'nodo';
+        const nivel = esNodo ? fl.n.nivel : fl.nivel;
+        if (esNodo) { pila[nivel + 1] = fl.n; pila.length = nivel + 2; }
+        const cadena = pila.slice(1, esNodo ? nivel + 2 : nivel + 1);
+        let subc = '';
+        const camino: string[] = [];
+        for (const nd of cadena) { const seg = nd.key.split('/').pop() || ''; if (seg.startsWith('subc:')) subc = seg.slice(5) || '(no SubC assigned)'; else camino.push(nd.label); }
+        const datos = esNodo ? fl.n : datosAct(fl.i);
+        // Filas sin importe en las series visibles (total, períodos exportados y no facturable en cero): fuera
+        const conImporte = nivel < 0 || Math.abs(datos.tot.p) >= 0.005 || seriesV.some(([sr]) => {
+          const v = valores(datos, sr);
+          return Math.abs(sr === 'f' ? datos.tot.a + datos.tot.r : datos.tot[sr as 'b' | 'a' | 'r']) >= 0.005 || perExp.some(k => Math.abs(v[k]) >= 0.005);
+        });
+        if (!conImporte) continue;
+        const tags = esNodo || !aj.regla ? [] : [
+          fletesFam.has(fl.i) ? '80 %' : '', flujo?.instalaciones.has(fl.i) ? `${PI}/${PF}` : '',
+          aj.remCert && certPorAct.has(fl.i) ? `cert ${Math.round((certPorAct.get(fl.i) || 0) * 100)} %` : '', flujo?.familias.has(fl.i) ? '→ freight' : '',
+        ].filter(Boolean);
+        const nombre = (esNodo ? fl.n.label : etqAct(fl.i)) + (tags.length ? `  [${tags.join(' · ')}]` : '');
+        const fondo = !esNodo ? '#FFFFFF' : nivel < 0 ? '#14212A' : nivel === 0 ? '#DCE6F0' : nivel === 1 ? '#EEF3F8' : '#F7F9FB';
+        const blanco = esNodo && nivel < 0;
+        seriesV.forEach(([sr, l, , col], si) => {
+          const v = valores(datos, sr);
+          const total = sr === 'f' ? datos.tot.a + datos.tot.r : datos.tot[sr as 'b' | 'a' | 'r'];
+          const pend = si === 0 && Math.abs(datos.tot.p) >= 0.005 ? r2(datos.tot.p) : null;
+          const fila = ws.addRow([nombre, l, r2(total), pend, ...perExp.map(k => (Math.abs(v[k]) >= 0.005 ? r2(v[k]) : null)),
+            ...nivelesCab.map((_, k) => (nivel < 0 ? (k === 0 ? 'Total' : '') : camino[k] ?? '')), ...(conSubc ? [subc] : [])]);
+          fila.outlineLevel = Math.min(7, Math.max(0, nivel + 1));
+          fila.font = { size: 9 };
+          fila.eachCell({ includeEmpty: true }, (c, ci) => {
+            const k = perExp[ci - 5];
+            const enPer = ci > 4 && ci <= 4 + perExp.length;
+            c.fill = relleno(ci > 4 + perExp.length ? (blanco ? '#14212A' : '#FAFBFC') : enPer && k === perDD && !blanco && !esNodo ? '#FFFBEA' : fondo);
+            c.font = {
+              size: 9,
+              bold: (ci === 1 && esNodo) || ci === 3,
+              color: { argb: blanco ? 'FFFFFFFF' : ci === 1 ? 'FF1B2A33' : ci === 4 ? 'FF8A6D00' : ci === 2 || ci === 3 || enPer ? hx(col) : 'FF5A6A74' },
+            };
+            if (ci === 1) c.alignment = { indent: Math.max(0, nivel + 1), vertical: 'middle' };
+            if (ci >= 3 && ci <= 4 + perExp.length) c.numFmt = '#,##0.00';
+            if (si === seriesV.length - 1) c.border = { bottom: borde };
+          });
+        });
       }
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cab.length } };
+      const buf = await wb.xlsx.writeBuffer();
+      const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `T3_cashflow_${aj.escala}${perSel != null ? `_${lim.etq[perSel].replace(/\s+/g, '')}` : ''}${aj.acumulado ? '_cum' : ''}.xlsx`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } finally {
+      setExportando(false);
     }
-    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: datos.length, c: cab.length - 1 } }) };
-    ws['!cols'] = [{ wch: 6 }, ...nivelesCab.map(() => ({ wch: 32 })), ...(conSubc ? [{ wch: 18 }] : []), { wch: 11 }, { wch: 17 }, { wch: 17 }, ...perExp.map(() => ({ wch: 15 }))];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Cashflow');
-    XLSX.writeFile(wb, `T3_cashflow_${aj.escala}${perSel != null ? `_${lim.etq[perSel].replace(/\s+/g, '')}` : ''}${aj.acumulado ? '_cum' : ''}.xlsx`);
   };
 
   if (!raiz || !nP) {
@@ -628,7 +680,7 @@ export const VistaCashflow: React.FC<{
         <div className="flex items-center gap-1 ml-auto">
           <button className={boton(false)} onClick={() => abrirNivel(1)}>Collapse</button>
           <button className={boton(false)} onClick={() => abrirNivel(9)}>Expand groups</button>
-          <button id="p6-cf-exportar" className={`${boton(false)} flex items-center gap-1`} onClick={exportar}><Download className="w-3 h-3" />Export Excel</button>
+          <button id="p6-cf-exportar" className={`${boton(false)} flex items-center gap-1`} onClick={exportar} disabled={exportando}><Download className="w-3 h-3" />{exportando ? 'Exporting…' : 'Export Excel'}</button>
         </div>
       </div>
 
