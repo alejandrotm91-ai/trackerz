@@ -5,13 +5,17 @@
  *  - Cada equipo es una familia .D (compra y fabricación, 60 %) · .E (flete, 20 %) · .F (instalación, 20 %).
  *    El equipamiento solo se certifica con el flete: la compra (.D) no se cobra cuando se ejecuta, sino junto
  *    con el flete (.E) → el 80 % (D + E) se cobra ENTERO EL DÍA QUE EMPIEZA EL FLETE (decisión del 26-nov-2026).
- *    La instalación (.F) se cobra cuando se ejecuta.
  *  - Budgeted: la venta de la .D y de la .E, el día de inicio de la línea base de la .E.
  *  - Actual: si el flete ya empezó (Actual Start de la .E), el Actual Cost de la .D y de la .E el día del inicio real
  *    de la .E. Si no ha empezado, el Actual Cost de la .D está «ejecutado sin certificar» (pendiente de flete) y
  *    pasa a Remaining.
  *  - Remaining: lo que falta de la .D (y lo ejecutado sin certificar) y de la .E, el día de inicio restante de la .E
  *    (su inicio temprano; si está en curso, la fecha de datos); si la .E ya terminó, el de la propia .D.
+ *  - Instalación (.F, 20 %; grupo Precom_Eq o con flete .E del mismo prefijo): no se prorratea, se cobra en dos
+ *    hitos: 10 % el día que empieza y 90 % el día que termina (decisión del 27-nov-2026). Budgeted en el inicio y el
+ *    fin de su línea base; terminada: Actual en el inicio y el fin reales; en curso: 10 % Actual en el inicio real y
+ *    90 % Remaining en el fin temprano (lo ejecutado por encima del 10 % es «ejecutado sin certificar»); sin iniciar:
+ *    10 % / 90 % en el inicio y el fin tempranos. Importe = Actual + Remaining Cost.
  *  - Todo lo que se cobra de la .D se MUESTRA EN LA FILA DE SU .E (flete): lo certificable del mes está en el flete;
  *    la .D (Procura_Eq) solo conserva lo «ejecutado sin certificar».
  *  - Lo demás (construcción, .D sin .E…) se cobra cuando se ejecuta, igual que su costo. Un costo real sin inicio
@@ -30,6 +34,8 @@ export interface ResultadoFlujo {
   porAct: Map<number, FlujoActividad>;
   /** Actividades .D que se cobran con su flete (índice .D → índice .E). */
   familias: Map<number, number>;
+  /** Instalaciones de equipo (.F) que se cobran en dos hitos: 10 % al inicio y 90 % al fin. */
+  instalaciones: Set<number>;
   /** Totales de cada actividad (b, a, r) por índice de fila. */
   totales: Map<number, { b: number; a: number; r: number }>;
 }
@@ -89,6 +95,18 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
   const aFlete: [number, FlujoActividad][] = [];
   const fletes = new Map<number, number>();
   for (const [d, e] of familias) fletes.set(e, d);
+  // Instalación de equipo (.F): grupo Precom_Eq o con un flete de equipo (.E) del mismo prefijo
+  const instalaciones = new Set<number>();
+  if (reglaCobro) {
+    const codE = new Set([...fletes.keys()].map(e => celda(t, t.filas[e], 'task_code').replace(/\.E$/, '')));
+    t.filas.forEach((f, i) => {
+      const cod = celda(t, f, 'task_code');
+      if (/\.F$/.test(cod) && (/precom_eq/i.test(grupo(i)) || codE.has(cod.replace(/\.F$/, '')))) instalaciones.add(i);
+    });
+  }
+  // 10 % en el instante a y 90 % en el instante b
+  const dosHitos = (v: number, a: number | null | undefined, b: number | null | undefined): TramoUso | undefined =>
+    sumarTramos(pt(0.1 * v, a != null ? [a, a] : null), pt(0.9 * v, b != null ? [b, b] : null));
 
   for (const [i, x] of totales) {
     const w = ventanasCosto(m, i, lb);
@@ -97,6 +115,24 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
     if (fletes.has(i)) {
       // Flete de equipo: su 20 % se cobra entero el día que empieza
       put(i, { b: pt(x.b, w.b), a: pt(x.a, w.a), r: pt(x.r, w.r) });
+      continue;
+    }
+    if (instalaciones.has(i)) {
+      // Instalación de equipo: 10 % el día que empieza y 90 % el día que termina (no se prorratea)
+      const T = x.a + x.r;
+      const real = w.estado !== 'TK_NotStart' && w.a;
+      const u: FlujoActividad = { b: w.b ? dosHitos(x.b, w.b[0], w.b[1]) : pt(x.b, w.b) };
+      if (w.estado === 'TK_Complete' && w.a) {
+        u.a = dosHitos(T, w.a[0], w.a[1]);
+      } else if (real) {
+        u.a = pt(0.1 * T, w.a);
+        u.r = pt(0.9 * T, w.r ? [w.r[1], w.r[1]] : null);
+        if (x.a - 0.1 * T > 0.005) u.pendiente = x.a - 0.1 * T;
+      } else {
+        u.r = w.r ? dosHitos(T, w.r[0], w.r[1]) : pt(T, null);
+        if (x.a > 0.005) u.pendiente = x.a;
+      }
+      put(i, u);
       continue;
     }
     const j = familias.get(i);
@@ -121,5 +157,5 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
     const e = porAct.get(j) ?? {};
     put(j, { ...e, b: sumarTramos(e.b, u.b), a: sumarTramos(e.a, u.a), r: sumarTramos(e.r, u.r) });
   }
-  return { porAct, familias, totales };
+  return { porAct, familias, totales, instalaciones };
 }

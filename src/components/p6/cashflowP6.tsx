@@ -387,8 +387,8 @@ export const VistaCashflow: React.FC<{
           </label>
         )}
         <label className="flex items-center gap-1 cursor-pointer"><input id="p6-cf-acumulado" type="checkbox" checked={aj.acumulado} onChange={e => set('acumulado', e.target.checked)} />Cumulative</label>
-        <label className="flex items-center gap-1 cursor-pointer" title="Equipment is billed only with its freight: the purchase (.D, 60 %) is certified together with the freight (.E, 20 %) — the whole 80 % on the day the freight starts. Off = cost as executed.">
-          <input id="p6-cf-regla" type="checkbox" checked={aj.regla} onChange={e => set('regla', e.target.checked)} />Equipment billed at freight (80 %)
+        <label className="flex items-center gap-1 cursor-pointer" title="Equipment billing rule: the purchase (.D, 60 %) is certified together with the freight (.E, 20 %) — the whole 80 % on the day the freight starts; the installation (.F, 20 %) in two milestones: 10 % on its start day and 90 % on its finish day. Off = cost as executed.">
+          <input id="p6-cf-regla" type="checkbox" checked={aj.regla} onChange={e => set('regla', e.target.checked)} />Equipment billing (80 % freight · 10/90 installation)
         </label>
         <div className="flex items-center gap-1 ml-auto">
           <button className={boton(false)} onClick={() => abrirNivel(1)}>Collapse</button>
@@ -411,11 +411,16 @@ export const VistaCashflow: React.FC<{
           </div>
         ))}
         {aj.regla && (
-          <div id="p6-cf-pendiente" title="Actual cost of equipment purchases (.D) whose freight (.E) has not started: executed but not yet billable. It is billed on the day the freight starts (included in Remaining)."
+          <div id="p6-cf-pendiente" title="Executed but not yet billable: actual cost of equipment purchases (.D) whose freight (.E) has not started (billed on the day the freight starts) and of equipment installations (.F) in progress above the 10 % billed at their start (the 90 % is billed on their finish day). Included in Remaining."
             className="border border-[#F2C94C] bg-[#FFFBEA] rounded-lg px-2.5 py-1 min-w-[150px]">
             <div className="text-[10px] uppercase tracking-wide text-[#8A6D00] font-semibold">Executed not billable</div>
             <div className="text-[15px] font-semibold text-[#8A6D00]">{fmt(tot.tot.p)}</div>
-            <div className="text-[10px] text-[#8A6D00]">purchase without freight · {flujo ? [...flujo.porAct].filter(([i, u]) => u.pendiente && incluir(i) && enAmbito(i)).length : 0} items</div>
+            <div className="text-[10px] text-[#8A6D00]">{(() => {
+              const pend = flujo ? [...flujo.porAct].filter(([i, u]) => u.pendiente && incluir(i) && enAmbito(i)) : [];
+              const inst = pend.filter(([i]) => flujo!.instalaciones.has(i));
+              const sumInst = inst.reduce((acc, [, u]) => acc + (u.pendiente || 0), 0);
+              return `purchase without freight · ${pend.length - inst.length} items${inst.length ? ` | installation in progress · ${inst.length} items (${fmt(sumInst)})` : ''}`;
+            })()}</div>
           </div>
         )}
         <div id="p6-cf-planillas" className="border border-[#D5DEE2] rounded-lg px-2.5 py-1 ml-auto">
@@ -490,7 +495,7 @@ export const VistaCashflow: React.FC<{
               <div className="px-1 flex items-center" style={{ width: ANCHO_SERIE }}>Series</div>
               <div id="p6-cf-orden-tot" className={`px-1 flex items-center justify-end cursor-pointer hover:bg-white/70 ${ordenCol?.col === 'tot' ? 'text-[#312E81]' : ''}`} style={{ width: ANCHO_TOT }}
                 onClick={() => clicOrden('tot')} title={`Sort by Total (${nombreSerieOrden}): highest first, lowest first, original order`}>Total{flechaOrden('tot')}</div>
-              <div className="px-1 flex items-center justify-end" style={{ width: ANCHO_PEND }} title="Executed not billable: actual cost of equipment purchases whose freight has not started">Not billable</div>
+              <div className="px-1 flex items-center justify-end" style={{ width: ANCHO_PEND }} title="Executed not billable: actual cost of equipment purchases whose freight has not started and of installations in progress above the 10 % billed at their start">Not billable</div>
             </div>
             {lim.etq.map((e, k) => (
               <div key={k} data-cf-periodo={k} onClick={() => clicOrden(k)} title={`Sort by ${e} (${nombreSerieOrden}${aj.acumulado ? ', cumulative' : ''}): highest first, lowest first, original order`}
@@ -527,6 +532,7 @@ export const VistaCashflow: React.FC<{
                               ) : <span className="w-4 shrink-0" />}
                               <span className={`truncate ${esNodo ? 'font-semibold' : ''}`} title={etiqueta}>{etiqueta}</span>
                               {!esNodo && aj.regla && fletesFam.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#FFF2C2] text-[#8A6D00] shrink-0" title="Freight row: bills its own 20 % plus the purchase (.D) 60 % on the day the freight starts">80 %</span>}
+                              {!esNodo && aj.regla && flujo?.instalaciones.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#E3F1EA] text-[#2B7F52] shrink-0" title="Equipment installation: 10 % billed on the start day, 90 % on the finish day">10/90</span>}
                               {!esNodo && aj.regla && flujo?.familias.has(fl.i) && <span className="ml-1 text-[9px] px-1 rounded bg-[#EEF0F2] text-[#5A6A74] shrink-0" title="Purchase: billed in its freight (.E) row">→ freight</span>}
                             </>
                           )}
