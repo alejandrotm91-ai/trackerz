@@ -236,3 +236,101 @@ export function calcularLlegadas(m: ModeloP6, filasMatriz: FilaMatriz[]): Result
   filas.sort((a, b) => orden[a.clase] - orden[b.clase] || Math.abs(b.delta) - Math.abs(a.delta));
   return { filas, sinPareja, excluidas: { tuberias, valvulas, sinAw }, fechaDatos: dd };
 }
+
+/**
+ * Compra y fabricación (.D) de los equipos cuyo flete (.E) NO se puede seguir con la matriz de importación
+ * (decisión del 27-nov-2026): sin «32. Variacion», con una llave que no está en la matriz, o que está pero sin
+ * llegada (AW) o como tubería/válvula (excluidas del cruce). Sin una fecha de llegada que la ajuste, su compra se
+ * queda con el remaining que tenga (a veces 1–3 días) y el flete arranca enseguida; se propone subirle la
+ * Remaining Duration (o la Original, si no ha empezado) a un mínimo (por defecto 30 días de su calendario).
+ * Alcance: familias .D + .E de equipo (grupo Procura_Eq o nombre «Compra…»), sin válvulas (SCAP Valvulas) ni el
+ * WBS «.D» del proyecto (pendientes de confirmar por el Ingeniero, con fechas provisionales); .D sin terminar.
+ */
+export type MotivoSinMatriz = 'sin_llave' | 'no_en_matriz' | 'sin_aw' | 'tuberia' | 'valvula';
+export const TEXTO_MOTIVO: Record<MotivoSinMatriz, string> = {
+  sin_llave: 'No «32. Variacion» key',
+  no_en_matriz: 'Not in the matrix',
+  sin_aw: 'In the matrix without arrival (AW)',
+  tuberia: 'In the matrix as pipe (excluded)',
+  valvula: 'In the matrix as valve (excluded)',
+};
+export interface FilaSinMatriz {
+  clave: string;
+  iD: number;
+  codD: string;
+  nombre: string;
+  subc: string;
+  partida: string;
+  motivo: MotivoSinMatriz;
+  estadoD: string;
+  codE: string;
+  estadoE: string;
+  /** Días (calendario de la .D) que le quedan y su fin temprano. */
+  remDias: number;
+  finD: string;
+  horasDia: number;
+  cambio: CambioLlegada | null;
+}
+
+export function procuraSinMatriz(m: ModeloP6, filasMatriz: FilaMatriz[], minDias = 30): FilaSinMatriz[] {
+  const t = m.task;
+  const tipos = m.xer.tablas.get('UDFTYPE'), valores = m.xer.tablas.get('UDFVALUE');
+  const idDe = (etq: string) => { const f = tipos?.filas.find(x => celda(tipos, x, 'table_name') === 'TASK' && celda(tipos, x, 'udf_type_label') === etq); return f ? celda(tipos!, f, 'udf_type_id') : null; };
+  const ids: Record<string, string | null> = { v: idDe('32. Variacion'), s: idDe('07.SCAP'), c: idDe('11.SubC'), g: idDe('01.Grupos') };
+  const udf: Record<string, Map<string, string>> = { v: new Map(), s: new Map(), c: new Map(), g: new Map() };
+  for (const f of valores?.filas || []) {
+    const tipo = celda(valores!, f, 'udf_type_id');
+    for (const k of Object.keys(ids)) if (ids[k] && tipo === ids[k]) udf[k].set(celda(valores!, f, 'fk_id'), celda(valores!, f, 'udf_text') || celda(valores!, f, 'udf_number'));
+  }
+  const u = (k: string, i: number) => { const v = String(udf[k].get(celda(t, t.filas[i], 'task_id')) || '').trim(); return v && v !== '0' ? v : ''; };
+
+  // Llaves de la matriz: «ok» si alguna fila de la partida tiene AW y no es tubería ni válvula
+  const llaves = new Map<string, 'ok' | MotivoSinMatriz>();
+  for (const r of filasMatriz) {
+    const k = normLlave(r.p);
+    if (!k) continue;
+    const tipo = esTuberia(r) ? 'tuberia' : esValvulaMatriz(r) ? 'valvula' : !r.aw ? 'sin_aw' : 'ok';
+    if (llaves.get(k) !== 'ok') llaves.set(k, tipo);
+  }
+  // WBS de primer nivel bajo la raíz (para dejar fuera «.D», pendientes de confirmar)
+  const w = m.xer.tablas.get('PROJWBS');
+  const nodo = new Map((w?.filas || []).map(f => [celda(w!, f, 'wbs_id'), { padre: celda(w!, f, 'parent_wbs_id'), cod: celda(w!, f, 'wbs_short_name') }]));
+  const primerNivel = (id: string) => { const r: string[] = []; for (let x = nodo.get(id); x; x = nodo.get(x.padre)) r.unshift(x.cod); return r[1] || ''; };
+
+  const porCod = new Map<string, number>();
+  t.filas.forEach((f, i) => porCod.set(celda(t, f, 'task_code'), i));
+  const out: FilaSinMatriz[] = [];
+  t.filas.forEach((f, iD) => {
+    const codD = celda(t, f, 'task_code');
+    if (!/\.D$/.test(codD)) return;
+    const codE = codD.replace(/\.D$/, '.E');
+    const iE = porCod.get(codE);
+    if (iE === undefined) return;
+    const estadoD = celda(t, f, 'status_code');
+    if (estadoD === 'TK_Complete') return;
+    if (!/procura_eq/i.test(u('g', iD)) && !/^compr/i.test(celda(t, f, 'task_name').trim())) return;
+    if (/valvul/i.test(u('s', iD)) || /valvul/i.test(u('s', iE))) return;
+    if (primerNivel(celda(t, f, 'wbs_id')) === 'D') return;
+    const partida = u('v', iE);
+    const k = normLlave(partida);
+    const enM = k ? llaves.get(k) : undefined;
+    if (enM === 'ok') return;
+    const motivo: MotivoSinMatriz = !k ? 'sin_llave' : enM ?? 'no_en_matriz';
+    const hd = m.calendarios.get(celda(t, f, 'clndr_id'))?.horasDia || 8;
+    const remH = Number(celda(t, f, 'remain_drtn_hr_cnt')) || 0;
+    const minH = minDias * hd;
+    let cambio: CambioLlegada | null = null;
+    if (estadoD === 'TK_Active' && remH < minH - 0.01) {
+      cambio = { i: iD, cod: codD, campo: 'durRestante', antesH: remH, nuevoH: minH, horasDia: hd, nota: `at least ${minDias} d of procurement left (freight not in the import matrix)` };
+    } else if (estadoD === 'TK_NotStart') {
+      const origH = Number(celda(t, f, 'target_drtn_hr_cnt')) || 0;
+      if (origH < minH - 0.01) cambio = { i: iD, cod: codD, campo: 'durOriginal', antesH: origH, nuevoH: minH, horasDia: hd, nota: `at least ${minDias} d of procurement (freight not in the import matrix)` };
+    }
+    out.push({
+      clave: `sm:${codD}`, iD, codD, nombre: celda(t, f, 'task_name'), subc: u('c', iD) || u('c', iE), partida, motivo, estadoD,
+      codE, estadoE: celda(t, t.filas[iE], 'status_code'), remDias: remH / hd,
+      finD: (celda(t, f, 'early_end_date') || celda(t, f, 'act_end_date')).slice(0, 10), horasDia: hd, cambio,
+    });
+  });
+  return out.sort((a, b) => Number(!a.subc) - Number(!b.subc) || a.subc.localeCompare(b.subc, 'es') || a.remDias - b.remDias);
+}

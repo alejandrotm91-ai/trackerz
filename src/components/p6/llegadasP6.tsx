@@ -8,7 +8,7 @@ import React from 'react';
 import * as XLSX from 'xlsx';
 import { ChevronDown, ChevronRight, Download, Ship, Upload, X } from 'lucide-react';
 import type { ModeloP6 } from '../../utils/p6/modelo';
-import { calcularLlegadas, type CambioLlegada, type FilaLlegada, type TipoLlegada } from '../../utils/p6/llegadas';
+import { calcularLlegadas, procuraSinMatriz, TEXTO_MOTIVO, type CambioLlegada, type FilaLlegada, type FilaSinMatriz, type TipoLlegada } from '../../utils/p6/llegadas';
 import { leerMatrizLlegadas, type MatrizLlegadas, type EstadoImportacion } from '../../utils/p6/matrizLlegadas';
 import { apiFetch } from '../../utils/api';
 
@@ -26,7 +26,7 @@ const CLASE_COLOR: Record<string, string> = { Gap: 'text-red-700', Review: 'text
 const dias = (h: number, hd: number) => +(h / hd).toFixed(1);
 const textoCambio = (c: CambioLlegada) => `${c.cod} ${c.campo === 'durOriginal' ? 'Orig' : 'Rem'} ${dias(c.antesH, c.horasDia)} → ${dias(c.nuevoH, c.horasDia)} d`;
 
-function libro(filas: FilaLlegada[], sinPareja: { lado: string; partida: string; detalle: string; aw: string | null; subc: string }[]): Uint8Array {
+function libro(filas: FilaLlegada[], sinPareja: { lado: string; partida: string; detalle: string; aw: string | null; subc: string }[], sinMatriz: FilaSinMatriz[]): Uint8Array {
   const wb = XLSX.utils.book_new();
   const cab = ['SubC (T₃)', 'Partida', 'Freight (.E)', 'Supplier (matrix)', 'Package', 'Matrix status', 'T₃ status', 'Shipments', 'First AW', 'Last AW', 'Shipment (AR)', 'Finish T₃', 'Δ days', 'Class', 'TF (d)', 'Proposed changes', 'Notes', 'Type'];
   const tipo: Record<TipoLlegada, string> = { cambio: 'Change', cercana: 'Close', llegada: 'Arrived – confirm', completada: 'Completed' };
@@ -42,6 +42,9 @@ function libro(filas: FilaLlegada[], sinPareja: { lado: string; partida: string;
   XLSX.utils.book_append_sheet(wb, ws, 'Arrivals');
   const ws2 = XLSX.utils.aoa_to_sheet([['Side', 'SubC (T₃)', 'Key', 'Detail', 'Last AW'], ...sinPareja.map(s => [s.lado === 'matrix' ? 'Matrix only' : 'T₃ only', s.subc || '', s.partida, s.detalle, s.aw || ''])]);
   XLSX.utils.book_append_sheet(wb, ws2, 'Unmatched');
+  const ws3 = XLSX.utils.aoa_to_sheet([['SubC (T₃)', 'Procurement (.D)', 'Name', 'Status .D', 'Remaining (d)', 'Early finish .D', 'Freight (.E)', 'Status .E', '32. Variacion', 'Reason', 'Proposed'],
+    ...sinMatriz.map(r => [r.subc, r.codD, r.nombre, ESTADO[r.estadoD] || r.estadoD, +r.remDias.toFixed(1), r.finD, r.codE, ESTADO[r.estadoE] || r.estadoE, r.partida, TEXTO_MOTIVO[r.motivo], r.cambio ? textoCambio(r.cambio) : ''])]);
+  XLSX.utils.book_append_sheet(wb, ws3, 'Not in matrix');
   return XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as Uint8Array;
 }
 
@@ -81,9 +84,16 @@ export const DialogoLlegadas: React.FC<{
   };
 
   const res = React.useMemo(() => (matriz ? calcularLlegadas(m, matriz.filas) : null), [m, matriz, version]);
-  type Pestana = 'gap' | 'review' | TipoLlegada | 'sinPareja';
+  type Pestana = 'gap' | 'review' | TipoLlegada | 'sinMatriz' | 'sinPareja';
   const [tab, setTab] = React.useState<Pestana>('gap');
   const [quitadas, setQuitadas] = React.useState<Set<string>>(new Set());
+  const quitadasSm = (k: string) => quitadas.has(k);
+  // Compra y fabricación de los equipos cuyo flete no está en la matriz: mínimo de días de remaining
+  const [minDias, setMinDias] = React.useState(30);
+  const sinMatriz = React.useMemo(() => (matriz ? procuraSinMatriz(m, matriz.filas, Math.max(1, minDias || 1)) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [m, matriz, version, minDias]);
+  const smElegidas = sinMatriz.filter(r => r.cambio && !quitadasSm(r.clave));
   const [plegados, setPlegados] = React.useState<Set<string>>(new Set());
   const filasDe = (k: Pestana): FilaLlegada[] => {
     if (!res || k === 'sinPareja') return [];
@@ -108,7 +118,7 @@ export const DialogoLlegadas: React.FC<{
   const alternarSel = (fs: FilaLlegada[], marcar: boolean) => setQuitadas(q => { const n = new Set(q); fs.filter(f => f.cambios.length).forEach(f => (marcar ? n.delete(f.clave) : n.add(f.clave))); return n; });
   const exportar = () => {
     if (!res) return;
-    const url = URL.createObjectURL(new Blob([libro(res.filas, res.sinPareja)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const url = URL.createObjectURL(new Blob([libro(res.filas, res.sinPareja, sinMatriz)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     const a = document.createElement('a'); a.href = url; a.download = `Arrivals_vs_T3_${new Date().toISOString().slice(0, 10)}.xlsx`; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
@@ -121,6 +131,7 @@ export const DialogoLlegadas: React.FC<{
     ['cercana', `Close (|Δ| ≤ 7) · ${filasDe('cercana').length}`],
     ['llegada', `Arrived – confirm · ${filasDe('llegada').length}`],
     ['completada', `Completed · ${filasDe('completada').length}`],
+    ['sinMatriz', `Not in matrix – procurement · ${smElegidas.length}/${sinMatriz.filter(r => r.cambio).length}`],
     ['sinPareja', `Unmatched · matrix ${res?.sinPareja.filter(x => x.lado === 'matrix').length ?? 0} · T₃ ${res?.sinPareja.filter(x => x.lado === 'T3').length ?? 0}`],
   ];
   const ayudaCambio = 'Pending freight with |Δ| > 7 days: the procurement .D (In Progress) ends on the shipment date (AR) and the freight .E lasts from the shipment (or the Data Date) to the end of the arrival day (AW), in its calendar. At least 1 day. Not-started .D are not changed.';
@@ -130,6 +141,7 @@ export const DialogoLlegadas: React.FC<{
     cercana: 'Finish of the freight in T₃ within 7 days of the matrix arrival: nothing to change.',
     llegada: 'The matrix arrival (AW) is on or before the Data Date and the freight is not finished in T₃: confirm on site and update it with the Cut. Not changed here.',
     completada: 'Freight already finished in T₃: never changed. Flagged if the matrix still shows it as not arrived.',
+    sinMatriz: 'Equipment procurement (.D) not finished whose freight (.E) cannot be followed with the import matrix (no key, not in the matrix, no arrival AW, or excluded as pipe / valve). Without an arrival date the procurement keeps whatever remaining it has: it is raised to the minimum (Remaining Duration if In Progress, Original if Not Started). Valves and the «.D» WBS (pending confirmation) are left out.',
     sinPareja: 'Keys without a pair: matrix items with no .E whose «32. Variacion» matches, and pending .E in T₃ that are not in the matrix. Fix the coding at the source.',
   };
 
@@ -172,10 +184,64 @@ export const DialogoLlegadas: React.FC<{
               {tabs.map(([k, etq]) => (
                 <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 rounded-t-lg border border-b-0 font-semibold cursor-pointer ${tab === k ? 'bg-white border-[#D5DEE2] text-[#312E81]' : 'bg-[#F5F8F9] border-transparent text-[#5A6A74]'}`}>{etq}</button>
               ))}
+              {tab === 'sinMatriz' && (
+                <label className="ml-3 mb-1 flex items-center gap-1 font-semibold">Minimum remaining
+                  <input id="p6-llegadas-min-dias" type="number" min={1} value={minDias} onChange={e => setMinDias(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-14 border border-[#D5DEE2] rounded px-1 py-0.5 text-right" /> d
+                </label>
+              )}
               <span className="ml-3 mb-1 text-[#5A6A74] max-w-[620px]">{ayuda[tab]}</span>
             </div>
             <div className="mx-4 border border-[#D5DEE2] rounded-b-lg rounded-tr-lg overflow-auto flex-1 min-h-[220px]">
-              {tab === 'sinPareja' ? (
+              {tab === 'sinMatriz' ? (
+                <table className="w-full border-collapse">
+                  <thead><tr>
+                    <th className={th}><input type="checkbox" checked={sinMatriz.some(r => r.cambio) && sinMatriz.filter(r => r.cambio).every(r => !quitadas.has(r.clave))}
+                      onChange={e => setQuitadas(q => { const n = new Set(q); sinMatriz.filter(r => r.cambio).forEach(r => (e.target.checked ? n.delete(r.clave) : n.add(r.clave))); return n; })} /></th>
+                    <th className={th}>Procurement (.D)</th><th className={th}>Name</th><th className={th}>Status</th>
+                    <th className={`${th} text-right`}>Remaining (d)</th><th className={th}>Early finish</th>
+                    <th className={th}>Freight (.E)</th><th className={th}>«32. Variacion»</th><th className={th}>Reason</th><th className={th}>Proposed</th>
+                  </tr></thead>
+                  <tbody>
+                    {(() => {
+                      const g = new Map<string, FilaSinMatriz[]>();
+                      for (const r of sinMatriz) { const k = r.subc || SIN_SUBC; if (!g.has(k)) g.set(k, []); g.get(k)!.push(r); }
+                      return [...g.entries()].map(([sub, rs]) => {
+                        const abierto = !plegados.has(`sm:${sub}`);
+                        const cc = rs.filter(r => r.cambio);
+                        return (
+                          <React.Fragment key={sub}>
+                            <tr className="bg-[#E8EAF6] cursor-pointer select-none" onClick={() => setPlegados(p => { const n = new Set(p); const k = `sm:${sub}`; if (n.has(k)) n.delete(k); else n.add(k); return n; })}>
+                              <td className={td} onClick={e => e.stopPropagation()}><input type="checkbox" disabled={!cc.length} checked={cc.length > 0 && cc.every(r => !quitadas.has(r.clave))}
+                                onChange={e => setQuitadas(q => { const n = new Set(q); cc.forEach(r => (e.target.checked ? n.delete(r.clave) : n.add(r.clave))); return n; })} title="Select the whole subcontractor" /></td>
+                              <td colSpan={9} className="px-2 py-1 border-b border-[#D5DEE2] font-bold text-[#312E81]">
+                                {abierto ? <ChevronDown className="inline w-3.5 h-3.5 mr-1" /> : <ChevronRight className="inline w-3.5 h-3.5 mr-1" />}
+                                SubC: {sub} <span className="font-normal text-[#5A6A74]">· {rs.length} item{rs.length === 1 ? '' : 's'} · {cc.filter(r => !quitadas.has(r.clave)).length} selected</span>
+                              </td>
+                            </tr>
+                            {abierto && rs.map(r => (
+                              <tr key={r.clave} className={r.cambio ? '' : 'text-[#9AA6AD] bg-[#FAFBFB]'}>
+                                <td className={td}><input type="checkbox" disabled={!r.cambio} checked={!!r.cambio && !quitadas.has(r.clave)}
+                                  onChange={() => setQuitadas(q => { const n = new Set(q); if (n.has(r.clave)) n.delete(r.clave); else n.add(r.clave); return n; })} /></td>
+                                <td className={`${td} font-mono`}><button onClick={() => onIr(r.iD)} className="text-[#312E81] hover:underline cursor-pointer">{r.codD}</button></td>
+                                <td className={`${td} max-w-[280px] truncate`} title={r.nombre}>{r.nombre}</td>
+                                <td className={td}>{ESTADO[r.estadoD] || r.estadoD}</td>
+                                <td className={`${td} text-right ${r.remDias < minDias ? 'text-red-700 font-semibold' : ''}`}>{r.remDias.toFixed(1)}</td>
+                                <td className={td}>{fP6(r.finD)}</td>
+                                <td className={`${td} font-mono`}>{r.codE} <span className="font-sans text-[#5A6A74]">({ESTADO[r.estadoE] || r.estadoE})</span></td>
+                                <td className={`${td} font-mono`}>{r.partida || '—'}</td>
+                                <td className={td}>{TEXTO_MOTIVO[r.motivo]}</td>
+                                <td className={td}>{r.cambio ? <span title={r.cambio.nota}>{r.cambio.campo === 'durOriginal' ? 'Orig' : 'Rem'} {dias(r.cambio.antesH, r.horasDia)} → <b>{dias(r.cambio.nuevoH, r.horasDia)} d</b></span> : `Already ≥ ${minDias} d`}</td>
+                              </tr>
+                            ))}
+                          </React.Fragment>
+                        );
+                      });
+                    })()}
+                    {!sinMatriz.length && <tr><td colSpan={10} className="px-3 py-6 text-center text-[#5A6A74]">Nothing here.</td></tr>}
+                  </tbody>
+                </table>
+              ) : tab === 'sinPareja' ? (
                 <table className="w-full border-collapse">
                   <thead><tr><th className={th}>Side</th><th className={th}>SubC (T₃)</th><th className={th}>Key</th><th className={th}>Detail</th><th className={th}>Last AW</th></tr></thead>
                   <tbody>
@@ -248,10 +314,11 @@ export const DialogoLlegadas: React.FC<{
           <button onClick={exportar} disabled={!res} className="ml-auto px-3 py-1.5 border border-[#D5DEE2] rounded-lg hover:bg-[#F5F8F9] cursor-pointer flex items-center gap-1 disabled:opacity-50"
             title="Excel with every compared item and the unmatched keys"><Download className="w-3.5 h-3.5" /> Export Excel</button>
           {editable && (
-            <button id="p6-llegadas-aplicar" disabled={!deCambios || !elegidas.length} onClick={() => onAplicar(elegidas.flatMap(f => f.cambios), elegidas.length)}
+            <button id="p6-llegadas-aplicar" disabled={tab === 'sinMatriz' ? !smElegidas.length : !deCambios || !elegidas.length}
+              onClick={() => (tab === 'sinMatriz' ? onAplicar(smElegidas.map(r => r.cambio!), smElegidas.length) : onAplicar(elegidas.flatMap(f => f.cambios), elegidas.length))}
               className="px-3 py-1.5 rounded-lg bg-[#312E81] text-white font-bold cursor-pointer disabled:opacity-50"
               title="Set the new durations as unsaved changes, then reschedule (F9). Review and press Save.">
-              Apply {elegidas.length} items of this tab + F9
+              Apply {tab === 'sinMatriz' ? smElegidas.length : elegidas.length} items of this tab + F9
             </button>
           )}
         </div>
