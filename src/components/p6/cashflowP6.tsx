@@ -207,6 +207,15 @@ export const VistaCashflow: React.FC<{
   const flechaOrden = (col: number | 'tot') => (ordenCol?.col === col ? (ordenCol.dir === -1 ? ' ▼' : ' ▲') : '');
   const nombreSerieOrden = SERIES.find(x => x[0] === serieOrden)![1];
 
+  // Filtro por período: clic en una barra del gráfico (otra vez o ✕ para quitarlo). Solo filas con importe en ese
+  // período (series visibles, valor del período —no acumulado—) y solo esa columna con valores.
+  const [perSel, setPerSel] = React.useState<number | null>(null);
+  React.useEffect(() => setPerSel(null), [aj.escala]);
+  const tieneEnPer = React.useCallback((x: { per: Record<'b' | 'a' | 'r', Float64Array> }) => {
+    if (perSel == null) return true;
+    return aj.series.some(sr => Math.abs(sr === 'f' ? x.per.a[perSel] + x.per.r[perSel] : x.per[sr][perSel]) >= 0.005);
+  }, [perSel, aj.series]);
+
   // Filas visibles
   type Fila = { tipo: 'nodo'; n: Nodo } | { tipo: 'act'; i: number; nivel: number };
   const filas = React.useMemo<Fila[]>(() => {
@@ -217,9 +226,9 @@ export const VistaCashflow: React.FC<{
       if (n.nivel >= 0 && !abiertos.has(n.key)) return;
       const hijos = [...n.hijos.values()];
       if (ordenCol) hijos.sort((a, b) => ordenCol.dir * (valorOrden(a) - valorOrden(b)) || orden(a, b)); else hijos.sort(orden);
-      hijos.forEach(rec);
+      hijos.filter(h => tieneEnPer(h)).forEach(rec);
       if (n.nivel >= 0) {
-        const acts = [...n.acts];
+        const acts = perSel == null ? [...n.acts] : n.acts.filter(i => tieneEnPer(datosAct(i)));
         const porNombre = (a: number, b: number) => etqAct(a).localeCompare(etqAct(b), 'es', { numeric: true });
         if (ordenCol) { const val = new Map(acts.map(i => [i, valorOrden(datosAct(i))])); acts.sort((a, b) => ordenCol.dir * (val.get(a)! - val.get(b)!) || porNombre(a, b)); } else acts.sort(porNombre);
         acts.forEach(i => out.push({ tipo: 'act', i, nivel: n.nivel + 1 }));
@@ -228,7 +237,7 @@ export const VistaCashflow: React.FC<{
     rec(raiz);
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [raiz, abiertos, ordenCol, valorOrden, datosAct]);
+  }, [raiz, abiertos, ordenCol, valorOrden, datosAct, perSel, tieneEnPer]);
 
   const fletesFam = React.useMemo(() => new Set(flujo ? flujo.familias.values() : []), [flujo]);
   const perDD = React.useMemo(() => { let k = -1; lim.t.forEach((t, j) => { if (t <= m.fechaDatos && j < nP) k = j; }); return k; }, [lim, nP, m.fechaDatos]);
@@ -280,8 +289,9 @@ export const VistaCashflow: React.FC<{
       : aj.agrupar === 'ubicacion' ? ['Location', 'Group (01.Grupos)']
       : ['SubC', 'Group (01.Grupos)'];
     const conSubc = aj.agrupar !== 'subcontratista' && aj.subcEquipo;
-    const cab = ['Level', ...nivelesCab, ...(conSubc ? ['SubC'] : []), 'Series', 'Total', 'Executed not billable', ...lim.etq];
-    const nNum = 2 + lim.etq.length; // Total, Executed not billable y los períodos
+    const perExp = perSel == null ? lim.etq.map((_, k) => k) : [perSel];
+    const cab = ['Level', ...nivelesCab, ...(conSubc ? ['SubC'] : []), 'Series', 'Total', 'Executed not billable', ...perExp.map(k => lim.etq[k])];
+    const nNum = 2 + perExp.length; // Total, Executed not billable y los períodos
     const datos: (string | number)[][] = [];
     const r2 = (x: number) => Math.round(x * 100) / 100;
     const rec = (n: Nodo, camino: string[], subc: string) => {
@@ -289,9 +299,9 @@ export const VistaCashflow: React.FC<{
         const v = valores(n, s);
         const tot = s === 'f' ? n.tot.a + n.tot.r : n.tot[s];
         const niveles = nivelesCab.map((_, k) => (n.nivel < 0 ? (k === 0 ? 'Total' : '') : camino[k] ?? ''));
-        datos.push([n.nivel + 1, ...niveles, ...(conSubc ? [subc] : []), SERIES.find(x => x[0] === s)![1], r2(tot), si === 0 ? r2(n.tot.p) : 0, ...Array.from(v, r2)]);
+        datos.push([n.nivel + 1, ...niveles, ...(conSubc ? [subc] : []), SERIES.find(x => x[0] === s)![1], r2(tot), si === 0 ? r2(n.tot.p) : 0, ...perExp.map(k => r2(v[k]))]);
       });
-      [...n.hijos.values()].sort(orden).forEach(h => {
+      [...n.hijos.values()].sort(orden).filter(h => tieneEnPer(h)).forEach(h => {
         const esSubc = (h.key.split('/').pop() || '').startsWith('subc:');
         if (esSubc) rec(h, camino, (h.key.split('/').pop() || '').slice(5) || '(no SubC assigned)');
         else rec(h, [...camino, h.label], subc);
@@ -308,10 +318,10 @@ export const VistaCashflow: React.FC<{
       }
     }
     ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: datos.length, c: cab.length - 1 } }) };
-    ws['!cols'] = [{ wch: 6 }, ...nivelesCab.map(() => ({ wch: 32 })), ...(conSubc ? [{ wch: 18 }] : []), { wch: 11 }, { wch: 17 }, { wch: 17 }, ...lim.etq.map(() => ({ wch: 15 }))];
+    ws['!cols'] = [{ wch: 6 }, ...nivelesCab.map(() => ({ wch: 32 })), ...(conSubc ? [{ wch: 18 }] : []), { wch: 11 }, { wch: 17 }, { wch: 17 }, ...perExp.map(() => ({ wch: 15 }))];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Cashflow');
-    XLSX.writeFile(wb, `T3_cashflow_${aj.escala}${aj.acumulado ? '_cum' : ''}.xlsx`);
+    XLSX.writeFile(wb, `T3_cashflow_${aj.escala}${perSel != null ? `_${lim.etq[perSel].replace(/\s+/g, '')}` : ''}${aj.acumulado ? '_cum' : ''}.xlsx`);
   };
 
   if (!raiz || !nP) {
@@ -434,7 +444,15 @@ export const VistaCashflow: React.FC<{
           {/* Gráfico */}
           <div className="flex border-b border-[#D5DEE2]" style={{ height: AG }}>
             <div className="sticky left-0 z-[6] bg-white border-r border-[#D5DEE2] px-3 py-2 text-[10.5px] text-[#5A6A74] flex flex-col gap-1" style={{ width: ANCHO_IZQ, minWidth: ANCHO_IZQ }}>
-              <div className="font-semibold text-[#14212A]">Period ({ESCALAS.find(e => e[0] === aj.escala)![1].toLowerCase()}) and cumulative</div>
+              <div className="font-semibold text-[#14212A] flex items-center gap-2">Period ({ESCALAS.find(e => e[0] === aj.escala)![1].toLowerCase()}) and cumulative
+                {perSel != null ? (
+                  <span id="p6-cf-periodo-sel" className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#312E81] text-white font-semibold text-[10px]"
+                    title="The table shows only the rows with an amount in this period. Click the bar again or ✕ to clear">
+                    Filtered: {lim.etq[perSel]}
+                    <button className="cursor-pointer hover:text-[#FFB4B4]" onClick={() => setPerSel(null)} title="Clear period filter">✕</button>
+                  </span>
+                ) : <span className="font-normal text-[#9AA6AD]">· click a bar to filter its period</span>}
+              </div>
               <div className="flex items-center gap-1.5"><span className="w-3 h-2.5 bg-[#2B7F52]" />Actual (billed) per period</div>
               <div className="flex items-center gap-1.5"><span className="w-3 h-2.5 bg-[#F59E52]" />Remaining (forecast) per period</div>
               <div className="flex items-center gap-1.5"><span className="w-3 h-0 border-t-2 border-[#1F4E79]" />Cumulative Budgeted · {fmt(cumB[nP - 1] || 0)}</div>
@@ -447,9 +465,11 @@ export const VistaCashflow: React.FC<{
                 const a = tot.per.a[k], r = tot.per.r[k];
                 const x = k * CW + 14, w = CW - 28;
                 return (
-                  <g key={k}>
-                    <title>{`${lim.etq[k]}\nBudgeted ${fmt(tot.per.b[k], 2)}\nActual ${fmt(a, 2)}\nRemaining ${fmt(r, 2)}\nCumulative Budgeted ${fmt(cumB[k], 2)}\nCumulative Act+Rem ${fmt(cumF[k], 2)}`}</title>
-                    <rect x={k * CW} y={0} width={CW} height={AG} fill={k === perDD ? '#FFF7D6' : 'transparent'} />
+                  <g key={k} data-cf-barra={k} className="cursor-pointer" opacity={perSel != null && perSel !== k ? 0.35 : 1}
+                    onClick={() => setPerSel(p => (p === k ? null : k))}>
+                    <title>{`${lim.etq[k]} · click to filter this period\nBudgeted ${fmt(tot.per.b[k], 2)}\nActual ${fmt(a, 2)}\nRemaining ${fmt(r, 2)}\nCumulative Budgeted ${fmt(cumB[k], 2)}\nCumulative Act+Rem ${fmt(cumF[k], 2)}`}</title>
+                    <rect x={k * CW} y={0} width={CW} height={AG} fill={k === perSel ? '#E0E3F5' : k === perDD ? '#FFF7D6' : 'transparent'}
+                      stroke={k === perSel ? '#312E81' : 'none'} strokeWidth={k === perSel ? 1.5 : 0} />
                     {a > 0 && <rect x={x} y={yBar(a)} width={w} height={AG - PAD - yBar(a)} fill="#2B7F52" />}
                     {r > 0 && <rect x={x} y={yBar(a + r)} width={w} height={yBar(a) - yBar(a + r)} fill="#F59E52" />}
                   </g>
@@ -474,7 +494,7 @@ export const VistaCashflow: React.FC<{
             </div>
             {lim.etq.map((e, k) => (
               <div key={k} data-cf-periodo={k} onClick={() => clicOrden(k)} title={`Sort by ${e} (${nombreSerieOrden}${aj.acumulado ? ', cumulative' : ''}): highest first, lowest first, original order`}
-                className={`flex items-center justify-center border-r border-[#D5DEE2] cursor-pointer hover:bg-white/70 ${k === perDD ? 'bg-[#FFE9A8]' : ''} ${ordenCol?.col === k ? 'text-[#312E81] bg-[#E0E3F5]' : ''}`} style={{ width: CW, minWidth: CW }}>{e}{flechaOrden(k)}</div>
+                className={`flex items-center justify-center border-r border-[#D5DEE2] cursor-pointer hover:bg-white/70 ${perSel === k ? 'bg-[#312E81] text-white' : k === perDD ? 'bg-[#FFE9A8]' : ''} ${perSel != null && perSel !== k ? 'text-[#9AA6AD]' : ''} ${ordenCol?.col === k && perSel !== k ? 'text-[#312E81] bg-[#E0E3F5]' : ''}`} style={{ width: CW, minWidth: CW }}>{e}{flechaOrden(k)}</div>
             ))}
           </div>
           {/* Filas */}
@@ -515,12 +535,12 @@ export const VistaCashflow: React.FC<{
                         <div className="flex items-center justify-end px-1 font-semibold" style={{ width: ANCHO_TOT }} title={fmt(total, 2)}>{fmt(total)}</div>
                         <div className="flex items-center justify-end px-1 text-[#8A6D00]" style={{ width: ANCHO_PEND }} title={datos.tot.p ? fmt(datos.tot.p, 2) : ''}>{si === 0 && Math.abs(datos.tot.p) >= 0.005 ? fmt(datos.tot.p) : ''}</div>
                       </div>
-                      {Array.from(v, (x, k) => (
-                        <div key={k} className={`flex items-center justify-end px-1 border-r border-[#EEF0F2] ${k === perDD ? 'bg-[#FFF7D6]/60' : ''} ${nivel < 0 && esNodo ? 'text-white' : ''}`}
+                      {Array.from(v, (x0, k) => { const x = perSel == null || perSel === k ? x0 : 0; return (
+                        <div key={k} className={`flex items-center justify-end px-1 border-r border-[#EEF0F2] ${perSel === k ? 'bg-[#E0E3F5]/70 font-semibold' : perSel != null ? 'bg-[#F4F5F7]/60' : k === perDD ? 'bg-[#FFF7D6]/60' : ''} ${nivel < 0 && esNodo ? 'text-white' : ''}`}
                           style={{ width: CW, minWidth: CW, color: nivel < 0 && esNodo ? undefined : Math.abs(x) >= 0.005 ? col : '#C3C3C3' }} title={`${lim.etq[k]} · ${l}: ${fmt(x, 2)}`}>
                           {Math.abs(x) >= 0.005 ? fmt(x) : ''}
                         </div>
-                      ))}
+                      ); })}
                     </div>
                   );
                 })}
