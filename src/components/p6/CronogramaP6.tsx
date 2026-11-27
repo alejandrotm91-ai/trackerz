@@ -1973,7 +1973,7 @@ export const CronogramaP6: React.FC<{ isAdmin: boolean; username?: string; activ
               }} />
           ) : (
             <VistaCashflow m={m} version={version} lineaBase={lbPorAct} nombreLB={fuenteEf === 'udf' ? 'T₃ baseline (blStartP6 / blFinishP6)' : fuenteEf === 'guardada' ? `saved baseline${lbGuardada ? ` «${lbGuardada.nombre}»` : ''}` : 'XER planned dates'}
-              campo={campoActividad} incluir={incluirCashflow} hayFiltroGlobal={hayFiltroGlobal} hojasPlanilla={hojasPlanilla} editable={editable} />
+              campo={campoActividad} incluir={incluirCashflow} hayFiltroGlobal={hayFiltroGlobal} hojasPlanilla={hojasPlanilla} editable={editable} master={actividadesMaster} />
           )}
           </div>
           {/* Barra lateral derecha: añadir actividad, importar y exportar el XER, y nivelar cuadrillas */}

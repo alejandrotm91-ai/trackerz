@@ -9,12 +9,12 @@ import React from 'react';
 import { ChevronDown, ChevronRight, Download } from 'lucide-react';
 import type { ModeloP6 } from '../../utils/p6/modelo';
 import { celda } from '../../utils/p6/xer';
-import { periodosDeEscala, type LineaBaseFilas } from '../../utils/p6/uso';
+import { periodosDeEscala, totalesCosto, type LineaBaseFilas } from '../../utils/p6/uso';
 import { calcularFlujo, esGrupoEquipo, familiasEquipo, PCT_INICIO_INSTALACION } from '../../utils/p6/cashflow';
 import { etiquetaUbicacion, type CampoAgrupacion } from '../../utils/p6/vistaEjecucion';
 import type { PlanillaItem } from '../../types';
 import { apiFetch } from '../../utils/api';
-import { cruzarCertificacion } from '../../utils/p6/certificacion';
+import { cruzarCertificacion, sinCruceCertificacion, type PartidaMaster } from '../../utils/p6/certificacion';
 
 /** Regla de ajuste del Remaining (compartida en la nube, la edita el admin). */
 interface ReglaRestante { activa: boolean; subc: string; texto: string; pct: number }
@@ -96,7 +96,9 @@ export const VistaCashflow: React.FC<{
   hojasPlanilla?: PlanillaItem[];
   /** El admin puede editar las reglas de ajuste del Remaining. */
   editable?: boolean;
-}> = ({ m, version, lineaBase, nombreLB, campo, incluir, hayFiltroGlobal, hojasPlanilla, editable }) => {
+  /** Partidas del Master (para explicar lo que no cruza con la Certificación). */
+  master?: PartidaMaster[];
+}> = ({ m, version, lineaBase, nombreLB, campo, incluir, hayFiltroGlobal, hojasPlanilla, editable, master }) => {
   const [aj, setAj] = React.useState<Ajustes>(leer);
   React.useEffect(() => { try { localStorage.setItem(LS, JSON.stringify(aj)); } catch { /* sin almacenamiento */ } }, [aj]);
   const set = <K extends keyof Ajustes>(k: K, v: Ajustes[K]) => setAj(a => ({ ...a, [k]: v }));
@@ -541,6 +543,52 @@ export const VistaCashflow: React.FC<{
     }
   };
 
+  // Lo que no cruzó entre la Certificación (Sábana EQ / EE) y T₃, con lo que dice el Master de cada H
+  const sinCruce = React.useMemo(() => {
+    if (!hojasPlanilla?.length || !certFam) return null;
+    const tot = totalesCosto(m, 'cost');
+    const costo = (i: number | null) => (i == null ? { b: 0, a: 0, r: 0 } : tot.get(celda(m.task, m.task.filas[i], 'task_id')) || { b: 0, a: 0, r: 0 });
+    return sinCruceCertificacion(m, hojasPlanilla, familiasEquipo(m, grupo), certFam, master || [], costo, i => campo(i, 'subcontratista'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m, version, hojasPlanilla, certFam, master, grupo, campo]);
+  const exportarSinCruce = async () => {
+    if (!sinCruce) return;
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    const hoja = (nombre: string, cab: [string, number, boolean?][], filas: (string | number | null)[][]) => {
+      const ws = wb.addWorksheet(nombre, { views: [{ state: 'frozen', ySplit: 1 }] });
+      ws.columns = cab.map(([, w]) => ({ width: w }));
+      const h = ws.addRow(cab.map(c => c[0]));
+      h.font = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } };
+      h.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF312E81' } }; c.alignment = { vertical: 'middle', wrapText: true }; });
+      h.height = 28;
+      for (const f of filas) {
+        const r = ws.addRow(f);
+        r.font = { size: 9 };
+        cab.forEach(([, , n], k) => { if (n) r.getCell(k + 1).numFmt = '#,##0.00'; });
+      }
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cab.length } };
+    };
+    // Resumen por motivo
+    const resumen = new Map<string, { n: number; a: number; b: number }>();
+    for (const x of sinCruce.certificacion) { const k = `Certification · ${x.motivo}`; const r = resumen.get(k) || { n: 0, a: 0, b: 0 }; r.n++; r.a += x.contrato; r.b += x.certificado; resumen.set(k, r); }
+    for (const x of sinCruce.familias) { const k = `T₃ · ${x.motivo}`; const r = resumen.get(k) || { n: 0, a: 0, b: 0 }; r.n++; r.a += x.budgeted; r.b += x.actual; resumen.set(k, r); }
+    hoja('Summary', [['Side · Reason', 90], ['Items', 10], ['Contract / Budgeted', 18, true], ['Certified / Actual', 18, true]],
+      [...resumen].map(([k, r]) => [k, r.n, r.a, r.b]));
+    hoja('Certification not in T3', [['Sábana code', 14], ['Type', 6], ['H (PARTIDA)', 16], ['Description', 50], ['Unit', 7], ['Contract', 15, true], ['Certified', 15, true], ['% certified', 10],
+      ['Qty contract', 12, true], ['Qty certified', 12, true], ['Reason', 60], ['Master Activity ID', 22], ['Master description', 45], ['Master p6 activity', 18], ['In T₃', 7], ['SubC (Master)', 16], ['Venta (Master)', 15, true]],
+      sinCruce.certificacion.map(x => [x.cod, x.tipoG, x.partida, x.desc, x.unidad, x.contrato, x.certificado, x.contrato ? `${Math.round((x.certificado / x.contrato) * 1000) / 10} %` : '',
+        x.qContrato, x.qAcum, x.motivo, x.master.map(y => y.activityId).join(' | '), [...new Set(x.master.map(y => y.desc))].join(' | '), [...new Set(x.master.map(y => y.p6).filter(Boolean))].join(' | '),
+        x.master.length ? (x.master.some(y => y.enT3) ? 'Yes' : 'No') : '', [...new Set(x.master.map(y => y.subc).filter(Boolean))].join(' | '), x.master.length ? x.master.reduce((s2, y) => s2 + y.venta, 0) : null]));
+    hoja('T3 families without cert', [['Activity ID (base)', 16], ['Name (.D)', 55], ['SubC', 14], ['32. Variacion', 16], ['Status .D / .E / .F', 34], ['Budgeted', 15, true], ['Actual', 15, true], ['Remaining', 15, true], ['Reason', 55]],
+      sinCruce.familias.map(x => [x.base, x.nombre, x.subc, x.variacion, x.estados, x.budgeted, x.actual, x.remaining, x.motivo]));
+    const buf = await wb.xlsx.writeBuffer();
+    const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `T3_certification_unmatched_${new Date().toISOString().slice(0, 10)}.xlsx`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
   if (!raiz || !nP) {
     return <div id="p6-vista-recursos" className="flex-1 flex items-center justify-center bg-white text-[#5A6A74] text-xs">No cost assignments to analyse.</div>;
   }
@@ -711,7 +759,15 @@ export const VistaCashflow: React.FC<{
           </div>
         )}
         <div id="p6-cf-planillas" className="border border-[#D5DEE2] rounded-lg px-2.5 py-1 ml-auto">
-          <div className="text-[10px] uppercase tracking-wide text-[#5A6A74] font-semibold">Certification (Planillas) vs T₃ · Equipment</div>
+          <div className="text-[10px] uppercase tracking-wide text-[#5A6A74] font-semibold flex items-center gap-2">Certification (Planillas) vs T₃ · Equipment
+            {sinCruce && (
+              <button id="p6-cf-sin-cruce" onClick={exportarSinCruce}
+                title={`Excel with what did not match between the Certification (Sábana EQ / EE) and T₃: ${sinCruce.certificacion.length} Sábana rows (certified ${fmt(sinCruce.certificacion.reduce((s2, x) => s2 + x.certificado, 0))}) with the reason and the Master items with that H (e.g. rubros of p6 activities), and ${sinCruce.familias.length} T₃ equipment families without certification`}
+                className="normal-case tracking-normal font-semibold px-1.5 py-0.5 rounded border border-[#C3C3C3] bg-white hover:bg-[#F5F8F9] text-[#312E81] cursor-pointer flex items-center gap-1">
+                <Download className="w-3 h-3" />Unmatched ({sinCruce.certificacion.length} · {sinCruce.familias.length})
+              </button>
+            )}
+          </div>
           {planilla && equipoT3 ? (
             <table className="text-[11px] mt-0.5">
               <thead><tr className="text-[#5A6A74]"><th /><th className="px-2 text-right font-medium">Planillas</th><th className="px-2 text-right font-medium">T₃</th><th className="px-2 text-right font-medium">Diff.</th></tr></thead>
