@@ -14,6 +14,8 @@
  *  - Corte de cobro de los fletes (decisión del 27-nov-2026): el cobro del flete (80 %) fechado después del día 22
  *    pasa al día 1 del mes siguiente (`aplicarCorte`; día configurable, 0 = sin corte). Solo hacia adelante: a los
  *    cobros fechados desde la fecha de datos (los meses cerrados no se tocan). No afecta a la instalación ni a lo demás.
+ *  - WBS «D» (pendientes de confirmar por el Ingeniero, fechas provisionales): todo su Remaining se cobra en un solo
+ *    pago el día 1 del mes siguiente a la fecha comodín `FIN_LB_PROVISIONAL` (30-abr-2027 → 1-may-2027).
  *  - Ajustes de remaining (`factorRestante`): a las actividades que cumplen una regla (p. ej. adoquinado de Juana 60 %,
  *    cableado de EECOL 75 %) se les deja cada período de Remaining en ese % y lo descontado va a su último período
  *    con Remaining (el total no cambia).
@@ -29,6 +31,7 @@
  */
 import { celda } from './xer';
 import type { ModeloP6 } from './modelo';
+import { FIN_LB_PROVISIONAL } from './lineaBase';
 import { repartir, totalesCosto, ventanasCosto, type LineaBaseFilas, type TramoUso, type UsoActividad } from './uso';
 
 export interface FlujoActividad extends UsoActividad {
@@ -182,6 +185,33 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
     const e = porAct.get(j) ?? {};
     put(j, { ...e, b: sumarTramos(e.b, u.b), a: sumarTramos(e.a, u.a), r: sumarTramos(e.r, u.r) });
   }
+  // WBS «D» (pendientes de confirmar por el Ingeniero, fechas provisionales 30-abr-27): todo su Remaining se cobra
+  // en un solo pago el día 1 del mes siguiente a la fecha comodín FIN_LB_PROVISIONAL (1-may-2027). Decisión del 27-nov-2026.
+  const w = m.xer.tablas.get('PROJWBS');
+  const nodo = new Map((w?.filas || []).map(f => [celda(w!, f, 'wbs_id'), { padre: celda(w!, f, 'parent_wbs_id'), cod: celda(w!, f, 'wbs_short_name') }]));
+  const enD = new Map<string, boolean>();
+  const esWbsD = (id: string): boolean => {
+    if (enD.has(id)) return enD.get(id)!;
+    const ruta: string[] = [];
+    for (let x = nodo.get(id); x; x = nodo.get(x.padre)) ruta.unshift(x.cod);
+    const r = ruta[1] === 'D';
+    enD.set(id, r);
+    return r;
+  };
+  const pendientesD: number[] = [];
+  for (const i of porAct.keys()) if (esWbsD(celda(t, t.filas[i], 'wbs_id'))) pendientesD.push(i);
+  if (pendientesD.length) {
+    // Mes siguiente a la fecha comodín de las partidas provisionales (30-abr-2027 → 1-may-2027)
+    const d = new Date(`${FIN_LB_PROVISIONAL}T00:00:00Z`);
+    const cobro = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 60000;
+    for (const i of pendientesD) {
+      const u = porAct.get(i)!;
+      if (!u.r) continue;
+      const tot = u.r.vals.reduce((a, b) => a + b, 0);
+      porAct.set(i, { ...u, r: tot ? repartir(tot, cobro, cobro, lim) : undefined });
+    }
+  }
+
   // Ajustes de remaining: cada período al factor y el saldo al último período con Remaining
   if (factorRestante) {
     for (const [i, u] of porAct) {
