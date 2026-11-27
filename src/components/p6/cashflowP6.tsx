@@ -50,8 +50,10 @@ interface Ajustes {
   corteFlete: number;
   /** Remaining de equipos según la Certificación (Planillas). */
   remCert: boolean;
+  /** Equipos terminados y certificados: sin Remaining (error de cuantificación). */
+  sinRemTerminados: boolean;
 }
-const AJUSTES_DEF: Ajustes = { agrupar: 'tipo', nivelesWbs: 3, escala: 'months', series: ['b', 'a', 'r'], acumulado: false, regla: true, ambito: 'todo', subcEquipo: true, corteFlete: 22, remCert: true };
+const AJUSTES_DEF: Ajustes = { agrupar: 'tipo', nivelesWbs: 3, escala: 'months', series: ['b', 'a', 'r'], acumulado: false, regla: true, ambito: 'todo', subcEquipo: true, corteFlete: 22, remCert: true, sinRemTerminados: true };
 const LS = 'p6.cashflow';
 const leer = (): Ajustes => { try { return { ...AJUSTES_DEF, ...JSON.parse(localStorage.getItem(LS) || '{}') }; } catch { return AJUSTES_DEF; } };
 
@@ -187,9 +189,9 @@ export const VistaCashflow: React.FC<{
   }, [m, version, aj.escala, lineaBase]);
   const nP = Math.max(0, lim.t.length - 1);
 
-  const flujo = React.useMemo(() => (nP ? calcularFlujo(m, lim.t, lineaBase, grupo, aj.regla, aj.corteFlete || null, factorRestante, aj.remCert && certFam ? certFam : undefined) : null),
+  const flujo = React.useMemo(() => (nP ? calcularFlujo(m, lim.t, lineaBase, grupo, aj.regla, aj.corteFlete || null, factorRestante, aj.remCert && certFam ? certFam : undefined, aj.sinRemTerminados) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [m, version, lim, lineaBase, grupo, aj.regla, aj.corteFlete, factorRestante, aj.remCert, certFam]);
+    [m, version, lim, lineaBase, grupo, aj.regla, aj.corteFlete, factorRestante, aj.remCert, certFam, aj.sinRemTerminados]);
 
   // Rutas WBS (código + nombre) de cada actividad
   const rutaWbs = React.useMemo(() => {
@@ -548,14 +550,20 @@ export const VistaCashflow: React.FC<{
         <label className="flex items-center gap-1 cursor-pointer" title={`Equipment billing rule: the purchase (.D, 60 %) is certified together with the freight (.E, 20 %) — the whole 80 % on the day the freight starts; the installation (.F, 20 %) in two milestones: ${PI} % on its start day and ${PF} % on its finish day. Off = cost as executed.`}>
           <input id="p6-cf-regla" type="checkbox" checked={aj.regla} onChange={e => set('regla', e.target.checked)} />Equipment billing (80 % freight · {PI}/{PF} installation)
         </label>
-        <div className="relative">
+        <div className="relative flex items-center gap-2">
           <button id="p6-cf-reglas" onClick={() => setVerReglas(v => !v)}
             title="Remaining adjustments: for the activities of a SubC (and text in the name or SCAP) each period of Remaining is kept at a % and the rest goes to their last period"
             className={`px-2 py-0.5 rounded border text-[11px] cursor-pointer ${reglas.some(r => r.activa) ? 'bg-[#FFF2C2] border-[#E3B505] text-[#6B5200]' : 'bg-white border-[#C3C3C3]'}`}>
             Remaining adj. ({reglas.filter(r => r.activa).length})
           </button>
+          <label className={`flex items-center gap-1 ${aj.remCert && certFam ? 'cursor-pointer' : 'opacity-50'}`}
+            title={`Finished & certified: an equipment item finished in T₃ (purchase, freight and installation completed) that has a certification has no Remaining — what is not certified is a quantification error (e.g. 16.8.4.1). Needs «Remaining from Certification».${flujo?.anuladas.size ? ` ${flujo.anuladas.size} items, ${fmt([...flujo.anuladas.values()].reduce((a, b) => a + b, 0))} removed from Remaining.` : ''}`}>
+            <input id="p6-cf-sin-rem-terminados" type="checkbox" disabled={!aj.remCert || !certFam} checked={aj.sinRemTerminados}
+              onChange={e => set('sinRemTerminados', e.target.checked)} />
+            Finished &amp; certified → no remaining{flujo?.anuladas.size ? ` (${flujo.anuladas.size} · ${fmt([...flujo.anuladas.values()].reduce((a, b) => a + b, 0), 0)})` : ''}
+          </label>
           {verReglas && (
-            <div id="p6-cf-reglas-panel" className="absolute right-0 top-full mt-1 z-[30] bg-white border border-[#C3C3C3] rounded-lg shadow-xl p-3 w-[640px] text-[11px]" onClick={e => e.stopPropagation()}>
+            <div id="p6-cf-reglas-panel" className="absolute left-0 top-full mt-1 z-[30] bg-white border border-[#C3C3C3] rounded-lg shadow-xl p-3 w-[640px] text-[11px]" onClick={e => e.stopPropagation()}>
               <div className="font-semibold text-[12px] mb-1">Remaining adjustments</div>
               <div className="text-[#5A6A74] mb-2">For each activity of the SubC whose name or SCAP contains the text, every period of its <b>Remaining</b> is kept at the % and the rest is moved to its last period with Remaining (the total does not change). Budgeted and Actual are not touched. Shared with everyone{editable ? '' : ' · only the admin can change them'}.</div>
               <table className="w-full border-collapse">

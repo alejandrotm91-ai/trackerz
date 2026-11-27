@@ -15,7 +15,9 @@
  *    certificado de cada familia, lo que falta del 80 % se cobra al inicio del flete (vencido → mes siguiente a la
  *    fecha de datos) y lo que falta del 20 % con la regla de la instalación; el Actual de la .E es lo certificado hasta
  *    el 80 % y el de la .F lo que pase (fechas de T₃ escaladas o, sin Actual en T₃, la fecha de datos), de modo que
- *    Actual + Remaining = Budgeted de la familia; las familias sin cruce siguen con T₃.
+ *    Actual + Remaining = Budgeted de la familia; las familias sin cruce siguen con T₃. Opción `sinRestanteTerminadas`:
+ *    una familia terminada en T₃ (.D, .E y .F completadas) y con certificación no tiene Remaining (lo no certificado
+ *    es un error de cuantificación); `anuladas` guarda lo retirado.
  *  - Corte de cobro de los fletes (decisión del 27-nov-2026): el cobro del flete (80 %) fechado después del día 22
  *    pasa al día 1 del mes siguiente (`aplicarCorte`; día configurable, 0 = sin corte). Solo hacia adelante: a los
  *    cobros fechados desde la fecha de datos (los meses cerrados no se tocan). No afecta a la instalación ni a lo demás.
@@ -52,6 +54,11 @@ export interface ResultadoFlujo {
   instalaciones: Set<number>;
   /** Actividades (.E y .F) cuyo Remaining sale de la Certificación. */
   certificadas: Set<number>;
+  /**
+   * Familias terminadas en T₃ y con certificación cuyo saldo sin certificar se anula (error de cuantificación):
+   * índice de la .D → importe retirado del Remaining.
+   */
+  anuladas: Map<number, number>;
   /** Totales de cada actividad (b, a, r) por índice de fila. */
   totales: Map<number, { b: number; a: number; r: number }>;
 }
@@ -105,7 +112,7 @@ export function aplicarCorte(min: number, dia: number | null | undefined): numbe
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / 60000;
 }
 
-export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean, corteFlete: number | null = 22, factorRestante?: (i: number) => number | null, certificacion?: Map<number, { p: number; iF: number | null }>): ResultadoFlujo {
+export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, grupo: (i: number) => string, reglaCobro: boolean, corteFlete: number | null = 22, factorRestante?: (i: number) => number | null, certificacion?: Map<number, { p: number; iF: number | null }>, sinRestanteTerminadas = false): ResultadoFlujo {
   const t = m.task;
   const tot = totalesCosto(m, 'cost');
   const totales = new Map<number, { b: number; a: number; r: number }>();
@@ -201,6 +208,7 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
   // el mes siguiente). Reemplaza el Remaining de la .D, la .E y la .F y ajusta su Actual a lo certificado; Budgeted y
   // «sin certificar» no cambian.
   const certificadas = new Set<number>();
+  const anuladas = new Map<number, number>();
   if (certificacion && reglaCobro) {
     const dDatos = new Date(m.fechaDatos * 60000);
     const sig = Date.UTC(dDatos.getUTCFullYear(), dDatos.getUTCMonth() + 1, 1) / 60000;
@@ -213,10 +221,15 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
       const p = Math.max(0, c.p);
       const wE = ventanasCosto(m, iE, lb);
       const fFlete = wE.estado === 'TK_NotStart' ? (wE.r?.[0] ?? sig) : sig;
-      const remFlete = Math.max(0, 0.8 - p) * V;
+      // Terminada en T₃ (compra, flete e instalación) y con certificación: lo que falte por certificar es un error de
+      // cuantificación y no se cobra (decisión del 28-nov-2026, casilla en la vista)
+      const terminada = [iD, iE, c.iF].every(i => i == null || ventanasCosto(m, i, lb).estado === 'TK_Complete');
+      const anular = sinRestanteTerminadas && terminada && p > 0;
+      const remFlete = anular ? 0 : Math.max(0, 0.8 - p) * V;
       const pi = Math.min(1, Math.max(0, (p - 0.8) / 0.2));
-      const remIni = Math.max(0, PCT_INICIO_INSTALACION - pi) * 0.2 * V;
-      const remFin = Math.max(0, 1 - Math.max(pi, PCT_INICIO_INSTALACION)) * 0.2 * V;
+      const remIni = anular ? 0 : Math.max(0, PCT_INICIO_INSTALACION - pi) * 0.2 * V;
+      const remFin = anular ? 0 : Math.max(0, 1 - Math.max(pi, PCT_INICIO_INSTALACION)) * 0.2 * V;
+      if (anular && p < 1) anuladas.set(iD, (1 - p) * V);
       let rE = remFlete > 0.005 ? ptFlete(remFlete, [fFlete, fFlete]) : undefined;
       const d = porAct.get(iD);
       if (d?.r) porAct.set(iD, { ...d, r: undefined });
@@ -290,5 +303,5 @@ export function calcularFlujo(m: ModeloP6, lim: number[], lb: LineaBaseFilas, gr
       porAct.set(i, { ...u, r: { desde: u.r.desde, vals } });
     }
   }
-  return { porAct, familias, totales, instalaciones, certificadas };
+  return { porAct, familias, totales, instalaciones, certificadas, anuladas };
 }
