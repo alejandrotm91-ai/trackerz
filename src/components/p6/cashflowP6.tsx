@@ -21,6 +21,7 @@ interface ReglaRestante { activa: boolean; subc: string; texto: string; pct: num
 const DOC_REGLAS = '/api/docs/p6_cashflow_ajustes';
 const REGLAS_DEF: ReglaRestante[] = [
   { activa: true, subc: 'Juana', texto: 'adoqu', pct: 60 },
+  { activa: true, subc: 'Juana', texto: 'canaleta', pct: 60 },
   { activa: true, subc: 'EECOL', texto: 'cablead', pct: 75 },
 ];
 const normTxt = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
